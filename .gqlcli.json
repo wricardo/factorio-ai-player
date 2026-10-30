@@ -1,0 +1,8 @@
+{
+  "default": "local",
+  "environments": {
+    "local": {
+      "url": "http://127.0.0.1:8080/query"
+    }
+  }
+}

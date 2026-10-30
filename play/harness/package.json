@@ -1,0 +1,25 @@
+{
+  "name": "factorio-agents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pi Durable harness for Factorio: planner / foreman / worker agents over GraphQL + beads tickets",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node --experimental-strip-types src/main.ts",
+    "models": "node --experimental-strip-types src/list-models.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@earendil-works/chord": "^1.4.0",
+    "@earendil-works/pi-ai": "^1.4.0",
+    "@earendil-works/pi-durable": "^1.4.0",
+    "@wricardo/gqlcli": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,83 @@
+extend type Query {
+  "Networks represented by poles inside the selected area. Statistics cover each entire network, including outside the area."
+  electricNetworks(input: PowerInsightsInput = {}): ElectricNetworkPage!
+  "Electric energy-source entities and power infrastructure in the selected area."
+  powerConsumers(input: PowerInsightsInput = {}): PowerEntityPage!
+}
+
+input PowerInsightsInput {
+  """Surface and force must be non-empty names of existing objects."""
+  surface: String! = "nauvis"
+  force: String! = "player"
+  """Optional finite bounds; left/top must not exceed right/bottom. Omit to scan the surface."""
+  area: FactoryAreaInput
+  """Page size from 1 through 1000."""
+  limit: Int! = 100
+  """Zero-based, non-negative page offset."""
+  offset: Int! = 0
+}
+
+type ElectricNetworkPage {
+  tick: Float!
+  surface: String!
+  force: String!
+  """Number of matching networks before pagination; ordered by numeric network ID."""
+  total: Int!
+  limit: Int!
+  offset: Int!
+  networks: [ElectricNetworkInsight!]!
+}
+
+type ElectricNetworkInsight {
+  id: ID!
+  "Number of selected force's poles in the area; not a whole-network count."
+  polesInArea: Int!
+  "Average production over the past minute, watts at 60 ticks/second. Includes the entire network."
+  productionWatts: Float!
+  "Average consumption over the past minute, watts at 60 ticks/second. Includes the entire network."
+  consumptionWatts: Float!
+  "Current satisfaction is not exposed by the runtime API."
+  satisfaction: Float
+}
+
+type PowerEntityPage {
+  tick: Float!
+  surface: String!
+  force: String!
+  """Number of matching entities before pagination."""
+  total: Int!
+  limit: Int!
+  offset: Int!
+  powerEntities: [PowerEntityInsight!]!
+}
+
+type PowerEntityInsight {
+  name: String!
+  type: String!
+  position: Position!
+  unitNumber: ID
+  status: String
+  networkId: ID
+  "Engine predicate: connected to a network containing at least one power-producing entity; false does not necessarily mean no network."
+  connectedToProducingNetwork: Boolean
+  "Current stored entity energy in joules, when available."
+  energyJoules: Float
+  "Electric energy buffer capacity in joules, when applicable."
+  electricBufferJoules: Float
+  "Electric drain in joules per tick, when applicable."
+  electricDrainJoulesPerTick: Float
+  "Entity temperature in degrees Celsius, when applicable."
+  temperatureCelsius: Float
+  "Remaining energy in the currently burning fuel, in joules."
+  burningFuelJoules: Float
+  "Fluid box contents; each entry is one occupied box."
+  powerFluids: [PowerFluidInsight!]!
+}
+
+type PowerFluidInsight {
+  """One-based fluid box index."""
+  box: Int!
+  name: String!
+  amount: Float!
+  temperatureCelsius: Float!
+}

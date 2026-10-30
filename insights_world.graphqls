@@ -1,0 +1,50 @@
+extend type Query {
+  """Observe supported logistics entities belonging to the selected force in a bounded area."""
+  worldLogistics(input: WorldLogisticsInput!): WorldLogisticsPage!
+  """Observe resources, obstacles and water-collision tiles in a bounded area, with nearby selected-force drills."""
+  worldResources(input: WorldResourcesInput!): WorldResourcesPage!
+  """Ask the engine whether an entity prototype can be placed at a position."""
+  worldPlacement(input: WorldPlacementInput!): WorldPlacementResult!
+  """Sample engine placement legality for one prototype on every tile center of a bounded area; returns only the blocked tiles."""
+  probePlacement(input: PlacementProbeInput!): PlacementProbeResult!
+}
+
+"""Area coordinates must be finite; positive dimensions must each be at most 256 tiles. Limit is 1 through 1000; offset is zero-based and non-negative. Type, if non-empty, must be a supported logistics entity type."""
+input WorldLogisticsInput { surface: String! = "nauvis" force: String! = "player" area: FactoryAreaInput! type: String limit: Int! = 100 offset: Int! = 0 }
+"""Area has the same bounds and pagination constraints as WorldLogisticsInput. Drill radius is finite and between 0 and 100 tiles. Resource name filters resources only, not obstacles or water. Kinds, when non-empty, keeps only the listed entry kinds (resource, tree, cliff, simple-entity, water) and narrows total; the resource, obstacle and water partition totals stay unfiltered counts for the whole area. GroupPatches clusters matching resource entities into connected patches regardless of the kinds filter."""
+input WorldResourcesInput { surface: String! = "nauvis" force: String! = "player" area: FactoryAreaInput! resourceName: String drillRadius: Float! = 10 kinds: [String!] groupPatches: Boolean! = false limit: Int! = 100 offset: Int! = 0 }
+"""Surface, force and prototype must be non-empty and exist; coordinates must be finite and direction must be between 0 and 15."""
+input WorldPlacementInput { surface: String! = "nauvis" force: String! = "player" prototype: String! x: Float! y: Float! direction: Int! = 0 }
+"""Selects which result list a placement probe fills. BLOCKED_TILES reports every refused tile with its blockers. GRID reports a compact row-major placeability map. SITES reports the largest non-overlapping empty tile rectangles that are at least siteWidth by siteHeight, largest first."""
+enum PlacementProbeMode { BLOCKED_TILES GRID SITES }
+"""Surface, force and prototype must be non-empty and exist; direction must be between 0 and 15. Area bounds match WorldResourcesInput, but the sampled tile count may not exceed 16384. Site width and height are site tile counts and must be at least 1 and at most the area dimensions; maxSites is 1 through 200."""
+input PlacementProbeInput { surface: String! = "nauvis" force: String! = "player" prototype: String! direction: Int! = 0 area: FactoryAreaInput! mode: PlacementProbeMode! = BLOCKED_TILES siteWidth: Float! = 1 siteHeight: Float! = 1 maxSites: Int! = 50 }
+
+type WorldArea { leftTopX: Float! leftTopY: Float! rightBottomX: Float! rightBottomY: Float! }
+type WorldLane { index: Int! items: [ItemStack!]! }
+"""One-based fluid box index and capacity; name, amount and temperature are null for an empty box."""
+type WorldFluid { index: Int! name: String amount: Float temperature: Float capacity: Float! }
+type WorldInventory { kind: String! items: [ItemStack!]! }
+type WorldLogisticsEntity { name: String! type: String! position: Position! direction: Int! unitNumber: ID status: String lanes: [WorldLane!]! heldStack: ItemStack pickupPosition: Position dropPosition: Position fluids: [WorldFluid!]! worldInventories: [WorldInventory!]! }
+"""Inserters whose actual pickup or drop target is the inspected entity, read in a separate game snapshot."""
+type InspectionLogistics { tick: Float! inserters: [ConnectedInserter!]! }
+type ConnectedInserter { inserter: LogisticsEndpoint! pickup: LogisticsEndpoint drop: LogisticsEndpoint }
+"""An inserter or its actual target; lanes are populated for transport belts."""
+type LogisticsEndpoint { name: String! type: String! position: Position! unitNumber: ID status: String pickupPosition: Position dropPosition: Position heldStack: ItemStack lanes: [WorldLane!]! }
+"""Total counts matching logistics entities before pagination."""
+type WorldLogisticsPage { tick: Float! surface: String! force: String! area: WorldArea! total: Int! limit: Int! offset: Int! logisticsEntities: [WorldLogisticsEntity!]! }
+type WorldDrill { name: String! position: Position! unitNumber: ID }
+"""Resource entities, trees, cliffs, simple entities and water-collision tiles. Nearby drills are distance matches, not proof of mining coverage."""
+type WorldResourceEntry { kind: String! name: String! position: Position! amount: Float requiredFluid: String fluidAmount: Float nearbyDrills: [WorldDrill!]! }
+"""Totals count matching entries before pagination; resource, obstacle and water totals partition them. Patches are connected resource-entity clusters at least one tile apart from each other, sorted by total amount descending."""
+type WorldResourcesPage { tick: Float! surface: String! force: String! area: WorldArea! drillRadius: Float! total: Int! resourceTotal: Int! obstacleTotal: Int! waterTotal: Int! limit: Int! offset: Int! worldEntries: [WorldResourceEntry!]! patches: [ResourcePatch!]! }
+"""One connected resource patch. Bounds and centroid are computed from resource entity positions; nearby drills sit inside the bounds expanded by the request drill radius."""
+type ResourcePatch { name: String! tiles: Int! totalAmount: Float! bounds: WorldArea! centroid: Position! nearbyDrills: [WorldDrill!]! }
+"""Engine collision/build check only; does not check player reach, inventory or research."""
+type WorldPlacementResult { tick: Float! surface: String! force: String! prototype: String! position: Position! direction: Int! canPlace: Boolean! }
+"""Totals of one placement probe over a tile grid; blockedTiles lists only the tiles where the engine refused placement. rows is the GRID placeability map: one string per tile row, top row first, one character per tile (1 placeable, 0 blocked). sites lists SITES rectangles largest first, origin is the top-left tile corner, and rectangles never overlap."""
+type PlacementProbeResult { tick: Float! surface: String! force: String! prototype: String! direction: Int! area: WorldArea! sampled: Int! placeable: Int! blocked: Int! blockedTiles: [PlacementBlockedTile!]! rows: [String!]! sites: [PlacementSite!]! }
+"""One empty tile rectangle: width and height in whole tiles starting at the origin tile corner."""
+type PlacementSite { origin: Position! width: Float! height: Float! }
+"""One refused tile. Blockers are colliding entity prototype names, terrain is true when the tile itself blocks this prototype, and tile is the ground tile prototype name."""
+type PlacementBlockedTile { position: Position! blockers: [String!]! terrain: Boolean! tile: String! }

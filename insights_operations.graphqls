@@ -1,0 +1,119 @@
+extend type Query {
+  """Current research's nominal remaining science demand and observed stock on one surface. No production-rate estimate."""
+  scienceBudget(force: String! = "player", surface: String! = "nauvis"): ScienceBudget!
+  """Entity/tile ghosts and item-request proxies in a bounded area. Material availability is observed container and character main-inventory stock in that area, not construction logistics or reach."""
+  ghosts(input: GhostsInput!): GhostsPage!
+}
+
+extend type EntityInspection {
+  """Required current-research ingredients absent or below one research unit in this lab. Empty for non-labs or no active science research. Separate snapshot."""
+  missingSciencePacks: [MissingSciencePack!]! @goField(forceResolver: true)
+  """Engine fluidbox connectivity, without implicit links between different boxes on a machine or pump. Separate snapshot."""
+  fluidNetwork(maxBoxes: Int! = 1000): FluidNetwork! @goField(forceResolver: true)
+}
+
+type ScienceBudget {
+  tick: Float!
+  force: String!
+  surface: String!
+  technology: String
+  """Null without active research."""
+  progress: Float
+  researchUnits: Float
+  remainingResearchUnits: Float
+  """True for research driven by a trigger rather than lab science."""
+  triggerResearch: Boolean!
+  labCount: Int!
+  """Labs missing at least one required pack or unable to accept it."""
+  missingPackLabCount: Int!
+  """Stock scope: container/logistic-container/infinity-container, lab inputs and character main inventories on this force/surface; excludes belts, ground items, cargo, inaccessible inventories and transit. Counts actual items, not durability or quality-adjusted research value."""
+  sciencePacks: [SciencePackBudget!]!
+}
+
+type SciencePackBudget {
+  name: String!
+  perResearchUnit: Int!
+  """Ceiling of remainingResearchUnits times ingredient amount. Nominal baseline, not exact future consumption: ignores productivity, lab drain and quality/durability bonuses."""
+  nominalPacksLeft: Float!
+  availableItems: Float!
+  nominalShortfall: Float!
+  missingLabCount: Int!
+  unsupportedLabCount: Int!
+}
+
+type MissingSciencePack {
+  name: String!
+  required: Int!
+  available: Float!
+  missing: Float!
+  """False means this lab prototype cannot accept this research ingredient."""
+  supported: Boolean!
+}
+
+input GhostsInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  """Finite positive dimensions, at most 256 tiles per side."""
+  area: FactoryAreaInput!
+  limit: Int! = 100
+  offset: Int! = 0
+}
+
+type GhostsPage {
+  tick: Float!
+  surface: String!
+  force: String!
+  area: WorldArea!
+  total: Int!
+  limit: Int!
+  offset: Int!
+  """Independent per-entry availability. Same stock can satisfy multiple entries; no reservations or promise that whole backlog can be built."""
+  ghostEntries: [GhostBacklogEntry!]!
+}
+
+type GhostBacklogEntry {
+  id: ID!
+  unitNumber: ID
+  kind: String!
+  name: String!
+  quality: String!
+  position: Position!
+  """Alternative items_to_place_this entries, not additive requirements. Counts come from prototype, quality from ghost. First alternative is construction robots' normal choice."""
+  placementAlternatives: [GhostMaterial!]!
+  """Engine item_requests for ghost/proxy, including requested modules and quality; additive requirements."""
+  requestedMaterials: [GhostMaterial!]!
+  """Materials for one placement alternative plus all requests available in observed area stock. False without a placement alternative except for item-request proxies. Does not assert robot coverage, collisions, research, reach or delivery."""
+  buildable: Boolean!
+}
+
+type GhostMaterial {
+  name: String!
+  quality: String!
+  count: Float!
+  available: Float!
+  missing: Float!
+}
+
+type FluidNetwork {
+  tick: Float!
+  surface: String!
+  """Hard bound on visited fluidbox nodes, from 1 to 10000."""
+  maxBoxes: Int!
+  visitedBoxes: Int!
+  truncated: Boolean!
+  """All seed fluidboxes of inspected entity; separate boxes are never joined merely because they share an owner. Pumps thus remain boundaries between input/output segments."""
+  rootBoxIds: [ID!]!
+  fluidEntities: [FluidNetworkEntity!]!
+  fluidBoxes: [FluidNetworkBox!]!
+  fluidConnections: [FluidNetworkConnection!]!
+  """Unique engine fluid segments, or individual non-segment boxes. Each counted once even when several listed boxes share it. Segment totals include full storage of that segment, even if node traversal is truncated."""
+  fluidSegments: [FluidNetworkSegment!]!
+  totalAmount: Float!
+  totalCapacity: Float!
+}
+
+type FluidNetworkEntity { id: ID! unitNumber: ID name: String! type: String! surface: String! force: String! position: Position! }
+type FluidNetworkBox { id: ID! entityId: ID! index: Int! segmentId: ID! }
+type FluidNetworkConnection { fromBoxId: ID! toBoxId: ID! flowDirection: String! connectionType: String! }
+type FluidNetworkSegment { id: ID! engineSegmentId: ID capacity: Float! segmentFluids: [FluidNetworkAmount!]! }
+type FluidNetworkAmount { name: String! amount: Float! }

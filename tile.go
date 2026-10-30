@@ -1,0 +1,89 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"math"
+	"strconv"
+)
+
+// placeTile replaces one tile using a tile item after checking the item's
+// prototype placement condition. Base tile items have condition size 1.
+func placeTile(r *Resolver, input PlaceTileInput) (*PlaceTileResult, error) {
+	player, character := "", uint64(0)
+	if input.Player != nil {
+		player = *input.Player
+	}
+	if input.Character != nil {
+		parsed, err := strconv.ParseUint(*input.Character, 10, 32)
+		if err != nil || parsed == 0 {
+			return nil, errors.New("character must be a unit number from 1 to 4294967295")
+		}
+		character = parsed
+	}
+	if (player == "") == (character == 0) {
+		return nil, errors.New("exactly one of player or character is required")
+	}
+	surface := "nauvis"
+	if input.Surface != nil {
+		if *input.Surface == "" {
+			return nil, errors.New("surface must not be empty")
+		}
+		surface = *input.Surface
+	}
+	if input.Item == "" {
+		return nil, errors.New("item must not be empty")
+	}
+	if math.IsNaN(input.X) || math.IsInf(input.X, 0) || math.IsNaN(input.Y) || math.IsInf(input.Y, 0) {
+		return nil, errors.New("coordinates must be finite")
+	}
+	lua := luaFail + fmt.Sprintf(`local player=%s; local unit=%d; local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
+local position={x=%s,y=%s}; local item=%s
+local tile_item=prototypes.item[item]; if not tile_item then fail("item prototype not found"); return end
+local placement=tile_item.place_as_tile_result; if not placement then fail("item does not place a tile"); return end
+local result_tile=placement.result; if not result_tile then fail("tile result not found"); return end
+local size=placement.condition_size or 1; if size~=1 then fail("tile condition size is not supported"); return end
+local actor; local c
+if unit~=0 then
+  actor=game.get_entity_by_unit_number(unit); if not actor or actor.type~="character" then fail("character not found"); return end; c=actor
+else
+  actor=game.get_player(player); if not actor then fail("player not found"); return end; c=actor.character; if not c then fail("player has no character"); return end
+end
+if c.surface~=s then fail("actor is on another surface"); return end
+local dx=c.position.x-position.x; local dy=c.position.y-position.y
+if dx*dx+dy*dy>c.build_distance*c.build_distance then fail("position is out of build reach"); return end
+local tile=s.get_tile(position); if not tile then fail("tile is not available at position"); return end
+local allowed
+local conditions=placement.tile_condition
+if conditions and #conditions>0 then
+  allowed=false
+  for _,condition in ipairs(conditions) do if condition.name==tile.name then allowed=true; break end end
+else
+  local hit=false
+  local connector=placement.condition
+  if connector and connector.layers then
+    for layer,enabled in pairs(connector.layers) do if enabled and tile.collides_with(layer) then hit=true; break end end
+  end
+  allowed=(hit==(placement.invert or false))
+end
+if not allowed then fail("tile cannot be placed on current tile"); return end
+if #s.find_entities_filtered{area={{x=position.x-0.5,y=position.y-0.5},{x=position.x+0.5,y=position.y+0.5}},limit=1}>0 then fail("tile position is blocked by an entity"); return end
+local inv=actor.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end
+if inv.get_item_count({name=item,quality="normal"})<1 then fail("actor lacks item"); return end
+if inv.remove{name=item,quality="normal",count=1}~=1 then fail("could not remove item"); return end
+s.set_tiles({{name=result_tile.name,position=position}})
+local placed=s.get_tile(position); if not placed or placed.name~=result_tile.name then inv.insert{name=item,quality="normal",count=1}; fail("tile placement failed; item returned"); return end
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,tile=placed.name,position=position}))`,
+		luaString(player), character, luaString(surface),
+		strconv.FormatFloat(input.X, 'g', -1, 64), strconv.FormatFloat(input.Y, 'g', -1, 64), luaString(input.Item))
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
+		return nil, err
+	}
+	result, err := factoryDecode[PlaceTileResult](response)
+	if err != nil {
+		return nil, err
+	}
+	announceMutation(r, input.Message, "placed tile "+result.Tile+positionText(result.Position))
+	return result, nil
+}

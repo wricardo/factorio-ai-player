@@ -1,0 +1,444 @@
+"""An item filter with optional quality and comparator."""
+type ItemFilter {
+  name: String!
+  """Quality prototype name; null for filters that carry no quality."""
+  quality: String
+  """Comparator used by filters that compare instead of matching a name, such as splitters."""
+  comparator: String
+}
+
+"""RGBA color with components from 0 to 1."""
+type Color {
+  r: Float!
+  g: Float!
+  b: Float!
+  a: Float!
+}
+
+"""Splitter filter and lane priorities."""
+type SplitterSettings {
+  filter: ItemFilter
+  """none, left, or right."""
+  inputPriority: String!
+  """none, left, or right."""
+  outputPriority: String!
+}
+
+"""Lamp color and circuit-driven color state."""
+type LampSettings {
+  color: Color!
+  alwaysOn: Boolean!
+  """True when the lamp takes its color from circuit signals."""
+  useColors: Boolean!
+  """Engine lamp color mode; 0 means no circuit color check."""
+  colorMode: Int!
+}
+
+"""Bar limit of one container inventory."""
+type ContainerSettings {
+  inventory: String!
+  """Number of allowed slots; 0 means no limit."""
+  bar: Int!
+  """Total slots of the inventory."""
+  capacity: Int!
+}
+
+"""One logistic request slot."""
+type LogisticRequestSlot {
+  index: Int!
+  name: String
+  quality: String
+  min: Float!
+  max: Float!
+}
+
+"""One logistic request section of a container."""
+type LogisticSection {
+  index: Int!
+  slots: [LogisticRequestSlot!]!
+}
+
+"""Logistic request sections configured on a container."""
+type LogisticSettings {
+  sections: [LogisticSection!]!
+}
+
+"""Train stop name, train limit, priority and color."""
+type TrainStopSettings {
+  backerName: String!
+  trainsLimit: Int!
+  priority: Int!
+  color: Color
+}
+
+"""Rocket silo payload progress and launch configuration."""
+type RocketSiloSettings {
+  rocketParts: Int!
+  """Engine defines.rocket_silo_status value."""
+  rocketSiloStatus: Int!
+  sendToOrbitAutomatically: Boolean!
+}
+
+"""Raw control behavior settings and the writable flags this behavior exposes. Null fields mean the behavior has no such setting."""
+type CircuitBehaviorSettings {
+  behaviorType: Int!
+  enabled: Boolean
+  circuitEnableDisable: Boolean
+  circuitCondition: InserterCondition
+  logisticCondition: InserterCondition
+  readContents: Boolean
+  setRecipe: Boolean
+  readIngredients: Boolean
+  readWorking: Boolean
+  """Mining drill: read resource amounts instead of contents."""
+  readResources: Boolean
+  """Mining drill: defines.control_behavior.mining_drill.resource_read_mode."""
+  resourceReadMode: Int
+  readAmmo: Boolean
+  readLogistics: Boolean
+  readRobotStats: Boolean
+  """Roboport: defines.control_behavior.roboport.read_items_mode."""
+  readItemsMode: Int
+  setFilters: Boolean
+  readHandContents: Boolean
+  setStackSize: Boolean
+  connectToLogisticNetwork: Boolean
+  useColors: Boolean
+  colorMode: Int
+  lampColor: Color
+  """Splitter: circuit controls the filter."""
+  setFilter: Boolean
+  splitterInputSide: Boolean
+  splitterOutputSide: Boolean
+  inputLeftCondition: InserterCondition
+  inputRightCondition: InserterCondition
+  outputLeftCondition: InserterCondition
+  outputRightCondition: InserterCondition
+  """Train stop: circuit flags."""
+  sendToTrain: Boolean
+  readFromTrain: Boolean
+  readStoppedTrain: Boolean
+  trainsLimitSignal: InserterSignal
+  prioritySignal: InserterSignal
+  """Rocket silo: defines.control_behavior.rocket_silo.read_mode."""
+  siloReadMode: Int
+}
+
+"""Post-write configuration of one entity, read in the same game tick. Sections are null for prototypes that do not support them."""
+type SettingsResult {
+  tick: Float!
+  surface: String!
+  name: String!
+  unitNumber: ID
+  position: Position!
+  splitter: SplitterSettings
+  inserter: InserterSettings
+  lamp: LampSettings
+  container: ContainerSettings
+  logistic: LogisticSettings
+  trainStop: TrainStopSettings
+  rocketSilo: RocketSiloSettings
+  circuit: CircuitBehaviorSettings
+}
+
+"""One end of a circuit wire."""
+type WireEndpoint {
+  name: String!
+  unitNumber: ID
+  position: Position!
+}
+
+"""Result of connecting or disconnecting a circuit wire."""
+type WireResult {
+  tick: Float!
+  surface: String!
+  """red or green."""
+  color: String!
+  connected: Boolean!
+  from: WireEndpoint!
+  to: WireEndpoint!
+}
+
+extend type EntityInspection {
+  """Engine settings this entity supports, read in one additional snapshot."""
+  settings(inventory: String): SettingsResult @goField(forceResolver: true)
+}
+
+extend type Mutation {
+  """Replaces or clears a reachable splitter's filter and lane priorities."""
+  setSplitterSettings(input: SplitterSettingsInput!): SettingsResult!
+  """Replaces or clears a reachable inserter's filter slots, filter mode and stack size override."""
+  setInserterSettings(input: InserterSettingsInput!): SettingsResult!
+  """Sets a reachable lamp's color and circuit-driven color state."""
+  setLampSettings(input: LampSettingsInput!): SettingsResult!
+  """Sets a reachable container inventory's bar limit."""
+  setContainerBar(input: ContainerBarInput!): SettingsResult!
+  """Replaces or clears the logistic request sections of a reachable logistic container."""
+  setLogisticRequests(input: LogisticRequestsInput!): SettingsResult!
+  """Sets a reachable train stop's name, train limit, priority and color."""
+  setTrainStop(input: TrainStopInput!): SettingsResult!
+  """Sets a reachable rocket silo's automatic launch flag."""
+  setRocketSilo(input: RocketSiloInput!): SettingsResult!
+  """Launches a loaded rocket silo, refusing with a precise reason when the silo is not ready."""
+  launchRocket(input: RocketLaunchInput!): SettingsResult!
+  """Writes the supported fields of a reachable entity's control behavior."""
+  setCircuitBehavior(input: CircuitBehaviorInput!): SettingsResult!
+  """Connects a red or green circuit wire between two reachable entities."""
+  connectWire(input: WireInput!): WireResult!
+  """Disconnects a red or green circuit wire between two reachable entities."""
+  disconnectWire(input: WireInput!): WireResult!
+}
+
+input ItemFilterInput {
+  name: String!
+  """Quality prototype name; defaults to normal."""
+  quality: String
+  comparator: String
+}
+
+input ColorInput {
+  r: Float!
+  g: Float!
+  b: Float!
+  a: Float
+}
+
+input SignalInput {
+  """Engine signal type, for example item, fluid, virtual or virtual-signal."""
+  type: String = "item"
+  name: String!
+  quality: String
+}
+
+input SignalConditionInput {
+  """Comparison operator, for example <, =, > or >=."""
+  comparator: String!
+  constant: Float
+  firstSignal: SignalInput
+  secondSignal: SignalInput
+}
+
+input InserterFilterInput {
+  """One-based filter slot index."""
+  index: Int!
+  name: String!
+  quality: String
+  comparator: String
+}
+
+input SplitterSettingsInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  """Filter items must match; omitted keeps the current filter."""
+  filter: ItemFilterInput
+  """none, left, or right."""
+  inputPriority: String
+  """none, left, or right."""
+  outputPriority: String
+  """Remove the filter and reset both priorities to none."""
+  clear: Boolean = false
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input InserterSettingsInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  """Replaces every filter slot; slots not listed are cleared."""
+  filters: [InserterFilterInput!]
+  """whitelist or blacklist."""
+  filterMode: String
+  """Stack size override; 0 restores automatic."""
+  stackSizeOverride: Int
+  """Clear every filter slot and reset the mode and stack size override."""
+  clear: Boolean = false
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input LampSettingsInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  color: ColorInput
+  alwaysOn: Boolean
+  """Take the color from circuit signals instead of the fixed color."""
+  useColors: Boolean
+  """Engine lamp color mode; 0 disables colors, 1 uses the color signal, 2 uses red/green/blue signals."""
+  colorMode: Int
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input ContainerBarInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  """Inventory key: input, output, fuel, chest, modules or turret-ammo."""
+  inventory: String = "chest"
+  """Allowed slots from 0 (no limit) to the inventory size."""
+  bar: Int!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input LogisticRequestInput {
+  """One-based slot index inside the section."""
+  index: Int!
+  name: String!
+  quality: String
+  min: Int = 0
+  max: Int!
+}
+
+input LogisticSectionInput {
+  slots: [LogisticRequestInput!]!
+}
+
+input LogisticRequestsInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  """Replaces every request section on the container when given."""
+  sections: [LogisticSectionInput!]
+  """Remove every request section."""
+  clear: Boolean = false
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input TrainStopInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  """New stop name; omitted keeps the current name."""
+  name: String
+  """Maximum trains routed to the stop; 0 routes none."""
+  trainsLimit: Int
+  """Stop priority from 0 to 255; higher values are preferred."""
+  priority: Int
+  color: ColorInput
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input RocketSiloInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  sendToOrbitAutomatically: Boolean!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input RocketLaunchInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input CircuitBehaviorInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  enabled: Boolean
+  circuitEnableDisable: Boolean
+  circuitCondition: SignalConditionInput
+  logisticCondition: SignalConditionInput
+  """Clear both conditions and switch every writable flag off."""
+  clearConditions: Boolean = false
+  readContents: Boolean
+  setRecipe: Boolean
+  readIngredients: Boolean
+  readWorking: Boolean
+  """Mining drill: read resource amounts instead of contents."""
+  readResources: Boolean
+  """Mining drill: defines.control_behavior.mining_drill.resource_read_mode."""
+  resourceReadMode: Int
+  readAmmo: Boolean
+  readLogistics: Boolean
+  readRobotStats: Boolean
+  """Roboport: defines.control_behavior.roboport.read_items_mode."""
+  readItemsMode: Int
+  setFilters: Boolean
+  readHandContents: Boolean
+  setStackSize: Boolean
+  connectToLogisticNetwork: Boolean
+  useColors: Boolean
+  colorMode: Int
+  """Splitter: circuit controls the filter and each lane's input/output side."""
+  setFilter: Boolean
+  splitterInputSide: Boolean
+  splitterOutputSide: Boolean
+  inputLeftCondition: SignalConditionInput
+  inputRightCondition: SignalConditionInput
+  outputLeftCondition: SignalConditionInput
+  outputRightCondition: SignalConditionInput
+  """Train stop circuit flags."""
+  sendToTrain: Boolean
+  readFromTrain: Boolean
+  readStoppedTrain: Boolean
+  """Rocket silo: defines.control_behavior.rocket_silo.read_mode."""
+  siloReadMode: Int
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input WireEndpointInput {
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+}
+
+input WireInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  from: WireEndpointInput!
+  to: WireEndpointInput!
+  """red or green."""
+  color: String = "red"
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}

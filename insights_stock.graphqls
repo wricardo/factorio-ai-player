@@ -1,0 +1,69 @@
+extend type Query {
+  """
+  Observed item quantities, grouped by inventory or belt line and item quality.
+  Totals cover the complete filtered supported scope, independently of location
+  pagination; totals have their own pagination. Area selects entity/player
+  positions, not individual items along a belt; shared internal lines count once
+  at the first matching entity.
+  Belt deduplication fails explicitly after one million comparisons; restrict
+  the area if this limit is exceeded. No partial totals are returned.
+
+  Supports player main inventories, ordinary/logistic/infinity chests, crafting
+  machines, furnaces, silos, labs, drills, agricultural towers, asteroid
+  collectors, fuel and burnt-result inventories, belt/loader lines, inserter
+  hands, and ground stacks. Ground stacks have no force ownership and are included
+  regardless of selected force. Other inventories (including linked containers,
+  vehicles, wagons, robots, roboports, turrets, cargo hubs and player
+  equipment/trash) and fluids are excluded; totals are not global factory stock.
+  """
+  stock(input: StockInput = {}): StockPage!
+}
+
+input StockInput {
+  """Surface and force must be non-empty names of existing objects."""
+  surface: String! = "nauvis"
+  force: String! = "player"
+  """Optional finite bounds; left/top must not exceed right/bottom. Omit to scan the surface."""
+  area: FactoryAreaInput
+  """Exact non-empty item name, if supplied."""
+  item: String
+  """Location page size from 1 through 1000."""
+  limit: Int! = 100
+  """Zero-based, non-negative location offset."""
+  offset: Int! = 0
+  """Totals page size from 1 through 1000, independent of locations."""
+  totalsLimit: Int! = 100
+  """Zero-based, non-negative totals offset."""
+  totalsOffset: Int! = 0
+}
+
+type StockPage {
+  tick: Float!
+  surface: String!
+  force: String!
+  """Number of matching locations before pagination."""
+  total: Int!
+  limit: Int!
+  offset: Int!
+  locations: [StockLocation!]!
+  """Number of item, quality, and category groups before totals pagination."""
+  totalsTotal: Int!
+  totalsLimit: Int!
+  totalsOffset: Int!
+  totals: [StockTotal!]!
+}
+
+type StockLocation {
+  """stored, in-transit, or player."""
+  category: String!
+  entityName: String!
+  entityType: String!
+  player: String
+  position: Position!
+  """Inventory kind, or line-N for a transport line; shared lines are counted once."""
+  inventoryKind: String!
+  stack: StockStack!
+}
+
+type StockStack { name: String! quality: String! count: Float! }
+type StockTotal { item: String! quality: String! category: String! count: Float! }

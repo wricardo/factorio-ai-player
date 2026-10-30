@@ -1,0 +1,133 @@
+extend type Query {
+  """Configured recipe and current mining-target producers/consumers. Rates are theoretical base yields, not observed throughput. Both lists use the same independent pagination window."""
+  itemFlow(input: ItemFlowInput!): ItemFlow!
+  """One-tick recipe/stock snapshot followed by bounded deterministic recursive planning. Never asserts machine availability or immediate craftability."""
+  billOfMaterials(input: BillOfMaterialsInput!): BillOfMaterials!
+}
+
+input ItemFlowInput {
+  force: String! = "player"
+  surface: String! = "nauvis"
+  item: String!
+  area: FactoryAreaInput
+  limit: Int! = 100
+  offset: Int! = 0
+}
+
+type ItemFlow {
+  tick: Float!
+  force: String!
+  surface: String!
+  item: String!
+  producerTotal: Int!
+  consumerTotal: Int!
+  limit: Int!
+  offset: Int!
+  truncated: Boolean!
+  producers: [ItemFlowEndpoint!]!
+  consumers: [ItemFlowEndpoint!]!
+  rateAssumptions: String!
+}
+
+type ItemFlowEndpoint {
+  unitNumber: ID
+  name: String!
+  type: String!
+  surface: String!
+  force: String!
+  position: Position!
+  status: String!
+  recipe: String
+  recipeQuality: String
+  miningTarget: String
+  materialType: String!
+  """Matching item stacks in only this role's input/output inventory; never whole-factory stock."""
+  bufferedItems: [ItemStack!]!
+  """Matching fluid in role-compatible fluidboxes; null for items."""
+  bufferedFluidAmount: Float
+  """Expected units/second at current speed, excluding productivity and quality upgrades. Null when uncomputable, including infinite mining resources."""
+  theoreticalRatePerSecond: Float
+  rateUnavailableReason: String
+}
+
+enum BOMStockSource { FACTORY PLAYER }
+input BOMStockInput {
+  source: BOMStockSource!
+  """Required only for PLAYER. Main inventory only, same force and surface required."""
+  player: String
+  """Optional FACTORY scan bounds, at most 256 tiles per side."""
+  area: FactoryAreaInput
+}
+input BOMRecipeOverrideInput { item: String! recipe: String! }
+input BillOfMaterialsInput {
+  force: String! = "player"
+  surface: String! = "nauvis"
+  item: String!
+  """Finite positive target quantity, at most 1e12."""
+  amount: Float!
+  quality: String! = "normal"
+  stock: BOMStockInput!
+  recipeOverrides: [BOMRecipeOverrideInput!]
+  """1..128 dependency levels."""
+  maxDepth: Int! = 64
+  """1..10000 recursive allocations. Exhaustion is explicit unresolved demand."""
+  maxExpansions: Int! = 2000
+}
+
+type BillOfMaterials {
+  tick: Float!
+  force: String!
+  surface: String!
+  item: String!
+  amount: Float!
+  quality: String!
+  stockSource: BOMStockSource!
+  """False when snapshot/expansion bounds or unresolved recipe cycles prevent full expansion. Missing mined/raw ingredients alone do not make expansion incomplete."""
+  complete: Boolean!
+  stockTruncated: Boolean!
+  recipeCatalogueTruncated: Boolean!
+  """Expected-value plan, not guaranteed outputs, when any selected recipe has probabilistic yields."""
+  probabilistic: Boolean!
+  expansions: Int!
+  materials: [BOMMaterial!]!
+  steps: [BOMStep!]!
+  rawRequirements: [BOMRequirement!]!
+  """Reused input/output catalysts need initial seed stock. Seeds are not consumed again or multiplied by craft count."""
+  seedRequirements: [BOMRequirement!]!
+  unresolved: [BOMRequirement!]!
+  warnings: [String!]!
+  assumptions: String!
+}
+
+type BOMMaterial {
+  item: String!
+  materialType: String!
+  quality: String!
+  required: Float!
+  availableStock: Float!
+  allocatedStock: Float!
+  """Demand not covered by original stock, before recipes/coproducts; not a craftability claim."""
+  missingStock: Float!
+  expectedYield: Float!
+  surplus: Float!
+}
+
+type BOMStep {
+  recipe: String!
+  item: String!
+  materialType: String!
+  quality: String!
+  crafts: Float!
+  """Net expected target output after cancelling this recipe's returned inputs."""
+  expectedOutput: Float!
+  alternatives: [String!]!
+  overridden: Boolean!
+}
+
+type BOMRequirement {
+  item: String!
+  materialType: String!
+  quality: String!
+  amount: Float!
+  reason: String!
+}

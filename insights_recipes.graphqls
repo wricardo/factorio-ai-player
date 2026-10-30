@@ -1,0 +1,10 @@
+extend type Query {
+  """Find force recipes whose products match the given name, optionally filtered by enabled state. Results are sorted by recipe name before pagination."""
+  itemRecipes(input: ItemRecipesInput!): ItemRecipePage!
+}
+"""Force and item must be non-empty. Limit is 1 through 1000; offset is zero-based and non-negative."""
+input ItemRecipesInput { force: String! = "player" item: String! enabled: Boolean limit: Int! = 100 offset: Int! = 0 }
+"""Crafting machines are entity prototype names with a matching category, not necessarily built or available to the force."""
+type ItemRecipe { name: String! enabled: Boolean! category: String! energy: Float! ingredients: [ItemStack!]! products: [ItemStack!]! craftingMachines: [String!]! }
+"""Total counts matching recipes before pagination."""
+type ItemRecipePage { tick: Float! force: String! item: String! total: Int! limit: Int! offset: Int! recipes: [ItemRecipe!]! }

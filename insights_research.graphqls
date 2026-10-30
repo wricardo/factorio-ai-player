@@ -1,0 +1,85 @@
+extend type Query {
+  """Read force research state and technologies, filtered before pagination. Unknown force, technology, or recipe names produce an error."""
+  researchInsights(input: ResearchInsightsInput): ResearchInsights!
+}
+
+input ResearchInsightsInput {
+  """Existing, non-empty force name."""
+  force: String! = "player"
+  """Exact technology name, if supplied."""
+  technology: String
+  """Exact recipe name; selects technologies with an unlock-recipe effect."""
+  unlocksRecipe: String
+  """Filters may overlap: an in-progress technology can also be available."""
+  status: ResearchInsightsStatus! = ALL
+  """Page size from 1 through 1000."""
+  limit: Int! = 100
+  """Zero-based, non-negative offset into technologies sorted by name."""
+  offset: Int! = 0
+}
+
+enum ResearchInsightsStatus {
+  """All technologies, subject to other filters."""
+  ALL
+  """Technologies already researched."""
+  RESEARCHED
+  """Enabled, unresearched technologies with researched prerequisites."""
+  AVAILABLE
+  """Unresearched technologies that are not available, including disabled ones."""
+  LOCKED
+  """The current technology, if any."""
+  IN_PROGRESS
+}
+
+type ResearchInsights {
+  tick: Float!
+  force: String!
+  researchEnabled: Boolean!
+  currentTechnology: String
+  """Fraction of current technology completed; null when none is active."""
+  progress: Float
+  """Queue order as reported by Factorio; may include current research."""
+  researchQueue: [String!]!
+  """Number of matching technologies before pagination."""
+  total: Int!
+  limit: Int!
+  offset: Int!
+  technologies: [ResearchInsightsTechnology!]!
+}
+
+type ResearchInsightsTechnology {
+  name: String!
+  enabled: Boolean!
+  researched: Boolean!
+  inProgress: Boolean!
+  """Enabled, unresearched, and all prerequisites researched. Does not assert labs or trigger requirements are satisfied."""
+  available: Boolean!
+  level: Int!
+  savedProgress: Float!
+  prerequisites: [ResearchInsightsPrerequisite!]!
+  scienceIngredients: [ResearchInsightsIngredient!]!
+  """Research units for the current level, including the technology cost multiplier."""
+  researchUnitCount: Int!
+  """Energy per research unit, in ticks (60 ticks per second)."""
+  researchUnitEnergy: Float!
+  """Raw Factorio research trigger JSON, when this is a trigger technology."""
+  researchTriggerJSON: String
+  effects: [ResearchInsightsEffect!]!
+}
+
+type ResearchInsightsPrerequisite {
+  name: String!
+  researched: Boolean!
+}
+
+type ResearchInsightsIngredient {
+  name: String!
+  amount: Int!
+}
+
+type ResearchInsightsEffect {
+  type: String!
+  recipe: String
+  """Complete Factorio TechnologyModifier serialized as JSON."""
+  dataJSON: String!
+}

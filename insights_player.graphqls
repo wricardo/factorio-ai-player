@@ -1,0 +1,87 @@
+extend type FactoryMachine {
+  "Stored energy in joules, not instantaneous power consumption."
+  energy: Float
+  "Electric buffer capacity in joules; null for non-electric entities."
+  electricBufferSize: Float
+  "Electric drain in joules per tick; null for non-electric entities."
+  electricDrain: Float
+  """Current recipe and quality, when the entity exposes a recipe."""
+  recipeName: String
+  recipeQuality: String
+  recipeIngredients: [ItemStack!]
+  """Crafting progress and speed, when applicable."""
+  craftingProgress: Float
+  craftingSpeed: Float
+  "Null when this machine has no corresponding inventory."
+  input: [ItemStack!]
+  output: [ItemStack!]
+  """Occupied fluid boxes with one-based indices."""
+  machineFluids: [MachineInsightFluid!]!
+  """Mining progress and current target, when available."""
+  miningProgress: Float
+  miningTarget: MachineInsightMiningTarget
+}
+
+type MachineInsightFluid { index: Int! name: String! amount: Float! temperature: Float! }
+type MachineInsightMiningTarget { name: String! position: Position! amount: Float }
+
+extend type Query {
+  """Observe a named player, optionally inspecting a force recipe and a reach target."""
+  playerInsight(input: PlayerInsightInput!): PlayerInsight!
+}
+input PlayerInsightInput {
+  """Non-empty name of an existing player."""
+  player: String!
+  """Optional non-empty recipe name in the player's force; unknown recipes produce an error."""
+  recipe: String
+  """Positive integer entity unit number, mutually exclusive with target coordinates."""
+  targetUnitNumber: ID
+  """Finite target coordinates; both must be supplied together and cannot accompany targetUnitNumber."""
+  targetX: Float
+  targetY: Float
+}
+type PlayerInsight {
+  tick: Float!
+  player: String!
+  connected: Boolean!
+  controllerType: Int!
+  surface: String!
+  force: String!
+  position: Position!
+  hasCharacter: Boolean!
+  "Null without a character or main inventory."
+  items: [ItemStack!]
+  queue: [QueueEntry!]
+  queueSize: Float
+  queueProgress: Float
+  recipe: PlayerInsightRecipe
+  reach: PlayerInsightReach
+}
+type PlayerInsightRecipe {
+  name: String!
+  enabled: Boolean!
+  category: String!
+  energy: Float!
+  hiddenFromPlayerCrafting: Boolean!
+  "Engine craftable count; null without a character. This may include intermediate crafts."
+  craftableCount: Float
+  ingredients: [PlayerInsightIngredient!]!
+  products: [ItemStack!]!
+}
+type PlayerInsightIngredient {
+  name: String!
+  type: String!
+  required: Float!
+  "Main inventory count across qualities, not a prediction of crafting eligibility; null for fluids or absent inventory."
+  available: Float
+  unavailableReason: String
+}
+type PlayerInsightReach {
+  targetPosition: Position
+  targetName: String
+  "Straight-line distance from the character or player position, when on the target surface; not a reachability test."
+  distance: Float
+  "Engine can_reach_entity result; null for position-only targets or absent character."
+  canReachEntity: Boolean
+  unavailableReason: String
+}

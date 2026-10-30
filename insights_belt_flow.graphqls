@@ -1,0 +1,64 @@
+extend type Mutation {
+  """Start non-invasive per-lane item-crossing measurement on one normal transport-belt tile. Requires the updated factorio_ai_navigation mod exposing factorio_ai_belt_flow protocol 1, and Factorio >= 2.0.76. Splitters, underground belts, and loaders are rejected. Does not change inventories, belt controls, or entities."""
+  beltThroughputStart(input: BeltThroughputStartInput!): BeltThroughputMeasurement!
+}
+
+extend type Query {
+  """Observe a persistent belt measurement. Finished measurements remain available until evicted by the 128-record retention bound."""
+  beltThroughput(id: ID!): BeltThroughputMeasurement!
+}
+
+input BeltThroughputStartInput {
+  surface: String! = "nauvis"
+  """Position selecting one normal transport-belt tile; finite map coordinates within +/-1000000 unless unitNumber is given."""
+  x: Float
+  y: Float
+  """Normal transport-belt unit number, alternative to the x/y tile position."""
+  unitNumber: ID
+  """Sampling duration in game ticks, from 1 to 36000. Pausing simulation pauses measurement."""
+  durationTicks: Int! = 600
+  """Wait for completion or invalidation, bounded by waitTimeoutSeconds. Timeout returns latest state without cancelling measurement."""
+  wait: Boolean! = false
+  """Wall-clock wait limit from 1 to 600 seconds."""
+  waitTimeoutSeconds: Int! = 30
+}
+
+"""Observed item crossings, not buffer-count deltas or theoretical capacity. Baseline snapshot at start is excluded; only IDs seen on both sides of each lane's fixed midpoint count. Items inserted downstream of that point do not count. Stack counts and quality are captured when crossing. Entity removal, replacement, rotation, relocation, or lane geometry changes invalidate the sample."""
+type BeltThroughputMeasurement {
+  id: ID!
+  """RUNNING, COMPLETE, or INVALIDATED."""
+  status: String!
+  reason: String
+  surface: String!
+  force: String!
+  name: String!
+  unitNumber: ID
+  position: Position!
+  startedTick: Float!
+  updatedTick: Float!
+  durationTicks: Int!
+  elapsedTicks: Int!
+  """Crossed items across both lanes, including stacked items."""
+  itemsCrossed: Float!
+  """Observed itemsCrossed * 3600 / elapsedTicks, including stalled ticks. Null until at least one sampled game tick."""
+  itemsPerMinute: Float
+  lanes: [BeltThroughputLane!]!
+}
+
+type BeltThroughputLane {
+  """Factorio transport-line index, 1 or 2. No global left/right assumption at bends."""
+  lane: Int!
+  """Fixed transport-line midpoint in local line coordinates."""
+  measurementPoint: Float!
+  itemsCrossed: Float!
+  itemsPerMinute: Float
+  """Crossed item counts grouped by prototype and quality."""
+  crossedItems: [BeltThroughputItem!]!
+}
+
+type BeltThroughputItem {
+  name: String!
+  quality: String!
+  itemsCrossed: Float!
+  itemsPerMinute: Float
+}

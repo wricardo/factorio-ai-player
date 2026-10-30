@@ -1,0 +1,65 @@
+extend type Mutation {
+  """Start navigation for a detached character or a connected player's current character. Only one active job per character is allowed."""
+  navigateStart(input: NavigateStartInput!): NavigationJob!
+  """Cancel a navigation job and stop its character. Returns the job's current state."""
+  navigateCancel(
+    id: ID!
+    """Print this text in-game to all connected players instead of the generated notification."""
+    message: String
+  ): NavigationJob!
+}
+
+extend type Query {
+  """Observe a navigation job by its ID."""
+  navigation(id: ID!): NavigationJob!
+}
+
+"""Destination and limits for navigation of a detached character or connected player's current character. Provide exactly one of finite x and y, targetCharacter, or targetEntity. With targetCharacter the destination follows that character's current position, so the walker chases it; tolerance must then be at least 1 because characters collide. With targetEntity the character walks to the nearest point on the entity's bounding box expanded by tolerance, which suits chests, assembling machines, inserters, and other static entities."""
+input NavigateStartInput {
+  """Character unit number from 1 to 4294967295; may be detached or player-controlled."""
+  character: ID!
+  """Finite destination coordinates on the character's current surface. Required unless targetCharacter or targetEntity is set."""
+  x: Float
+  """Finite destination coordinates on the character's current surface. Required unless targetCharacter or targetEntity is set."""
+  y: Float
+  """Character unit number from 1 to 4294967295 on the same surface; the destination tracks this character and must differ from character. Use targetEntity for anything that is not a character."""
+  targetCharacter: ID
+  """Unit number of a static entity on the character's current surface, such as a chest, assembling machine, or inserter. The destination is the closest point on its bounding box expanded by tolerance, so the walk ends within tolerance of the entity and not inside it. Resolved once from the entity's position at start; the job ends TARGET_MISSING when the entity is removed or moved to another surface."""
+  targetEntity: ID
+  """Arrival distance, greater than zero and at most 10. For a chase (targetCharacter) it is the gap from the target character; for targetEntity it is the gap from the entity's bounding box. At least 1 when targetCharacter is set."""
+  tolerance: Float! = 0.5
+  """Maximum job duration in ticks, from 1 to 216000."""
+  timeoutTicks: Int! = 3600
+  """Wait for a terminal job state before returning. Default false."""
+  wait: Boolean! = false
+  """Maximum wall-clock wait in seconds, from 1 to 3600. On expiry return the latest observed job without cancelling it."""
+  waitTimeoutSeconds: Int! = 60
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Persistent navigation job state, including terminal outcomes."""
+type NavigationJob {
+  """Opaque job identifier."""
+  id: ID!
+  """Character unit number, detached or player-controlled."""
+  character: ID!
+  """Character unit number being chased, when the job was started with targetCharacter."""
+  targetCharacter: ID
+  """Unit number of the static entity being approached, when the job was started with targetEntity."""
+  targetEntity: ID
+  """Surface on which navigation started."""
+  surface: String!
+  """Requested destination."""
+  destination: Position!
+  """Latest character position, if available."""
+  position: Position
+  """PATHFINDING, MOVING, ARRIVED, NO_PATH, STUCK, CANCELLED, TIMED_OUT, CHARACTER_MISSING, or TARGET_MISSING."""
+  status: String!
+  """Optional explanation of the job state."""
+  reason: String
+  """Tick at which the job started."""
+  startedTick: Float!
+  """Tick at which the job was last updated."""
+  updatedTick: Float!
+}

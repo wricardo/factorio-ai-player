@@ -1,0 +1,138 @@
+extend type FactoryMachine {
+  surface: String!
+  force: String!
+  unitNumber: ID
+  """One additional game snapshot for ingredient demand, theoretical throughput, blocking status and electric state together."""
+  diagnostics: MachineDiagnostics! @goField(forceResolver: true)
+}
+
+extend type LogisticsEndpoint {
+  surface: String!
+  """Full current inserter configuration in a separate snapshot; null for non-inserters."""
+  inserterSettings: InserterSettings @goField(forceResolver: true)
+}
+
+type MachineDiagnostics {
+  tick: Float!
+  recipe: String
+  recipeQuality: String
+  """Demand for one NEXT craft from input inventories and compatible input fluid boxes. Excludes ingredients already consumed by an in-progress craft. Null if no crafting recipe is selected."""
+  shortfall: [MachineIngredientDemand!]
+  """Null for entities without a crafting recipe. Never a measured production rate."""
+  throughput: MachineTheoreticalThroughput
+  throughputUnavailableReason: String
+  blocked: MachineBlockedReason!
+  power: MachinePowerState!
+}
+
+type MachineIngredientDemand {
+  name: String!
+  type: String!
+  """Exact selected recipe quality for items; null for fluids, which have no quality."""
+  quality: String
+  requiredPerCraft: Float!
+  available: Float!
+  missing: Float!
+  minimumTemperatureCelsius: Float
+  maximumTemperatureCelsius: Float
+}
+
+type MachineTheoreticalThroughput {
+  """Current engine crafting speed divided by recipe duration. Assumes continuous ingredients, output space and full power; excludes tick quantization and downtime."""
+  theoreticalCraftsPerSecond: Float!
+  recipeDurationSeconds: Float!
+  craftingSpeed: Float!
+  """Expected BASE recipe yield per second, including probability, random amounts and extra-count fractions. Excludes productivity extra crafts and quality distribution. Item units are items/s; fluid units are fluid units/s."""
+  theoreticalBaseProducts: [MachineTheoreticalProductRate!]!
+  """Engine productivity bonus, observed separately and NOT included in base product rates."""
+  productivityBonus: Float
+  """Unknown in a single snapshot. Null, never a fabricated zero."""
+  actualCraftsPerSecond: Float
+}
+
+type MachineTheoreticalProductRate {
+  name: String!
+  type: String!
+  expectedBaseUnitsPerCraft: Float!
+  theoreticalBaseUnitsPerSecond: Float!
+}
+
+enum MachineBlockCategory {
+  NONE
+  MISSING_RECIPE
+  MISSING_INGREDIENTS
+  MISSING_RESEARCH
+  MISSING_FUEL
+  MISSING_POWER
+  OUTPUT_BLOCKED
+  DISABLED
+  OTHER
+}
+
+type MachineBlockedReason {
+  category: MachineBlockCategory!
+  """Unmodified engine status name; unknown future statuses remain visible with category OTHER."""
+  rawStatusName: String
+  rawStatusCode: Int
+  """Action suggested only for recognized engine conditions; null for NONE or OTHER."""
+  suggestedAction: String
+}
+
+type MachinePowerState {
+  electric: Boolean!
+  """Electric network membership, not proof that a producer exists or supplies enough power. Null for non-electric machines."""
+  connected: Boolean
+  networkId: ID
+  """Engine is_connected_to_electric_network(): network contains at least one potential producer. Not power satisfaction."""
+  connectedToProducingNetwork: Boolean
+  """Null: Factorio 2.0 exposes no instantaneous per-machine demand/satisfaction ratio. Stored energy is not satisfaction."""
+  satisfaction: Float
+  satisfactionUnavailableReason: String!
+}
+
+type InserterSettings {
+  tick: Float!
+  filterSlotCount: Int!
+  """Every one-based slot, including empty slots; no pagination or truncation."""
+  filterSlots: [InserterFilterSlot!]!
+  useFilters: Boolean!
+  filterMode: String
+  """Engine override; zero means automatic, not zero carrying capacity."""
+  stackSizeOverride: Int!
+  """Engine active state, including script, circuit, recipe, freezing and deconstruction disabling."""
+  active: Boolean!
+  """Null when no control behavior exists. Reading never creates one."""
+  circuit: InserterCircuitSettings
+}
+
+type InserterFilterSlot {
+  index: Int!
+  name: String
+  quality: String
+  comparator: String
+}
+
+type InserterCircuitSettings {
+  """Whether control behavior currently permits operation. Other causes may still make InserterSettings.active false."""
+  enabled: Boolean!
+  """Whether the enable/disable circuit-condition checkbox is selected."""
+  circuitEnableDisable: Boolean!
+  disabledByControlBehavior: Boolean!
+  setFilters: Boolean!
+  readHandContents: Boolean!
+  handReadMode: Int!
+  setStackSize: Boolean!
+  stackControlSignal: InserterSignal
+  connectToLogisticNetwork: Boolean!
+  circuitCondition: InserterCondition
+  logisticCondition: InserterCondition
+}
+
+type InserterSignal { name: String type: String! quality: String }
+type InserterCondition {
+  comparator: String
+  constant: Float
+  firstSignal: InserterSignal
+  secondSignal: InserterSignal
+  fulfilled: Boolean
+}

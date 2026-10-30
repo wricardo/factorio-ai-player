@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>factorio agents</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --line:#26303d; --fg:#c9d1d9; --dim:#7d8590; --accent:#58a6ff; --ok:#3fb950; --warn:#d29922; --err:#f85149; }
+  * { box-sizing: border-box; }
+  body { margin:0; height:100vh; display:grid; grid-template-columns: 260px 1fr; grid-template-rows: 34px 1fr; background:var(--bg); color:var(--fg);
+         font:13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  header { grid-column:1/3; display:flex; align-items:center; gap:14px; padding:0 12px; border-bottom:1px solid var(--line); background:var(--panel); font-size:12px; }
+  header b { color:var(--accent); font-weight:600; }
+  header .right { margin-left:auto; display:flex; gap:14px; color:var(--dim); }
+  aside { border-right:1px solid var(--line); background:var(--panel); overflow:auto; padding:8px; display:flex; flex-direction:column; gap:14px; }
+  h2 { margin:0 0 6px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); font-weight:600; }
+  .conv { display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:5px; cursor:pointer; border:1px solid transparent; }
+  .conv:hover { background:#1c2430; }
+  .conv.sel { background:#1f2b3a; border-color:#2f4a6b; }
+  .dot { width:7px; height:7px; border-radius:50%; background:#30363d; flex:none; }
+  .dot.busy { background:var(--ok); box-shadow:0 0 6px var(--ok); }
+  .dot.failed { background:var(--err); }
+  .conv .name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .conv .meta { color:var(--dim); font-size:11px; }
+  main { display:flex; flex-direction:column; min-width:0; }
+  #log { flex:1; overflow:auto; padding:12px 16px; }
+  .turn { margin:0 0 14px; }
+  .who { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; }
+  .who.you { color:var(--accent); }
+  .text { white-space:pre-wrap; word-break:break-word; }
+  .text code { background:#1c2430; border-radius:3px; padding:0 3px; }
+  pre.code { background:#0b0f14; border:1px solid var(--line); border-radius:5px; padding:8px; overflow:auto; margin:6px 0; color:#a5b3c0; }
+  .tool { margin:3px 0 0 10px; color:var(--dim); border-left:2px solid var(--line); padding-left:8px; }
+  .tool summary { cursor:pointer; color:#8b949e; }
+  .tool .body { white-space:pre-wrap; word-break:break-all; color:#6e7681; max-height:220px; overflow:auto; margin-top:2px; }
+  .ok { color:var(--ok); } .err { color:var(--err); }
+  #live { color:var(--fg); }
+  #live .thinking { color:var(--dim); font-style:italic; }
+  #live::after { content:"▊"; animation:blink 1s steps(1) infinite; color:var(--accent); }
+  @keyframes blink { 50% { opacity:0; } }
+  #composer { display:flex; gap:8px; padding:10px 12px; border-top:1px solid var(--line); background:var(--panel); }
+  textarea { flex:1; resize:none; height:54px; background:#0d1117; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:8px; font:inherit; }
+  textarea:focus { outline:1px solid var(--accent); }
+  button { background:#21262d; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:0 14px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:#1f6feb; border-color:#1f6feb; color:#fff; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .ticket { padding:5px 8px; border-radius:5px; background:#1c2430; margin-bottom:5px; }
+  .ticket .t { display:flex; gap:6px; align-items:baseline; }
+  .ticket .id { color:var(--dim); font-size:11px; }
+  .ticket .title { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pill { font-size:10px; padding:0 5px; border-radius:8px; border:1px solid var(--line); color:var(--dim); }
+  .pill.world { border-color:#6b4a1f; color:var(--warn); }
+  .pill.readonly { border-color:#1f4a6b; color:var(--accent); }
+  #tasks { color:var(--dim); font-size:11px; }
+  .ticket { cursor:pointer; border:1px solid transparent; }
+  .ticket:hover { border-color:#2f4a6b; }
+  .ticket.sel { border-color:var(--accent); background:#1f2b3a; }
+  #detail { position:fixed; top:34px; right:0; bottom:0; width:min(560px, 52vw); background:var(--panel);
+            border-left:1px solid var(--line); display:none; flex-direction:column; z-index:5; box-shadow:-12px 0 24px #0008; }
+  #detail.open { display:flex; }
+  #detail header { grid-column:auto; border-bottom:1px solid var(--line); padding:8px 12px; gap:10px; }
+  #detail header b { color:var(--fg); font-size:12px; }
+  #detail .body { overflow:auto; padding:12px; }
+  #detail .field { margin-bottom:12px; }
+  #detail .field .k { color:var(--dim); font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:3px; }
+  #detail .comment { border-top:1px solid var(--line); padding:8px 0; }
+  #detail .comment .who { color:var(--accent); }
+  #detail .comment .when { color:var(--dim); font-size:10px; margin-left:6px; }
+  #detail .close { margin-left:auto; }
+  #notice { color:var(--warn); font-size:11px; padding:0 16px 6px; }
+</style>
+</head>
+<body>
+<header>
+  <b>factorio agents</b>
+  <span id="wake" class="meta"></span>
+  <div class="right">
+    <span id="spend"></span>
+    <span id="taskcount"></span>
+  </div>
+</header>
+<aside>
+  <section>
+    <h2>conversations</h2>
+    <div id="convs"></div>
+  </section>
+  <section>
+    <h2>tickets ready</h2>
+    <div id="ready"></div>
+  </section>
+  <section>
+    <h2>tickets recent</h2>
+    <div id="recent"></div>
+  </section>
+  <section>
+    <h2>live tasks</h2>
+    <div id="tasks"></div>
+  </section>
+</aside>
+<aside id="detail">
+  <header><b id="d-title"></b><span class="pill" id="d-status"></span><button class="close" id="d-close">close</button></header>
+  <div class="body" id="d-body"></div>
+</aside>
+<main>
+  <div id="notice"></div>
+  <div id="log"></div>
+  <div id="composer">
+    <textarea id="input" placeholder="message the selected agent…  (Ctrl-Enter sends, Enter too)"></textarea>
+    <button id="send" class="primary">send</button>
+    <button id="clear" title="start a new context: older entries stay in storage">clear</button>
+    <button id="abort">abort</button>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let state = null;
+let selected = "planner";
+let selectedTicket = null;
+let rendered = new Map();   // role -> highest entry id drawn
+let displayed = null;       // role whose transcript is currently in #log
+let epochs = new Map();     // role -> newest pi.reset entry id drawn
+let stick = true;           // auto-scroll while the user is at the bottom
+
+function esc(text) {
+  return String(text ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+/* Enough markdown for agent answers: fences, inline code, bold, headings, bullets. Escaped first. */
+function md(text) {
+  return esc(text).split("```").map((chunk, index) => {
+    if (index % 2 === 1) return '<pre class="code">' + chunk.replace(/^\n/, "") + "</pre>";
+    return chunk
+      .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
+      .replace(/^#{1,6} (.+)$/gm, "<b>$1</b>")
+      .replace(/^(\s*)[-*] /gm, "$1• ");
+  }).join("");
+}
+
+function fmtSpend(usage) {
+  const models = usage?.models ?? {};
+  let total = 0, tokens = 0;
+  for (const key of Object.keys(models)) {
+    total += models[key]?.cost?.total ?? 0;
+    tokens += models[key]?.totalTokens ?? 0;
+  }
+  return total > 0 ? ("$" + total.toFixed(4) + " · " + (tokens / 1000).toFixed(0) + "k tok") : "";
+}
+
+function renderConvs() {
+  const box = $("convs");
+  const roles = (state?.conversations ?? []);
+  box.innerHTML = "";
+  for (const conv of roles) {
+    const el = document.createElement("div");
+    el.className = "conv" + (conv.role === selected ? " sel" : "");
+    const dot = document.createElement("span");
+    dot.className = "dot" + (conv.busy ? " busy" : "");
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = conv.label;
+    name.title = conv.role;
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    meta.textContent = conv.busy ? "working" : (conv.inbox > 0 ? conv.inbox + " queued" : "");
+    el.append(dot, name, meta);
+    el.onclick = () => { selected = conv.role; rendered.delete(conv.role); stick = true; renderAll(); };
+    box.append(el);
+  }
+  if (roles.length === 0) box.textContent = "…";
+}
+
+function renderTicketList(box, list, emptyText) {
+  box.innerHTML = "";
+  const items = Array.isArray(list) ? list : [];
+  if (items.length === 0) { box.textContent = emptyText; box.style.color = "var(--dim)"; return; }
+  box.style.color = "";
+  for (const ticket of items) {
+    const el = document.createElement("div");
+    el.className = "ticket" + (ticket.id === selectedTicket ? " sel" : "");
+    el.dataset.id = ticket.id;
+    el.onclick = () => void openTicket(ticket.id);
+    const labels = (ticket.labels ?? []).filter((l) => l === "world" || l === "readonly");
+    const pill = labels.map((l) => '<span class="pill ' + l + '">' + l + "</span>").join(" ");
+    el.innerHTML = '<div class="t"><span class="title">' + esc(ticket.title) + '</span>' + pill + "</div>" +
+      '<div class="id">' + esc(ticket.id) + " · " + esc(ticket.status) + (ticket.assignee ? " · " + esc(ticket.assignee) : "") + "</div>";
+    box.append(el);
+  }
+}
+
+function renderTickets() {
+  const tickets = state?.tickets ?? { ready: [], list: [] };
+  renderTicketList($("ready"), tickets.ready, "none ready");
+  renderTicketList($("recent"), tickets.list, "none");
+}
+
+function renderTasks() {
+  const tasks = (state?.tasks ?? []).filter((t) => t.status !== "terminal");
+  $("tasks").innerHTML = tasks.length === 0 ? "none live" : tasks.map((t) =>
+    esc(t.kind.replace(/^app\./, "")) + " · " + esc(t.status)).join("<br>");
+  $("taskcount").textContent = (state?.tasks ?? []).length + " tasks";
+  $("wake").textContent = state?.wake?.active ? "running" : (state?.wake?.at ? "sleeping" : "idle");
+  $("spend").textContent = fmtSpend(state?.usage);
+}
+
+function entryHtml(entry) {
+  if (entry.role === "user") {
+    return '<div class="turn"><div class="who you">you</div><div class="text">' + md(entry.text) + "</div></div>";
+  }
+  if (entry.role === "assistant") {
+    let html = '<div class="turn"><div class="who">agent</div>';
+    if (entry.text) html += '<div class="text">' + md(entry.text) + "</div>";
+    if (entry.toolName) {
+      html += '<div class="tool"><summary>→ ' + esc(entry.toolName) + "</summary><div class=\"body\">" + esc(entry.toolArgs) + "</div></div>";
+    }
+    return html + "</div>";
+  }
+  if (entry.role === "toolResult") {
+    return '<div class="tool"><details><summary>← ' + esc(entry.toolName) + '</summary><div class="body">' + esc(entry.toolResult) + "</div></details></div>";
+  }
+  return "";
+}
+
+function renderLog() {
+  const conv = (state?.conversations ?? []).find((c) => c.role === selected);
+  const log = $("log");
+  if (!conv) { log.innerHTML = '<div class="turn"><div class="text">select a conversation</div></div>'; return; }
+  if (displayed !== selected) {
+    // A transcript belongs to one conversation: clear before drawing another.
+    log.innerHTML = "";
+    displayed = selected;
+  }
+  if ((conv.epoch ?? 0) !== (epochs.get(selected) ?? 0)) {
+    // A reset starts a new context: drop what the old one showed.
+    epochs.set(selected, conv.epoch ?? 0);
+    log.innerHTML = conv.epoch > 0 ? '<div class="who" style="color:var(--dim)">context reset · earlier entries hidden</div>' : "";
+    rendered.delete(selected);
+    streamed = "";
+  }
+  const last = rendered.get(selected) ?? 0;
+  const fresh = conv.entries.filter((entry) => entry.id > last);
+  if (fresh.length === 0 && log.childElementCount > 0) return;
+  for (const entry of fresh) {
+    rendered.set(selected, entry.id);
+    log.insertAdjacentHTML("beforeend", entryHtml(entry));
+  }
+  // The in-flight answer is not an entry yet: render it as the live line.
+  const live = $("live");
+  if (live) live.remove();
+  if (conv.busy) {
+    const line = document.createElement("div");
+    line.id = "live";
+    line.className = "text";
+    if (conv.streamingText) {
+      line.textContent = conv.streamingText;
+    } else if (conv.streamingThinking) {
+      // Reasoning models emit thinking long before the answer: show its tail so the panel is alive.
+      const thinking = document.createElement("span");
+      thinking.className = "thinking";
+      thinking.textContent = "thinking… " + conv.streamingThinking.slice(-240);
+      line.append(thinking);
+    }
+    log.append(line);
+  }
+  if (stick || log.childElementCount === fresh.length) log.scrollTop = log.scrollHeight;
+}
+
+async function openTicket(id) {
+  selectedTicket = id;
+  renderTickets();
+  const detail = $("detail");
+  detail.classList.add("open");
+  $("d-title").textContent = id;
+  $("d-status").textContent = "loading";
+  $("d-body").textContent = "";
+  const response = await fetch("/api/ticket?id=" + encodeURIComponent(id));
+  const data = await response.json();
+  const issue = data.issue ?? {};
+  $("d-title").textContent = issue.title ?? id;
+  $("d-status").textContent = issue.status ?? "?";
+  const field = (key, value) => value
+    ? '<div class="field"><div class="k">' + esc(key) + '</div><div class="text">' + md(value) + "</div></div>"
+    : "";
+  const labels = (issue.labels ?? []).map((l) => '<span class="pill ' + esc(l) + '">' + esc(l) + "</span>").join(" ");
+  $("d-body").innerHTML =
+    '<div class="field"><div class="k">ticket</div><div>' + esc(issue.id ?? id) + " · " + esc(issue.issue_type ?? "") +
+      " · p" + esc(issue.priority ?? "?") + (issue.assignee ? " · " + esc(issue.assignee) : "") + "</div><div>" + labels + "</div></div>" +
+    field("description", issue.description) +
+    field("design", issue.design) +
+    field("acceptance", issue.acceptance_criteria) +
+    '<div class="field"><div class="k">comments</div><div class="text" id="d-comments">loading…</div></div>';
+
+  // `bd comments` is slow on this workspace, so it is a second request that only fills its box.
+  const commentsResponse = await fetch("/api/ticket-comments?id=" + encodeURIComponent(id));
+  const body = await commentsResponse.json().catch(() => ({ comments: [] }));
+  if (selectedTicket !== id) return;
+  const comments = (body.comments ?? []).map((c) =>
+    '<div class="comment"><div class="who">' + esc(c.author) + '<span class="when">' +
+      esc(String(c.created_at ?? "").replace("T", " ").slice(0, 19)) + "</span></div><div class=\"text\">" + md(c.text) + "</div></div>").join("");
+  $("d-comments").outerHTML = comments || '<div class="text">none</div>';
+}
+
+$("d-close").onclick = () => { $("detail").classList.remove("open"); selectedTicket = null; renderTickets(); };
+
+function renderAll() {
+  renderConvs(); renderTickets(); renderTasks(); renderLog();
+  const conv = (state?.conversations ?? []).find((c) => c.role === selected);
+  $("input").placeholder = conv?.busy
+    ? "busy — this message steers the running turn"
+    : "message " + (conv?.label ?? selected) + "…";
+  $("notice").textContent = "";
+  $("abort").disabled = !conv?.busy;
+}
+
+$("log").addEventListener("scroll", () => {
+  const log = $("log");
+  stick = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+});
+
+async function send() {
+  const input = $("input");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  stick = true;
+  const response = await fetch("/api/submit", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ role: selected, text }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    $("notice").textContent = body.error ?? "send failed";
+  }
+}
+
+$("send").onclick = send;
+$("clear").onclick = async () => {
+  const conv = (state?.conversations ?? []).find((c) => c.role === selected);
+  if (!confirm("Start a new context with " + (conv?.label ?? selected) + "? Older entries stay in storage, the model stops seeing them.")) return;
+  await fetch("/api/reset", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ role: selected }) });
+  rendered.delete(selected);
+  $("log").innerHTML = "";
+  displayed = null;
+};
+$("abort").onclick = async () => {
+  await fetch("/api/abort", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ role: selected }) });
+};
+$("input").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); }
+});
+
+function apply(next) {
+  const wasStick = stick;
+  state = next;
+  if (wasStick) stick = true;
+  renderAll();
+}
+
+const events = new EventSource("/api/stream");
+events.onmessage = (event) => {
+  try { apply(JSON.parse(event.data)); } catch (error) { console.error(error); }
+};
+events.onerror = () => { $("notice").textContent = "stream disconnected — retrying"; };
+</script>
+</body>
+</html>

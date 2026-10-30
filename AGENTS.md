@@ -16,6 +16,7 @@ Mutations are not transactional: an error or lost response does not prove action
 - `mods/factorio_ai_navigation/`: Factorio Lua navigation mod and its Lua test harness.
 - `scripts/`: managed server lifecycle script, invoked through `justfile`.
 - `play/`: gameplay-specific agent handbook and save-state notes; not general source documentation.
+- `play/harness/`: Pi Durable agent harness (planner / foreman / worker conversations over GraphQL and beads tickets). See its README; run with `just agents`.
 
 ## Development Commands
 
@@ -29,6 +30,9 @@ just observe                    # open a separate client
 just save                       # request server save
 just logs                       # inspect server log
 just stop                       # save and stop server
+just graphql                    # serve the GraphQL schema over HTTP on 127.0.0.1:8080
+just agents-up                  # Pi Durable web console on http://127.0.0.1:8787 (background; agents-down stops it)
+just agents status              # Pi Durable agent harness (planner/foreman/workers)
 ```
 
 Example GraphQL call (server must be running; password comes from managed state):
@@ -38,6 +42,67 @@ FACTORIO_RCON_PASSWORD="$(cat .factorio/password)" go run . query '{ status { ti
 ```
 
 Global `--addr HOST:PORT` goes before the CLI command. Use `go run . queries --args --desc` and `go run . describe TypeName --desc` to discover the GraphQL contract. No lint command or lint configuration is provided; run `gofmt` on changed Go files. `justfile` has no build or test recipes.
+
+## Starting a new sandbox game (fresh map)
+
+Sandbox is a **scenario**, not a map preset: `factorio --create` cannot produce it, and
+`scripts/server.sh` (behind `just start`) only accepts `--start-server <save>`. So convert
+scenario → save once, then run that save with the normal managed workflow. Only one Factorio
+instance may use the default write-data dir (`~/Library/Application Support/factorio/.lock`),
+so the scenario instance runs in a throwaway dir on alternate ports.
+
+```sh
+S="$HOME/Library/Application Support/factorio/saves"
+D=/tmp/factorio-new-sandbox
+cd /path/to/factorio-ai-player
+go build -o /tmp/fap-worker .            # CLI copy usable against the alternate RCON port
+
+# 1. Stop the managed server first (stop saves the live state), then archive that save
+just stop
+cp "$S/ai-player-sandbox.zip" "$S/ai-player-sandbox-$(date +%Y%m%d-%H%M).zip"
+
+# 2. Throwaway write-data dir with a copy of the bundled sandbox scenario
+mkdir -p "$D/data/scenarios"
+cp -R /Applications/factorio.app/Contents/data/base/scenarios/sandbox "$D/data/scenarios/"
+printf '[path]\nread-data=__PATH__system-read-data__\nwrite-data=%s/data\n' "$D" > "$D/config.ini"
+openssl rand -hex 24 > "$D/password"
+
+# 3. Create the save from the scenario on alternate ports (game 34198, RCON 27016)
+nohup /Applications/factorio.app/Contents/MacOS/factorio -c "$D/config.ini" \
+  --mod-directory "$HOME/Library/Application Support/factorio/mods" \
+  --start-server-load-scenario sandbox \
+  --bind 127.0.0.1:34198 --rcon-bind 127.0.0.1:27016 \
+  --rcon-password "$(cat "$D/password")" \
+  --server-settings "$PWD/server-settings.json" > "$D/server.log" 2>&1 < /dev/null &
+# wait until $D/server.log contains "Starting RCON interface"
+FACTORIO_RCON_PASSWORD="$(cat "$D/password")" /tmp/fap-worker --addr 127.0.0.1:27016 \
+  mutation 'mutation { save { response } }'          # shutdown alone does NOT save
+FACTORIO_RCON_PASSWORD="$(cat "$D/password")" /tmp/fap-worker --addr 127.0.0.1:27016 \
+  mutation 'mutation { shutdown { response } }'      # -> $D/data/saves/sandbox.zip
+
+# 4. Install it as the managed save and start normally
+cp "$D/data/saves/sandbox.zip" "$S/ai-player-sandbox.zip"
+FACTORIO_SAVE="$S/ai-player-sandbox.zip" just start
+rm -rf "$D"
+```
+
+Verify the result: `status { tick players { name } }` shows a small advancing tick and no
+players, `characters { total }` is 0, and `entities` over ±100 tiles returns only natural
+entities (resources/trees, ~3k) — no machines. `just observe` opens a client.
+
+Gotchas:
+
+- `--start-server-load-scenario` searches only `<write-data>/scenarios`, hence the scenario copy;
+  pass the same `--mod-directory` as the managed server so `factorio_ai_navigation` loads.
+- Sandbox strips the connecting player's character: the client joins as god controller with
+  `player.character == null`, so `player:` inputs that need a character (`place`, `fuel`,
+  `transfer`) fail. Restore one with `/silent-command game.players[1].create_character()` or use
+  `characterSpawn` for a detached worker with its own reach and inventory.
+- `shutdown` sends `/quit` **without** saving; always `save` first. Resulting save name is the
+  scenario name (`sandbox.zip`).
+- Two servers sharing the default write-data dir fail with "Couldn't acquire exclusive lock";
+  always `just stop` first.
+- Revert to the freeplay save: `FACTORIO_SAVE="$S/ai-player.zip" just restart`.
 
 ## Code Conventions & Common Patterns
 
@@ -49,6 +114,23 @@ Global `--addr HOST:PORT` goes before the CLI command. Use `go run . queries --a
 - Edit schema/config and regenerate gqlgen outputs when GraphQL contracts change. Do not hand-edit `graphql_generated.go` or `graphql_models.go`.
 - Keep mutations explicit and conservative. Do not blindly retry operations with uncertain outcomes; verify inventories, entities, or job status first.
 
+## Escalation & API Feedback
+
+- **Stop and raise anomalies.** If a GraphQL query/mutation, Lua payload, RCON call, or in-game
+  outcome looks wrong — unexpected error, null or default value where the contract promises
+  data, mutation reported success but state unchanged, machine behavior contradicting the docs —
+  stop that workstream and report to the user: exact command or GraphQL document, variables,
+  tick, observed output, expected result. Do not silently work around it, guess a fix, hide it in
+  a throwaway script, or blind-retry a mutation.
+- **Separate tool defect from game behavior.** Only call it a bug after comparing the schema, the
+  generated Lua, and the live response. Mark unresolved suspicions `[INFERENCE]` and state which
+  query or log line would settle it.
+- **Raise valuable API gaps.** When the GraphQL surface makes a real task awkward — missing read
+  or relationship, ambiguous semantics/defaults, per-entity RCON fan-out, mutation that needs
+  unrelated setup (reach, detached character) — record a concise proposal for the user: the need,
+  the workaround used, the suggested field/input/behavior, and rough cost/blast radius. Do not
+  implement it mid-task unless asked.
+
 ## Important Files
 
 - `main.go`: process entry, game-operation dispatch, Lua execution, and RCON protocol.
@@ -56,7 +138,7 @@ Global `--addr HOST:PORT` goes before the CLI command. Use `go run . queries --a
 - `schema.graphqls`, `navigation.graphqls`, `insights_*.graphqls`: GraphQL API and inline descriptions.
 - `resolver.go`, `graphql_*_resolvers.go`: resolver bridge and schema adapters.
 - `gqlgen.yml`, `graphql_generated.go`, `graphql_models.go`: gqlgen configuration and generated output.
-- `actions.go`, `production.go`, `insights_*.go`, `factory_*.go`, `navigation.go`: gameplay operations and read-only insights. Topology (`insights_topology.go`), machine diagnostics (`insights_diagnostics.go`), planning (`insights_planning.go`), research/construction/fluids (`insights_operations.go`) and belt-flow measurement (`insights_belt_flow.go`, backed by the navigation mod's `belt_flow.lua`) live in their own domain files.
+- `actions.go`, `production.go`, `insights_*.go`, `factory_*.go`, `navigation.go`: gameplay operations and read-only insights. Topology (`insights_topology.go`), machine diagnostics (`insights_diagnostics.go`), planning (`insights_planning.go`), research/construction/fluids (`insights_operations.go`), belt-flow measurement (`insights_belt_flow.go`, backed by the navigation mod's `belt_flow.lua`) and tile-grid placement probing (`placement_probe.go`, one RCON call per area) live in their own domain files.
 - `go.mod`: Go version and dependencies. `justfile`, `scripts/server.sh`, `server-settings.json`: local server workflows/configuration.
 - `README.md`: operational and GraphQL behavior reference; `play/AGENTS.md`: gameplay-specific notes.
 

@@ -1,0 +1,80 @@
+extend type Query {
+  """Observe enemies, damaged friendly entities, optional point pollution, and optional player alerts on a surface."""
+  safety(input: SafetyInput = {}): SafetySnapshot!
+}
+
+input SafetyPositionInput { x: Float! y: Float! }
+input SafetyInput {
+  """Surface and force must be non-empty names of existing objects."""
+  surface: String! = "nauvis"
+  force: String! = "player"
+  """Optional finite bounds; left/top must not exceed right/bottom. Omit to scan the surface."""
+  area: FactoryAreaInput
+  """Optional finite position for the snapshot-level pollution reading."""
+  pollutionPosition: SafetyPositionInput
+  """Optional non-empty player name; the player must belong to the selected force."""
+  player: String
+  """Enemy page size, from 1 through 1000."""
+  enemyLimit: Int! = 100
+  """Zero-based, non-negative enemy offset."""
+  enemyOffset: Int! = 0
+  """Damaged entity page size, from 1 through 1000."""
+  damagedLimit: Int! = 100
+  """Zero-based, non-negative damaged entity offset."""
+  damagedOffset: Int! = 0
+  """Alert page size, from 1 through 1000."""
+  alertLimit: Int! = 100
+  """Zero-based, non-negative alert offset."""
+  alertOffset: Int! = 0
+}
+
+"""Pollution is the surface's airborne pollutant at this position's chunk, not a risk prediction."""
+type SafetyPollution { position: Position! amount: Float! pollutant: String }
+type SafetyEntity {
+  name: String!
+  type: String!
+  force: String!
+  position: Position!
+  unitNumber: ID
+  health: Float
+  maxHealth: Float
+  status: String
+  statusCode: Int
+  pollution: SafetyPollution!
+}
+type SafetyEntityPage { total: Int! limit: Int! offset: Int! entities: [SafetyEntity!]! }
+"""Message is JSON containing the untranslated Factorio LocalisedString under key 'value'."""
+type SafetyAlert {
+  type: String
+  typeCode: Int!
+  tick: Float!
+  position: Position
+  prototype: String
+  target: SafetyEntity
+  iconType: String
+  iconName: String
+  iconQuality: String
+  messageJSON: String
+  """True when area filtering was requested but the alert has no position."""
+  areaMatchUnknown: Boolean!
+}
+type SafetyAlertPage {
+  """False when no player was requested."""
+  available: Boolean!
+  unavailableReason: String
+  player: String
+  total: Int!
+  limit: Int!
+  offset: Int!
+  alerts: [SafetyAlert!]!
+}
+"""Enemy classification uses force.is_enemy; damaged entities belong to the selected force or its friends. Alerts without positions remain included with areaMatchUnknown=true."""
+type SafetySnapshot {
+  tick: Float!
+  surface: String!
+  force: String!
+  pollution: SafetyPollution
+  enemies: SafetyEntityPage!
+  damaged: SafetyEntityPage!
+  playerAlerts: SafetyAlertPage!
+}
