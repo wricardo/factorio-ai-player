@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "factorio_ai_player",
+  "project_id": "d08dcb1e-0053-41e6-a895-10e5ee0b631b"
+}
