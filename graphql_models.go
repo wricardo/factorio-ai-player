@@ -2301,6 +2301,8 @@ type WireEndpointInput struct {
 	UnitNumber *string  `json:"unitNumber,omitempty"`
 	X          *float64 `json:"x,omitempty"`
 	Y          *float64 `json:"y,omitempty"`
+	// Engine wire connector id, for example circuit_red, circuit_green, combinator_output_red. Defaults to circuit_<color>.
+	Connector *string `json:"connector,omitempty"`
 }
 
 type WireInput struct {

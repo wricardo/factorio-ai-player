@@ -391,10 +391,11 @@ which is a persistent save change. `connectWire` and `disconnectWire` link the
 red (`circuit_red`) or green (`circuit_green`) connector of two reachable
 entities and report `connected` from the engine's own connectivity check.
 
-`launchRocket` refuses with the part count when the silo is still assembling
-and with the engine status when the engine rejects the launch; it cannot bypass
-the payload, landing-pad, or platform requirements. Splitters in 2.0 have no
-mirrored variant, so mirroring is not exposed.
+`launchRocket` only launches from `waiting_to_launch_rocket`; otherwise it fails
+with the engine status and the assembled part count, and it reports the engine
+status again if `launch_rocket` itself is refused. It cannot bypass payload,
+landing-pad, or platform requirements. Splitters in 2.0 have no mirrored
+variant, so mirroring is not exposed.
 
 Read queries are snapshots at their reported ticks. Pagination across calls can
 shift while the world changes. Missing fields are not proof of a root cause;

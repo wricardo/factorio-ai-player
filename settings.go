@@ -687,10 +687,14 @@ func launchRocket(r *Resolver, in RocketLaunchInput) (*SettingsResult, error) {
 		return nil, err
 	}
 	body := prefix + `if e.type~="rocket-silo" then fail("entity is not a rocket silo"); return end
-local required=settings_field(e.prototype,"rocket_parts_required") or 100
-local parts=e.rocket_parts or 0
-if parts<required then fail("rocket silo has "..parts.." of "..required.." rocket parts; the rocket is still being assembled"); return end
-if not e.launch_rocket() then fail("rocket silo refused the launch at status "..tostring(settings_field(e,"rocket_silo_status"))); return end
+local ready=defines.entity_status.waiting_to_launch_rocket
+if e.status~=ready then
+  local required=settings_field(e.prototype,"rocket_parts_required") or 100
+  local parts=e.rocket_parts or 0
+  fail("rocket silo is not ready to launch: status "..tostring(e.status).." (waiting_to_launch_rocket is "..tostring(ready).."), "..parts.." of "..required.." rocket parts")
+  return
+end
+if not e.launch_rocket() then fail("rocket silo refused the launch at status "..tostring(e.status)); return end
 `
 	result, err := executeSettings(r, settingsMutationLua(body, "chest"))
 	if err != nil {
@@ -991,6 +995,8 @@ func connectWire(r *Resolver, in WireInput, connect bool) (*WireResult, error) {
 		b.WriteString("local actor_surface=c.surface.name\n")
 		actorSurface = "actor_surface"
 	}
+	fromConnector := stringValueOr(in.From.Connector, "")
+	toConnector := stringValueOr(in.To.Connector, "")
 	fromUnit, err := entityTarget(stringValueOr(in.From.Entity, ""), stringValueOr(in.From.UnitNumber, ""), floatValueOr(in.From.X), floatValueOr(in.From.Y))
 	if err != nil {
 		return nil, fmt.Errorf("from: %w", err)
@@ -1020,13 +1026,25 @@ func connectWire(r *Resolver, in WireInput, connect bool) (*WireResult, error) {
 	b.WriteString(`if not c.can_reach_entity(from_entity) then fail("from entity is out of reach"); return end
 if not c.can_reach_entity(to_entity) then fail("to entity is out of reach"); return end
 `)
-	fmt.Fprintf(&b, `local connector_id=defines.wire_connector_id[%s]
-if not connector_id then fail("wire color is not supported"); return end
-local from_connector=from_entity.get_wire_connector(connector_id,true)
-local to_connector=to_entity.get_wire_connector(connector_id,true)
-if not from_connector then fail("from entity has no "..%s.." circuit connector"); return end
-if not to_connector then fail("to entity has no "..%s.." circuit connector"); return end
-`, luaString("circuit_"+color), luaString(color), luaString(color))
+	fmt.Fprintf(&b, `local function connector_id(name)
+  if name~="" then
+    local id=defines.wire_connector_id[name]
+    if not id then fail("unknown wire connector "..name); return nil end
+    return id
+  end
+  local id=defines.wire_connector_id["circuit_"..%s]
+  if not id then fail("wire color is not supported"); return nil end
+  return id
+end
+local from_id=connector_id(%s)
+if not from_id then return end
+local to_id=connector_id(%s)
+if not to_id then return end
+local from_connector=from_entity.get_wire_connector(from_id,true)
+local to_connector=to_entity.get_wire_connector(to_id,true)
+if not from_connector then fail("from entity has no matching circuit connector"); return end
+if not to_connector then fail("to entity has no matching circuit connector"); return end
+`, luaString(color), luaString(fromConnector), luaString(toConnector))
 	call := "from_connector.disconnect_from(to_connector)"
 	if connect {
 		call = "from_connector.connect_to(to_connector)"

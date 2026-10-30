@@ -429,6 +429,8 @@ input WireEndpointInput {
   unitNumber: ID
   x: Float
   y: Float
+  """Engine wire connector id, for example circuit_red, circuit_green, combinator_output_red. Defaults to circuit_<color>."""
+  connector: String
 }
 
 input WireInput {

@@ -53270,7 +53270,7 @@ func (ec *executionContext) unmarshalInputWireEndpointInput(ctx context.Context,
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"entity", "unitNumber", "x", "y"}
+	fieldsInOrder := [...]string{"entity", "unitNumber", "x", "y", "connector"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -53305,6 +53305,13 @@ func (ec *executionContext) unmarshalInputWireEndpointInput(ctx context.Context,
 				return it, err
 			}
 			it.Y = data
+		case "connector":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("connector"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Connector = data
 		}
 	}
 	return it, nil
