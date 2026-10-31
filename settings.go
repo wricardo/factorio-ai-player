@@ -202,9 +202,8 @@ local function settings_container(e,inventory_name)
   if capacity>0 and bar>capacity then bar=0 end
   return {inventory=inventory_name,bar=bar,capacity=capacity}
 end
-local function settings_logistic(e)
-  local ok,point=pcall(function() return e.get_logistic_point(defines.logistic_member_index.logistic_container) end)
-  if not ok or not point then return nil end
+local function settings_logistic_point(point)
+  if not point then return nil end
   local sections={}
   for index=1,20 do
     local oksection,section=pcall(function() return point.get_section(index) end)
@@ -222,6 +221,16 @@ local function settings_logistic(e)
     sections[#sections+1]={index=index,slots=slots}
   end
   return {sections=sections}
+end
+local function settings_logistic_member(e)
+  if e.type=="rocket-silo" then return defines.logistic_member_index.rocket_silo_requester end
+  return defines.logistic_member_index.logistic_container
+end
+local function settings_logistic(e)
+  local index=settings_logistic_member(e)
+  local ok,point=pcall(function() return e.get_logistic_point(index) end)
+  if not ok or not point then return nil end
+  return settings_logistic_point(point)
 end
 local function settings_train_stop(e)
   return {backerName=settings_field(e,"backer_name") or "",
@@ -250,7 +259,7 @@ local function settings_sections(e,inventory_name)
       colorMode=control and settings_field(control,"color_mode") or 0}
   end
   if e.inventory_supports_bar then out.container=settings_container(e,inventory_name) end
-  if e.type=="logistic-container" or e.type=="infinity-container" then out.logistic=settings_logistic(e) end
+  if e.type=="logistic-container" or e.type=="infinity-container" or e.type=="rocket-silo" then out.logistic=settings_logistic(e) end
   if e.type=="train-stop" then out.trainStop=settings_train_stop(e) end
   if e.type=="rocket-silo" then out.rocketSilo=settings_silo(e) end
   out.circuit=settings_circuit(e)
@@ -323,6 +332,13 @@ func setSplitterSettings(r *Resolver, in SplitterSettingsInput) (*SettingsResult
 	if in.Filter != nil && in.Filter.Name == "" {
 		return nil, errors.New("filter name must not be empty")
 	}
+	if in.Filter != nil && in.OutputPriority != nil && *in.OutputPriority == "none" {
+		return nil, errors.New("outputPriority none makes a splitter filter inert; set left or right")
+	}
+	if in.Filter != nil && in.OutputPriority == nil {
+		left := "left"
+		in.OutputPriority = &left
+	}
 	clear := in.Clear != nil && *in.Clear
 	if clear && (in.Filter != nil || in.InputPriority != nil || in.OutputPriority != nil) {
 		return nil, errors.New("clear cannot be combined with filter or priorities")
@@ -349,12 +365,12 @@ e.splitter_output_priority="none"
 		if in.Filter.Quality != nil && *in.Filter.Quality != "" {
 			quality = *in.Filter.Quality
 		}
-		comparator := ""
-		if in.Filter.Comparator != nil {
-			comparator = *in.Filter.Comparator
+		filterLua := fmt.Sprintf("{name=%s,quality=%s", luaString(in.Filter.Name), luaString(quality))
+		if in.Filter.Comparator != nil && *in.Filter.Comparator != "" {
+			filterLua += ",comparator=" + luaString(*in.Filter.Comparator)
 		}
-		fmt.Fprintf(&body, "e.splitter_filter={name=%s,quality=%s,comparator=%s}\n",
-			luaString(in.Filter.Name), luaString(quality), luaString(comparator))
+		filterLua += "}"
+		fmt.Fprintf(&body, "e.splitter_filter=%s\n", filterLua)
 	}
 	if in.InputPriority != nil {
 		fmt.Fprintf(&body, "e.splitter_input_priority=%s\n", luaString(*in.InputPriority))
@@ -559,7 +575,8 @@ func setLogisticRequests(r *Resolver, in LogisticRequestsInput) (*SettingsResult
 	}
 	var body strings.Builder
 	body.WriteString(prefix)
-	body.WriteString(`local ok,point=pcall(function() return e.get_logistic_point(defines.logistic_member_index.logistic_container) end)
+	body.WriteString(`local member_index=settings_logistic_member(e)
+local ok,point=pcall(function() return e.get_logistic_point(member_index) end)
 if not ok or not point then fail("entity has no logistic container behavior"); return end
 for index=20,1,-1 do point.remove_section(index) end
 `)

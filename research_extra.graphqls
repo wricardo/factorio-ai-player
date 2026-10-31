@@ -1,0 +1,43 @@
+extend type Mutation {
+  """Appends a technology to the force research queue. Prerequisites must already be researched and the technology must be enabled and unresearched."""
+  queueResearch(input: QueueResearchInput!): ResearchState!
+  """Clears every queued technology; the current research keeps running."""
+  clearResearchQueue(input: ResearchQueueInput!): ResearchState!
+  """Unlocks every technology. RESEARCH applies the research effects, ENABLE only enables the prototypes. An explicit sandbox shortcut."""
+  unlockAllTechnologies(input: UnlockTechnologiesInput!): ResearchUnlockResult!
+}
+
+"""technology must be a non-empty name of an existing technology on the force."""
+input QueueResearchInput {
+  force: String! = "player"
+  technology: String!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input ResearchQueueInput {
+  force: String! = "player"
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input UnlockTechnologiesInput {
+  force: String! = "player"
+  mode: TechnologyUnlockMode! = RESEARCH
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+enum TechnologyUnlockMode {
+  """Apply full research effects as if every technology were researched."""
+  RESEARCH
+  """Enable the technology prototypes without applying research effects."""
+  ENABLE
+}
+
+type ResearchUnlockResult {
+  tick: Float!
+  force: String!
+  mode: String!
+  technologies: Int!
+}

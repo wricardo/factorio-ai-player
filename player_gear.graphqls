@@ -1,0 +1,54 @@
+extend type Actor {
+  """Equipment installed in the actor's armor grid, read in one additional snapshot."""
+  equipmentGrid: [ItemStack!]
+  """Logistic request sections configured on the actor's own requester point."""
+  logisticRequests: LogisticSettings
+}
+
+extend type Mutation {
+  """Moves items between the acting character's main inventory and its armor equipment grid. The character must wear armor that carries a grid."""
+  equipGrid(input: EquipGridInput!): EquipmentGridResult!
+  """Replaces or clears the acting player's or character's own logistic request sections."""
+  setActorLogisticRequests(input: ActorLogisticRequestsInput!): ActorLogisticResult!
+}
+
+enum EquipmentDirection {
+  TO_GRID
+  TO_MAIN
+}
+
+"""Exactly one player or character. count is 1 through 4294967295."""
+input EquipGridInput {
+  player: String
+  character: ID
+  item: String!
+  count: Int! = 1
+  direction: EquipmentDirection! = TO_GRID
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type EquipmentGridResult {
+  tick: Float!
+  player: String
+  character: ID
+  items: [ItemStack!]!
+  moved: Float!
+}
+
+"""Exactly one player or character. Either sections or clear must be given, not both."""
+input ActorLogisticRequestsInput {
+  player: String
+  character: ID
+  sections: [LogisticSectionInput!]
+  clear: Boolean! = false
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type ActorLogisticResult {
+  tick: Float!
+  player: String
+  character: ID
+  sections: [LogisticSection!]!
+}

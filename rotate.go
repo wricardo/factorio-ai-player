@@ -8,6 +8,35 @@ import (
 	"math"
 )
 
+// rotateCommandInput is the backend flag payload for the rotate command. The
+// actor is already resolved to a character unit number by rotateMutation.
+type rotateCommandInput struct {
+	Character  *string  `json:"character,omitempty"`
+	Entity     *string  `json:"entity,omitempty"`
+	X          *float64 `json:"x,omitempty"`
+	Y          *float64 `json:"y,omitempty"`
+	UnitNumber *string  `json:"unitNumber,omitempty"`
+	Turns      *int     `json:"turns,omitempty"`
+	Message    *string  `json:"message,omitempty"`
+}
+
+// rotateMutation resolves the acting character and rotates a reachable entity.
+func rotateMutation(r *Resolver, input RotateInput) (*ActionResult, error) {
+	character, err := resolveActorCharacter(r, input.Player, input.Character)
+	if err != nil {
+		return nil, err
+	}
+	return command[ActionResult](r, "rotate", rotateCommandInput{
+		Character:  &character,
+		Entity:     input.Entity,
+		X:          input.X,
+		Y:          input.Y,
+		UnitNumber: input.UnitNumber,
+		Turns:      input.Turns,
+		Message:    input.Message,
+	})
+}
+
 // rotateLua rotates an existing reachable entity using Factorio's player rotation.
 func rotateLua(args []string, out io.Writer) (string, error) {
 	fs := flag.NewFlagSet("rotate", flag.ContinueOnError)

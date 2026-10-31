@@ -114,6 +114,30 @@ Gotchas:
 - Edit schema/config and regenerate gqlgen outputs when GraphQL contracts change. Do not hand-edit `graphql_generated.go` or `graphql_models.go`.
 - Keep mutations explicit and conservative. Do not blindly retry operations with uncertain outcomes; verify inventories, entities, or job status first.
 
+## Multiple Agents on One Working Tree
+
+Several agents (and the user) may edit this checkout and the managed server at the same time. Treat
+the working tree as shared state.
+
+- **Never rewrite shared state.** No `git reset`, `git reset --hard`, `git checkout -- <path>`,
+  `git restore`, `git stash`, `git stash pop`, `git clean`, branch switching, rebase, or amend on a
+  shared branch. These silently discard or relocate other agents' uncommitted work; a transient
+  compile error from a mid-write `graphql_generated.go` is expected, not a reason to reset.
+- **Never stage broadly.** No `git add -A`, `git add .`, or `git commit -a`; they sweep other
+  agents' in-progress files into your commit. Stage only the exact paths you changed
+  (`git add <file>...`) and inspect `git status` before committing.
+- **Commit only when asked.** Other agents' work is usually uncommitted by design; the user commits
+  the tree as a whole. Report your changed files and propose the commit instead.
+- **Do not delete or rewrite files you do not own.** Unfamiliar new `*.graphqls`, `*_resolvers.go`,
+  or domain files are someone else's work in progress: leave them, and never regenerate or reformat
+  them out of existence.
+- **Expect interleaved edits in generated files.** `graphql_generated.go`, `graphql_models.go`, and
+  `graphql_schema.resolvers.go` accumulate everyone's fields. After `gqlgen generate`, only fill in
+  your own panics and leave others' implemented resolvers untouched.
+- **One live server, shared save.** Do not stop, restart, or reinstall the managed server (see the
+  sandbox recipe) while others are playing; verify mutations with reads and net-zero edit/revert
+  probes instead.
+
 ## Escalation & API Feedback
 
 - **Stop and raise anomalies.** If a GraphQL query/mutation, Lua payload, RCON call, or in-game
@@ -135,22 +159,24 @@ Gotchas:
 
 - `main.go`: process entry, game-operation dispatch, Lua execution, and RCON protocol.
 - `graphql_cli.go`: GraphQL CLI commands and schema discovery.
-- `schema.graphqls`, `navigation.graphqls`, `insights_*.graphqls`: GraphQL API and inline descriptions.
+- `schema.graphqls`, `navigation.graphqls`, `settings.graphqls`, `insights_*.graphqls`, and the feature schemas (`construction.graphqls`, `trains.graphqls`, `fluids.graphqls`, `agent_actions.graphqls`, `player_gear.graphqls`, `research_extra.graphqls`, `world_extra.graphqls`, `entity_meta.graphqls`, `writes_extra.graphqls`): GraphQL API and inline descriptions. Each feature schema generates its own `graphql_<name>.resolvers.go`.
 - `resolver.go`, `graphql_*_resolvers.go`: resolver bridge and schema adapters.
 - `gqlgen.yml`, `graphql_generated.go`, `graphql_models.go`: gqlgen configuration and generated output.
 - `actions.go`, `production.go`, `insights_*.go`, `factory_*.go`, `navigation.go`: gameplay operations and read-only insights. Topology (`insights_topology.go`), machine diagnostics (`insights_diagnostics.go`), planning (`insights_planning.go`), research/construction/fluids (`insights_operations.go`), belt-flow measurement (`insights_belt_flow.go`, backed by the navigation mod's `belt_flow.lua`) and tile-grid placement probing (`placement_probe.go`, one RCON call per area) live in their own domain files.
+- Newer write domains: `deconstruction.go`, `construction.go` (buildGhosts, logistic networks), `trains.go` (train reads/control, setDirection), `fluids.go` (setFluid, fluidStock), `agent_actions.go` (game speed, teleport, capsules, repair), `agent_shoot.go` (mod-backed shooting), `writes_extra.go` (dropItem), `entity_meta.go` (inspection metadata, tags, name tag), `player_gear.go` (equipment grid, actor logistic requests), `research_extra.go` (research queue, sandbox unlock), `world_extra.go` (surfaces, circuit signals), `recipe_machine.go`/`machineRecipe.go` (recipe drain, clearRecipe), `actor_resolve.go` (player→character resolver helper), and `nearby.go` (ordered, paginated nearby).
+- The navigation mod also owns `actions.lua` (tick-driven shooting jobs) and its Lua tests (`actions_test.lua`); Factorio 2.0.77 stores tags only as blueprint/ghost metadata and ignores scripted direction writes on belts and rails, so those paths fail with actionable errors rather than pretending to succeed.
 - `go.mod`: Go version and dependencies. `justfile`, `scripts/server.sh`, `server-settings.json`: local server workflows/configuration.
 - `README.md`: operational and GraphQL behavior reference; `play/AGENTS.md`: gameplay-specific notes.
 
 ## Runtime/Tooling Preferences
 
-Use Go modules; `go.mod` declares Go 1.26.0 (README currently says Go 1.25+, so use Go 1.26+). `just`, Bash, OpenSSL, and Factorio 2.0 are needed for managed server workflows; `lua` is optional and enables the navigation harness during `go test`. No Node.js, Bun, or JavaScript package manager is required. gqlgen is pinned as a Go tool dependency; schema generation is configured by `gqlgen.yml`.
+Use Go modules; `go.mod` declares Go 1.26.0 (README currently says Go 1.25+, so use Go 1.26+). `just`, Bash, OpenSSL, and Factorio 2.0 are needed for managed server workflows; `lua` is optional and enables the navigation/action job harness during `go test`. The installed engine is Factorio 2.0.77 with the builtin quality and space-age features enabled, so validate Lua API names against the 2.0.77 runtime docs (`https://lua-api.factorio.com/2.0.77/`), not the "latest" 2.1 docs: fluid writes (`insert_fluid`/`clear_fluid_inside`), equipment-grid `put` (one item per call), `LuaEntity.get_control_behavior()`, and `LuaLogisticNetwork` robot counts (numbers, not arrays) all differ. No Node.js, Bun, or JavaScript package manager is required. gqlgen is pinned as a Go tool dependency; schema generation is configured by `gqlgen.yml`.
 
 Server defaults target macOS Factorio paths. `scripts/server.sh` supports `FACTORIO_BIN`, `FACTORIO_SAVE`, `FACTORIO_GAME_PORT`, `FACTORIO_RCON_PORT`, `FACTORIO_STATE_DIR`, and optional `FACTORIO_MOD_DIR`; use the same state/mod directories when managing one instance. Runtime credentials and state live in ignored `.factorio/`.
 
 ## Testing & QA
 
-Tests use Go's standard `testing` package. Run `go test ./...`; tests cover validation and CLI behavior, pure helpers and polling, GraphQL relationships, and RCON framing with fake TCP servers. `TestNavigationController` runs `lua mods/factorio_ai_navigation/navigation_test.lua` when `lua` is installed and skips otherwise. There is no configured coverage target or CI/lint workflow.
+Tests use Go's standard `testing` package. Run `go test ./...`; tests cover validation and CLI behavior, pure helpers and polling, GraphQL relationships, and RCON framing with fake TCP servers. `TestNavigationController` runs `lua mods/factorio_ai_navigation/navigation_test.lua` and `TestActionController` runs `lua mods/factorio_ai_navigation/actions_test.lua` when `lua` is installed; both skip otherwise. There is no configured coverage target or CI/lint workflow.
 
 Unit tests do not exercise Factorio itself. For changes that affect server behavior, smoke-test against a local Factorio server using `just start` and a focused `go run . query|mutation ...` operation, then inspect the resulting state before considering the change verified. Consult `README.md` for mutation semantics, environment variables, and server safety constraints.
 

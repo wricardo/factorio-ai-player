@@ -61,6 +61,10 @@ type Actor struct {
 	Queue          *CraftQueue     `json:"queue"`
 	Recipe         *Recipe         `json:"recipe"`
 	Nearby         *Nearby         `json:"nearby"`
+	// Equipment installed in the actor's armor grid, read in one additional snapshot.
+	EquipmentGrid []*ItemStack `json:"equipmentGrid,omitempty"`
+	// Logistic request sections configured on the actor's own requester point.
+	LogisticRequests *LogisticSettings `json:"logisticRequests,omitempty"`
 }
 
 // Select exactly one nonempty player name or character unit number from 1 to 4294967295.
@@ -76,6 +80,23 @@ type ActorInventory struct {
 	Inventory   *string      `json:"inventory,omitempty"`
 	Items       []*ItemStack `json:"items"`
 	ItemEntries *int         `json:"itemEntries,omitempty"`
+}
+
+// Exactly one player or character. Either sections or clear must be given, not both.
+type ActorLogisticRequestsInput struct {
+	Player    *string                 `json:"player,omitempty"`
+	Character *string                 `json:"character,omitempty"`
+	Sections  []*LogisticSectionInput `json:"sections,omitempty"`
+	Clear     bool                    `json:"clear"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type ActorLogisticResult struct {
+	Tick      float64            `json:"tick"`
+	Player    *string            `json:"player,omitempty"`
+	Character *string            `json:"character,omitempty"`
+	Sections  []*LogisticSection `json:"sections"`
 }
 
 // Geometric adjacency inside an area, with engine verification. Nodes are all selected-force entities intersecting the area except characters, units, robots, corpses, items and ghosts. Pairs are unordered, each listed once, and only cover returned nodes; duplicate or self pairs never appear. Tracing item or fluid flow still needs factoryGraph edges, beltRun or fluidNetwork.
@@ -194,7 +215,9 @@ type BeltTakeInput struct {
 	Y          *float64 `json:"y,omitempty"`
 	UnitNumber *string  `json:"unitNumber,omitempty"`
 	Item       string   `json:"item"`
-	Count      *float64 `json:"count,omitempty"`
+	// Item quality prototype name; defaults to normal.
+	Quality *string  `json:"quality,omitempty"`
+	Count   *float64 `json:"count,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
@@ -303,10 +326,12 @@ type BillOfMaterialsInput struct {
 
 // One blueprint-relative entity. At most 1000 entities; positions are blueprint-relative, direction defaults north, quality defaults normal.
 type BlueprintEntityInput struct {
-	Name          string  `json:"name"`
-	X             float64 `json:"x"`
-	Y             float64 `json:"y"`
-	Direction     *string `json:"direction,omitempty"`
+	Name      string  `json:"name"`
+	X         float64 `json:"x"`
+	Y         float64 `json:"y"`
+	Direction *string `json:"direction,omitempty"`
+	// Engine direction 0 through 15, an alternative to direction.
+	DirectionCode *int    `json:"directionCode,omitempty"`
 	Quality       *string `json:"quality,omitempty"`
 	Recipe        *string `json:"recipe,omitempty"`
 	RecipeQuality *string `json:"recipeQuality,omitempty"`
@@ -352,6 +377,30 @@ type BlueprintTileInput struct {
 	Y    int    `json:"y"`
 }
 
+// Area limits are positive and at most 256 tiles per side. limit is 1 through 1000.
+type BuildGhostsInput struct {
+	Player    *string           `json:"player,omitempty"`
+	Character *string           `json:"character,omitempty"`
+	Force     *string           `json:"force,omitempty"`
+	Surface   *string           `json:"surface,omitempty"`
+	Area      *FactoryAreaInput `json:"area"`
+	Mode      BuildGhostsMode   `json:"mode"`
+	Limit     int               `json:"limit"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type BuildGhostsResult struct {
+	Tick     float64         `json:"tick"`
+	Surface  string          `json:"surface"`
+	Mode     string          `json:"mode"`
+	Revived  int             `json:"revived"`
+	Failed   int             `json:"failed"`
+	Missing  []*ItemStack    `json:"missing"`
+	Entities []*PlacedEntity `json:"entities"`
+	Errors   []string        `json:"errors"`
+}
+
 // Select exactly one player or character. Index is the one-based crafting queue position; count is at least 1. Later crafts that depend on canceled crafts may also cancel.
 type CancelCraftInput struct {
 	Player    *string `json:"player,omitempty"`
@@ -367,6 +416,27 @@ type CancelResearchInput struct {
 	Force *string `json:"force,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
+}
+
+// Player must be connected and control a character. count is 1 through 100. Coordinates must be finite and within the character's reach.
+type CapsuleInput struct {
+	Player string  `json:"player"`
+	Item   string  `json:"item"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Count  int     `json:"count"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type CapsuleResult struct {
+	Tick     float64   `json:"tick"`
+	Surface  string    `json:"surface"`
+	Item     string    `json:"item"`
+	Used     int       `json:"used"`
+	Position *Position `json:"position"`
+	// Entities the engine created or damaged by the capsule action.
+	Created []*PlacedEntity `json:"created"`
 }
 
 // Player must be disconnected and have an empty crafting queue and a main inventory.
@@ -516,6 +586,37 @@ type CircuitBehaviorSettings struct {
 	SiloReadMode *int `json:"siloReadMode,omitempty"`
 }
 
+// Address the entity by unitNumber, or by prototype name plus finite center coordinates. color is red or green.
+type CircuitNetworkInput struct {
+	Surface    *string  `json:"surface,omitempty"`
+	Entity     *string  `json:"entity,omitempty"`
+	UnitNumber *string  `json:"unitNumber,omitempty"`
+	X          *float64 `json:"x,omitempty"`
+	Y          *float64 `json:"y,omitempty"`
+	Color      *string  `json:"color,omitempty"`
+}
+
+type CircuitNetworkSignals struct {
+	Tick       float64 `json:"tick"`
+	Surface    string  `json:"surface"`
+	Name       *string `json:"name,omitempty"`
+	UnitNumber *string `json:"unitNumber,omitempty"`
+	Color      string  `json:"color"`
+	// True when the entity exposes a network of that color.
+	Connected        bool             `json:"connected"`
+	RedConnections   int              `json:"redConnections"`
+	GreenConnections int              `json:"greenConnections"`
+	Signals          []*CircuitSignal `json:"signals"`
+}
+
+// One circuit signal; quality is null for virtual and fluid signals.
+type CircuitSignal struct {
+	Type    string  `json:"type"`
+	Name    string  `json:"name"`
+	Quality *string `json:"quality,omitempty"`
+	Value   float64 `json:"value"`
+}
+
 // Clearing is limited to areas with positive dimensions no greater than 256 tiles per side.
 type ClearAreaInput struct {
 	Surface string            `json:"surface"`
@@ -529,6 +630,19 @@ type ClearAreaResult struct {
 	Surface      string  `json:"surface"`
 	TreesRemoved int     `json:"treesRemoved"`
 	RocksRemoved int     `json:"rocksRemoved"`
+}
+
+// Select exactly one player or character. Address the machine by unitNumber, or by entity name plus finite machine-center coordinates. The machine must not be crafting.
+type ClearRecipeInput struct {
+	Player     *string  `json:"player,omitempty"`
+	Character  *string  `json:"character,omitempty"`
+	Surface    *string  `json:"surface,omitempty"`
+	Entity     *string  `json:"entity,omitempty"`
+	UnitNumber *string  `json:"unitNumber,omitempty"`
+	X          *float64 `json:"x,omitempty"`
+	Y          *float64 `json:"y,omitempty"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
 }
 
 // RGBA color with components from 0 to 1.
@@ -628,6 +742,82 @@ type CreateBlueprintInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// Force must name an existing force. Area dimensions must be positive and at most 256 tiles per side.
+type DeconstructAreaInput struct {
+	// Optional actor; instant mode mines reachable targets as this actor instead of destroying them.
+	Player    *string           `json:"player,omitempty"`
+	Character *string           `json:"character,omitempty"`
+	Surface   string            `json:"surface"`
+	Force     *string           `json:"force,omitempty"`
+	Area      *FactoryAreaInput `json:"area"`
+	// Optional prototype-name filter; omitted selects every deconstructible entity.
+	Names []string `json:"names,omitempty"`
+	// Optional entity-type filter; omitted selects every deconstructible entity.
+	Types []string `json:"types,omitempty"`
+	// Immediately mine reachable targets and destroy and spill the rest instead of waiting for construction robots. A documented sandbox shortcut.
+	Instant *bool `json:"instant,omitempty"`
+	// Maximum targets processed, from 1 through 1000.
+	Limit *int `json:"limit,omitempty"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// Force must name an existing force; targets must be on the given surface and belong to that force. At most 200 targets.
+type DeconstructEntitiesInput struct {
+	Surface string                       `json:"surface"`
+	Force   *string                      `json:"force,omitempty"`
+	Targets []*DeconstructionTargetInput `json:"targets"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// Deconstruction orders placed or canceled, plus per-target failures by one-based index (at most 20); errors are empty for area requests.
+type DeconstructionResult struct {
+	Tick    float64      `json:"tick"`
+	Surface string       `json:"surface"`
+	Force   string       `json:"force"`
+	Orders  int          `json:"orders"`
+	Skipped int          `json:"skipped"`
+	Removed int          `json:"removed"`
+	Items   []*ItemStack `json:"items"`
+	Errors  []string     `json:"errors"`
+}
+
+// One entity addressed by unitNumber, or by prototype name plus finite entity-center coordinates; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes.
+type DeconstructionTargetInput struct {
+	Entity     *string  `json:"entity,omitempty"`
+	UnitNumber *string  `json:"unitNumber,omitempty"`
+	X          *float64 `json:"x,omitempty"`
+	Y          *float64 `json:"y,omitempty"`
+}
+
+// Exactly one player or character. count is 1 through 4294967295. BELT requires a transport belt whose center matches the finite coordinates; GROUND spills the stack at the position.
+type DropItemInput struct {
+	Player    *string    `json:"player,omitempty"`
+	Character *string    `json:"character,omitempty"`
+	Surface   *string    `json:"surface,omitempty"`
+	Item      string     `json:"item"`
+	Quality   *string    `json:"quality,omitempty"`
+	Count     float64    `json:"count"`
+	X         float64    `json:"x"`
+	Y         float64    `json:"y"`
+	Target    DropTarget `json:"target"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type DropItemResult struct {
+	Tick      float64   `json:"tick"`
+	Surface   string    `json:"surface"`
+	Item      string    `json:"item"`
+	Quality   string    `json:"quality"`
+	Requested float64   `json:"requested"`
+	Moved     float64   `json:"moved"`
+	Position  *Position `json:"position"`
+	// Transport line (1 or 2) that received the items; zero for a ground drop.
+	Line int `json:"line"`
+}
+
 type ElectricNetworkInsight struct {
 	ID string `json:"id"`
 	// Number of selected force's poles in the area; not a whole-network count.
@@ -669,6 +859,7 @@ type Entity struct {
 	Direction  *int              `json:"direction,omitempty"`
 	UnitNumber *string           `json:"unitNumber,omitempty"`
 	Amount     *float64          `json:"amount,omitempty"`
+	Distance   *float64          `json:"distance,omitempty"`
 	Inspection *EntityInspection `json:"inspection,omitempty"`
 }
 
@@ -694,14 +885,54 @@ type EntityInspection struct {
 	MiningTarget        *Entity               `json:"miningTarget,omitempty"`
 	MiningResources     []*Entity             `json:"miningResources,omitempty"`
 	ForceItemProduction *ProductionStatistics `json:"forceItemProduction,omitempty"`
+	ToBeDeconstructed   bool                  `json:"toBeDeconstructed"`
 	RecipeInfo          *Recipe               `json:"recipeInfo,omitempty"`
 	Logistics           *InspectionLogistics  `json:"logistics"`
+	// Engine unit number of the inspected entity, when it has one.
+	UnitNumber *string `json:"unitNumber,omitempty"`
+	// JSON encoding of the engine parameters, when the entity exposes them (for example combinators).
+	ParametersJSON *string `json:"parametersJSON,omitempty"`
+	// JSON encoding of the entity tags, when readable.
+	TagsJSON *string `json:"tagsJSON,omitempty"`
+	// Engine name tag, when the entity supports one.
+	NameTag *string `json:"nameTag,omitempty"`
+	// Counterpart of an underground belt or pipe, when paired.
+	UndergroundNeighbour *PlacedEntity `json:"undergroundNeighbour,omitempty"`
+	// Belt neighbours reported by the engine, when the entity is belt connectable.
+	BeltNeighbours []*PlacedEntity `json:"beltNeighbours,omitempty"`
+	// Fluidbox neighbours reported by the engine, when the entity has fluidboxes.
+	FluidboxNeighbours []*PlacedEntity `json:"fluidboxNeighbours,omitempty"`
 	// Required current-research ingredients absent or below one research unit in this lab. Empty for non-labs or no active science research. Separate snapshot.
 	MissingSciencePacks []*MissingSciencePack `json:"missingSciencePacks"`
 	// Engine fluidbox connectivity, without implicit links between different boxes on a machine or pump. Separate snapshot.
 	FluidNetwork *FluidNetwork `json:"fluidNetwork"`
 	// Engine settings this entity supports, read in one additional snapshot.
 	Settings *SettingsResult `json:"settings,omitempty"`
+}
+
+type EntityMetaResult struct {
+	Tick           float64   `json:"tick"`
+	Surface        string    `json:"surface"`
+	Name           string    `json:"name"`
+	UnitNumber     *string   `json:"unitNumber,omitempty"`
+	Position       *Position `json:"position"`
+	ParametersJSON *string   `json:"parametersJSON,omitempty"`
+	TagsJSON       *string   `json:"tagsJSON,omitempty"`
+	NameTag        *string   `json:"nameTag,omitempty"`
+}
+
+// Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates. An empty nameTag clears the tag.
+type EntityNameTagInput struct {
+	Player     *string  `json:"player,omitempty"`
+	Character  *string  `json:"character,omitempty"`
+	Surface    *string  `json:"surface,omitempty"`
+	Entity     *string  `json:"entity,omitempty"`
+	UnitNumber *string  `json:"unitNumber,omitempty"`
+	X          *float64 `json:"x,omitempty"`
+	Y          *float64 `json:"y,omitempty"`
+	NameTag    string   `json:"nameTag"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
 }
 
 type EntityPage struct {
@@ -713,16 +944,51 @@ type EntityPage struct {
 	Entities []*Entity `json:"entities"`
 }
 
+// Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates. tagsJSON must be a JSON object.
+type EntityTagsInput struct {
+	Player     *string  `json:"player,omitempty"`
+	Character  *string  `json:"character,omitempty"`
+	Surface    *string  `json:"surface,omitempty"`
+	Entity     *string  `json:"entity,omitempty"`
+	UnitNumber *string  `json:"unitNumber,omitempty"`
+	X          *float64 `json:"x,omitempty"`
+	Y          *float64 `json:"y,omitempty"`
+	TagsJSON   string   `json:"tagsJSON"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// Exactly one player or character. count is 1 through 4294967295.
+type EquipGridInput struct {
+	Player    *string            `json:"player,omitempty"`
+	Character *string            `json:"character,omitempty"`
+	Item      string             `json:"item"`
+	Count     int                `json:"count"`
+	Direction EquipmentDirection `json:"direction"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
 // Select exactly one player or character. Inventory is guns, ammo, armor, or trash; direction is to-equipment or to-main. Count is an integer from 1 to 4294967295.
 type EquipInput struct {
-	Player    *string  `json:"player,omitempty"`
-	Character *string  `json:"character,omitempty"`
-	Item      string   `json:"item"`
+	Player    *string `json:"player,omitempty"`
+	Character *string `json:"character,omitempty"`
+	Item      string  `json:"item"`
+	// Item quality prototype name; defaults to normal.
+	Quality   *string  `json:"quality,omitempty"`
 	Count     *float64 `json:"count,omitempty"`
 	Inventory string   `json:"inventory"`
 	Direction string   `json:"direction"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
+}
+
+type EquipmentGridResult struct {
+	Tick      float64      `json:"tick"`
+	Player    *string      `json:"player,omitempty"`
+	Character *string      `json:"character,omitempty"`
+	Items     []*ItemStack `json:"items"`
+	Moved     float64      `json:"moved"`
 }
 
 type FactoryAreaInput struct {
@@ -867,6 +1133,63 @@ type FluidNetworkSegment struct {
 	SegmentFluids   []*FluidNetworkAmount `json:"segmentFluids"`
 }
 
+type FluidStockInput struct {
+	Surface string            `json:"surface"`
+	Force   string            `json:"force"`
+	Area    *FactoryAreaInput `json:"area,omitempty"`
+	// Exact non-empty fluid prototype name, if supplied.
+	Fluid        *string `json:"fluid,omitempty"`
+	Limit        int     `json:"limit"`
+	Offset       int     `json:"offset"`
+	TotalsLimit  int     `json:"totalsLimit"`
+	TotalsOffset int     `json:"totalsOffset"`
+}
+
+type FluidStockLocation struct {
+	Category      string    `json:"category"`
+	EntityName    string    `json:"entityName"`
+	EntityType    string    `json:"entityType"`
+	Position      *Position `json:"position"`
+	InventoryKind string    `json:"inventoryKind"`
+	Fluid         string    `json:"fluid"`
+	Amount        float64   `json:"amount"`
+	Temperature   *float64  `json:"temperature,omitempty"`
+}
+
+type FluidStockPage struct {
+	Tick         float64               `json:"tick"`
+	Surface      string                `json:"surface"`
+	Force        string                `json:"force"`
+	Total        int                   `json:"total"`
+	TotalsTotal  int                   `json:"totalsTotal"`
+	Limit        int                   `json:"limit"`
+	Offset       int                   `json:"offset"`
+	TotalsLimit  int                   `json:"totalsLimit"`
+	TotalsOffset int                   `json:"totalsOffset"`
+	Totals       []*FluidTotal         `json:"totals"`
+	Locations    []*FluidStockLocation `json:"locations"`
+}
+
+type FluidTotal struct {
+	Fluid    string  `json:"fluid"`
+	Amount   float64 `json:"amount"`
+	Category string  `json:"category"`
+}
+
+type FluidWriteResult struct {
+	Tick          float64   `json:"tick"`
+	Surface       string    `json:"surface"`
+	Name          string    `json:"name"`
+	UnitNumber    *string   `json:"unitNumber,omitempty"`
+	Position      *Position `json:"position"`
+	Fluid         *string   `json:"fluid,omitempty"`
+	Before        float64   `json:"before"`
+	After         float64   `json:"after"`
+	Capacity      float64   `json:"capacity"`
+	Mode          string    `json:"mode"`
+	BoxesAffected int       `json:"boxesAffected"`
+}
+
 // Select exactly one player or character. Address the entity by unitNumber, or by entity name plus finite entity-center coordinates; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes. Count is a positive integer. The acting character, or the selected player's character, must be on the entity's surface and within build reach.
 type FuelInput struct {
 	Player     *string  `json:"player,omitempty"`
@@ -876,10 +1199,26 @@ type FuelInput struct {
 	Y          *float64 `json:"y,omitempty"`
 	UnitNumber *string  `json:"unitNumber,omitempty"`
 	Item       string   `json:"item"`
-	Entity     *string  `json:"entity,omitempty"`
-	Count      *float64 `json:"count,omitempty"`
+	// Item quality prototype name; defaults to normal.
+	Quality *string  `json:"quality,omitempty"`
+	Entity  *string  `json:"entity,omitempty"`
+	Count   *float64 `json:"count,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
+}
+
+// speed must be between 0.1 and 1000. paused omitted keeps the current pause state.
+type GameSpeedInput struct {
+	Speed  float64 `json:"speed"`
+	Paused *bool   `json:"paused,omitempty"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type GameSpeedResult struct {
+	Tick   float64 `json:"tick"`
+	Speed  float64 `json:"speed"`
+	Paused bool    `json:"paused"`
 }
 
 type GhostBacklogEntry struct {
@@ -1025,7 +1364,7 @@ type InserterSignal struct {
 	Quality *string `json:"quality,omitempty"`
 }
 
-// Select exactly one player or character. Address the entity by unitNumber, or by entity name plus finite entity-center coordinates on surface; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes.
+// Select exactly one player or character. Address the entity by unitNumber, or by entity name plus finite entity-center coordinates on surface; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes. Entity resolution matches the entity's reported center: 1x1 entities sit at half-integer coordinates (a chest on tile 96,11 reports 96.5,11.5), 3x3 machines at half-integer centers and some 2x2 entities at integer centers.
 type InspectInput struct {
 	Player     *string  `json:"player,omitempty"`
 	Character  *string  `json:"character,omitempty"`
@@ -1046,17 +1385,23 @@ type InspectionLogistics struct {
 }
 
 type Inventories struct {
-	Input      []*ItemStack `json:"input,omitempty"`
-	Output     []*ItemStack `json:"output,omitempty"`
-	Fuel       []*ItemStack `json:"fuel,omitempty"`
-	Chest      []*ItemStack `json:"chest,omitempty"`
-	Modules    []*ItemStack `json:"modules,omitempty"`
-	TurretAmmo []*ItemStack `json:"turretAmmo,omitempty"`
-	Main       []*ItemStack `json:"main,omitempty"`
-	Guns       []*ItemStack `json:"guns,omitempty"`
-	Ammo       []*ItemStack `json:"ammo,omitempty"`
-	Armor      []*ItemStack `json:"armor,omitempty"`
-	Trash      []*ItemStack `json:"trash,omitempty"`
+	Input              []*ItemStack `json:"input,omitempty"`
+	Output             []*ItemStack `json:"output,omitempty"`
+	Fuel               []*ItemStack `json:"fuel,omitempty"`
+	Chest              []*ItemStack `json:"chest,omitempty"`
+	Modules            []*ItemStack `json:"modules,omitempty"`
+	TurretAmmo         []*ItemStack `json:"turretAmmo,omitempty"`
+	Main               []*ItemStack `json:"main,omitempty"`
+	Guns               []*ItemStack `json:"guns,omitempty"`
+	Ammo               []*ItemStack `json:"ammo,omitempty"`
+	Armor              []*ItemStack `json:"armor,omitempty"`
+	Trash              []*ItemStack `json:"trash,omitempty"`
+	RoboportRobot      []*ItemStack `json:"roboportRobot,omitempty"`
+	RoboportMaterial   []*ItemStack `json:"roboportMaterial,omitempty"`
+	CargoWagon         []*ItemStack `json:"cargoWagon,omitempty"`
+	CarTrunk           []*ItemStack `json:"carTrunk,omitempty"`
+	SpiderTrunk        []*ItemStack `json:"spiderTrunk,omitempty"`
+	ArtilleryWagonAmmo []*ItemStack `json:"artilleryWagonAmmo,omitempty"`
 }
 
 // An item filter with optional quality and comparator.
@@ -1165,6 +1510,12 @@ type ItemStack struct {
 	MaximumTemperature *float64 `json:"maximumTemperature,omitempty"`
 }
 
+// One entry of the force's kill count statistics.
+type KillCount struct {
+	Name  string  `json:"name"`
+	Count float64 `json:"count"`
+}
+
 // Lamp color and circuit-driven color state.
 type LampSettings struct {
 	Color    *Color `json:"color"`
@@ -1191,6 +1542,38 @@ type LampSettingsInput struct {
 	ColorMode *int `json:"colorMode,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
+}
+
+type LogisticNetworkInfo struct {
+	ID                 string       `json:"id"`
+	Force              string       `json:"force"`
+	Surface            string       `json:"surface"`
+	Cells              int          `json:"cells"`
+	LogisticRobots     *RobotCount  `json:"logisticRobots"`
+	ConstructionRobots *RobotCount  `json:"constructionRobots"`
+	Contents           []*ItemStack `json:"contents"`
+	RequesterPoints    int          `json:"requesterPoints"`
+	ProviderPoints     int          `json:"providerPoints"`
+}
+
+type LogisticNetworkPage struct {
+	Tick     float64                `json:"tick"`
+	Surface  string                 `json:"surface"`
+	Force    string                 `json:"force"`
+	Total    int                    `json:"total"`
+	Limit    int                    `json:"limit"`
+	Offset   int                    `json:"offset"`
+	Networks []*LogisticNetworkInfo `json:"networks"`
+}
+
+type LogisticNetworksInput struct {
+	Surface string            `json:"surface"`
+	Force   string            `json:"force"`
+	Area    *FactoryAreaInput `json:"area,omitempty"`
+	// Optional engine network id; omitted networks cover every roboport on the surface.
+	NetworkID *string `json:"networkId,omitempty"`
+	Limit     int     `json:"limit"`
+	Offset    int     `json:"offset"`
 }
 
 type LogisticRequestInput struct {
@@ -1448,21 +1831,26 @@ type Nearby struct {
 	Surface   string    `json:"surface"`
 	Entities  []*Entity `json:"entities"`
 	Truncated bool      `json:"truncated"`
+	Total     int       `json:"total"`
 }
 
 // Search around finite x and y on a nonempty surface. Radius must be greater than 0 and at most 100; name and type filter exact entity prototype name and type.
 type NearbyInput struct {
-	Surface *string  `json:"surface,omitempty"`
-	X       *float64 `json:"x,omitempty"`
-	Y       *float64 `json:"y,omitempty"`
-	Radius  *float64 `json:"radius,omitempty"`
-	Name    *string  `json:"name,omitempty"`
-	Type    *string  `json:"type,omitempty"`
+	Surface *string      `json:"surface,omitempty"`
+	X       *float64     `json:"x,omitempty"`
+	Y       *float64     `json:"y,omitempty"`
+	Radius  *float64     `json:"radius,omitempty"`
+	Name    *string      `json:"name,omitempty"`
+	Type    *string      `json:"type,omitempty"`
+	Order   *NearbyOrder `json:"order,omitempty"`
+	Offset  *int         `json:"offset,omitempty"`
+	Limit   *int         `json:"limit,omitempty"`
 }
 
 // Requires a character unit number. Area dimensions must be positive and at most 256 tiles per side.
 type PickupAreaInput struct {
-	Character string            `json:"character"`
+	Player    *string           `json:"player,omitempty"`
+	Character *string           `json:"character,omitempty"`
 	Area      *FactoryAreaInput `json:"area"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
@@ -1479,7 +1867,8 @@ type PickupAreaResult struct {
 
 // Character is a unit number from 1 to 4294967295. Coordinates must be finite and identify a reachable dropped item.
 type PickupInput struct {
-	Character string  `json:"character"`
+	Player    *string `json:"player,omitempty"`
+	Character *string `json:"character,omitempty"`
 	X         float64 `json:"x"`
 	Y         float64 `json:"y"`
 	// Print this text in-game to all connected players instead of the generated notification.
@@ -1494,11 +1883,13 @@ type PlaceBlueprintInput struct {
 	X         float64 `json:"x"`
 	Y         float64 `json:"y"`
 	Direction *string `json:"direction,omitempty"`
+	// Engine direction 0 through 15, an alternative to direction.
+	DirectionCode *int `json:"directionCode,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
 
-// Select exactly one player or character. Coordinates must be finite; direction must be north, east, south, or west. The acting character, or the selected player's character, must be on the surface and within build reach.
+// Select exactly one player or character. Coordinates must be finite; direction must be north, east, south, or west, or use directionCode 0-15. Placement coordinates identify the item's placement position: a 1x1 entity placed at integer x,y occupies that tile and reports its center at x+0.5,y+0.5; pass an already half-integer center for 3x3 entities. The acting character, or the selected player's character, must be on the surface and within build reach.
 type PlaceInput struct {
 	Player    *string `json:"player,omitempty"`
 	Character *string `json:"character,omitempty"`
@@ -1507,16 +1898,24 @@ type PlaceInput struct {
 	Y         float64 `json:"y"`
 	Item      string  `json:"item"`
 	Direction *string `json:"direction,omitempty"`
+	// Engine direction 0 through 15, an alternative to direction; required for 8-way and 16-way prototypes such as rails.
+	DirectionCode *int `json:"directionCode,omitempty"`
+	// Item quality prototype name; defaults to normal.
+	Quality *string `json:"quality,omitempty"`
+	// Replace a fast-replaceable entity at the target instead of failing on the collision.
+	FastReplace *bool `json:"fastReplace,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
 
 // Select exactly one player or character and a nonempty item that places an entity. Positions are finite entity-center coordinates on the actor's force; each direction defaults to north. The acting character, or the selected player's character, must be on the surface and within build reach for each position. At most 1000 positions.
 type PlaceManyInput struct {
-	Player     *string           `json:"player,omitempty"`
-	Character  *string           `json:"character,omitempty"`
-	Surface    *string           `json:"surface,omitempty"`
-	Item       string            `json:"item"`
+	Player    *string `json:"player,omitempty"`
+	Character *string `json:"character,omitempty"`
+	Surface   *string `json:"surface,omitempty"`
+	Item      string  `json:"item"`
+	// Item quality prototype name; defaults to normal.
+	Quality    *string           `json:"quality,omitempty"`
 	Placements []*PlacementInput `json:"placements"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
@@ -1524,15 +1923,16 @@ type PlaceManyInput struct {
 
 // Batch placement counts; errors lists up to 20 per-position failures by one-based placement index.
 type PlaceManyResult struct {
-	Tick    float64  `json:"tick"`
-	Surface string   `json:"surface"`
-	Item    string   `json:"item"`
-	Placed  int      `json:"placed"`
-	Failed  int      `json:"failed"`
-	Errors  []string `json:"errors"`
+	Tick     float64         `json:"tick"`
+	Surface  string          `json:"surface"`
+	Item     string          `json:"item"`
+	Placed   int             `json:"placed"`
+	Failed   int             `json:"failed"`
+	Errors   []string        `json:"errors"`
+	Entities []*PlacedEntity `json:"entities"`
 }
 
-// Select exactly one player or character, a nonempty tile item, and finite tile coordinates. The acting character, or the selected player's character, must be on the surface and within build reach.
+// Select exactly one player or character, a nonempty tile item, and finite tile coordinates. Tile coordinates are whole tile positions (not entity centers). The acting character, or the selected player's character, must be on the surface and within build reach.
 type PlaceTileInput struct {
 	Player    *string `json:"player,omitempty"`
 	Character *string `json:"character,omitempty"`
@@ -1540,6 +1940,8 @@ type PlaceTileInput struct {
 	X         float64 `json:"x"`
 	Y         float64 `json:"y"`
 	Item      string  `json:"item"`
+	// Item quality prototype name; defaults to normal.
+	Quality *string `json:"quality,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
@@ -1552,6 +1954,14 @@ type PlaceTileResult struct {
 	Position *Position `json:"position"`
 }
 
+// One entity reference used by placement and action results.
+type PlacedEntity struct {
+	Name       string    `json:"name"`
+	Type       *string   `json:"type,omitempty"`
+	Position   *Position `json:"position,omitempty"`
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+}
+
 // One refused tile. Blockers are colliding entity prototype names, terrain is true when the tile itself blocks this prototype, and tile is the ground tile prototype name.
 type PlacementBlockedTile struct {
 	Position *Position `json:"position"`
@@ -1560,14 +1970,16 @@ type PlacementBlockedTile struct {
 	Tile     string    `json:"tile"`
 }
 
-// One entity center for placeMany; direction defaults to north.
+// One entity center for placeMany; direction defaults to north. Placement coordinates follow Factorio's placement rules: for 1x1 entities pass the tile corner (integer), and the placed entity then reports its center one half-tile away. Pass an already half-integer center for 3x3 entities.
 type PlacementInput struct {
-	X         float64 `json:"x"`
-	Y         float64 `json:"y"`
-	Direction *string `json:"direction,omitempty"`
+	X             float64 `json:"x"`
+	Y             float64 `json:"y"`
+	Direction     *string `json:"direction,omitempty"`
+	DirectionCode *int    `json:"directionCode,omitempty"`
+	FastReplace   *bool   `json:"fastReplace,omitempty"`
 }
 
-// Surface, force and prototype must be non-empty and exist; direction must be between 0 and 15. Area bounds match WorldResourcesInput, but the sampled tile count may not exceed 16384. Site width and height are site tile counts and must be at least 1 and at most the area dimensions; maxSites is 1 through 200.
+// Surface, force and prototype must be non-empty and exist; direction must be between 0 and 15. Area bounds match WorldResourcesInput, but the sampled tile count may not exceed 16384. mode selects which result list is filled (BLOCKED_TILES -> blockedTiles, GRID -> rows, SITES -> sites); siteWidth/siteHeight/maxSites only affect SITES and are tile counts from 1 to the area dimensions, maxSites 1 through 200.
 type PlacementProbeInput struct {
 	Surface    string             `json:"surface"`
 	Force      string             `json:"force"`
@@ -1580,7 +1992,7 @@ type PlacementProbeInput struct {
 	MaxSites   int                `json:"maxSites"`
 }
 
-// Totals of one placement probe over a tile grid; blockedTiles lists only the tiles where the engine refused placement. rows is the GRID placeability map: one string per tile row, top row first, one character per tile (1 placeable, 0 blocked). sites lists SITES rectangles largest first, origin is the top-left tile corner, and rectangles never overlap.
+// Totals of one placement probe over a tile grid. Result lists are mode-coupled: blockedTiles is filled in BLOCKED_TILES mode (the default) and is empty otherwise; rows is filled only in GRID mode (one string per tile row, top row first, one character per tile, 1 placeable and 0 blocked); sites is filled only in SITES mode (rectangles largest first, origin at the top-left tile corner, never overlapping). sampled/placeable/blocked are always filled.
 type PlacementProbeResult struct {
 	Tick         float64                 `json:"tick"`
 	Surface      string                  `json:"surface"`
@@ -1757,6 +2169,14 @@ type QueueEntry struct {
 	RecipeInfo *Recipe  `json:"recipeInfo,omitempty"`
 }
 
+// technology must be a non-empty name of an existing technology on the force.
+type QueueResearchInput struct {
+	Force      string `json:"force"`
+	Technology string `json:"technology"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
 type Recipe struct {
 	Tick                     float64      `json:"tick"`
 	Player                   *string      `json:"player,omitempty"`
@@ -1827,6 +2247,32 @@ type RemoveResult struct {
 	Items    []*ItemStack `json:"items"`
 }
 
+// Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates; giving both requires the name to match the unit number. count is 1 through 100.
+type RepairInput struct {
+	Player     *string  `json:"player,omitempty"`
+	Character  *string  `json:"character,omitempty"`
+	Surface    *string  `json:"surface,omitempty"`
+	Entity     *string  `json:"entity,omitempty"`
+	UnitNumber *string  `json:"unitNumber,omitempty"`
+	X          *float64 `json:"x,omitempty"`
+	Y          *float64 `json:"y,omitempty"`
+	Count      int      `json:"count"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type RepairResult struct {
+	Tick       float64   `json:"tick"`
+	Surface    string    `json:"surface"`
+	Name       string    `json:"name"`
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Position   *Position `json:"position"`
+	Before     float64   `json:"before"`
+	After      float64   `json:"after"`
+	MaxHealth  float64   `json:"maxHealth"`
+	PacksUsed  int       `json:"packsUsed"`
+}
+
 type ResearchInsights struct {
 	Tick              float64 `json:"tick"`
 	Force             string  `json:"force"`
@@ -1895,6 +2341,12 @@ type ResearchInsightsTechnology struct {
 	Effects             []*ResearchInsightsEffect `json:"effects"`
 }
 
+type ResearchQueueInput struct {
+	Force string `json:"force"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
 // Force research state after a start request.
 type ResearchState struct {
 	Force           string   `json:"force"`
@@ -1902,6 +2354,13 @@ type ResearchState struct {
 	Started         bool     `json:"started"`
 	CurrentResearch *string  `json:"currentResearch,omitempty"`
 	ResearchQueue   []string `json:"researchQueue"`
+}
+
+type ResearchUnlockResult struct {
+	Tick         float64 `json:"tick"`
+	Force        string  `json:"force"`
+	Mode         string  `json:"mode"`
+	Technologies int     `json:"technologies"`
 }
 
 // One connected resource patch. Bounds and centroid are computed from resource entity positions; nearby drills sit inside the bounds expanded by the request drill radius.
@@ -1912,6 +2371,11 @@ type ResourcePatch struct {
 	Bounds       *WorldArea    `json:"bounds"`
 	Centroid     *Position     `json:"centroid"`
 	NearbyDrills []*WorldDrill `json:"nearbyDrills"`
+}
+
+type RobotCount struct {
+	Total     int `json:"total"`
+	Available int `json:"available"`
 }
 
 type RocketLaunchInput struct {
@@ -1949,7 +2413,8 @@ type RocketSiloSettings struct {
 
 // Character is a unit number from 1 to 4294967295. Address the entity by unitNumber, or by entity name plus finite entity-center coordinates; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes. Turns must be 1 to 3.
 type RotateInput struct {
-	Character  string   `json:"character"`
+	Player     *string  `json:"player,omitempty"`
+	Character  *string  `json:"character,omitempty"`
 	Entity     *string  `json:"entity,omitempty"`
 	X          *float64 `json:"x,omitempty"`
 	Y          *float64 `json:"y,omitempty"`
@@ -2044,13 +2509,21 @@ type SafetyPositionInput struct {
 
 // Enemy classification uses force.is_enemy; damaged entities belong to the selected force or its friends. Alerts without positions remain included with areaMatchUnknown=true.
 type SafetySnapshot struct {
-	Tick         float64           `json:"tick"`
-	Surface      string            `json:"surface"`
-	Force        string            `json:"force"`
-	Pollution    *SafetyPollution  `json:"pollution,omitempty"`
-	Enemies      *SafetyEntityPage `json:"enemies"`
-	Damaged      *SafetyEntityPage `json:"damaged"`
-	PlayerAlerts *SafetyAlertPage  `json:"playerAlerts"`
+	Tick                 float64           `json:"tick"`
+	Surface              string            `json:"surface"`
+	Force                string            `json:"force"`
+	Pollution            *SafetyPollution  `json:"pollution,omitempty"`
+	Enemies              *SafetyEntityPage `json:"enemies"`
+	Damaged              *SafetyEntityPage `json:"damaged"`
+	PlayerAlerts         *SafetyAlertPage  `json:"playerAlerts"`
+	EvolutionFactor      float64           `json:"evolutionFactor"`
+	EvolutionByTime      float64           `json:"evolutionByTime"`
+	EvolutionByPollution float64           `json:"evolutionByPollution"`
+	EvolutionByKills     float64           `json:"evolutionByKills"`
+	// The selected surface's total airborne pollution across all chunks.
+	TotalPollution float64 `json:"totalPollution"`
+	// Kills attributed to the selected force, sorted by prototype name.
+	KillCounts []*KillCount `json:"killCounts"`
 }
 
 type ScienceBudget struct {
@@ -2086,14 +2559,64 @@ type ServerResult struct {
 	Response string `json:"response"`
 }
 
+// Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates. direction is the engine value 0 through 15.
+type SetDirectionInput struct {
+	Player     *string  `json:"player,omitempty"`
+	Character  *string  `json:"character,omitempty"`
+	Surface    *string  `json:"surface,omitempty"`
+	Entity     *string  `json:"entity,omitempty"`
+	UnitNumber *string  `json:"unitNumber,omitempty"`
+	X          *float64 `json:"x,omitempty"`
+	Y          *float64 `json:"y,omitempty"`
+	Direction  int      `json:"direction"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// Exactly one player or character. The entity is addressed by unitNumber, or by prototype name plus finite center coordinates. fluid is ignored for CLEAR. amount must be zero or more and temperature, when given, must be finite.
+type SetFluidInput struct {
+	Player      *string        `json:"player,omitempty"`
+	Character   *string        `json:"character,omitempty"`
+	Surface     *string        `json:"surface,omitempty"`
+	Entity      *string        `json:"entity,omitempty"`
+	UnitNumber  *string        `json:"unitNumber,omitempty"`
+	X           *float64       `json:"x,omitempty"`
+	Y           *float64       `json:"y,omitempty"`
+	Fluid       *string        `json:"fluid,omitempty"`
+	Amount      *float64       `json:"amount,omitempty"`
+	Temperature *float64       `json:"temperature,omitempty"`
+	Mode        FluidWriteMode `json:"mode"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
 // Character is a unit number from 1 to 4294967295. Address the machine by unitNumber, or by entity name plus finite machine-center coordinates. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes. Recipe must be enabled and compatible; machine must not be crafting and its input, output, and fluids must be empty.
 type SetRecipeInput struct {
-	Character  string   `json:"character"`
+	Player     *string  `json:"player,omitempty"`
+	Character  *string  `json:"character,omitempty"`
 	Entity     *string  `json:"entity,omitempty"`
 	X          *float64 `json:"x,omitempty"`
 	Y          *float64 `json:"y,omitempty"`
 	UnitNumber *string  `json:"unitNumber,omitempty"`
 	Recipe     string   `json:"recipe"`
+	// Selected recipe quality prototype name; defaults to normal.
+	RecipeQuality *string          `json:"recipeQuality,omitempty"`
+	Drain         *RecipeDrainMode `json:"drain,omitempty"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// Exactly one player or character. Either records or clear must be given, not both. Each record needs a non-empty station name and a waitSeconds of 0 or more. At most 100 records.
+type SetTrainScheduleInput struct {
+	Player     *string                     `json:"player,omitempty"`
+	Character  *string                     `json:"character,omitempty"`
+	Surface    *string                     `json:"surface,omitempty"`
+	Entity     *string                     `json:"entity,omitempty"`
+	UnitNumber *string                     `json:"unitNumber,omitempty"`
+	X          *float64                    `json:"x,omitempty"`
+	Y          *float64                    `json:"y,omitempty"`
+	Records    []*TrainScheduleRecordInput `json:"records,omitempty"`
+	Clear      bool                        `json:"clear"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
@@ -2115,6 +2638,26 @@ type SettingsResult struct {
 	Circuit    *CircuitBehaviorSettings `json:"circuit,omitempty"`
 }
 
+// Player only. Address the target by targetUnitNumber or by finite x and y. count is 1 through 100 and bounds the shooting ticks requested.
+type ShootInput struct {
+	Player           string   `json:"player"`
+	TargetUnitNumber *string  `json:"targetUnitNumber,omitempty"`
+	X                *float64 `json:"x,omitempty"`
+	Y                *float64 `json:"y,omitempty"`
+	Count            int      `json:"count"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type ShootResult struct {
+	Tick      float64       `json:"tick"`
+	Player    string        `json:"player"`
+	Character *string       `json:"character,omitempty"`
+	AmmoUsed  int           `json:"ammoUsed"`
+	Target    *PlacedEntity `json:"target,omitempty"`
+	Position  *Position     `json:"position,omitempty"`
+}
+
 type SignalConditionInput struct {
 	// Comparison operator, for example <, =, > or >=.
 	Comparator   string       `json:"comparator"`
@@ -2130,7 +2673,7 @@ type SignalInput struct {
 	Quality *string `json:"quality,omitempty"`
 }
 
-// Splitter filter and lane priorities.
+// Splitter filter and lane priorities. In Factorio 2.0 the output priority selects which output carries the filtered items: a filter with outputPriority none sorts nothing, so the API rejects that combination and defaults outputPriority to left when a filter is set without one. An omitted comparator means the engine default (=).
 type SplitterSettings struct {
 	Filter *ItemFilter `json:"filter,omitempty"`
 	// none, left, or right.
@@ -2147,7 +2690,7 @@ type SplitterSettingsInput struct {
 	UnitNumber *string  `json:"unitNumber,omitempty"`
 	X          *float64 `json:"x,omitempty"`
 	Y          *float64 `json:"y,omitempty"`
-	// Filter items must match; omitted keeps the current filter.
+	// Filter items must match; omitted keeps the current filter. When a filter is set, outputPriority defaults to left and an explicit none is rejected because the filter would be inert. An omitted comparator keeps the engine default (=).
 	Filter *ItemFilterInput `json:"filter,omitempty"`
 	// none, left, or right.
 	InputPriority *string `json:"inputPriority,omitempty"`
@@ -2170,6 +2713,10 @@ type StartResearchInput struct {
 type Status struct {
 	Tick    float64            `json:"tick"`
 	Players []*ConnectedPlayer `json:"players"`
+	// Current game simulation speed multiplier.
+	Speed float64 `json:"speed"`
+	// True when the game tick is paused.
+	Paused bool `json:"paused"`
 }
 
 type StockInput struct {
@@ -2231,6 +2778,26 @@ type StockTotal struct {
 	Count    float64 `json:"count"`
 }
 
+type SurfaceInfo struct {
+	Name            string   `json:"name"`
+	Index           int      `json:"index"`
+	Planet          *string  `json:"planet,omitempty"`
+	TotalPollution  *float64 `json:"totalPollution,omitempty"`
+	EvolutionFactor *float64 `json:"evolutionFactor,omitempty"`
+}
+
+// Exactly one player or character. Coordinates must be finite and the surface must exist.
+type TeleportInput struct {
+	Player     *string `json:"player,omitempty"`
+	Character  *string `json:"character,omitempty"`
+	Surface    *string `json:"surface,omitempty"`
+	X          float64 `json:"x"`
+	Y          float64 `json:"y"`
+	SnapToGrid *bool   `json:"snapToGrid,omitempty"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
 // Directed structural connection, not measured item flow. kind is belt, underground, linked, loader, pickup, drop, or fluid. boundary means at least one endpoint lies outside the returned node set. Transport-line connections are collapsed to entity edges; splitter priorities and lane routing do not imply measured throughput. Fluid edges follow directed engine pipe connections, including pipes, boilers, pumps, offshore pumps, heat exchangers, storage tanks and fluid-consuming machines.
 type TopologyEdge struct {
 	From     *LogisticsEndpoint `json:"from"`
@@ -2239,6 +2806,58 @@ type TopologyEdge struct {
 	Boundary bool               `json:"boundary"`
 	// Raw engine pipe-connection direction for fluid edges: input, output or input-output. Null for every other kind. Each connected port reports its own connection, so the same fluid pair can appear twice with mirrored endpoints and directions; use kind and endpoint identity for connectivity, not direction, to infer physical flow.
 	FlowDirection *string `json:"flowDirection,omitempty"`
+}
+
+// Exactly one player or character. goToStation requires a non-empty station name.
+type TrainControlInput struct {
+	Player      *string  `json:"player,omitempty"`
+	Character   *string  `json:"character,omitempty"`
+	Surface     *string  `json:"surface,omitempty"`
+	Entity      *string  `json:"entity,omitempty"`
+	UnitNumber  *string  `json:"unitNumber,omitempty"`
+	X           *float64 `json:"x,omitempty"`
+	Y           *float64 `json:"y,omitempty"`
+	ManualMode  *bool    `json:"manualMode,omitempty"`
+	GoToStation *string  `json:"goToStation,omitempty"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// A stopped or moving train. state is the engine defines.train_state value; schedule records carry the station name and the engine's wait condition where readable.
+type TrainInfo struct {
+	ID            string                 `json:"id"`
+	State         int                    `json:"state"`
+	StatusName    *string                `json:"statusName,omitempty"`
+	ManualMode    bool                   `json:"manualMode"`
+	Speed         float64                `json:"speed"`
+	Locomotives   int                    `json:"locomotives"`
+	Wagons        int                    `json:"wagons"`
+	FrontPosition *Position              `json:"frontPosition,omitempty"`
+	Schedule      []*TrainScheduleRecord `json:"schedule"`
+	Cargo         []*ItemStack           `json:"cargo"`
+	Fluids        []*FluidContent        `json:"fluids"`
+}
+
+type TrainPage struct {
+	Tick    float64      `json:"tick"`
+	Surface string       `json:"surface"`
+	Total   int          `json:"total"`
+	Limit   int          `json:"limit"`
+	Offset  int          `json:"offset"`
+	Trains  []*TrainInfo `json:"trains"`
+}
+
+type TrainScheduleRecord struct {
+	Station string `json:"station"`
+	// Wait time in seconds when the record uses a time condition; null otherwise.
+	WaitSeconds *float64 `json:"waitSeconds,omitempty"`
+	// JSON encoding of the engine wait condition, when readable.
+	WaitConditionJSON *string `json:"waitConditionJSON,omitempty"`
+}
+
+type TrainScheduleRecordInput struct {
+	Station     string  `json:"station"`
+	WaitSeconds float64 `json:"waitSeconds"`
 }
 
 type TrainStopInput struct {
@@ -2268,6 +2887,16 @@ type TrainStopSettings struct {
 	Color       *Color `json:"color,omitempty"`
 }
 
+// Surface and force must be non-empty names of existing objects. Limit is 1 through 1000; offset is zero-based and non-negative. station filters by a station name in the schedule.
+type TrainsInput struct {
+	Surface string            `json:"surface"`
+	Force   string            `json:"force"`
+	Area    *FactoryAreaInput `json:"area,omitempty"`
+	Station *string           `json:"station,omitempty"`
+	Limit   int               `json:"limit"`
+	Offset  int               `json:"offset"`
+}
+
 // Select exactly one player or character. Address the entity by unitNumber, or by entity name plus finite entity-center coordinates; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes. Inventory is input, output, fuel, chest, modules, or turret-ammo; direction is to-entity or to-player. Count is an integer from 1 to 4294967295. The acting character, or the selected player's character, must be within reach of the entity.
 type TransferInput struct {
 	Player     *string  `json:"player,omitempty"`
@@ -2277,16 +2906,27 @@ type TransferInput struct {
 	X          *float64 `json:"x,omitempty"`
 	Y          *float64 `json:"y,omitempty"`
 	UnitNumber *string  `json:"unitNumber,omitempty"`
-	Inventory  string   `json:"inventory"`
-	Direction  string   `json:"direction"`
-	Item       string   `json:"item"`
-	Count      float64  `json:"count"`
+	Inventory  *string  `json:"inventory,omitempty"`
+	// Typed alternative to inventory; give exactly one of inventory or inventoryKind.
+	InventoryKind *InventoryKind `json:"inventoryKind,omitempty"`
+	Direction     string         `json:"direction"`
+	Item          string         `json:"item"`
+	// Item quality prototype name; defaults to normal.
+	Quality *string `json:"quality,omitempty"`
+	Count   float64 `json:"count"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
 
 type TransportLine struct {
 	Items []*ItemStack `json:"items"`
+}
+
+type UnlockTechnologiesInput struct {
+	Force string               `json:"force"`
+	Mode  TechnologyUnlockMode `json:"mode"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
 }
 
 // One end of a circuit wire.
@@ -2514,6 +3154,306 @@ func (e BOMStockSource) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type BuildGhostsMode string
+
+const (
+	// Revive ghosts through the engine and raise built events. Script revival bypasses items and construction robots, so this is an explicit sandbox shortcut.
+	BuildGhostsModeRevive BuildGhostsMode = "REVIVE"
+	// Revive ghosts without raising built events or creating smoke. Same sandbox semantics as REVIVE.
+	BuildGhostsModeSilent BuildGhostsMode = "SILENT"
+)
+
+var AllBuildGhostsMode = []BuildGhostsMode{
+	BuildGhostsModeRevive,
+	BuildGhostsModeSilent,
+}
+
+func (e BuildGhostsMode) IsValid() bool {
+	switch e {
+	case BuildGhostsModeRevive, BuildGhostsModeSilent:
+		return true
+	}
+	return false
+}
+
+func (e BuildGhostsMode) String() string {
+	return string(e)
+}
+
+func (e *BuildGhostsMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BuildGhostsMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BuildGhostsMode", str)
+	}
+	return nil
+}
+
+func (e BuildGhostsMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BuildGhostsMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BuildGhostsMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DropTarget string
+
+const (
+	DropTargetGround DropTarget = "GROUND"
+	DropTargetBelt   DropTarget = "BELT"
+)
+
+var AllDropTarget = []DropTarget{
+	DropTargetGround,
+	DropTargetBelt,
+}
+
+func (e DropTarget) IsValid() bool {
+	switch e {
+	case DropTargetGround, DropTargetBelt:
+		return true
+	}
+	return false
+}
+
+func (e DropTarget) String() string {
+	return string(e)
+}
+
+func (e *DropTarget) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DropTarget(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DropTarget", str)
+	}
+	return nil
+}
+
+func (e DropTarget) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DropTarget) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DropTarget) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type EquipmentDirection string
+
+const (
+	EquipmentDirectionToGrid EquipmentDirection = "TO_GRID"
+	EquipmentDirectionToMain EquipmentDirection = "TO_MAIN"
+)
+
+var AllEquipmentDirection = []EquipmentDirection{
+	EquipmentDirectionToGrid,
+	EquipmentDirectionToMain,
+}
+
+func (e EquipmentDirection) IsValid() bool {
+	switch e {
+	case EquipmentDirectionToGrid, EquipmentDirectionToMain:
+		return true
+	}
+	return false
+}
+
+func (e EquipmentDirection) String() string {
+	return string(e)
+}
+
+func (e *EquipmentDirection) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = EquipmentDirection(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid EquipmentDirection", str)
+	}
+	return nil
+}
+
+func (e EquipmentDirection) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *EquipmentDirection) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e EquipmentDirection) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type FluidWriteMode string
+
+const (
+	FluidWriteModeSet   FluidWriteMode = "SET"
+	FluidWriteModeAdd   FluidWriteMode = "ADD"
+	FluidWriteModeClear FluidWriteMode = "CLEAR"
+)
+
+var AllFluidWriteMode = []FluidWriteMode{
+	FluidWriteModeSet,
+	FluidWriteModeAdd,
+	FluidWriteModeClear,
+}
+
+func (e FluidWriteMode) IsValid() bool {
+	switch e {
+	case FluidWriteModeSet, FluidWriteModeAdd, FluidWriteModeClear:
+		return true
+	}
+	return false
+}
+
+func (e FluidWriteMode) String() string {
+	return string(e)
+}
+
+func (e *FluidWriteMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = FluidWriteMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid FluidWriteMode", str)
+	}
+	return nil
+}
+
+func (e FluidWriteMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *FluidWriteMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e FluidWriteMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Entity inventory key for transfer.
+type InventoryKind string
+
+const (
+	InventoryKindInput              InventoryKind = "INPUT"
+	InventoryKindOutput             InventoryKind = "OUTPUT"
+	InventoryKindFuel               InventoryKind = "FUEL"
+	InventoryKindChest              InventoryKind = "CHEST"
+	InventoryKindModules            InventoryKind = "MODULES"
+	InventoryKindTurretAmmo         InventoryKind = "TURRET_AMMO"
+	InventoryKindRoboPortRobot      InventoryKind = "ROBO_PORT_ROBOT"
+	InventoryKindRoboPortMaterial   InventoryKind = "ROBO_PORT_MATERIAL"
+	InventoryKindCargoWagon         InventoryKind = "CARGO_WAGON"
+	InventoryKindCarTrunk           InventoryKind = "CAR_TRUNK"
+	InventoryKindSpiderTrunk        InventoryKind = "SPIDER_TRUNK"
+	InventoryKindArtilleryWagonAmmo InventoryKind = "ARTILLERY_WAGON_AMMO"
+)
+
+var AllInventoryKind = []InventoryKind{
+	InventoryKindInput,
+	InventoryKindOutput,
+	InventoryKindFuel,
+	InventoryKindChest,
+	InventoryKindModules,
+	InventoryKindTurretAmmo,
+	InventoryKindRoboPortRobot,
+	InventoryKindRoboPortMaterial,
+	InventoryKindCargoWagon,
+	InventoryKindCarTrunk,
+	InventoryKindSpiderTrunk,
+	InventoryKindArtilleryWagonAmmo,
+}
+
+func (e InventoryKind) IsValid() bool {
+	switch e {
+	case InventoryKindInput, InventoryKindOutput, InventoryKindFuel, InventoryKindChest, InventoryKindModules, InventoryKindTurretAmmo, InventoryKindRoboPortRobot, InventoryKindRoboPortMaterial, InventoryKindCargoWagon, InventoryKindCarTrunk, InventoryKindSpiderTrunk, InventoryKindArtilleryWagonAmmo:
+		return true
+	}
+	return false
+}
+
+func (e InventoryKind) String() string {
+	return string(e)
+}
+
+func (e *InventoryKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = InventoryKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid InventoryKind", str)
+	}
+	return nil
+}
+
+func (e InventoryKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *InventoryKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e InventoryKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type MachineBlockCategory string
 
 const (
@@ -2578,6 +3518,61 @@ func (e *MachineBlockCategory) UnmarshalJSON(b []byte) error {
 }
 
 func (e MachineBlockCategory) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type NearbyOrder string
+
+const (
+	NearbyOrderDistance   NearbyOrder = "DISTANCE"
+	NearbyOrderUnitNumber NearbyOrder = "UNIT_NUMBER"
+)
+
+var AllNearbyOrder = []NearbyOrder{
+	NearbyOrderDistance,
+	NearbyOrderUnitNumber,
+}
+
+func (e NearbyOrder) IsValid() bool {
+	switch e {
+	case NearbyOrderDistance, NearbyOrderUnitNumber:
+		return true
+	}
+	return false
+}
+
+func (e NearbyOrder) String() string {
+	return string(e)
+}
+
+func (e *NearbyOrder) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = NearbyOrder(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid NearbyOrder", str)
+	}
+	return nil
+}
+
+func (e NearbyOrder) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *NearbyOrder) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e NearbyOrder) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -2698,6 +3693,64 @@ func (e ProductionWindow) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// How setRecipe handles a machine that still holds items or fluid.
+type RecipeDrainMode string
+
+const (
+	RecipeDrainModeAbort   RecipeDrainMode = "ABORT"
+	RecipeDrainModeToActor RecipeDrainMode = "TO_ACTOR"
+	RecipeDrainModeSpill   RecipeDrainMode = "SPILL"
+)
+
+var AllRecipeDrainMode = []RecipeDrainMode{
+	RecipeDrainModeAbort,
+	RecipeDrainModeToActor,
+	RecipeDrainModeSpill,
+}
+
+func (e RecipeDrainMode) IsValid() bool {
+	switch e {
+	case RecipeDrainModeAbort, RecipeDrainModeToActor, RecipeDrainModeSpill:
+		return true
+	}
+	return false
+}
+
+func (e RecipeDrainMode) String() string {
+	return string(e)
+}
+
+func (e *RecipeDrainMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RecipeDrainMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RecipeDrainMode", str)
+	}
+	return nil
+}
+
+func (e RecipeDrainMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RecipeDrainMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RecipeDrainMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type ResearchInsightsStatus string
 
 const (
@@ -2759,6 +3812,63 @@ func (e *ResearchInsightsStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e ResearchInsightsStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TechnologyUnlockMode string
+
+const (
+	// Apply full research effects as if every technology were researched.
+	TechnologyUnlockModeResearch TechnologyUnlockMode = "RESEARCH"
+	// Enable the technology prototypes without applying research effects.
+	TechnologyUnlockModeEnable TechnologyUnlockMode = "ENABLE"
+)
+
+var AllTechnologyUnlockMode = []TechnologyUnlockMode{
+	TechnologyUnlockModeResearch,
+	TechnologyUnlockModeEnable,
+}
+
+func (e TechnologyUnlockMode) IsValid() bool {
+	switch e {
+	case TechnologyUnlockModeResearch, TechnologyUnlockModeEnable:
+		return true
+	}
+	return false
+}
+
+func (e TechnologyUnlockMode) String() string {
+	return string(e)
+}
+
+func (e *TechnologyUnlockMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TechnologyUnlockMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TechnologyUnlockMode", str)
+	}
+	return nil
+}
+
+func (e TechnologyUnlockMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TechnologyUnlockMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TechnologyUnlockMode) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

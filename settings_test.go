@@ -148,3 +148,71 @@ func TestSettingsReadLuaRejectsUnknownInventory(t *testing.T) {
 func floatPointer(value float64) *float64 { return &value }
 
 func stringPointer(value string) *string { return &value }
+
+func TestSetSplitterFilterDefaultsComparatorAndPriority(t *testing.T) {
+	r, commands := serveLuaAndNotify(t, `{"tick":1,"surface":"nauvis","name":"splitter","position":{"x":0,"y":0},"splitter":{"filter":{"name":"copper-ore"},"inputPriority":"none","outputPriority":"left"}}`)
+	name := "splitter"
+	_, err := setSplitterSettings(r, SplitterSettingsInput{
+		Character: stringPointer("439"),
+		Entity:    &name,
+		X:         floatPointer(0),
+		Y:         floatPointer(0),
+		Filter:    &ItemFilterInput{Name: "copper-ore"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lua := <-commands
+	start := strings.Index(lua, "e.splitter_filter=")
+	if start < 0 {
+		t.Fatalf("splitter filter assignment missing:\n%s", lua)
+	}
+	filterLua := lua[start:]
+	if end := strings.IndexByte(filterLua, '\n'); end >= 0 {
+		filterLua = filterLua[:end]
+	}
+	if strings.Contains(filterLua, "comparator=") {
+		t.Fatalf("unset comparator must be omitted (engine default is =): %s", filterLua)
+	}
+	if !strings.Contains(lua, `e.splitter_output_priority="\108\101\102\116"`) {
+		t.Fatalf("a filter without outputPriority must default to left:\n%s", lua)
+	}
+}
+
+func TestSetSplitterFilterComparatorWhenGiven(t *testing.T) {
+	r, commands := serveLuaAndNotify(t, `{"tick":1,"surface":"nauvis","name":"splitter","position":{"x":0,"y":0}}`)
+	name := "splitter"
+	priority := "right"
+	_, err := setSplitterSettings(r, SplitterSettingsInput{
+		Character:      stringPointer("439"),
+		Entity:         &name,
+		X:              floatPointer(0),
+		Y:              floatPointer(0),
+		Filter:         &ItemFilterInput{Name: "copper-ore", Comparator: stringPointer("=")},
+		OutputPriority: &priority,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lua := <-commands
+	if !strings.Contains(lua, "comparator=") {
+		t.Fatalf("an explicit comparator must be written:\n%s", lua)
+	}
+}
+
+func TestSetSplitterFilterRejectsInertPriority(t *testing.T) {
+	r := &Resolver{}
+	name := "splitter"
+	none := "none"
+	_, err := setSplitterSettings(r, SplitterSettingsInput{
+		Character:      stringPointer("439"),
+		Entity:         &name,
+		X:              floatPointer(0),
+		Y:              floatPointer(0),
+		Filter:         &ItemFilterInput{Name: "copper-ore"},
+		OutputPriority: &none,
+	})
+	if err == nil || !strings.Contains(err.Error(), "inert") {
+		t.Fatalf("filter with outputPriority none must fail, got %v", err)
+	}
+}

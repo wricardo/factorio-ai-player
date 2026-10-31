@@ -142,6 +142,26 @@ func (r *mutationResolver) PickupArea(ctx context.Context, input PickupAreaInput
 	return pickupArea(r.Resolver, input)
 }
 
+// DeconstructArea is the resolver for the deconstructArea field.
+func (r *mutationResolver) DeconstructArea(ctx context.Context, input DeconstructAreaInput) (*DeconstructionResult, error) {
+	return deconstructArea(r.Resolver, input)
+}
+
+// CancelDeconstructArea is the resolver for the cancelDeconstructArea field.
+func (r *mutationResolver) CancelDeconstructArea(ctx context.Context, input DeconstructAreaInput) (*DeconstructionResult, error) {
+	return cancelDeconstructArea(r.Resolver, input)
+}
+
+// DeconstructEntities is the resolver for the deconstructEntities field.
+func (r *mutationResolver) DeconstructEntities(ctx context.Context, input DeconstructEntitiesInput) (*DeconstructionResult, error) {
+	return deconstructEntities(r.Resolver, input)
+}
+
+// CancelDeconstructEntities is the resolver for the cancelDeconstructEntities field.
+func (r *mutationResolver) CancelDeconstructEntities(ctx context.Context, input DeconstructEntitiesInput) (*DeconstructionResult, error) {
+	return cancelDeconstructEntities(r.Resolver, input)
+}
+
 // Mine is the resolver for the mine field.
 func (r *mutationResolver) Mine(ctx context.Context, input MineInput) (*ActionResult, error) {
 	return command[ActionResult](r.Resolver, "mine", input)
@@ -159,7 +179,7 @@ func (r *mutationResolver) RemoveMany(ctx context.Context, input RemoveManyInput
 
 // Pickup is the resolver for the pickup field.
 func (r *mutationResolver) Pickup(ctx context.Context, input PickupInput) (*ActionResult, error) {
-	return command[ActionResult](r.Resolver, "pickup", input)
+	return pickupMutation(r.Resolver, input)
 }
 
 // BeltTake is the resolver for the beltTake field.
@@ -169,7 +189,7 @@ func (r *mutationResolver) BeltTake(ctx context.Context, input BeltTakeInput) (*
 
 // Rotate is the resolver for the rotate field.
 func (r *mutationResolver) Rotate(ctx context.Context, input RotateInput) (*ActionResult, error) {
-	return command[ActionResult](r.Resolver, "rotate", input)
+	return rotateMutation(r.Resolver, input)
 }
 
 // Transfer is the resolver for the transfer field.
@@ -184,7 +204,12 @@ func (r *mutationResolver) Equip(ctx context.Context, input EquipInput) (*Action
 
 // SetRecipe is the resolver for the setRecipe field.
 func (r *mutationResolver) SetRecipe(ctx context.Context, input SetRecipeInput) (*ActionResult, error) {
-	return command[ActionResult](r.Resolver, "set-recipe", input)
+	return setRecipe(r.Resolver, input)
+}
+
+// ClearRecipe is the resolver for the clearRecipe field.
+func (r *mutationResolver) ClearRecipe(ctx context.Context, input ClearRecipeInput) (*ActionResult, error) {
+	return clearRecipe(r.Resolver, input)
 }
 
 // StartResearch is the resolver for the startResearch field.

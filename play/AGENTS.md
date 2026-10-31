@@ -10,14 +10,16 @@ This file lives in `play/`. The repository root is the parent directory.
 
 ## 1. Mission and success condition
 
-- **Primary goal:** build and launch a rocket (rocket silo built, 100 rocket parts delivered,
+- **Primary goal:** build and launch a rocket (rocket silo built, its required rocket parts produced,
   rocket launched).
 - The save is Factorio 2.0 with Space Age enabled. A rocket launch is the requested milestone;
   do not assume it ends the game. Verify actual recipe/tech requirements in-game instead of
   relying on memory.
 - There is **no explicit launch mutation**. A rocket silo launches automatically once it has
   received the required rocket parts. Build the silo, power it, and feed its input inventory
-  (usually rocket parts) with `transfer`; watch it with `inspect`.
+  with `transfer`; the silo crafts `rocket-part` itself from processing units, low density
+  structures and rocket fuel (one input slot each), and launches when its part counter is full
+  and the engine status is `waiting_to_launch_rocket`; watch it with `inspect.settings.rocketSilo`.
 - Work incrementally. Each session must leave the factory measurably closer to the goal.
 
 ## 2. Ground rules
@@ -365,6 +367,64 @@ mutation { beltThroughputStart(input: {x: 44.5, y: 50.5, durationTicks: 600, wai
 `createBlueprint`, and BOM stock areas accept at most 256 tiles per side; `beltRun` and
 `beltRuns` cap traversal nodes at 1–1000. `inspect` also supports `logistics`,
 `missingSciencePacks`, and `fluidNetwork`; `machines` supports `diagnostics`.
+
+### New capabilities (2026-10-30, verified live on an isolated 2.0.77 copy)
+
+```graphql
+# Agent efficiency (sandbox server knobs)
+mutation { setGameSpeed(input:{speed:5}) { tick speed paused } }      # 0.1..1000; paused optional
+mutation { teleport(input:{character:"267",x:40,y:60}) { position { x y } } }
+
+# Entities 8-way direction and rails: directionCode wins over direction
+mutation { place(input:{character:"267",x:200,y:210,item:"rail",directionCode:2}) { direction } }
+mutation { setDirection(input:{character:"267",unitNumber:"42",entity:"straight-rail",direction:2}) { direction } }
+# setDirection verifies readback and refuses when the engine ignores it (belts/rails) - place with directionCode instead.
+
+# Blueprints that actually build (script revival bypasses bots and items - sandbox shortcut)
+mutation { buildGhosts(input:{character:"267",surface:"nauvis",area:{...},mode:REVIVE}) { revived entities { unitNumber name } missing { name count } } }
+
+# Bulk teardown with filters; instant mines reachable targets and reports recovered items
+mutation { deconstructArea(input:{character:"267",area:{...},names:["transport-belt"],instant:true}) { removed items { name count } } }
+
+# Fluids: SET clamps to capacity, ADD reports accepted amount, CLEAR empties
+mutation { setFluid(input:{character:"267",entity:"pipe",unitNumber:"42",mode:SET,fluid:"water",amount:100}) { before after capacity } }
+query { fluidStock(input:{area:{...}}) { totals { fluid amount } locations { entityName fluid amount } } }
+
+# Item writes, quality, fast replace, typed inventories
+mutation { dropItem(input:{character:"267",item:"iron-plate",count:5,x:40,y:60,target:GROUND}) { moved } }
+mutation { place(input:{character:"267",x:40.5,y:60.5,item:"transport-belt",quality:"uncommon",directionCode:4,fastReplace:true}) { unitNumber } }
+mutation { transfer(input:{character:"267",entity:"wooden-chest",unitNumber:"42",inventoryKind:CHEST,direction:"to-entity",item:"iron-plate",quality:"uncommon",count:5}) { moved } }
+query { inspect(input:{character:"267",unitNumber:"42",entity:"assembling-machine-1"}) { unitNumber parametersJSON nameTag beltNeighbours { unitNumber } } }
+mutation { setNameTag(input:{character:"267",unitNumber:"42",entity:"wooden-chest",nameTag:"mall-feed"}) { nameTag } }
+# setEntityTags fails on normal entities in 2.0.77 (tags are blueprint/ghost metadata) - do not rely on it.
+
+# Recipes: drain input/output before changing; clearRecipe drains to the actor
+mutation { setRecipe(input:{character:"267",unitNumber:"42",entity:"assembling-machine-1",recipe:"iron-stick",drain:TO_ACTOR}) { recipe returned { name count } } }
+mutation { clearRecipe(input:{character:"267",unitNumber:"42",entity:"assembling-machine-1"}) { recipe returned { name count } } }
+
+# Trains (rails still need directionCode for diagonals/junctions)
+query { trains(input:{surface:"nauvis"}) { total trains { id statusName manualMode schedule { station waitSeconds } cargo { name count } } } }
+mutation { setTrainSchedule(input:{character:"267",unitNumber:"1499",entity:"locomotive",records:[{station:"mine",waitSeconds:10},{station:"base",waitSeconds:0}]}) { id schedule { station } } }
+mutation { trainControl(input:{character:"267",unitNumber:"1499",entity:"locomotive",manualMode:false}) { statusName } }
+
+# Character gear, actor logistics, research
+mutation { equip(input:{character:"267",item:"power-armor",inventory:"armor",direction:"to-equipment"}) { moved } }
+mutation { equipGrid(input:{character:"267",item:"exoskeleton-equipment",count:2,direction:TO_GRID}) { moved items { name count } } }
+mutation { setActorLogisticRequests(input:{character:"267",sections:[{slots:[{index:1,name:"transport-belt",min:20,max:200}]}]}) { sections { slots { name min max } } } }
+mutation { queueResearch(input:{force:"player",technology:"logistics"}) { currentResearch researchQueue } }
+mutation { unlockAllTechnologies(input:{force:"player",mode:RESEARCH}) { technologies } }   # sandbox cheat
+
+# World/read additions
+query { surfaces(force:"player") { name index planet totalPollution evolutionFactor } }
+query { circuitNetwork(input:{unitNumber:"42",entity:"inserter",color:"red"}) { connected signals { name value } } }
+query { safety { evolutionFactor totalPollution killCounts { name count } } }
+query { nearby(input:{x:0,y:0,radius:30,order:DISTANCE,limit:20,offset:0}) { total entities { name distance unitNumber } } }
+query { logisticNetworks { networks { id cells constructionRobots { total available } contents { name count } } } }
+```
+
+Player-only actions: `useCapsule` and `shoot` need a connected player controlling the character;
+`shoot` also needs the updated mod loaded (save reload). `repair` is a scripted step that consumes
+repair packs (300 HP each in 2.0.77).
 
 ## 4. Playing well
 
@@ -964,7 +1024,7 @@ Snapshot: 2026-10-30 12:24, tick ~1.13M. The running server hosts
   player had static belt items and `no_power` inserters, while nauvis crafting progress advanced
   normally. Do not conclude "the belt sampler is broken" from a zero rate; check that a player or
   an active factory keeps those chunks alive. (verified on an isolated save copy)
-- 2026-10-30 — Current root surface is 31 queries and 32 mutations. Newer reads include
+- 2026-10-30 — Root surface after the gap-audit implementation: 39 queries and 66 mutations (`ancestor` counts change as schemas evolve; verify with `go run . queries|mutations`). Earlier snapshots of this line said 31/32. Newer reads include
   `entities`, `belts`, `beltRun`, `factoryGraph`, `itemFlow`, `billOfMaterials`,
   `scienceBudget`, `ghosts`, and `beltThroughput`; newer writes include `equip`, `removeMany`,
   `createBlueprint`, `createBlueprintFromEntities`, `placeBlueprint`, `beltThroughputStart`,
@@ -1029,6 +1089,19 @@ Snapshot: 2026-10-30 12:24, tick ~1.13M. The running server hosts
   chest→inserter→belt→inserter→chest chain used here. (verified: full 200-plate chest-to-chest
   run: chest A 200→0 in ~40 s, chest B exactly 200, both inserters idle)
 
+- 2026-10-30 - Script ghost revival does NOT consume items: `LuaEntity.revive{...}` returns `(collided items, built entity, proxy)`; the first value is nil on normal success, so success must be judged from the second value. `buildGhosts` therefore reports collisions in `missing`, not shortages, and both modes are sandbox shortcuts. (verified live on an isolated 2.0.77 copy: 2 ghosts revived, `revived: 2`, no items consumed)
+- 2026-10-30 - A roboport created by raw Lua without `raise_built=true` never joins a logistic network (`r.logistic_network` is nil even with energy and robots); API `place` passes `raise_built=true`, so bot networks built through GraphQL work. After building with the event, `logisticNetworks` reported cells 1, robots total/available 10, and `transfer inventoryKind: ROBO_PORT_ROBOT` added 5 robots (15 total). (verified live)
+- 2026-10-30 - 2.0.77 fluid writes: `LuaEntity.insert_fluid{name,amount,temperature}` returns the accepted amount, `clear_fluid_inside()` empties, and capacity comes from `entity.fluidbox:get_capacity(i)`. `add_fluid`/`get_fluid_capacity` are 2.1-only. `setFluid` SET/ADD/CLEAR verified against a pipe (100 water, ADD clamped to capacity, CLEAR to 0) and `fluidStock` reported it. (verified live)
+- 2026-10-30 - `set_recipe` keeps items that are valid ingredients of the new recipe, so draining cannot rely on its return value. `drain: TO_ACTOR` now explicitly empties input/output into the actor first (verified: 20 iron plates returned, machine empty), and `clearRecipe` returns 5 loaded plates while clearing the recipe. (verified live)
+- 2026-10-30 - Scripted direction writes are silently ignored for belts and rails in 2.0.77 (`e.direction=N` reads back unchanged; `rotate` only does quarter turns). Place 8-way prototypes with `directionCode` (a rail at direction 2 verified), and `setDirection` now fails with an actionable message instead of a false success. (verified live)
+- 2026-10-30 - Entity tags are not scriptable on normal entities in 2.0.77: `e.tags={...}` is accepted then reads back nil. `setNameTag` works; `setEntityTags` deliberately fails with a message pointing at blueprint/ghost metadata. Combinator `parametersJSON` is readable through `get_control_behavior().parameters`. (verified live)
+- 2026-10-30 - `LuaEquipmentGrid.put` inserts one equipment per call (no count); the grid read is `get_contents()` and removal is `find(name)` + `take{equipment=...}`. Equipping power armor then `equipGrid` 2 exoskeletons worked and `Actor.equipmentGrid` reported them. (verified live)
+- 2026-10-30 - Ground `dropItem` spills with `spill_item_stack`, and belt drops use `get_item_insert_specification` + `can_insert_at` + `insert_at`; both verified (5 plates on the ground, 5 inserted into belt line 2). Transfer with `inventoryKind: CHEST` and quality `uncommon` round-tripped a chest. (verified live)
+- 2026-10-30 - `trains` reads `game.train_manager.get_trains{surface,force}`; `train.schedule` is a plain table (`{current,records}`), assigning or nil-clearing works, and `trainControl` sets `manual_mode` (status `no_path` without stations). Locomotive/wagon placement must be aligned to a rail; `place` direction semantics for rolling stock are engine-snapped. (verified live on a script-built rail line)
+- 2026-10-30 - This managed save runs with the builtin `space-age`, `quality` and `elevated-rails` features enabled (mod-list.json + server log FeatureFlag quality=true), so non-normal quality items exist and all write paths now take a `quality` field. (verified from server state)
+- 2026-10-30 - Remaining unverified live paths: `useCapsule`, `shoot`, and every `player:` actor path that needs a connected player (headless server has no client), plus Space Age surfaces. They are covered by unit/fake-RCON tests and should be smoke-tested when a client connects. (limitation)
+
+- 2026-10-30 - Rocket silo feed (verified on an isolated copy): the silo does NOT accept `rocket-part` items in its input inventory (`moved: 0`); it runs the `rocket-building` recipe itself, so feed 1 processing-unit + 1 low-density-structure + 1 rocket-fuel per part into `inventory:"input"`. `rocketParts` then rises with crafting, `rocket_parts_required` is 50 on this Space Age save (not 100), and once the engine reports `waiting_to_launch_rocket`, `launchRocket` launches (`rocket_silo_status` 8). Power is mandatory: an unpowered silo keeps `rocket_parts` at 0 and never crafts.
 ## 9. Open questions
 
 - Which technologies are actually required for the rocket silo and rocket parts in this save?

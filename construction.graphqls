@@ -1,0 +1,77 @@
+extend type Query {
+  """Reports logistic networks whose roboports lie on the surface or area: robot counts, contents and point counts. Separate snapshot per network."""
+  logisticNetworks(input: LogisticNetworksInput = {}): LogisticNetworkPage!
+}
+
+input LogisticNetworksInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  area: FactoryAreaInput
+  """Optional engine network id; omitted networks cover every roboport on the surface."""
+  networkId: ID
+  limit: Int! = 100
+  offset: Int! = 0
+}
+
+type LogisticNetworkPage {
+  tick: Float!
+  surface: String!
+  force: String!
+  total: Int!
+  limit: Int!
+  offset: Int!
+  networks: [LogisticNetworkInfo!]!
+}
+
+type LogisticNetworkInfo {
+  id: ID!
+  force: String!
+  surface: String!
+  cells: Int!
+  logisticRobots: RobotCount!
+  constructionRobots: RobotCount!
+  contents: [ItemStack!]!
+  requesterPoints: Int!
+  providerPoints: Int!
+}
+
+type RobotCount {
+  total: Int!
+  available: Int!
+}
+
+extend type Mutation {
+  """Turns entity ghosts inside an area into real entities. Script revival bypasses items and construction robots, so this is an explicit sandbox shortcut; missing materials are reported, never consumed."""
+  buildGhosts(input: BuildGhostsInput!): BuildGhostsResult!
+}
+
+"""Area limits are positive and at most 256 tiles per side. limit is 1 through 1000."""
+input BuildGhostsInput {
+  player: String
+  character: ID
+  force: String = "player"
+  surface: String = "nauvis"
+  area: FactoryAreaInput!
+  mode: BuildGhostsMode! = REVIVE
+  limit: Int! = 100
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+enum BuildGhostsMode {
+  """Revive ghosts through the engine and raise built events. Script revival bypasses items and construction robots, so this is an explicit sandbox shortcut."""
+  REVIVE
+  """Revive ghosts without raising built events or creating smoke. Same sandbox semantics as REVIVE."""
+  SILENT
+}
+
+type BuildGhostsResult {
+  tick: Float!
+  surface: String!
+  mode: String!
+  revived: Int!
+  failed: Int!
+  missing: [ItemStack!]!
+  entities: [PlacedEntity!]!
+  errors: [String!]!
+}

@@ -7,11 +7,25 @@ import (
 )
 
 func safetyQuery(r *Resolver, input *SafetyInput) (*SafetySnapshot, error) {
+	lua, err := safetySnapshotLua(input)
+	if err != nil {
+		return nil, err
+	}
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
+		return nil, err
+	}
+	return factoryDecode[SafetySnapshot](response)
+}
+
+// safetySnapshotLua validates the input and builds the single Lua snapshot that
+// backs the safety query.
+func safetySnapshotLua(input *SafetyInput) (string, error) {
 	if input == nil {
 		input = &SafetyInput{Surface: "nauvis", Force: "player", EnemyLimit: 100, DamagedLimit: 100, AlertLimit: 100}
 	}
 	if input.Surface == "" || input.Force == "" {
-		return nil, fmt.Errorf("surface and force are required")
+		return "", fmt.Errorf("surface and force are required")
 	}
 	for _, page := range []struct {
 		name          string
@@ -22,10 +36,10 @@ func safetyQuery(r *Resolver, input *SafetyInput) (*SafetySnapshot, error) {
 		{"alert", input.AlertLimit, input.AlertOffset},
 	} {
 		if page.limit < 1 || page.limit > 1000 {
-			return nil, fmt.Errorf("%s limit must be between 1 and 1000", page.name)
+			return "", fmt.Errorf("%s limit must be between 1 and 1000", page.name)
 		}
 		if page.offset < 0 {
-			return nil, fmt.Errorf("%s offset must be non-negative", page.name)
+			return "", fmt.Errorf("%s offset must be non-negative", page.name)
 		}
 	}
 	format := func(n float64) string { return strconv.FormatFloat(n, 'g', -1, 64) }
@@ -33,24 +47,24 @@ func safetyQuery(r *Resolver, input *SafetyInput) (*SafetySnapshot, error) {
 	area := "nil"
 	if a := input.Area; a != nil {
 		if !finite(a.LeftTopX) || !finite(a.LeftTopY) || !finite(a.RightBottomX) || !finite(a.RightBottomY) {
-			return nil, fmt.Errorf("area coordinates must be finite")
+			return "", fmt.Errorf("area coordinates must be finite")
 		}
 		if a.LeftTopX > a.RightBottomX || a.LeftTopY > a.RightBottomY {
-			return nil, fmt.Errorf("area left top must not exceed right bottom")
+			return "", fmt.Errorf("area left top must not exceed right bottom")
 		}
 		area = fmt.Sprintf("{{%s,%s},{%s,%s}}", format(a.LeftTopX), format(a.LeftTopY), format(a.RightBottomX), format(a.RightBottomY))
 	}
 	position := "nil"
 	if p := input.PollutionPosition; p != nil {
 		if !finite(p.X) || !finite(p.Y) {
-			return nil, fmt.Errorf("pollution position must be finite")
+			return "", fmt.Errorf("pollution position must be finite")
 		}
 		position = fmt.Sprintf("{x=%s,y=%s}", format(p.X), format(p.Y))
 	}
 	player := "nil"
 	if input.Player != nil {
 		if *input.Player == "" {
-			return nil, fmt.Errorf("player must not be empty")
+			return "", fmt.Errorf("player must not be empty")
 		}
 		player = luaString(*input.Player)
 	}
@@ -136,14 +150,50 @@ table.sort(alerts,function(a,b)
 end)
 local alert_page={}
 for i=alert_offset+1,math.min(#alerts,alert_offset+alert_limit) do alert_page[#alert_page+1]=alerts[i] end
+local function number_or_zero(read)
+  local ok,value=pcall(read)
+  if ok and type(value)=="number" then return value end
+  return 0
+end
+local function number_or_nil(read)
+  local ok,value=pcall(read)
+  if ok and type(value)=="number" then return value end
+  return nil
+end
+-- Factorio 2.0 exposes LuaForce.evolution_factor(surface) as a method; the bare
+-- field read is accepted as a fallback when the method is unavailable.
+local evolution_factor=number_or_nil(function() return force.evolution_factor(surface) end)
+if evolution_factor==nil then evolution_factor=number_or_nil(function() return force.evolution_factor end) end
+if evolution_factor==nil then evolution_factor=0 end
+local evolution_by_time=number_or_zero(function() return force.get_evolution_factor_by_time(surface) end)
+local evolution_by_pollution=number_or_zero(function() return force.get_evolution_factor_by_pollution(surface) end)
+local evolution_by_kills=number_or_zero(function() return force.get_evolution_factor_by_killing_spawners(surface) end)
+local total_pollution=number_or_zero(function() return surface.get_total_pollution() end)
+-- Kills are recorded in FlowStatistics.input_counts: flows added to the kill
+-- statistics arrive as inputs, so that map is the authoritative one here.
+local kill_counts={}
+do
+  local ok,statistics=pcall(function() return force.get_kill_count_statistics(surface) end)
+  if ok and statistics then
+    local okc,counts=pcall(function() return statistics.input_counts end)
+    if okc and counts then
+      for key,count in pairs(counts) do
+        local kill_name=type(key)=="string" and key or (key and key.name)
+        if kill_name and type(count)=="number" then kill_counts[#kill_counts+1]={name=kill_name,count=count} end
+      end
+    end
+  end
+end
+table.sort(kill_counts,function(a,b)
+  if a.name~=b.name then return a.name<b.name end
+  return a.count<b.count
+end)
 rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,
  pollution=pollution_position and pollution(pollution_position) or nil,
  enemies=entity_page(enemies,enemy_limit,enemy_offset),damaged=entity_page(damaged,damaged_limit,damaged_offset),
- playerAlerts={available=available,unavailableReason=reason,player=player_name,total=#alerts,limit=alert_limit,offset=alert_offset,alerts=alert_page}}))
+ playerAlerts={available=available,unavailableReason=reason,player=player_name,total=#alerts,limit=alert_limit,offset=alert_offset,alerts=alert_page},
+ evolutionFactor=evolution_factor,evolutionByTime=evolution_by_time,evolutionByPollution=evolution_by_pollution,
+ evolutionByKills=evolution_by_kills,totalPollution=total_pollution,killCounts=kill_counts}))
 `, luaString(input.Surface), luaString(input.Force), area, position, player, input.EnemyLimit, input.EnemyOffset, input.DamagedLimit, input.DamagedOffset, input.AlertLimit, input.AlertOffset)
-	response, _, err := executeLua(r.addr, r.password, lua)
-	if err != nil {
-		return nil, err
-	}
-	return factoryDecode[SafetySnapshot](response)
+	return lua, nil
 }

@@ -1,0 +1,45 @@
+extend type Query {
+  """Lists every surface with its index and, when readable, its planet name, total pollution and evolution factor."""
+  surfaces(force: String! = "player"): [SurfaceInfo!]!
+  """Reads the signals visible on one entity's red or green circuit network."""
+  circuitNetwork(input: CircuitNetworkInput!): CircuitNetworkSignals!
+}
+
+type SurfaceInfo {
+  name: String!
+  index: Int!
+  planet: String
+  totalPollution: Float
+  evolutionFactor: Float
+}
+
+"""Address the entity by unitNumber, or by prototype name plus finite center coordinates. color is red or green."""
+input CircuitNetworkInput {
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  color: String = "red"
+}
+
+type CircuitNetworkSignals {
+  tick: Float!
+  surface: String!
+  name: String
+  unitNumber: ID
+  color: String!
+  """True when the entity exposes a network of that color."""
+  connected: Boolean!
+  redConnections: Int!
+  greenConnections: Int!
+  signals: [CircuitSignal!]!
+}
+
+"""One circuit signal; quality is null for virtual and fluid signals."""
+type CircuitSignal {
+  type: String!
+  name: String!
+  quality: String
+  value: Float!
+}

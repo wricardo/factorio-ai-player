@@ -1,0 +1,36 @@
+extend type Mutation {
+  """Drops items from the acting character's inventory as a ground stack or onto a transport belt tile, so lines can be seeded without an inserter."""
+  dropItem(input: DropItemInput!): DropItemResult!
+}
+
+enum DropTarget {
+  GROUND
+  BELT
+}
+
+"""Exactly one player or character. count is 1 through 4294967295. BELT requires a transport belt whose center matches the finite coordinates; GROUND spills the stack at the position."""
+input DropItemInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  item: String!
+  quality: String
+  count: Float! = 1
+  x: Float!
+  y: Float!
+  target: DropTarget! = GROUND
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type DropItemResult {
+  tick: Float!
+  surface: String!
+  item: String!
+  quality: String!
+  requested: Float!
+  moved: Float!
+  position: Position!
+  """Transport line (1 or 2) that received the items; zero for a ground drop."""
+  line: Int!
+}

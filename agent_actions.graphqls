@@ -1,0 +1,112 @@
+extend type Status {
+  """Current game simulation speed multiplier."""
+  speed: Float!
+  """True when the game tick is paused."""
+  paused: Boolean!
+}
+
+extend type Mutation {
+  """Sets the game simulation speed and pause state. A sandbox/administrative knob: it affects every player and every machine on the server."""
+  setGameSpeed(input: GameSpeedInput!): GameSpeedResult!
+  """Moves the acting character to finite coordinates on a surface. A sandbox convenience that bypasses travel; reach checks still apply afterwards."""
+  teleport(input: TeleportInput!): ActionResult!
+  """Uses a capsule item from the player's character inventory at a target position, for example a cliff explosive on a cliff. Player actor only."""
+  useCapsule(input: CapsuleInput!): CapsuleResult!
+  """Fires the player character's weapon at a target entity or position. Player actor only."""
+  shoot(input: ShootInput!): ShootResult!
+  """Repairs a reachable damaged entity using repair packs from the acting character's main inventory."""
+  repair(input: RepairInput!): RepairResult!
+}
+
+"""speed must be between 0.1 and 1000. paused omitted keeps the current pause state."""
+input GameSpeedInput {
+  speed: Float! = 1
+  paused: Boolean
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type GameSpeedResult {
+  tick: Float!
+  speed: Float!
+  paused: Boolean!
+}
+
+"""Exactly one player or character. Coordinates must be finite and the surface must exist."""
+input TeleportInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  x: Float!
+  y: Float!
+  snapToGrid: Boolean = false
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Player must be connected and control a character. count is 1 through 100. Coordinates must be finite and within the character's reach."""
+input CapsuleInput {
+  player: String!
+  item: String!
+  x: Float!
+  y: Float!
+  count: Int! = 1
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type CapsuleResult {
+  tick: Float!
+  surface: String!
+  item: String!
+  used: Int!
+  position: Position!
+  """Entities the engine created or damaged by the capsule action."""
+  created: [PlacedEntity!]!
+}
+
+"""Player only. Address the target by targetUnitNumber or by finite x and y. count is 1 through 100 and bounds the shooting ticks requested."""
+input ShootInput {
+  player: String!
+  targetUnitNumber: ID
+  x: Float
+  y: Float
+  count: Int! = 1
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type ShootResult {
+  tick: Float!
+  player: String!
+  character: ID
+  ammoUsed: Int!
+  target: PlacedEntity
+  position: Position
+}
+
+"""Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates; giving both requires the name to match the unit number. count is 1 through 100."""
+input RepairInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  count: Int! = 1
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type RepairResult {
+  tick: Float!
+  surface: String!
+  name: String!
+  unitNumber: ID
+  position: Position!
+  before: Float!
+  after: Float!
+  maxHealth: Float!
+  packsUsed: Int!
+}

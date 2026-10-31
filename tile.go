@@ -34,11 +34,15 @@ func placeTile(r *Resolver, input PlaceTileInput) (*PlaceTileResult, error) {
 	if input.Item == "" {
 		return nil, errors.New("item must not be empty")
 	}
+	quality, err := resolveQuality(input.Quality)
+	if err != nil {
+		return nil, err
+	}
 	if math.IsNaN(input.X) || math.IsInf(input.X, 0) || math.IsNaN(input.Y) || math.IsInf(input.Y, 0) {
 		return nil, errors.New("coordinates must be finite")
 	}
 	lua := luaFail + fmt.Sprintf(`local player=%s; local unit=%d; local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
-local position={x=%s,y=%s}; local item=%s
+local position={x=%s,y=%s}; local item=%s; local quality=%s; if not prototypes.quality[quality] then fail("quality not found"); return end
 local tile_item=prototypes.item[item]; if not tile_item then fail("item prototype not found"); return end
 local placement=tile_item.place_as_tile_result; if not placement then fail("item does not place a tile"); return end
 local result_tile=placement.result; if not result_tile then fail("tile result not found"); return end
@@ -69,13 +73,13 @@ end
 if not allowed then fail("tile cannot be placed on current tile"); return end
 if #s.find_entities_filtered{area={{x=position.x-0.5,y=position.y-0.5},{x=position.x+0.5,y=position.y+0.5}},limit=1}>0 then fail("tile position is blocked by an entity"); return end
 local inv=actor.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end
-if inv.get_item_count({name=item,quality="normal"})<1 then fail("actor lacks item"); return end
-if inv.remove{name=item,quality="normal",count=1}~=1 then fail("could not remove item"); return end
+if inv.get_item_count({name=item,quality=quality})<1 then fail("actor lacks item"); return end
+if inv.remove{name=item,quality=quality,count=1}~=1 then fail("could not remove item"); return end
 s.set_tiles({{name=result_tile.name,position=position}})
-local placed=s.get_tile(position); if not placed or placed.name~=result_tile.name then inv.insert{name=item,quality="normal",count=1}; fail("tile placement failed; item returned"); return end
+local placed=s.get_tile(position); if not placed or placed.name~=result_tile.name then inv.insert{name=item,quality=quality,count=1}; fail("tile placement failed; item returned"); return end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,tile=placed.name,position=position}))`,
 		luaString(player), character, luaString(surface),
-		strconv.FormatFloat(input.X, 'g', -1, 64), strconv.FormatFloat(input.Y, 'g', -1, 64), luaString(input.Item))
+		strconv.FormatFloat(input.X, 'g', -1, 64), strconv.FormatFloat(input.Y, 'g', -1, 64), luaString(input.Item), luaString(quality))
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

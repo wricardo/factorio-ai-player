@@ -12,7 +12,6 @@ import (
 	"math"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -74,7 +73,7 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 		if len(args) != 1 {
 			return errors.New("status takes no options")
 		}
-		lua = `local players = {}; for _, p in pairs(game.connected_players) do players[#players+1] = {name=p.name, surface=p.surface.name, position=p.position} end; rcon.print(helpers.table_to_json({tick=game.tick, players=players}))`
+		lua = `local players = {}; for _, p in pairs(game.connected_players) do players[#players+1] = {name=p.name, surface=p.surface.name, position=p.position} end; rcon.print(helpers.table_to_json({tick=game.tick, players=players, speed=game.speed, paused=game.tick_paused}))`
 	case "entity":
 		var err error
 		lua, err = entityLua(args[1:], out)
@@ -292,6 +291,9 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 		radius := fs.Float64("radius", 10, "Search radius (greater than 0, at most 100)")
 		name := fs.String("name", "", "Filter by entity prototype name")
 		kind := fs.String("type", "", "Filter by entity type")
+		order := fs.String("order", "distance", "Result order: distance or unit-number")
+		offset := fs.Int("offset", 0, "Zero-based offset into the ordered matches")
+		limit := fs.Int("limit", 100, "Maximum returned entities (1-1000)")
 		if err := fs.Parse(args[1:]); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
 				return nil
@@ -304,7 +306,14 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 		if *surface == "" || math.IsNaN(*x) || math.IsInf(*x, 0) || math.IsNaN(*y) || math.IsInf(*y, 0) || math.IsNaN(*radius) || math.IsInf(*radius, 0) || *radius <= 0 || *radius > 100 {
 			return errors.New("invalid surface, coordinates, or radius")
 		}
-		lua = luaFail + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end; local filter={position={%s,%s},radius=%s,limit=101}; local name=%s; local kind=%s; if name~="" then filter.name=name end; if kind~="" then filter.type=kind end; local found=s.find_entities_filtered(filter); local entities={}; for i,e in ipairs(found) do if i>100 then break end; local entry={name=e.name,type=e.type,position=e.position,direction=e.direction,unit_number=e.unit_number}; if e.type=="resource" then entry.amount=e.amount end; entities[i]=entry end; rcon.print(helpers.table_to_json({surface=s.name,entities=entities,truncated=#found>100}))`, luaString(*surface), strconv.FormatFloat(*x, 'g', -1, 64), strconv.FormatFloat(*y, 'g', -1, 64), strconv.FormatFloat(*radius, 'g', -1, 64), luaString(*name), luaString(*kind))
+		ordering := strings.ToLower(*order)
+		if ordering != "distance" && ordering != "unit-number" && ordering != "unit_number" {
+			return errors.New("order must be distance or unit-number")
+		}
+		if *offset < 0 || *limit < 1 || *limit > 1000 {
+			return errors.New("offset must be non-negative and limit must be between 1 and 1000")
+		}
+		lua = nearbyLua(*surface, *x, *y, *radius, *name, *kind, ordering, *offset, *limit)
 	default:
 		return fmt.Errorf("unknown command %q; use help", args[0])
 	}

@@ -19,7 +19,7 @@ type harvestAreaCommandInput struct {
 }
 
 type pickupAreaCommandInput struct {
-	Character    string  `json:"character"`
+	Character    *string `json:"character,omitempty"`
 	LeftTopX     float64 `json:"left-top-x"`
 	LeftTopY     float64 `json:"left-top-y"`
 	RightBottomX float64 `json:"right-bottom-x"`
@@ -46,8 +46,12 @@ func pickupArea(r *Resolver, input PickupAreaInput) (*PickupAreaResult, error) {
 	if input.Area == nil {
 		return nil, errors.New("area is required")
 	}
+	character, err := resolveActorCharacter(r, input.Player, input.Character)
+	if err != nil {
+		return nil, err
+	}
 	return command[PickupAreaResult](r, "pickup-area", pickupAreaCommandInput{
-		Character:    input.Character,
+		Character:    &character,
 		LeftTopX:     input.Area.LeftTopX,
 		LeftTopY:     input.Area.LeftTopY,
 		RightBottomX: input.Area.RightBottomX,

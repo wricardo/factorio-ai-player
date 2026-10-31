@@ -1,0 +1,107 @@
+extend type Query {
+  """Lists trains on one surface with schedule, mode, cargo and fluid contents. One snapshot; all trains of the filtered surface are considered before pagination."""
+  trains(input: TrainsInput = {}): TrainPage!
+}
+
+"""Surface and force must be non-empty names of existing objects. Limit is 1 through 1000; offset is zero-based and non-negative. station filters by a station name in the schedule."""
+input TrainsInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  area: FactoryAreaInput
+  station: String
+  limit: Int! = 100
+  offset: Int! = 0
+}
+
+type TrainPage {
+  tick: Float!
+  surface: String!
+  total: Int!
+  limit: Int!
+  offset: Int!
+  trains: [TrainInfo!]!
+}
+
+"""A stopped or moving train. state is the engine defines.train_state value; schedule records carry the station name and the engine's wait condition where readable."""
+type TrainInfo {
+  id: ID!
+  state: Int!
+  statusName: String
+  manualMode: Boolean!
+  speed: Float!
+  locomotives: Int!
+  wagons: Int!
+  frontPosition: Position
+  schedule: [TrainScheduleRecord!]!
+  cargo: [ItemStack!]!
+  fluids: [FluidContent!]!
+}
+
+type TrainScheduleRecord {
+  station: String!
+  """Wait time in seconds when the record uses a time condition; null otherwise."""
+  waitSeconds: Float
+  """JSON encoding of the engine wait condition, when readable."""
+  waitConditionJSON: String
+}
+
+extend type Mutation {
+  """Replaces a train's schedule with time-based records or clears it. The train must be addressable by unitNumber (or by prototype name and coordinates) and reachable."""
+  setTrainSchedule(input: SetTrainScheduleInput!): TrainInfo!
+  """Sets a train's manual mode and optionally sends it to a named station."""
+  trainControl(input: TrainControlInput!): TrainInfo!
+}
+
+"""Exactly one player or character. Either records or clear must be given, not both. Each record needs a non-empty station name and a waitSeconds of 0 or more. At most 100 records."""
+input SetTrainScheduleInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  records: [TrainScheduleRecordInput!]
+  clear: Boolean! = false
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input TrainScheduleRecordInput {
+  station: String!
+  waitSeconds: Float! = 0
+}
+
+"""Exactly one player or character. goToStation requires a non-empty station name."""
+input TrainControlInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  manualMode: Boolean
+  goToStation: String
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+extend type Mutation {
+  """Sets an entity's engine direction 0 through 15 without rotating in quarter turns. Use it for 8-way and 16-way prototypes such as rails and splitters."""
+  setDirection(input: SetDirectionInput!): ActionResult!
+}
+
+"""Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates. direction is the engine value 0 through 15."""
+input SetDirectionInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  direction: Int!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}

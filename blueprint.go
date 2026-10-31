@@ -70,7 +70,12 @@ func placeBlueprint(r *Resolver, input PlaceBlueprintInput) (*BlueprintPlaceResu
 		return nil, errors.New("coordinates must be finite")
 	}
 	direction := 0
-	if input.Direction != nil && *input.Direction != "" {
+	if input.DirectionCode != nil {
+		if *input.DirectionCode < 0 || *input.DirectionCode > 15 {
+			return nil, errors.New("directionCode must be between 0 and 15")
+		}
+		direction = *input.DirectionCode
+	} else if input.Direction != nil && *input.Direction != "" {
 		var ok bool
 		direction, ok = placeDirections[*input.Direction]
 		if !ok {
@@ -136,7 +141,12 @@ func createBlueprintFromEntities(r *Resolver, input CreateBlueprintFromEntitiesI
 		fmt.Fprintf(&entities, "{entity_number=%d,name=%s,position={x=%s,y=%s}",
 			i+1, luaString(entity.Name),
 			strconv.FormatFloat(entity.X, 'g', -1, 64), strconv.FormatFloat(entity.Y, 'g', -1, 64))
-		if entity.Direction != nil && *entity.Direction != "" {
+		if entity.DirectionCode != nil {
+			if *entity.DirectionCode < 0 || *entity.DirectionCode > 15 {
+				return nil, fmt.Errorf("entity %d directionCode must be between 0 and 15", i+1)
+			}
+			fmt.Fprintf(&entities, ",direction=%d", *entity.DirectionCode)
+		} else if entity.Direction != nil && *entity.Direction != "" {
 			direction, ok := placeDirections[*entity.Direction]
 			if !ok {
 				return nil, fmt.Errorf("entity %d direction must be north, east, south, or west", i+1)

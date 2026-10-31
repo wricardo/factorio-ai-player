@@ -24,11 +24,16 @@ func actionLua(command string, args []string, out io.Writer) (string, error) {
 	var unitNumber string
 	fs.StringVar(&unitNumber, "unit-number", "", "Target entity unit number, alternative to entity and x/y")
 	fs.StringVar(&unitNumber, "unitNumber", "", "Target entity unit number, alternative to entity and x/y")
+	quality := fs.String("quality", "normal", "Item quality prototype name (default normal)")
 	var direction *string
+	var directionCode *int
+	var fastReplace *bool
 	var entity *string
 	var count *int
 	if command == "place" {
 		direction = fs.String("direction", "north", "Entity direction: north, east, south, west")
+		directionCode = fs.Int("directionCode", -1, "Engine direction 0 through 15; overrides direction")
+		fastReplace = fs.Bool("fastReplace", false, "Fast-replace a colliding entity, spilling its contents")
 	} else {
 		entity = fs.String("entity", "", "Target entity name (required unless a unit number is given)")
 		count = fs.Int("count", 1, "Number of fuel items to transfer")
@@ -39,20 +44,38 @@ func actionLua(command string, args []string, out io.Writer) (string, error) {
 	if fs.NArg() != 0 || (*player == "") == (*character == 0) || *character > math.MaxUint32 || *surface == "" || *item == "" {
 		return "", errors.New("exactly one of player or character, surface, and item are required")
 	}
+	if *quality == "" {
+		return "", errors.New("quality must not be empty")
+	}
+	if directionCode != nil && *directionCode != -1 && (*directionCode < 0 || *directionCode > 15) {
+		return "", errors.New("directionCode must be between 0 and 15")
+	}
 	if command == "place" && (math.IsNaN(*x) || math.IsInf(*x, 0) || math.IsNaN(*y) || math.IsInf(*y, 0)) {
 		return "", errors.New("place requires finite x and y")
 	}
-	actor := fmt.Sprintf(luaFail+luaActionActor+`local inv=p.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end; local item=%s; `,
-		*character, luaString(*player), luaString(*item))
+	actor := fmt.Sprintf(luaFail+luaActionActor+`local inv=p.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end; local item=%s; local quality=%s; if not prototypes.quality[quality] then fail("quality not found"); return end; `,
+		*character, luaString(*player), luaString(*item), luaString(*quality))
 	if command == "place" {
 		prefix := actor + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end; local position={x=%s,y=%s}; local c; if unit~=0 then c=p else c=p.character; if not c then fail("player has no character"); return end end; if c.surface~=s then fail("actor is on another surface"); return end; local dx=c.position.x-position.x; local dy=c.position.y-position.y; if dx*dx+dy*dy>c.build_distance*c.build_distance then fail("position is out of build reach"); return end; `,
 			luaString(*surface), luaCoordinate(*x), luaCoordinate(*y))
 		directions := map[string]int{"north": 0, "east": 4, "south": 8, "west": 12}
-		dir, ok := directions[*direction]
-		if !ok {
-			return "", errors.New("direction must be north, east, south, or west")
+		dir := 0
+		if *directionCode >= 0 {
+			dir = *directionCode
+		} else {
+			mapped, ok := directions[*direction]
+			if !ok {
+				return "", errors.New("direction must be north, east, south, or west")
+			}
+			dir = mapped
 		}
-		return prefix + fmt.Sprintf(`local proto=prototypes.item[item]; if not proto or not proto.place_result then fail("item does not place an entity"); return end; local name=proto.place_result.name; local stack={name=item,quality="normal"}; if inv.get_item_count(stack)<1 then fail("player lacks item"); return end; if not s.can_place_entity{name=name,position=position,direction=%d,force=p.force} then fail("cannot place entity at position"); return end; if inv.remove{name=item,quality="normal",count=1}~=1 then fail("could not remove item"); return end; local e=s.create_entity{name=name,position=position,direction=%d,force=p.force,raise_built=true}; if not e then inv.insert{name=item,quality="normal",count=1}; fail("entity creation failed; item returned"); return end; rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,direction=e.direction,unit_number=e.unit_number,item=item}))`, dir, dir), nil
+		check := fmt.Sprintf(`if not s.can_place_entity{name=name,position=position,direction=%d,force=p.force} then fail("cannot place entity at position"); return end; `, dir)
+		replace := ""
+		if *fastReplace {
+			check = ""
+			replace = ",fast_replace=true,spill=true"
+		}
+		return prefix + fmt.Sprintf(`local proto=prototypes.item[item]; if not proto or not proto.place_result then fail("item does not place an entity"); return end; local name=proto.place_result.name; local stack={name=item,quality=quality}; if inv.get_item_count(stack)<1 then fail("player lacks item"); return end; %sif inv.remove{name=item,quality=quality,count=1}~=1 then fail("could not remove item"); return end; local ok,e=pcall(function() return s.create_entity{name=name,position=position,direction=%d,quality=quality,force=p.force,raise_built=true%s} end); if not ok then inv.insert{name=item,quality=quality,count=1}; fail("entity creation failed: "..tostring(e)); return end; if not e then inv.insert{name=item,quality=quality,count=1}; fail("entity creation failed; item returned"); return end; rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,direction=e.direction,unit_number=e.unit_number,item=item}))`, check, dir, replace), nil
 	}
 	if *count < 1 {
 		return "", errors.New("positive count is required")
@@ -70,7 +93,7 @@ if c.surface~=s then fail("actor is on another surface"); return end
 local dx=c.position.x-e.position.x; local dy=c.position.y-e.position.y; if dx*dx+dy*dy>c.build_distance*c.build_distance then fail("position is out of build reach"); return end
 local fuel=e.get_fuel_inventory(); if not fuel then fail("entity has no fuel inventory"); return end
 `
-	return prefix + fmt.Sprintf(`local stack={name=item,quality="normal"}; if inv.get_item_count(stack)<%d then fail("player lacks requested fuel"); return end; if fuel.get_insertable_count(stack)<%d then fail("fuel inventory cannot accept requested items"); return end; local removed=inv.remove{name=item,quality="normal",count=%d}; if removed~=%d then if removed>0 then inv.insert{name=item,quality="normal",count=removed} end; fail("could not remove requested fuel"); return end; local inserted=fuel.insert{name=item,quality="normal",count=removed}; if inserted<removed then inv.insert{name=item,quality="normal",count=removed-inserted} end; if inserted==0 then fail("fuel inventory rejected item; fuel returned"); return end; rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,item=item,inserted=inserted,requested=removed}))`, *count, *count, *count, *count), nil
+	return prefix + fmt.Sprintf(`local stack={name=item,quality=quality}; if inv.get_item_count(stack)<%d then fail("player lacks requested fuel"); return end; if fuel.get_insertable_count(stack)<%d then fail("fuel inventory cannot accept requested items"); return end; local removed=inv.remove{name=item,quality=quality,count=%d}; if removed~=%d then if removed>0 then inv.insert{name=item,quality=quality,count=removed} end; fail("could not remove requested fuel"); return end; local inserted=fuel.insert{name=item,quality=quality,count=removed}; if inserted<removed then inv.insert{name=item,quality=quality,count=removed-inserted} end; if inserted==0 then fail("fuel inventory rejected item; fuel returned"); return end; rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,item=item,inserted=inserted,requested=removed}))`, *count, *count, *count, *count), nil
 }
 
 func craftLua(args []string, out io.Writer) (string, error) {

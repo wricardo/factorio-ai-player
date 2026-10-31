@@ -9,6 +9,29 @@ import (
 	"strconv"
 )
 
+// pickupCommandInput is the backend flag payload for the pickup command. The
+// actor is already resolved to a character unit number by pickupMutation.
+type pickupCommandInput struct {
+	Character *string `json:"character,omitempty"`
+	X         float64 `json:"x"`
+	Y         float64 `json:"y"`
+	Message   *string `json:"message,omitempty"`
+}
+
+// pickupMutation resolves the acting character and collects one dropped stack.
+func pickupMutation(r *Resolver, input PickupInput) (*ActionResult, error) {
+	character, err := resolveActorCharacter(r, input.Player, input.Character)
+	if err != nil {
+		return nil, err
+	}
+	return command[ActionResult](r, "pickup", pickupCommandInput{
+		Character: &character,
+		X:         input.X,
+		Y:         input.Y,
+		Message:   input.Message,
+	})
+}
+
 func pickupLua(args []string, out io.Writer) (string, error) {
 	fs := flag.NewFlagSet("pickup", flag.ContinueOnError)
 	fs.SetOutput(out)

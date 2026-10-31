@@ -30,7 +30,7 @@ A disconnected Factorio player can queue crafting, but its queue did not advance
 
 `characterSpawn` creates a detached character with no player at the closest non-colliding character position within 10 tiles of finite coordinates on an existing surface and force. It costs no items, the character starts with empty inventories and its own reach, and the returned `character` is its unit number. Characters created this way persist in the save and are never cleaned up automatically, so destroy unused ones. Every actor input accepts that unit number, so spawned characters can be driven independently: `craft`, `mine`, `remove`, `transfer`, `equip`, placement mutations, and `navigateStart`.
 
-`playerRestoreCharacter(input: {player})` creates and attaches a character for a connected player that controls none — a sandbox god controller, for example — and returns its unit number, surface, and position. It leaves the player's main inventory untouched, so free-crafted items stay reachable through `player:` inputs, and it rejects a player that already controls a character. `Actor.character` reports a player's character unit number, so character-only mutations (`setRecipe`, `rotate`, `pickup`, `navigateStart`) can target it from a single `player` query instead of a `nearby` scan.
+`playerRestoreCharacter(input: {player})` creates and attaches a character for a connected player that controls none — a sandbox god controller, for example — and returns its unit number, surface, and position. It leaves the player's main inventory untouched, so free-crafted items stay reachable through `player:` inputs, and it rejects a player that already controls a character. `Actor.character` reports a player's character unit number. Most mutations now accept either actor directly (`rotate`, `setRecipe`, `clearRecipe`, `pickup`, `pickupArea`, placement, transfer, actions); `navigateStart` still requires an explicit character unit number, so use the reported value instead of a `nearby` scan.
 
 `characters(input: {surface, detachedOnly, limit, offset})` lists characters across a whole surface, sorted by unit number; `detachedOnly` defaults to true, and `detachedOnly: false` includes connected players' characters, whose `player` name is reported. It has no 256-tile area limit, unlike the `entities` query, but scans the whole surface on each call. Detached characters cannot chat, shoot, or open GUIs because those are player-driven.
 
@@ -62,6 +62,8 @@ The `rotate` mutation rotates a reachable entity by 1–3 clockwise quarter turn
 `harvestArea` accepts exactly one `player` or `character` and scans that actor's current surface. It mines reachable trees and rock-named simple entities with the normal mining operation, putting drops in the actor's main inventory. `items` reports inventory gains; `outOfReach` counts targets beyond reach and `failed` counts mining failures, including non-minable entities or insufficient inventory capacity. Uses same 256-tile-per-side area limit. Example: `mutation { harvestArea(input: {character: "123", area: {leftTopX: 0, leftTopY: 0, rightBottomX: 32, rightBottomY: 32}}) { treesMined rocksMined outOfReach failed items {name quality count} } }`.
 
 `pickupArea` accepts a character unit number and collects reachable dropped item stacks in its current surface. Partial stacks stay on ground when inventory capacity runs out; `itemsPickedUp` and `itemsRemaining` aggregate counts by item and quality. `stacksOutOfReach` counts stacks left outside reach. Uses same area limit. Example: `mutation { pickupArea(input: {character: "123", area: {leftTopX: 0, leftTopY: 0, rightBottomX: 32, rightBottomY: 32}}) { stacksFound stacksOutOfReach itemsPickedUp {name quality count} itemsRemaining {name quality count} } }`.
+
+`deconstructArea` and `cancelDeconstructArea` place or cancel deconstruction orders for every deconstructible entity in a required rectangular area, applying the force's deconstruction planner semantics (trees and neutral entities included). They need no acting character or reach, remove nothing themselves, and leave ghosts for construction robots, so with no bots or roboport coverage nothing changes. `force` defaults to `player`; the same 256-tile-per-side limit applies. `deconstructEntities` and `cancelDeconstructEntities` do the same for up to 200 explicit targets, each addressed by `unitNumber` (pass `entity` too for prototypes that are not resolvable by unit number alone) or by prototype name plus center coordinates, without a force or reach check. All four return `orders` (new orders placed or canceled), `skipped`, and up to 20 per-target `errors`; area requests never report errors because the engine applies the whole box. `inspect.toBeDeconstructed` reports whether an entity is currently marked. Example: `mutation { deconstructEntities(input: {targets: [{unitNumber: "303", entity: "transport-belt"}]}) { orders skipped errors } }`.
 
 When finished, wait for all crafting to finish and return the character's main inventory to the disconnected player before joining as that player. Then stop the server.
 
@@ -377,7 +379,11 @@ reading never creates a control behavior.
 
 Writes are explicit, non-transactional mutations that resolve the acting
 character, enforce build reach, and return the post-write state in the same
-tick: `setSplitterSettings`, `setInserterSettings`, `setLampSettings`,
+tick. A splitter filter routes matching items to the output chosen by
+`outputPriority`: setting a filter without one defaults it to `left`, and an
+explicit `none` is rejected because the filter would be inert; an omitted
+comparator keeps the engine default (`=`). The writes are
+`setSplitterSettings`, `setInserterSettings`, `setLampSettings`,
 `setContainerBar`, `setLogisticRequests`, `setTrainStop`, `setRocketSilo`,
 `launchRocket`, and `setCircuitBehavior`. Omitted fields keep their current
 values; `clear`, `clearConditions`, and `bar: 0` reset to the engine default
@@ -404,6 +410,167 @@ engine status and actual inventories are observations, not causal diagnosis.
 GraphQL mutations have reach checks, side effects, and uncertain-outcome risks. Multiple mutation
 fields execute in order; an error does not roll back earlier actions. Never retry a
 failed mutation without inspecting the world first.
+
+### Coordinate conventions
+
+Arguments are not interchangeable between families. Placement commands
+(`place`, `placeMany`, `placeBlueprint`) take the placement position: a 1x1
+entity at integer `x,y` occupies that tile and then reports its center at
+`x+0.5,y+0.5`; 3x3 machines use an already half-integer center; a blueprint
+position is its top-left corner. Entity-addressed commands (`inspect`,
+`transfer`, `fuel`, `remove`, `rotate`, `setRecipe`, `clearRecipe`, `setFluid`,
+`repair`, `setDirection`, settings and metadata writes) match the entity's
+reported center, so use the half-integer center from `nearby`/`entities` rather
+than the placement tile. `placeTile` takes whole tile coordinates, and
+`probePlacement` samples tile centers and reports blocked tile centers. When in
+doubt, `worldPlacement`/`probePlacement` answer legality for a prototype and
+`entities` reports the actual center after placement.
+
+### Agent actions, speed and travel
+
+`setGameSpeed(input: {speed, paused})` sets the simulation multiplier (0.1–1000)
+and optionally the pause flag, returning the post-write tick, speed and paused
+state; `status` now reports `speed` and `paused`. This is an administrative
+knob: it affects every player and machine on the server.
+
+`teleport(input: {player|character, surface, x, y, snapToGrid})` moves the acting
+character to finite coordinates through the engine teleport call, returning the
+resulting position. It bypasses travel and is a sandbox convenience; build reach
+still applies afterwards.
+
+`useCapsule(input: {player, item, x, y, count})` uses a capsule item from the
+player character's main inventory at a target within reach, for example a
+cliff explosive on a cliff, and reports the entities the engine created. Player
+actor only: detached characters cannot shoot or use capsules.
+
+`shoot(input: {player, targetUnitNumber|x,y, count})` fires the player
+character's weapon for `count` simulation ticks through the navigation mod's
+`factorio_ai_actions` job interface; the mutation waits for the job and reports
+ammo spent. It requires the updated mod (save reload) and a connected player
+controlling the character, and it is not a synchronous one-shot.
+
+`repair(input: {player|character, entity|unitNumber, count})` consumes repair
+packs from the acting character's main inventory and restores health in one
+scripted step (the engine's repair action is asynchronous). It reports
+before/after health and packs used; base pack durability is 300 HP.
+
+### Construction, deconstruction and robot logistics
+
+`buildGhosts(input: {player|character|force, surface, area, mode, limit})`
+revives entity ghosts in an area. Script revival bypasses items and construction
+robots, so both modes are explicit sandbox shortcuts: `REVIVE` raises built
+events, `SILENT` does not. `missing` reports items displaced by collisions, not
+shortages, and `entities` lists what was built. Blueprint placement still only
+creates ghosts.
+
+`deconstructArea` now accepts optional `names` and `types` prototype filters, a
+`limit` cap, and `instant: true`, which mines reachable targets as the actor
+(detached characters included) and destroys the rest, reporting recovered
+`items` from the actor inventory delta. `cancelDeconstructArea`,
+`deconstructEntities` and `cancelDeconstructEntities` are unchanged.
+`EntityInspection.toBeDeconstructed` reports planner state.
+
+`logisticNetworks(input: {surface, force, area?, networkId?})` reports each
+network served by roboports in scope: id, cell count, logistic and construction
+robot totals/availability, contents, and requester/provider point counts.
+Roboports created by scripts only join a network when built with the built
+event, so use API placement rather than raw Lua when testing.
+
+### Fluids
+
+`setFluid(input: {player|character, entity|unitNumber, fluid, amount,
+temperature, mode})` writes one reachable entity's fluidboxes. `SET` clears then
+inserts (clamped to capacity), `ADD` inserts into existing content and reports
+the accepted amount, and `CLEAR` empties every box. `before`, `after`,
+`capacity` and `boxesAffected` come from the same post-write snapshot. This is
+the recovery path for polluted or mixed fluid segments.
+
+`fluidStock(input: {surface, force, area?, fluid?})` aggregates fluid contents of
+pipes, tanks, fluid-using machines and fluid wagons, with independently paginated
+locations and totals. Temperatures appear only when the engine exposes them per
+fluid entry.
+
+### Trains and placement directions
+
+`trains(input: {surface, force, area?, station?})` lists rolling stock with
+engine state, manual mode, speed, schedule records, cargo and fluids.
+`setTrainSchedule` replaces a train's schedule with time-based records (or
+`clear: true`), and `trainControl` sets manual mode and can send the train to a
+named schedule station. Both resolve the entity (locomotive or carriage), enforce
+reach, and return the post-write train snapshot.
+
+Placement inputs (`place`, `placeMany`, `placeBlueprint`,
+`createBlueprintFromEntities`) accept `directionCode: Int` 0–15 alongside the
+cardinal `direction` string; the code wins when given. This is required for
+8-way prototypes such as rails. `setDirection(input: {…, direction})` writes an
+existing entity's direction, verifies the readback, falls back to one quarter
+turn when applicable, and otherwise fails with an actionable message: Factorio
+2.0.77 silently ignores scripted direction writes for belts and rails, so place
+those with `directionCode` instead.
+
+### Character gear, requests and research
+
+`Actor.equipmentGrid` reads the armor grid and `equipGrid(input: {player|
+character, item, count, direction: TO_GRID|TO_MAIN})` moves items between the
+main inventory and that grid one equipment at a time; armor with a grid must be
+equipped first.
+
+`Actor.logisticRequests` and `setActorLogisticRequests(input: {player|character,
+sections, clear})` read and replace the character's own requester sections using
+the same section/slot shape as containers. `setLogisticRequests` also accepts
+rocket silos now, selecting the silo requester point.
+
+`queueResearch(input: {force, technology})` appends a technology to the queue,
+`clearResearchQueue` empties it while current research continues, and
+`unlockAllTechnologies(input: {force, mode: RESEARCH|ENABLE})` is an explicit
+sandbox shortcut.
+
+### World, circuit and safety reads
+
+`surfaces(force)` lists every surface with index, planet, total pollution and
+evolution factor. `circuitNetwork(input: {entity|unitNumber, color})` returns the
+signals visible on an entity's red or green network plus connection counts.
+`safety` now also reports `evolutionFactor` with its time/pollution/kill
+components, `totalPollution`, and per-type `killCounts`.
+
+### Item writes, quality and inspection metadata
+
+`dropItem(input: {player|character, item, quality, count, x, y, target})` spills
+items as a ground stack (`GROUND`) or inserts them into a transport belt lane
+(`BELT`), removing them from the actor inventory first and rolling back on
+failure.
+
+Quality is no longer hardcoded to `normal`: `place`, `placeMany`, `transfer`,
+`fuel`, `beltTake`, `equip`, `placeTile` and `dropItem` accept a quality
+prototype name, which matters because the managed save runs with the builtin
+quality feature enabled. Placement inputs also accept `fastReplace` to replace a
+fast-replaceable entity instead of failing on the collision. `placeMany` returns
+`entities` with the unit number, name, type and position of every successful
+placement. `transfer` accepts `inventoryKind` (an enum) as a typed alternative
+to the inventory string, including roboport, wagon, car and spidertron
+inventories.
+
+`nearby` accepts `order` (`DISTANCE` or `UNIT_NUMBER`), `offset` and `limit`
+(1–1000), reports the total match count, and returns each entity's `distance`.
+`EntityInspection` adds `unitNumber`, `nameTag`, `tagsJSON`, `parametersJSON`
+(control-behavior parameters such as combinator descriptions) and the
+`undergroundNeighbour`, `beltNeighbours` and `fluidboxNeighbours` links.
+Factorio 2.0.77 exposes no underground-neighbour API, so `undergroundNeighbour` is
+always null there and says nothing about pairing; `beltNeighbours` and
+`fluidboxNeighbours` report the engine neighbours when it has them.
+`setNameTag` writes or clears the map label. `setEntityTags` exists but fails
+loudly on normal entities: Factorio 2.0.77 stores tags only as blueprint/ghost
+metadata.
+
+### Recipes
+
+`setRecipe` accepts a `player` actor, `recipeQuality` and a `drain` mode:
+`ABORT` keeps the original empty/idle contract, `TO_ACTOR` refuses machines
+holding fluids and drains input/output into the actor before the change, and
+`SPILL` clears fluids and spills the drained contents at the machine. Returned
+stacks come from the pre-change contents plus anything the engine releases.
+`clearRecipe(input: {player|character, entity|unitNumber})` drains the machine
+into the actor and clears the recipe.
 
 ## Security
 

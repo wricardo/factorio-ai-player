@@ -21,6 +21,17 @@ func TestNavigationController(t *testing.T) {
 	}
 }
 
+func TestActionController(t *testing.T) {
+	lua, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("Lua interpreter not installed")
+	}
+	out, err := exec.Command(lua, "mods/factorio_ai_navigation/actions_test.lua").CombinedOutput()
+	if err != nil {
+		t.Fatalf("action controller: %v\n%s", err, out)
+	}
+}
+
 func TestWaitForNavigation(t *testing.T) {
 	start := &NavigationJob{ID: "42", Status: "MOVING"}
 	t.Run("terminal state", func(t *testing.T) {

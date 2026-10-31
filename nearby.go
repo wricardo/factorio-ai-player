@@ -1,0 +1,39 @@
+package main
+
+import "fmt"
+
+// nearbyLua finds entities around a position, orders them deterministically,
+// and returns one page with the true match count. Ordering happens in Lua so the
+// pagination is stable for a single snapshot; limit is capped by the caller.
+func nearbyLua(surface string, x, y, radius float64, name, kind, ordering string, offset, limit int) string {
+	return luaFail + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
+local cx,cy=%s,%s
+local filter={position={x=cx,y=cy},radius=%s}
+local name=%s; local kind=%s
+if name~="" then filter.name=name end
+if kind~="" then filter.type=kind end
+local found=s.find_entities_filtered(filter)
+local items={}
+for _,e in ipairs(found) do
+  local dx=e.position.x-cx; local dy=e.position.y-cy
+  items[#items+1]={e=e,d=dx*dx+dy*dy}
+end
+local ordering=%s
+if ordering=="unit-number" or ordering=="unit_number" then
+  table.sort(items,function(a,b) return (a.e.unit_number or 0)<(b.e.unit_number or 0) end)
+else
+  table.sort(items,function(a,b) return a.d<b.d end)
+end
+local offset=%d; local limit=%d
+local entities={}
+local first=offset+1; local last=math.min(#items,offset+limit)
+for i=first,last do
+  local e=items[i].e
+  local entry={name=e.name,type=e.type,position=e.position,direction=e.direction,unit_number=e.unit_number,distance=math.sqrt(items[i].d)}
+  if e.type=="resource" then entry.amount=e.amount end
+  entities[#entities+1]=entry
+end
+rcon.print(helpers.table_to_json({surface=s.name,entities=entities,truncated=#items>last,total=#items}))`,
+		luaString(surface), formatFloat(x), formatFloat(y), formatFloat(radius),
+		luaString(name), luaString(kind), luaString(ordering), offset, limit)
+}

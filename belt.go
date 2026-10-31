@@ -21,12 +21,16 @@ func beltTakeLua(args []string, out io.Writer) (string, error) {
 	x := fs.Float64("x", math.NaN(), "Belt center X (required unless a unit number is given)")
 	y := fs.Float64("y", math.NaN(), "Belt center Y (required unless a unit number is given)")
 	item := fs.String("item", "", "Normal-quality item to pick up")
+	quality := fs.String("quality", "normal", "Item quality prototype name (default normal)")
 	count := fs.Uint64("count", 1, "Maximum items to pick up")
 	if err := fs.Parse(args); err != nil {
 		return "", err
 	}
 	if fs.NArg() != 0 || (*player == "") == (*character == 0) || *character > math.MaxUint32 || *item == "" || *count == 0 || *count > math.MaxUint32 {
 		return "", errors.New("exactly one of player or character, item, and positive count are required")
+	}
+	if *quality == "" {
+		return "", errors.New("quality must not be empty")
 	}
 	// beltTake only accepts transport belts, so unit-number lookups scan for that prototype.
 	targetUnit, err := entityTarget("transport-belt", unitNumber, *x, *y)
@@ -46,8 +50,8 @@ local p=c
 	return prefix + fmt.Sprintf(`if e.type~="transport-belt" then fail("entity is not a transport belt"); return end
 if not c.can_reach_entity(e) then fail("belt is out of reach"); return end
 local inv=c.get_main_inventory(); if not inv then fail("character has no main inventory"); return end
-local name=%s; local requested=%d; local capacity=inv.get_insertable_count{name=name,quality="normal"}; local remaining=math.min(requested,capacity); local moved=0
-for i=1,2 do if remaining>0 then local removed=e.get_transport_line(i).remove_item{name=name,quality="normal",count=remaining}; if removed>0 then local inserted=inv.insert{name=name,quality="normal",count=removed}; moved=moved+inserted; remaining=remaining-removed; if inserted<removed then c.surface.spill_item_stack{position=c.position,stack={name=name,quality="normal",count=removed-inserted},enable_looted=true,force=c.force}; fail("inventory rejected items; remainder spilled near character"); return end end end end
-rcon.print(helpers.table_to_json({position=e.position,item=name,requested=requested,moved=moved,unit_number=e.unit_number}))`, luaString(*item), *count), nil
+local name=%s; local quality=%s; if not prototypes.quality[quality] then fail("quality not found"); return end; local requested=%d; local capacity=inv.get_insertable_count{name=name,quality=quality}; local remaining=math.min(requested,capacity); local moved=0
+for i=1,2 do if remaining>0 then local removed=e.get_transport_line(i).remove_item{name=name,quality=quality,count=remaining}; if removed>0 then local inserted=inv.insert{name=name,quality=quality,count=removed}; moved=moved+inserted; remaining=remaining-removed; if inserted<removed then c.surface.spill_item_stack{position=c.position,stack={name=name,quality=quality,count=removed-inserted},enable_looted=true,force=c.force}; fail("inventory rejected items; remainder spilled near character"); return end end end end
+rcon.print(helpers.table_to_json({position=e.position,item=name,requested=requested,moved=moved,unit_number=e.unit_number}))`, luaString(*item), luaString(*quality), *count), nil
 
 }

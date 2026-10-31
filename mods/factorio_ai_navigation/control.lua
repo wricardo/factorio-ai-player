@@ -1,4 +1,5 @@
 local belt_flow = require("belt_flow")
+local actions = require("actions")
 
 -- Jobs and outstanding path requests live in storage so saves retain navigation.
 local MAX_REPLANS = 3
@@ -12,6 +13,7 @@ local function initialize()
   storage.requests = storage.requests or {}
   storage.next_id = storage.next_id or 1
   belt_flow.initialize()
+  actions.initialize()
 end
 
 script.on_init(initialize)
@@ -344,6 +346,7 @@ end)
 
 script.on_event(defines.events.on_tick, function(event)
   belt_flow.on_tick(event)
+  actions.on_tick(event)
   for unit, id in pairs(storage.active) do
     local job = storage.jobs[id]
     local character = character_for(job)

@@ -77,4 +77,14 @@ type SafetySnapshot {
   enemies: SafetyEntityPage!
   damaged: SafetyEntityPage!
   playerAlerts: SafetyAlertPage!
+  evolutionFactor: Float!
+  evolutionByTime: Float!
+  evolutionByPollution: Float!
+  evolutionByKills: Float!
+  """The selected surface's total airborne pollution across all chunks."""
+  totalPollution: Float!
+  """Kills attributed to the selected force, sorted by prototype name."""
+  killCounts: [KillCount!]!
 }
+"""One entry of the force's kill count statistics."""
+type KillCount { name: String! count: Float! }

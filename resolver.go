@@ -285,7 +285,9 @@ func isListField(key string) bool {
 		"bomMined", "bomIngredients", "bomProducts", "sciencePacks", "missingSciencePacks",
 		"ghostEntries", "placementAlternatives", "requestedMaterials", "rootBoxIds",
 		"fluidEntities", "fluidBoxes", "fluidConnections", "fluidSegments", "segmentFluids", "crossedItems", "characters", "blockedTiles", "blockers", "rows", "sites", "patches",
-		"sections", "slots":
+		"sections", "slots", "trains", "schedule", "contents", "grid", "signals",
+		"killCounts", "missing", "created", "cargo", "equipmentGrid", "packs",
+		"roboportRobot", "roboportMaterial", "cargoWagon", "carTrunk", "spiderTrunk", "artilleryWagonAmmo":
 		return true
 	}
 	return false

@@ -35,7 +35,7 @@ func playerInspectLua(command string, args []string, out io.Writer) (string, err
 	}
 	switch command {
 	case "player":
-		return prefix + `subject.tick=game.tick; subject.force=p.force.name; subject.surface=p.surface.name; subject.position=p.position; subject.has_character=c~=nil; if c then subject.character=c.unit_number; subject.health=c.health end; if subject.player then subject.connected=p.connected; subject.controller_type=p.controller_type end; rcon.print(helpers.table_to_json(subject))`, nil
+		return prefix + `subject.tick=game.tick; subject.force=p.force.name; subject.surface=p.surface.name; subject.position=p.position; subject.has_character=c~=nil; if c then subject.character=c.unit_number; subject.health=c.health end; if subject.player then subject.connected=p.connected; subject.controller_type=p.controller_type end; ` + luaActorGear + `; rcon.print(helpers.table_to_json(subject))`, nil
 	case "inventory":
 		return prefix + `local inv=p.get_main_inventory(); if not inv then fail("subject has no main inventory"); return end; local items=inv.get_contents(); subject.tick=game.tick; subject.inventory="main"; subject.items=items; subject.item_entries=#items; rcon.print(helpers.table_to_json(subject))`, nil
 	case "queue":

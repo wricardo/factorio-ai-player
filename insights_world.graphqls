@@ -17,7 +17,7 @@ input WorldResourcesInput { surface: String! = "nauvis" force: String! = "player
 input WorldPlacementInput { surface: String! = "nauvis" force: String! = "player" prototype: String! x: Float! y: Float! direction: Int! = 0 }
 """Selects which result list a placement probe fills. BLOCKED_TILES reports every refused tile with its blockers. GRID reports a compact row-major placeability map. SITES reports the largest non-overlapping empty tile rectangles that are at least siteWidth by siteHeight, largest first."""
 enum PlacementProbeMode { BLOCKED_TILES GRID SITES }
-"""Surface, force and prototype must be non-empty and exist; direction must be between 0 and 15. Area bounds match WorldResourcesInput, but the sampled tile count may not exceed 16384. Site width and height are site tile counts and must be at least 1 and at most the area dimensions; maxSites is 1 through 200."""
+"""Surface, force and prototype must be non-empty and exist; direction must be between 0 and 15. Area bounds match WorldResourcesInput, but the sampled tile count may not exceed 16384. mode selects which result list is filled (BLOCKED_TILES -> blockedTiles, GRID -> rows, SITES -> sites); siteWidth/siteHeight/maxSites only affect SITES and are tile counts from 1 to the area dimensions, maxSites 1 through 200."""
 input PlacementProbeInput { surface: String! = "nauvis" force: String! = "player" prototype: String! direction: Int! = 0 area: FactoryAreaInput! mode: PlacementProbeMode! = BLOCKED_TILES siteWidth: Float! = 1 siteHeight: Float! = 1 maxSites: Int! = 50 }
 
 type WorldArea { leftTopX: Float! leftTopY: Float! rightBottomX: Float! rightBottomY: Float! }
@@ -42,7 +42,7 @@ type WorldResourcesPage { tick: Float! surface: String! force: String! area: Wor
 type ResourcePatch { name: String! tiles: Int! totalAmount: Float! bounds: WorldArea! centroid: Position! nearbyDrills: [WorldDrill!]! }
 """Engine collision/build check only; does not check player reach, inventory or research."""
 type WorldPlacementResult { tick: Float! surface: String! force: String! prototype: String! position: Position! direction: Int! canPlace: Boolean! }
-"""Totals of one placement probe over a tile grid; blockedTiles lists only the tiles where the engine refused placement. rows is the GRID placeability map: one string per tile row, top row first, one character per tile (1 placeable, 0 blocked). sites lists SITES rectangles largest first, origin is the top-left tile corner, and rectangles never overlap."""
+"""Totals of one placement probe over a tile grid. Result lists are mode-coupled: blockedTiles is filled in BLOCKED_TILES mode (the default) and is empty otherwise; rows is filled only in GRID mode (one string per tile row, top row first, one character per tile, 1 placeable and 0 blocked); sites is filled only in SITES mode (rectangles largest first, origin at the top-left tile corner, never overlapping). sampled/placeable/blocked are always filled."""
 type PlacementProbeResult { tick: Float! surface: String! force: String! prototype: String! direction: Int! area: WorldArea! sampled: Int! placeable: Int! blocked: Int! blockedTiles: [PlacementBlockedTile!]! rows: [String!]! sites: [PlacementSite!]! }
 """One empty tile rectangle: width and height in whole tiles starting at the origin tile corner."""
 type PlacementSite { origin: Position! width: Float! height: Float! }

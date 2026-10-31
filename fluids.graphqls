@@ -1,0 +1,89 @@
+extend type Mutation {
+  """Adds, sets, or clears fluid in one reachable entity's fluidboxes. SET clamps the amount to capacity; ADD reports the amount actually accepted; CLEAR empties every box."""
+  setFluid(input: SetFluidInput!): FluidWriteResult!
+}
+
+enum FluidWriteMode {
+  SET
+  ADD
+  CLEAR
+}
+
+"""Exactly one player or character. The entity is addressed by unitNumber, or by prototype name plus finite center coordinates. fluid is ignored for CLEAR. amount must be zero or more and temperature, when given, must be finite."""
+input SetFluidInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  fluid: String
+  amount: Float = 0
+  temperature: Float
+  mode: FluidWriteMode! = SET
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type FluidWriteResult {
+  tick: Float!
+  surface: String!
+  name: String!
+  unitNumber: ID
+  position: Position!
+  fluid: String
+  before: Float!
+  after: Float!
+  capacity: Float!
+  mode: String!
+  boxesAffected: Int!
+}
+
+extend type Query {
+  """Aggregates fluid contents of tanks, pipes, fluid-using machines and fluid wagons on one surface, with paginated locations and independent paginated totals."""
+  fluidStock(input: FluidStockInput = {}): FluidStockPage!
+}
+
+input FluidStockInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  area: FactoryAreaInput
+  """Exact non-empty fluid prototype name, if supplied."""
+  fluid: String
+  limit: Int! = 100
+  offset: Int! = 0
+  totalsLimit: Int! = 100
+  totalsOffset: Int! = 0
+}
+
+type FluidStockPage {
+  tick: Float!
+  surface: String!
+  force: String!
+  total: Int!
+  totalsTotal: Int!
+  limit: Int!
+  offset: Int!
+  totalsLimit: Int!
+  totalsOffset: Int!
+  totals: [FluidTotal!]!
+  locations: [FluidStockLocation!]!
+}
+
+type FluidTotal {
+  fluid: String!
+  amount: Float!
+  category: String!
+}
+
+type FluidStockLocation {
+  category: String!
+  entityName: String!
+  entityType: String!
+  position: Position!
+  inventoryKind: String!
+  fluid: String!
+  amount: Float!
+  temperature: Float
+}

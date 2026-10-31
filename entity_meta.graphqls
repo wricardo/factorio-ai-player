@@ -1,0 +1,62 @@
+extend type EntityInspection {
+  """Engine unit number of the inspected entity, when it has one."""
+  unitNumber: ID
+  """JSON encoding of the engine parameters, when the entity exposes them (for example combinators)."""
+  parametersJSON: String
+  """JSON encoding of the entity tags, when readable."""
+  tagsJSON: String
+  """Engine name tag, when the entity supports one."""
+  nameTag: String
+  """Counterpart of an underground belt or pipe, when paired."""
+  undergroundNeighbour: PlacedEntity
+  """Belt neighbours reported by the engine, when the entity is belt connectable."""
+  beltNeighbours: [PlacedEntity!]
+  """Fluidbox neighbours reported by the engine, when the entity has fluidboxes."""
+  fluidboxNeighbours: [PlacedEntity!]
+}
+
+extend type Mutation {
+  """Replaces an entity's tags. An explicit administrative write; tags are visible to blueprints and other API reads."""
+  setEntityTags(input: EntityTagsInput!): EntityMetaResult!
+  """Sets or clears an entity's map name tag."""
+  setNameTag(input: EntityNameTagInput!): EntityMetaResult!
+}
+
+"""Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates. tagsJSON must be a JSON object."""
+input EntityTagsInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  tagsJSON: String!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates. An empty nameTag clears the tag."""
+input EntityNameTagInput {
+  player: String
+  character: ID
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: ID
+  x: Float
+  y: Float
+  nameTag: String!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type EntityMetaResult {
+  tick: Float!
+  surface: String!
+  name: String!
+  unitNumber: ID
+  position: Position!
+  parametersJSON: String
+  tagsJSON: String
+  nameTag: String
+}

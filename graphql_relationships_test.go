@@ -27,12 +27,12 @@ func relationshipResponse(lua string) string {
 		}
 		return `{"error":"player not found"}`
 	}
-	if contains("local filter={position=") {
-		if contains("game.surfaces["+luaString("vulcanus")+"]") && contains("position={12,-4},radius=7") && contains("local name="+luaString("electric-mining-drill")) && contains("local kind="+luaString("mining-drill")) {
-			return `{"surface":"vulcanus","entities":[{"name":"electric-mining-drill","type":"mining-drill","position":{"x":13.5,"y":-4.5}}],"truncated":false}`
+	if contains("s.find_entities_filtered(filter)") {
+		if contains("game.surfaces["+luaString("vulcanus")+"]") && contains("local cx,cy=12,-4") && contains("radius=7") && contains("local name="+luaString("electric-mining-drill")) && contains("local kind="+luaString("mining-drill")) {
+			return `{"surface":"vulcanus","entities":[{"name":"electric-mining-drill","type":"mining-drill","position":{"x":13.5,"y":-4.5}}],"truncated":false,"total":1}`
 		}
-		if contains("game.surfaces["+luaString("vulcanus")+"]") && contains("position={12,-4},radius=10") {
-			return `{"surface":"vulcanus","entities":{},"truncated":false}`
+		if contains("game.surfaces["+luaString("vulcanus")+"]") && contains("local cx,cy=12,-4") && contains("radius=10") {
+			return `{"surface":"vulcanus","entities":{},"truncated":false,"total":0}`
 		}
 		return `{"error":"wrong nearby target"}`
 	}

@@ -15,7 +15,7 @@ type Color {
   a: Float!
 }
 
-"""Splitter filter and lane priorities."""
+"""Splitter filter and lane priorities. In Factorio 2.0 the output priority selects which output carries the filtered items: a filter with outputPriority none sorts nothing, so the API rejects that combination and defaults outputPriority to left when a filter is set without one. An omitted comparator means the engine default (=)."""
 type SplitterSettings {
   filter: ItemFilter
   """none, left, or right."""
@@ -234,7 +234,7 @@ input SplitterSettingsInput {
   unitNumber: ID
   x: Float
   y: Float
-  """Filter items must match; omitted keeps the current filter."""
+  """Filter items must match; omitted keeps the current filter. When a filter is set, outputPriority defaults to left and an explicit none is rejected because the filter would be inert. An omitted comparator keeps the engine default (=)."""
   filter: ItemFilterInput
   """none, left, or right."""
   inputPriority: String
