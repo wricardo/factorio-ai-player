@@ -10,3 +10,13 @@
 
 # local agent credentials
 .opencodego-api-key
+
+# macOS / editor junk
+.DS_Store
+*.swp
+*.swo
+
+# Go build and test artifacts
+/dist/
+coverage.out
+*.test
