@@ -11,7 +11,8 @@ import (
 
 // SetFluid is the resolver for the setFluid field.
 func (r *mutationResolver) SetFluid(ctx context.Context, input SetFluidInput) (*FluidWriteResult, error) {
-	return setFluid(r.Resolver, input)
+	result, err := setFluid(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // FluidStock is the resolver for the fluidStock field.

@@ -65,16 +65,17 @@ func setRecipe(r *Resolver, input SetRecipeInput) (*ActionResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	character, err := resolveActorCharacter(r, input.Player, input.Character)
+	character, err := resolveActorCharacterInput(r, input.Actor)
 	if err != nil {
 		return nil, err
 	}
+	_, entity, unitNumber, x, y := entityRefFields(input.Target)
 	return command[ActionResult](r, "set-recipe", setRecipeCommandInput{
 		Character:     &character,
-		Entity:        input.Entity,
-		X:             input.X,
-		Y:             input.Y,
-		UnitNumber:    input.UnitNumber,
+		Entity:        entity,
+		X:             x,
+		Y:             y,
+		UnitNumber:    unitNumber,
 		Recipe:        input.Recipe,
 		RecipeQuality: &quality,
 		Drain:         &mode,
@@ -87,11 +88,11 @@ func setRecipe(r *Resolver, input SetRecipeInput) (*ActionResult, error) {
 // still returns is added to the drained list, and whatever does not fit in the
 // inventory is spilled at the machine.
 func clearRecipe(r *Resolver, input ClearRecipeInput) (*ActionResult, error) {
-	character, err := resolveActorCharacter(r, input.Player, input.Character)
+	character, err := resolveActorCharacterInput(r, input.Actor)
 	if err != nil {
 		return nil, err
 	}
-	target, err := settingsTargetFrom(nil, &character, input.Surface, input.Entity, input.UnitNumber, input.X, input.Y)
+	target, err := settingsTargetFromRef(&ActorInput{Character: &character}, input.Target)
 	if err != nil {
 		return nil, err
 	}

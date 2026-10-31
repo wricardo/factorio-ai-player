@@ -317,6 +317,7 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 	default:
 		return fmt.Errorf("unknown command %q; use help", args[0])
 	}
+	lua = withSnapshotPrint(lua, args)
 	if password == "" {
 		return errors.New("FACTORIO_RCON_PASSWORD is required")
 	}
@@ -333,6 +334,46 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 }
 
 const luaFail = `local function fail(message) rcon.print(helpers.table_to_json({error=message})) end; `
+
+func snapshotActorPrelude(args []string) string {
+	var player, character string
+	for _, arg := range args[1:] {
+		if strings.HasPrefix(arg, "--player=") {
+			player = strings.TrimPrefix(arg, "--player=")
+		}
+		if strings.HasPrefix(arg, "--character=") {
+			character = strings.TrimPrefix(arg, "--character=")
+		}
+	}
+	if player != "" {
+		return fmt.Sprintf(`local snapshot_actor=game.get_player(%s); local snapshot_player=%s; local snapshot_character=nil; local snapshot_surface=snapshot_actor and snapshot_actor.surface.name or nil; local snapshot_force=snapshot_actor and snapshot_actor.force.name or nil; `, luaString(player), luaString(player))
+	}
+	if character != "" && character != "0" {
+		return fmt.Sprintf(`local snapshot_actor=game.get_entity_by_unit_number(%s); local snapshot_player=nil; local snapshot_character=%s; local snapshot_surface=snapshot_actor and snapshot_actor.surface.name or nil; local snapshot_force=snapshot_actor and snapshot_actor.force.name or nil; `, character, character)
+	}
+	return `local snapshot_player=nil; local snapshot_character=nil; local snapshot_surface=nil; local snapshot_force=nil; `
+}
+
+const luaSnapshotPrint = `local function snapshot_print(encoded)
+  local ok,value=pcall(helpers.json_to_table,encoded)
+  if ok and type(value)=="table" and value.error==nil then
+    if value.tick==nil then value.tick=game.tick end
+    if value.surface==nil then value.surface=snapshot_surface end
+    if value.force==nil then value.force=snapshot_force end
+    if value.player==nil and value.character==nil then
+      value.player=snapshot_player
+      value.character=snapshot_character
+    end
+  end
+  if ok and type(value)=="table" then encoded=helpers.table_to_json(value) end
+  rcon.print(encoded)
+end; `
+
+// withSnapshotPrint guarantees observation tick and selected actor metadata on
+// every backend game operation without duplicating it in each domain builder.
+func withSnapshotPrint(lua string, args []string) string {
+	return snapshotActorPrelude(args) + luaSnapshotPrint + strings.ReplaceAll(lua, "rcon.print(", "snapshot_print(")
+}
 
 // executeLua is the common boundary for all Lua commands.
 func executeLua(addr, password, lua string) (string, map[string]json.RawMessage, error) {

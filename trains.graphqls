@@ -16,51 +16,78 @@ input TrainsInput {
 type TrainPage {
   tick: Float!
   surface: String!
-  total: Int!
-  limit: Int!
-  offset: Int!
+  force: String!
+  pageInfo: PageInfo!
   trains: [TrainInfo!]!
 }
 
 """A stopped or moving train. state is the engine defines.train_state value; schedule records carry the station name and the engine's wait condition where readable."""
 type TrainInfo {
-  id: ID!
-  state: Int!
-  statusName: String
+  tick: Float!
+  surface: String!
+  force: String!
+  actor: ActorIdentity
+  id: UnitNumber!
+  status: EngineStatus!
   manualMode: Boolean!
   speed: Float!
   locomotives: Int!
   wagons: Int!
   frontPosition: Position
   schedule: [TrainScheduleRecord!]!
-  cargo: [ItemStack!]!
+  cargo: [InventoryStack!]!
   fluids: [FluidContent!]!
 }
 
 type TrainScheduleRecord {
   station: String!
-  """Wait time in seconds when the record uses a time condition; null otherwise."""
-  waitSeconds: Float
-  """JSON encoding of the engine wait condition, when readable."""
-  waitConditionJSON: String
+  waitCondition: TrainWaitCondition
+  """Unmodified engine wait-condition JSON for unsupported or modded fields."""
+  waitConditionRawJSON: String
+}
+
+enum TrainWaitConditionType {
+  TIME
+  INACTIVITY
+  FULL
+  EMPTY
+  ITEM_COUNT
+  FLUID_COUNT
+  PASSENGER_PRESENT
+  PASSENGER_NOT_PRESENT
+  ROBOTS_INACTIVE
+  CIRCUIT
+  OTHER
+}
+
+enum TrainWaitCompareType { AND OR }
+
+type TrainWaitCondition {
+  type: TrainWaitConditionType!
+  rawType: String!
+  compareType: TrainWaitCompareType!
+  ticks: Float
+  condition: InserterCondition
+}
+
+input TrainWaitConditionInput {
+  type: TrainWaitConditionType!
+  compareType: TrainWaitCompareType = OR
+  ticks: Float
+  condition: SignalConditionInput
 }
 
 extend type Mutation {
-  """Replaces a train's schedule with time-based records or clears it. The train must be addressable by unitNumber (or by prototype name and coordinates) and reachable."""
+  """Replaces a train's schedule with time-based records or clears it. The train must be addressable by unitNumber (or by prototype name and coordinates) and, when reach enforcement is enabled, reachable."""
   setTrainSchedule(input: SetTrainScheduleInput!): TrainInfo!
   """Sets a train's manual mode and optionally sends it to a named station."""
   trainControl(input: TrainControlInput!): TrainInfo!
 }
 
-"""Exactly one player or character. Either records or clear must be given, not both. Each record needs a non-empty station name and a waitSeconds of 0 or more. At most 100 records."""
+"""Replace or clear one train schedule."""
 input SetTrainScheduleInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   records: [TrainScheduleRecordInput!]
   clear: Boolean! = false
   """Print this text in-game to all connected players instead of the generated notification."""
@@ -69,18 +96,13 @@ input SetTrainScheduleInput {
 
 input TrainScheduleRecordInput {
   station: String!
-  waitSeconds: Float! = 0
+  waitCondition: TrainWaitConditionInput!
 }
 
-"""Exactly one player or character. goToStation requires a non-empty station name."""
+"""Control one train."""
 input TrainControlInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   manualMode: Boolean
   goToStation: String
   """Print this text in-game to all connected players instead of the generated notification."""
@@ -92,15 +114,10 @@ extend type Mutation {
   setDirection(input: SetDirectionInput!): ActionResult!
 }
 
-"""Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates. direction is the engine value 0 through 15."""
+"""Set one entity's canonical engine direction from 0 through 15."""
 input SetDirectionInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   direction: Int!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String

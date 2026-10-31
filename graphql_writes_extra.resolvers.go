@@ -11,5 +11,6 @@ import (
 
 // DropItem is the resolver for the dropItem field.
 func (r *mutationResolver) DropItem(ctx context.Context, input DropItemInput) (*DropItemResult, error) {
-	return dropItem(r.Resolver, input)
+	result, err := dropItem(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }

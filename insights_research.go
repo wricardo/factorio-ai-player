@@ -91,7 +91,7 @@ local page = {}
 for i=offset+1, math.min(#matches, offset+limit) do page[#page+1] = matches[i] end
 rcon.print(helpers.table_to_json({tick=game.tick, force=force.name, researchEnabled=force.research_enabled,
   currentTechnology=current_name, progress=current and force.research_progress or nil,
-  researchQueue=queue, total=#matches, limit=limit, offset=offset, technologies=page}))`,
+  researchQueue=queue, pageInfo={total=#matches,limit=limit,offset=offset,hasMore=#matches>offset+limit}, technologies=page}))`,
 		luaString(input.Force), luaString(technology), luaString(recipe), luaString(string(input.Status)), input.Limit, input.Offset)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {

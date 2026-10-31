@@ -11,10 +11,16 @@ import (
 
 // BuildGhosts is the resolver for the buildGhosts field.
 func (r *mutationResolver) BuildGhosts(ctx context.Context, input BuildGhostsInput) (*BuildGhostsResult, error) {
-	return buildGhosts(r.Resolver, input)
+	result, err := buildGhosts(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // LogisticNetworks is the resolver for the logisticNetworks field.
 func (r *queryResolver) LogisticNetworks(ctx context.Context, input *LogisticNetworksInput) (*LogisticNetworkPage, error) {
 	return logisticNetworks(r.Resolver, input)
+}
+
+// ConstructionOrders is the resolver for the constructionOrders field.
+func (r *queryResolver) ConstructionOrders(ctx context.Context, input *ConstructionOrdersInput) (*ConstructionOrderPage, error) {
+	return constructionOrders(r.Resolver, input)
 }

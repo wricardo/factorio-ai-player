@@ -171,7 +171,7 @@ end)
 local page, totals_page = {}, {}
 for i=offset+1,math.min(#entries,offset+limit) do page[#page+1] = entries[i] end
 for i=totals_offset+1,math.min(#totals,totals_offset+totals_limit) do totals_page[#totals_page+1] = totals[i] end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,total=#entries,limit=limit,offset=offset,locations=page,totalsTotal=#totals,totalsLimit=totals_limit,totalsOffset=totals_offset,totals=totals_page}))`, luaString(input.Surface), luaString(input.Force), luaString(item), area, input.Limit, input.Offset, input.TotalsLimit, input.TotalsOffset)
+rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,location_page_info={total=#entries,limit=limit,offset=offset,has_more=#entries>offset+limit},locations=page,total_page_info={total=#totals,limit=totals_limit,offset=totals_offset,has_more=#totals>totals_offset+totals_limit},totals=totals_page}))`, luaString(input.Surface), luaString(input.Force), luaString(item), area, input.Limit, input.Offset, input.TotalsLimit, input.TotalsOffset)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

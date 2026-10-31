@@ -12,25 +12,26 @@ import (
 
 // Inventory is the resolver for the inventory field.
 func (r *actorResolver) Inventory(ctx context.Context, obj *Actor) (*ActorInventory, error) {
-	return command[ActorInventory](r.Resolver, "inventory", ActorInput{Player: obj.Player, Character: obj.Character})
+	return command[ActorInventory](r.Resolver, "inventory", actorValue(actorSelector(obj)))
 }
 
 // Queue is the resolver for the queue field.
 func (r *actorResolver) Queue(ctx context.Context, obj *Actor) (*CraftQueue, error) {
-	return command[CraftQueue](r.Resolver, "queue", ActorInput{Player: obj.Player, Character: obj.Character})
+	return command[CraftQueue](r.Resolver, "queue", actorValue(actorSelector(obj)))
 }
 
 // Recipe is the resolver for the recipe field.
 func (r *actorResolver) Recipe(ctx context.Context, obj *Actor, name string) (*Recipe, error) {
-	return command[Recipe](r.Resolver, "recipe", RecipeInput{Player: obj.Player, Character: obj.Character, Recipe: name})
+	return command[Recipe](r.Resolver, "recipe", RecipeInput{Actor: actorSelector(obj), Recipe: name})
 }
 
 // Nearby is the resolver for the nearby field.
-func (r *actorResolver) Nearby(ctx context.Context, obj *Actor, radius *float64, name *string, typeArg *string) (*Nearby, error) {
-	if obj.Surface == nil || obj.Position == nil {
+func (r *actorResolver) Nearby(ctx context.Context, obj *Actor, radius *float64, name *string, typeArg *string, order *NearbyOrder, offset *int, limit *int) (*Nearby, error) {
+	if obj.Surface == "" || obj.Position == nil {
 		return nil, fmt.Errorf("actor surface and position are required for nearby")
 	}
-	return nearby(r.Resolver, &NearbyInput{Surface: obj.Surface, X: &obj.Position.X, Y: &obj.Position.Y, Radius: radius, Name: name, Type: typeArg})
+	position := &PositionInput{X: obj.Position.X, Y: obj.Position.Y}
+	return nearby(r.Resolver, &NearbyInput{Surface: &obj.Surface, Position: position, Radius: radius, Name: name, Type: typeArg, Order: order, Offset: offset, Limit: limit})
 }
 
 // Actor is the resolver for the actor field.
@@ -41,15 +42,14 @@ func (r *connectedPlayerResolver) Actor(ctx context.Context, obj *ConnectedPlaye
 // Inspection is the resolver for the inspection field.
 func (r *entityResolver) Inspection(ctx context.Context, obj *Entity, actor ActorInput) (*EntityInspection, error) {
 	name := obj.Name
-	input := InspectInput{Player: actor.Player, Character: actor.Character, Surface: obj.Surface, UnitNumber: obj.UnitNumber, Entity: &name}
+	target := &EntityRefInput{Surface: obj.Surface, UnitNumber: obj.UnitNumber, Entity: &name}
 	if obj.UnitNumber == nil {
 		if obj.Surface == nil || obj.Position == nil {
 			return nil, fmt.Errorf("entity surface and position are required for inspection")
 		}
-		x, y := obj.Position.X, obj.Position.Y
-		input.X, input.Y = &x, &y
+		target.Position = &PositionInput{X: obj.Position.X, Y: obj.Position.Y}
 	}
-	return inspect(r.Resolver, input)
+	return inspect(r.Resolver, InspectInput{Actor: &actor, Target: target})
 }
 
 // RecipeInfo is the resolver for the recipeInfo field.
@@ -89,12 +89,14 @@ func (r *mutationResolver) Place(ctx context.Context, input PlaceInput) (*Action
 
 // PlaceMany is the resolver for the placeMany field.
 func (r *mutationResolver) PlaceMany(ctx context.Context, input PlaceManyInput) (*PlaceManyResult, error) {
-	return placeMany(r.Resolver, input)
+	result, err := placeMany(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // PlaceTile is the resolver for the placeTile field.
 func (r *mutationResolver) PlaceTile(ctx context.Context, input PlaceTileInput) (*PlaceTileResult, error) {
-	return placeTile(r.Resolver, input)
+	result, err := placeTile(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // CreateBlueprint is the resolver for the createBlueprint field.
@@ -134,12 +136,14 @@ func (r *mutationResolver) ClearArea(ctx context.Context, input ClearAreaInput) 
 
 // HarvestArea is the resolver for the harvestArea field.
 func (r *mutationResolver) HarvestArea(ctx context.Context, input HarvestAreaInput) (*HarvestAreaResult, error) {
-	return harvestArea(r.Resolver, input)
+	result, err := harvestArea(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // PickupArea is the resolver for the pickupArea field.
 func (r *mutationResolver) PickupArea(ctx context.Context, input PickupAreaInput) (*PickupAreaResult, error) {
-	return pickupArea(r.Resolver, input)
+	result, err := pickupArea(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // DeconstructArea is the resolver for the deconstructArea field.
@@ -174,7 +178,8 @@ func (r *mutationResolver) Remove(ctx context.Context, input RemoveInput) (*Remo
 
 // RemoveMany is the resolver for the removeMany field.
 func (r *mutationResolver) RemoveMany(ctx context.Context, input RemoveManyInput) (*RemoveManyResult, error) {
-	return removeMany(r.Resolver, input)
+	result, err := removeMany(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // Pickup is the resolver for the pickup field.
@@ -243,12 +248,15 @@ func (r *queryResolver) Status(ctx context.Context) (*Status, error) {
 }
 
 // Entity is the resolver for the entity field.
-func (r *queryResolver) Entity(ctx context.Context, unitNumber string, surface *string) (*Entity, error) {
-	name := "nauvis"
-	if surface != nil {
-		name = *surface
+func (r *queryResolver) Entity(ctx context.Context, input EntityRefInput) (*EntitySnapshot, error) {
+	entity, err := entityByRef(r.Resolver, input)
+	if err != nil {
+		return nil, err
 	}
-	return entityByUnitNumber(r.Resolver, unitNumber, name)
+	if entity.Tick == nil || entity.Surface == nil || entity.Force == nil {
+		return nil, fmt.Errorf("entity snapshot omitted tick, surface, or force")
+	}
+	return &EntitySnapshot{Tick: *entity.Tick, Surface: *entity.Surface, Force: *entity.Force, Entity: entity}, nil
 }
 
 // Nearby is the resolver for the nearby field.

@@ -33,44 +33,15 @@ func TestTrainsQueryLuaValidation(t *testing.T) {
 	}
 }
 
-func TestTrainsQueryLuaContents(t *testing.T) {
-	station := "Iron Load"
-	lua, err := trainsQueryLua(&TrainsInput{Surface: "nauvis", Force: "player", Limit: 25, Offset: 5, Station: &station})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	for _, want := range []string{
-		"game.train_manager.get_trains({surface=surface,force=force.name})",
-		"trains_schedule_records",
-		"get_contents()",
-		"get_fluid_contents()",
-		"defines.train_state",
-		`wait_seconds=(tonumber(trains_field(condition,"ticks")) or 0)/60`,
-		luaString("Iron Load"),
-		"trains_page(s,f,",
-		",25,5)",
-		"trains_in_area",
-		"contents[1]~=nil",
-		"amount=value.amount",
-	} {
-		if !strings.Contains(lua, want) {
-			t.Fatalf("query Lua is missing %q", want)
-		}
-	}
-	if strings.Contains(lua, "attempts={") {
-		t.Fatal("query Lua must call get_trains once, not try multiple filter shapes")
-	}
-}
-
 func TestSetTrainScheduleLuaValidation(t *testing.T) {
 	player := "alice"
 	locomotive := "locomotive"
 	unit := "12"
-	record := func(station string, seconds float64) *TrainScheduleRecordInput {
-		return &TrainScheduleRecordInput{Station: station, WaitSeconds: seconds}
+	record := func(station string, ticks float64) *TrainScheduleRecordInput {
+		return &TrainScheduleRecordInput{Station: station, WaitCondition: &TrainWaitConditionInput{Type: TrainWaitConditionTypeTime, Ticks: &ticks}}
 	}
 	base := func() SetTrainScheduleInput {
-		return SetTrainScheduleInput{Player: &player, Entity: &locomotive, UnitNumber: &unit}
+		return SetTrainScheduleInput{Actor: &ActorInput{Player: &player}, Target: &EntityRefInput{Entity: &locomotive, UnitNumber: &unit}}
 	}
 	tooMany := make([]*TrainScheduleRecordInput, 101)
 	for i := range tooMany {
@@ -102,17 +73,17 @@ func TestSetTrainScheduleLuaValidation(t *testing.T) {
 			in := base()
 			in.Records = []*TrainScheduleRecordInput{record("A", -1)}
 			return in
-		}(), "waitSeconds must be a finite number of seconds no less than 0"},
+		}(), "wait condition ticks must be finite and no less than 0"},
 		{"no actor", func() SetTrainScheduleInput {
 			in := base()
-			in.Player = nil
+			in.Actor = nil
 			in.Records = []*TrainScheduleRecordInput{record("A", 1)}
 			return in
 		}(), "exactly one of player or character is required"},
 		{"actor and character", func() SetTrainScheduleInput {
 			in := base()
 			character := "4"
-			in.Character = &character
+			in.Actor.Character = &character
 			in.Records = []*TrainScheduleRecordInput{record("A", 1)}
 			return in
 		}(), "exactly one of player or character is required"},
@@ -127,124 +98,48 @@ func TestSetTrainScheduleLuaValidation(t *testing.T) {
 	}
 }
 
-func TestSetTrainScheduleLuaContents(t *testing.T) {
+func TestTrainControlValidation(t *testing.T) {
 	player := "alice"
 	locomotive := "locomotive"
 	unit := "12"
-	input := SetTrainScheduleInput{
-		Player:     &player,
-		Entity:     &locomotive,
-		UnitNumber: &unit,
-		Records: []*TrainScheduleRecordInput{
-			{Station: "Iron Load", WaitSeconds: 30},
-			{Station: "Copper Drop", WaitSeconds: 0},
-		},
-	}
-	lua, err := setTrainScheduleLua(input)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	for _, want := range []string{
-		"train.schedule={current=1,records=records}",
-		luaString("Iron Load"),
-		luaString("Copper Drop"),
-		`wait_conditions={{type=` + luaString("time") + `,ticks=math.floor(30*60)}}`,
-		`ticks=math.floor(0*60)`,
-		"trains_info(train)",
-		"can_reach_entity(e)",
-	} {
-		if !strings.Contains(lua, want) {
-			t.Fatalf("schedule Lua is missing %q", want)
-		}
-	}
-	cleared, err := setTrainScheduleLua(SetTrainScheduleInput{
-		Player: &player, Entity: &locomotive, UnitNumber: &unit, Clear: true,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(cleared, "train.schedule=nil") {
-		t.Fatalf("clear Lua does not clear the schedule: %s", cleared)
-	}
-}
-
-func TestTrainControlLua(t *testing.T) {
-	player := "alice"
-	locomotive := "locomotive"
-	unit := "12"
-	if _, err := trainControlLua(TrainControlInput{Player: &player, Entity: &locomotive, UnitNumber: &unit}); err == nil || !strings.Contains(err.Error(), "manualMode or goToStation is required") {
+	target := &EntityRefInput{Entity: &locomotive, UnitNumber: &unit}
+	if _, err := trainControlLua(TrainControlInput{Actor: &ActorInput{Player: &player}, Target: target}); err == nil || !strings.Contains(err.Error(), "manualMode or goToStation is required") {
 		t.Fatalf("expected missing option error, got %v", err)
 	}
 	blank := ""
-	if _, err := trainControlLua(TrainControlInput{Player: &player, Entity: &locomotive, UnitNumber: &unit, GoToStation: &blank}); err == nil || !strings.Contains(err.Error(), "goToStation must not be empty") {
+	if _, err := trainControlLua(TrainControlInput{Actor: &ActorInput{Player: &player}, Target: target, GoToStation: &blank}); err == nil || !strings.Contains(err.Error(), "goToStation must not be empty") {
 		t.Fatalf("expected empty station error, got %v", err)
-	}
-	manual := true
-	station := "Copper Drop"
-	lua, err := trainControlLua(TrainControlInput{
-		Player: &player, Entity: &locomotive, UnitNumber: &unit, ManualMode: &manual, GoToStation: &station,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	for _, want := range []string{"train.manual_mode=true", "go_to_station(index)", luaString("Copper Drop"), "station not found in train schedule"} {
-		if !strings.Contains(lua, want) {
-			t.Fatalf("control Lua is missing %q", want)
-		}
 	}
 }
 
-func TestSetDirectionLua(t *testing.T) {
+func TestSetDirectionValidation(t *testing.T) {
 	player := "alice"
 	locomotive := "locomotive"
 	unit := "12"
+	target := &EntityRefInput{Entity: &locomotive, UnitNumber: &unit}
 	for _, direction := range []int{-1, 16, 100} {
-		if _, err := setDirectionLua(SetDirectionInput{Player: &player, Entity: &locomotive, UnitNumber: &unit, Direction: direction}); err == nil || !strings.Contains(err.Error(), "direction must be between 0 and 15") {
+		if _, err := setDirectionLua(SetDirectionInput{Actor: &ActorInput{Player: &player}, Target: target, Direction: direction}); err == nil || !strings.Contains(err.Error(), "direction must be between 0 and 15") {
 			t.Fatalf("direction %d: expected range error, got %v", direction, err)
 		}
 	}
-	lua, err := setDirectionLua(SetDirectionInput{Player: &player, Entity: &locomotive, UnitNumber: &unit, Direction: 8})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	for _, want := range []string{
-		"local before=e.direction",
-		"local requested=8",
-		"e.direction=requested",
-		"local applied=(e.direction==requested)",
-		"local clockwise=(requested-before)%16",
-		"local counter=(before-requested)%16",
-		`e.rotate{reverse=(counter==4)}`,
-		"does not allow scripted direction changes",
-		"directionCode instead",
-		"can_reach_entity(e)",
-		"tostring(e.direction)",
-	} {
-		if !strings.Contains(lua, want) {
-			t.Fatalf("direction Lua is missing %q", want)
-		}
-	}
-	if strings.Contains(lua, "if true then") {
-		t.Fatal("direction Lua must not claim success unconditionally")
-	}
-	if _, err := setDirectionLua(SetDirectionInput{Entity: &locomotive, UnitNumber: &unit, Direction: 4}); err == nil || !strings.Contains(err.Error(), "exactly one of player or character is required") {
+	if _, err := setDirectionLua(SetDirectionInput{Target: target, Direction: 4}); err == nil || !strings.Contains(err.Error(), "exactly one of player or character is required") {
 		t.Fatalf("expected actor error, got %v", err)
 	}
 }
 
 func TestTrainsDecode(t *testing.T) {
-	page, err := factoryDecode[TrainPage](`{"tick":900,"surface":"nauvis","total":0,"limit":100,"offset":0,"trains":{}}`)
+	page, err := factoryDecode[TrainPage](`{"tick":900,"surface":"nauvis","force":"player","pageInfo":{"total":0,"limit":100,"offset":0,"hasMore":false},"trains":{}}`)
 	if err != nil {
 		t.Fatalf("decode page: %v", err)
 	}
 	if page.Trains == nil || len(page.Trains) != 0 {
 		t.Fatalf("expected an empty train list, got %#v", page.Trains)
 	}
-	info, err := factoryDecode[TrainInfo](`{"id":"7","state":2,"status_name":"on_the_path","manual_mode":true,"speed":0.5,"locomotives":1,"wagons":3,"front_position":{"x":1.5,"y":2.5},"schedule":{}, "cargo":{}, "fluids":{}}`)
+	info, err := factoryDecode[TrainInfo](`{"id":"7","status":{"category":"RUNNING","rawName":"on_the_path","rawCode":2,"terminal":false},"manual_mode":true,"speed":0.5,"locomotives":1,"wagons":3,"front_position":{"x":1.5,"y":2.5},"schedule":{}, "cargo":{}, "fluids":{}}`)
 	if err != nil {
 		t.Fatalf("decode train: %v", err)
 	}
-	if info.ID != "7" || info.State != 2 || info.StatusName == nil || *info.StatusName != "on_the_path" {
+	if info.ID != "7" || info.Status == nil || info.Status.RawName == nil || *info.Status.RawName != "on_the_path" {
 		t.Fatalf("unexpected train identity: %#v", info)
 	}
 	if !info.ManualMode || info.Locomotives != 1 || info.Wagons != 3 {

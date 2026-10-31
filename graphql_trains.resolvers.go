@@ -11,17 +11,20 @@ import (
 
 // SetTrainSchedule is the resolver for the setTrainSchedule field.
 func (r *mutationResolver) SetTrainSchedule(ctx context.Context, input SetTrainScheduleInput) (*TrainInfo, error) {
-	return setTrainSchedule(r.Resolver, input)
+	result, err := setTrainSchedule(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // TrainControl is the resolver for the trainControl field.
 func (r *mutationResolver) TrainControl(ctx context.Context, input TrainControlInput) (*TrainInfo, error) {
-	return trainControl(r.Resolver, input)
+	result, err := trainControl(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // SetDirection is the resolver for the setDirection field.
 func (r *mutationResolver) SetDirection(ctx context.Context, input SetDirectionInput) (*ActionResult, error) {
-	return setDirection(r.Resolver, input)
+	result, err := setDirection(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // Trains is the resolver for the trains field.

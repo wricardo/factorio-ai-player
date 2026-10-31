@@ -8,13 +8,13 @@ extend type Status {
 extend type Mutation {
   """Sets the game simulation speed and pause state. A sandbox/administrative knob: it affects every player and every machine on the server."""
   setGameSpeed(input: GameSpeedInput!): GameSpeedResult!
-  """Moves the acting character to finite coordinates on a surface. A sandbox convenience that bypasses travel; reach checks still apply afterwards."""
+  """Moves the acting character to finite coordinates on a surface. A sandbox convenience that bypasses travel; reach checks apply afterwards only when FACTORIO_ENFORCE_REACH=1."""
   teleport(input: TeleportInput!): ActionResult!
   """Uses a capsule item from the player's character inventory at a target position, for example a cliff explosive on a cliff. Player actor only."""
   useCapsule(input: CapsuleInput!): CapsuleResult!
   """Fires the player character's weapon at a target entity or position. Player actor only."""
   shoot(input: ShootInput!): ShootResult!
-  """Repairs a reachable damaged entity using repair packs from the acting character's main inventory."""
+  """Repairs a damaged entity using repair packs from the acting character's main inventory."""
   repair(input: RepairInput!): RepairResult!
 }
 
@@ -32,24 +32,21 @@ type GameSpeedResult {
   paused: Boolean!
 }
 
-"""Exactly one player or character. Coordinates must be finite and the surface must exist."""
+"""Move one selected actor to a finite position on a surface."""
 input TeleportInput {
-  player: String
-  character: ID
+  actor: ActorInput!
   surface: String = "nauvis"
-  x: Float!
-  y: Float!
+  position: PositionInput!
   snapToGrid: Boolean = false
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
 
-"""Player must be connected and control a character. count is 1 through 100. Coordinates must be finite and within the character's reach."""
+"""Selected actor must be a connected player controlling a character. count is 1 through 100."""
 input CapsuleInput {
-  player: String!
+  actor: ActorInput!
   item: String!
-  x: Float!
-  y: Float!
+  target: PositionInput!
   count: Int! = 1
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
@@ -58,6 +55,8 @@ input CapsuleInput {
 type CapsuleResult {
   tick: Float!
   surface: String!
+  force: String!
+  actor: ActorIdentity!
   item: String!
   used: Int!
   position: Position!
@@ -65,12 +64,10 @@ type CapsuleResult {
   created: [PlacedEntity!]!
 }
 
-"""Player only. Address the target by targetUnitNumber or by finite x and y. count is 1 through 100 and bounds the shooting ticks requested."""
+"""Selected actor must be a connected player. Target uses the shared entity reference; position-only targets are allowed."""
 input ShootInput {
-  player: String!
-  targetUnitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   count: Int! = 1
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
@@ -79,21 +76,18 @@ input ShootInput {
 type ShootResult {
   tick: Float!
   player: String!
-  character: ID
+  force: String!
+  actor: ActorIdentity!
+  character: UnitNumber
   ammoUsed: Int!
   target: PlacedEntity
   position: Position
 }
 
-"""Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates; giving both requires the name to match the unit number. count is 1 through 100."""
+"""Repair one entity as the selected actor. count is 1 through 100."""
 input RepairInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   count: Int! = 1
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
@@ -102,8 +96,10 @@ input RepairInput {
 type RepairResult {
   tick: Float!
   surface: String!
+  force: String!
+  actor: ActorIdentity!
   name: String!
-  unitNumber: ID
+  unitNumber: UnitNumber
   position: Position!
   before: Float!
   after: Float!

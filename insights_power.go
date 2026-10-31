@@ -72,7 +72,7 @@ end
 table.sort(networks, function(a,b) return a.numericId < b.numericId end)
 local page = {}
 for i=offset+1, math.min(#networks, offset+limit) do page[#page+1] = networks[i] end
-rcon.print(helpers.table_to_json{tick=game.tick, surface=surface.name, force=force.name, total=#networks, limit=limit, offset=offset, networks=page})`
+rcon.print(helpers.table_to_json{tick=game.tick, surface=surface.name, force=force.name, pageInfo={total=#networks,limit=limit,offset=offset,hasMore=#networks>offset+limit}, networks=page})`
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
@@ -132,7 +132,7 @@ for i=offset+1, math.min(#matches, offset+limit) do
     energyJoules=get(function() return e.energy end), electricBufferJoules=get(function() return e.electric_buffer_size end), electricDrainJoulesPerTick=get(function() return e.electric_drain end),
     temperatureCelsius=get(function() return e.temperature end), burningFuelJoules=burner and burner.remaining_burning_fuel, powerFluids=fluid_list}
 end
-rcon.print(helpers.table_to_json{tick=game.tick, surface=surface.name, force=force.name, total=#matches, limit=limit, offset=offset, powerEntities=page})`
+rcon.print(helpers.table_to_json{tick=game.tick, surface=surface.name, force=force.name, pageInfo={total=#matches,limit=limit,offset=offset,hasMore=#matches>offset+limit}, powerEntities=page})`
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

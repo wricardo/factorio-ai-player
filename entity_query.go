@@ -38,8 +38,9 @@ for i=%d+1, math.min(#found, %d+%d) do
   if e.type=="resource" then entry.amount=e.amount end
   page[#page+1]=entry
 end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,total=#found,limit=%d,offset=%d,entities=page}))`,
-		luaString(input.Surface), bounds.lua(), filter, input.Offset, input.Offset, input.Limit, input.Limit, input.Offset)
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,page_info={total=#found,limit=%d,offset=%d,has_more=#found>%d},entities=page}))`,
+		luaString(input.Surface), bounds.lua(), filter, input.Offset, input.Offset, input.Limit,
+		input.Limit, input.Offset, input.Offset+input.Limit)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
@@ -70,8 +71,9 @@ for i=%d+1, math.min(#found, %d+%d) do
   local e=found[i]
   page[#page+1]={position=e.position,direction=e.direction,unit_number=e.unit_number,line1={items=e.get_transport_line(1).get_contents()},line2={items=e.get_transport_line(2).get_contents()}}
 end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,total=#found,limit=%d,offset=%d,belts=page}))`,
-		luaString(input.Surface), bounds.lua(), input.Offset, input.Offset, input.Limit, input.Limit, input.Offset)
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,page_info={total=#found,limit=%d,offset=%d,has_more=#found>%d},belts=page}))`,
+		luaString(input.Surface), bounds.lua(), input.Offset, input.Offset, input.Limit,
+		input.Limit, input.Offset, input.Offset+input.Limit)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

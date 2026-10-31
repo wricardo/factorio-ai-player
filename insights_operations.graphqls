@@ -64,16 +64,14 @@ type GhostsPage {
   surface: String!
   force: String!
   area: WorldArea!
-  total: Int!
-  limit: Int!
-  offset: Int!
+  pageInfo: PageInfo!
   """Independent per-entry availability. Same stock can satisfy multiple entries; no reservations or promise that whole backlog can be built."""
   ghostEntries: [GhostBacklogEntry!]!
 }
 
 type GhostBacklogEntry {
   id: ID!
-  unitNumber: ID
+  unitNumber: UnitNumber
   kind: String!
   name: String!
   quality: String!
@@ -112,7 +110,7 @@ type FluidNetwork {
   totalCapacity: Float!
 }
 
-type FluidNetworkEntity { id: ID! unitNumber: ID name: String! type: String! surface: String! force: String! position: Position! }
+type FluidNetworkEntity { id: ID! unitNumber: UnitNumber name: String! type: String! surface: String! force: String! position: Position! }
 type FluidNetworkBox { id: ID! entityId: ID! index: Int! segmentId: ID! }
 type FluidNetworkConnection { fromBoxId: ID! toBoxId: ID! flowDirection: String! connectionType: String! }
 type FluidNetworkSegment { id: ID! engineSegmentId: ID capacity: Float! segmentFluids: [FluidNetworkAmount!]! }

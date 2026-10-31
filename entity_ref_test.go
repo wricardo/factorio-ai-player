@@ -122,6 +122,7 @@ func TestPlayerInspectionReportsCharacter(t *testing.T) {
 }
 
 func TestUnitNumberAddressingOtherOperations(t *testing.T) {
+	t.Setenv("FACTORIO_ENFORCE_REACH", "1")
 	var out bytes.Buffer
 	lua, err := rotateLua([]string{"--character=267", "--unitNumber=307", "--turns=2"}, &out)
 	if err != nil {

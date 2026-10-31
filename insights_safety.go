@@ -111,7 +111,7 @@ local function entity_page(matches, limit, offset)
   table.sort(matches,entity_less)
   local out={}
   for i=offset+1,math.min(#matches,offset+limit) do out[#out+1]=entity_data(matches[i]) end
-  return {entities=out,total=#matches,limit=limit,offset=offset}
+  return {entities=out,pageInfo={total=#matches,limit=limit,offset=offset,hasMore=#matches>offset+limit}}
 end
 local alerts, available, reason = {}, false, nil
 if not player then reason="No player requested" else
@@ -191,7 +191,7 @@ end)
 rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,
  pollution=pollution_position and pollution(pollution_position) or nil,
  enemies=entity_page(enemies,enemy_limit,enemy_offset),damaged=entity_page(damaged,damaged_limit,damaged_offset),
- playerAlerts={available=available,unavailableReason=reason,player=player_name,total=#alerts,limit=alert_limit,offset=alert_offset,alerts=alert_page},
+ playerAlerts={available=available,unavailableReason=reason,player=player_name,pageInfo={total=#alerts,limit=alert_limit,offset=alert_offset,hasMore=#alerts>alert_offset+alert_limit},alerts=alert_page},
  evolutionFactor=evolution_factor,evolutionByTime=evolution_by_time,evolutionByPollution=evolution_by_pollution,
  evolutionByKills=evolution_by_kills,totalPollution=total_pollution,killCounts=kill_counts}))
 `, luaString(input.Surface), luaString(input.Force), area, position, player, input.EnemyLimit, input.EnemyOffset, input.DamagedLimit, input.DamagedOffset, input.AlertLimit, input.AlertOffset)

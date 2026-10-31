@@ -2,7 +2,10 @@ package main
 
 import (
 	"math"
+	"net"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestMachineDiagnosticItemDemandUsesExactRecipeQuality(t *testing.T) {
@@ -110,5 +113,57 @@ func TestDiagnosticsEntityRejectsNonfinitePositionAndInvalidUnit(t *testing.T) {
 		if _, err := diagnosticsEntityLua("nauvis", "inserter", &id, &Position{}, ""); err == nil {
 			t.Fatalf("invalid unit %q accepted", id)
 		}
+	}
+}
+
+func TestMachineDiagnosticsUsesMachineSnapshot(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	done := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			done <- err
+			return
+		}
+		defer conn.Close()
+		if _, _, _, err = readPacket(conn); err == nil {
+			err = writePacket(conn, 1, 2, "")
+		}
+		var command string
+		if err == nil {
+			_, _, command, err = readPacket(conn)
+		}
+		response := `{"error":"endpoint is no longer an inserter"}`
+		if !strings.Contains(command, "inserter_settings") && strings.Contains(command, "snapshot={tick=game.tick") {
+			response = `{"tick":42,"recipe":"iron-gear-wheel","recipeQuality":"normal","recipeDuration":0.5,"craftingSpeed":1.25,"productivityBonus":0.1,"ingredients":[{"name":"iron-plate","type":"item","amount":2}],"products":[{"name":"iron-gear-wheel","type":"item","amount":1,"probability":1}],"input":[{"name":"iron-plate","quality":"normal","count":3}],"fluids":[],"rawStatusName":"working","rawStatusCode":1,"power":{"electric":true,"connected":true,"networkId":"7","connectedToProducingNetwork":true,"satisfactionUnavailableReason":"unavailable"}}`
+		}
+		if err == nil {
+			err = writePacket(conn, 2, 0, response+"\n")
+		}
+		_ = conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+		if err == nil {
+			if _, _, _, markerErr := readPacket(conn); markerErr == nil {
+				err = writePacket(conn, 3, 0, "factorio-ai-player-response-end\n")
+			}
+		}
+		done <- err
+	}()
+
+	unit := "17"
+	result, err := machineDiagnosticsQuery(&Resolver{addr: listener.Addr().String(), password: "password"}, &FactoryMachine{
+		Surface: "nauvis", Force: "player", Name: "assembling-machine-2", UnitNumber: &unit, Position: &Position{X: 1.5, Y: 2.5},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Tick != 42 || result.Recipe == nil || *result.Recipe != "iron-gear-wheel" || result.Throughput == nil || result.Throughput.TheoreticalCraftsPerSecond != 2.5 || len(result.Shortfall) != 1 || result.Shortfall[0].Missing != 0 {
+		t.Fatalf("diagnostics = %+v", result)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }

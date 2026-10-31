@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 )
@@ -42,7 +41,7 @@ local count=stack.get_blueprint_entity_count()
 local ok,str=pcall(function() return stack.export_stack() end)
 if not ok then inv.destroy(); fail("could not export blueprint: "..tostring(str)) end
 inv.destroy()
-rcon.print(helpers.table_to_json({surface=s.name,force=f.name,entity_count=count,blueprint=str}))`,
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,entity_count=count,blueprint=str}))`,
 		luaString(surface), luaString(force), bounds.lua(),
 		input.IncludeTiles, input.IncludeModules, input.IncludeStationNames, input.IncludeTrains, input.IncludeFuel)
 	response, _, err := executeLua(r.addr, r.password, lua)
@@ -66,22 +65,13 @@ func placeBlueprint(r *Resolver, input PlaceBlueprintInput) (*BlueprintPlaceResu
 	if len(input.Blueprint) > 2_000_000 {
 		return nil, errors.New("blueprint exceeds 2000000 characters")
 	}
-	if math.IsNaN(input.X) || math.IsInf(input.X, 0) || math.IsNaN(input.Y) || math.IsInf(input.Y, 0) {
-		return nil, errors.New("coordinates must be finite")
+	if input.Position == nil {
+		return nil, errors.New("position is required")
 	}
-	direction := 0
-	if input.DirectionCode != nil {
-		if *input.DirectionCode < 0 || *input.DirectionCode > 15 {
-			return nil, errors.New("directionCode must be between 0 and 15")
-		}
-		direction = *input.DirectionCode
-	} else if input.Direction != nil && *input.Direction != "" {
-		var ok bool
-		direction, ok = placeDirections[*input.Direction]
-		if !ok {
-			return nil, errors.New("direction must be north, east, south, or west")
-		}
+	if input.Direction < 0 || input.Direction > 15 {
+		return nil, errors.New("direction must be between 0 and 15")
 	}
+	direction := input.Direction
 	surface := stringOr(input.Surface, "nauvis")
 	force := stringOr(input.Force, "player")
 	lua := luaFail + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
@@ -98,7 +88,7 @@ for _,e in ipairs(built) do entities[#entities+1]={name=e.name,type=e.type,posit
 inv.destroy()
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,ghosts=#built,entities=entities}))`,
 		luaString(surface), luaString(force), luaString(input.Blueprint),
-		strconv.FormatFloat(input.X, 'g', -1, 64), strconv.FormatFloat(input.Y, 'g', -1, 64), direction)
+		strconv.FormatFloat(input.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Position.Y, 'g', -1, 64), direction)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
@@ -132,27 +122,18 @@ func createBlueprintFromEntities(r *Resolver, input CreateBlueprintFromEntitiesI
 		if entity.Name == "" {
 			return nil, fmt.Errorf("entity %d name must not be empty", i+1)
 		}
-		if math.IsNaN(entity.X) || math.IsInf(entity.X, 0) || math.IsNaN(entity.Y) || math.IsInf(entity.Y, 0) {
-			return nil, fmt.Errorf("entity %d coordinates must be finite", i+1)
+		if entity.Position == nil {
+			return nil, fmt.Errorf("entity %d position is required", i+1)
+		}
+		if entity.Direction < 0 || entity.Direction > 15 {
+			return nil, fmt.Errorf("entity %d direction must be between 0 and 15", i+1)
 		}
 		if i > 0 {
 			entities.WriteString(",")
 		}
-		fmt.Fprintf(&entities, "{entity_number=%d,name=%s,position={x=%s,y=%s}",
+		fmt.Fprintf(&entities, "{entity_number=%d,name=%s,position={x=%s,y=%s},direction=%d",
 			i+1, luaString(entity.Name),
-			strconv.FormatFloat(entity.X, 'g', -1, 64), strconv.FormatFloat(entity.Y, 'g', -1, 64))
-		if entity.DirectionCode != nil {
-			if *entity.DirectionCode < 0 || *entity.DirectionCode > 15 {
-				return nil, fmt.Errorf("entity %d directionCode must be between 0 and 15", i+1)
-			}
-			fmt.Fprintf(&entities, ",direction=%d", *entity.DirectionCode)
-		} else if entity.Direction != nil && *entity.Direction != "" {
-			direction, ok := placeDirections[*entity.Direction]
-			if !ok {
-				return nil, fmt.Errorf("entity %d direction must be north, east, south, or west", i+1)
-			}
-			fmt.Fprintf(&entities, ",direction=%d", direction)
-		}
+			strconv.FormatFloat(entity.Position.X, 'g', -1, 64), strconv.FormatFloat(entity.Position.Y, 'g', -1, 64), entity.Direction)
 		if entity.Quality != nil && *entity.Quality != "" {
 			fmt.Fprintf(&entities, ",quality=%s", luaString(*entity.Quality))
 		}
@@ -192,7 +173,7 @@ local count=stack.get_blueprint_entity_count()
 local ok2,str=pcall(function() return stack.export_stack() end)
 if not ok2 then inv.destroy(); fail("could not export blueprint: "..tostring(str)) end
 inv.destroy()
-rcon.print(helpers.table_to_json({entity_count=count,tile_count=#tiles,blueprint=str}))`,
+rcon.print(helpers.table_to_json({tick=game.tick,entity_count=count,tile_count=#tiles,blueprint=str}))`,
 		entities.String(), tiles.String())
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {

@@ -48,7 +48,7 @@ func setFluid(r *Resolver, input SetFluidInput) (*FluidWriteResult, error) {
 		}
 		temperature = *input.Temperature
 	}
-	target, err := settingsTargetFrom(input.Player, input.Character, input.Surface, input.Entity, input.UnitNumber, input.X, input.Y)
+	target, err := settingsTargetFromRef(input.Actor, input.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ if not after_contents then return end
 local after = total_of(after_contents, fluid_name)
 local ok_boxes, boxes = pcall(function() return e.fluids_count end)
 if not ok_boxes or type(boxes) ~= "number" then boxes = 0 end
-rcon.print(helpers.table_to_json({tick=game.tick, surface=e.surface.name, name=e.name, unitNumber=(e.unit_number and tostring(e.unit_number) or nil), position={x=e.position.x,y=e.position.y}, fluid=(fluid_name ~= "" and fluid_name or nil), before=before, after=after, capacity=capacity, mode=mode, boxesAffected=boxes, inserted=inserted}))`,
+rcon.print(helpers.table_to_json({tick=game.tick, surface=e.surface.name, force=e.force.name, name=e.name, unitNumber=(e.unit_number and tostring(e.unit_number) or nil), position={x=e.position.x,y=e.position.y}, fluid=(fluid_name ~= "" and fluid_name or nil), before=before, after=after, capacity=capacity, mode=mode, boxesAffected=boxes, inserted=inserted}))`,
 		luaString(mode), luaString(fluid), formatFloat(amount), temperatureLua)
 }
 
@@ -262,6 +262,6 @@ end)
 local page, totals_page = {}, {}
 for index = offset+1, math.min(#entries, offset+limit) do page[#page+1] = entries[index] end
 for index = totals_offset+1, math.min(#totals, totals_offset+totals_limit) do totals_page[#totals_page+1] = totals[index] end
-rcon.print(helpers.table_to_json({tick=game.tick, surface=surface.name, force=force.name, total=#entries, totalsTotal=#totals, limit=limit, offset=offset, totalsLimit=totals_limit, totalsOffset=totals_offset, locations=page, totals=totals_page}))`,
+rcon.print(helpers.table_to_json({tick=game.tick, surface=surface.name, force=force.name, location_page_info={total=#entries,limit=limit,offset=offset,has_more=#entries>offset+limit}, total_page_info={total=#totals,limit=totals_limit,offset=totals_offset,has_more=#totals>totals_offset+totals_limit}, locations=page, totals=totals_page}))`,
 		luaString(surface), luaString(force), luaString(fluid), area, limit, offset, totalsLimit, totalsOffset)
 }

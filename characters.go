@@ -57,7 +57,7 @@ func characterSpawnLua(args []string, out io.Writer) (string, error) {
 local f=game.forces[%s]; if not f then fail("force not found"); return end
 local pos=s.find_non_colliding_position("character",{x=%s,y=%s},10,0.5); if not pos then fail("no space for character near that position"); return end
 local c=s.create_entity{name="character",position=pos,force=f}; if not c then fail("could not create character"); return end
-rcon.print(helpers.table_to_json({tick=game.tick,character=c.unit_number,surface=s.name,position=c.position}))`,
+rcon.print(helpers.table_to_json({tick=game.tick,character=c.unit_number,surface=s.name,force=f.name,position=c.position}))`,
 		luaString(*surface), luaString(*force),
 		strconv.FormatFloat(*x, 'g', -1, 64), strconv.FormatFloat(*y, 'g', -1, 64)), nil
 }
@@ -94,6 +94,7 @@ for i=%d+1, math.min(#found, %d+%d) do
   local e=found[i]
   page[#page+1]={unit_number=e.unit_number,position=e.position,surface=s.name,force=e.force.name,health=e.health,player=e.player and e.player.name or nil}
 end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,total=#found,limit=%d,offset=%d,characters=page}))`,
-		luaString(*surface), keep, *offset, *offset, *limit, *limit, *offset), nil
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,page_info={total=#found,limit=%d,offset=%d,has_more=#found>%d},characters=page}))`,
+		luaString(*surface), keep, *offset, *offset, *limit,
+		*limit, *offset, *offset+*limit), nil
 }

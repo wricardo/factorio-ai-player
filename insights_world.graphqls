@@ -14,30 +14,30 @@ input WorldLogisticsInput { surface: String! = "nauvis" force: String! = "player
 """Area has the same bounds and pagination constraints as WorldLogisticsInput. Drill radius is finite and between 0 and 100 tiles. Resource name filters resources only, not obstacles or water. Kinds, when non-empty, keeps only the listed entry kinds (resource, tree, cliff, simple-entity, water) and narrows total; the resource, obstacle and water partition totals stay unfiltered counts for the whole area. GroupPatches clusters matching resource entities into connected patches regardless of the kinds filter."""
 input WorldResourcesInput { surface: String! = "nauvis" force: String! = "player" area: FactoryAreaInput! resourceName: String drillRadius: Float! = 10 kinds: [String!] groupPatches: Boolean! = false limit: Int! = 100 offset: Int! = 0 }
 """Surface, force and prototype must be non-empty and exist; coordinates must be finite and direction must be between 0 and 15."""
-input WorldPlacementInput { surface: String! = "nauvis" force: String! = "player" prototype: String! x: Float! y: Float! direction: Int! = 0 }
+input WorldPlacementInput { surface: String! = "nauvis" force: String! = "player" prototype: String! position: PositionInput! direction: Int! = 0 }
 """Selects which result list a placement probe fills. BLOCKED_TILES reports every refused tile with its blockers. GRID reports a compact row-major placeability map. SITES reports the largest non-overlapping empty tile rectangles that are at least siteWidth by siteHeight, largest first."""
 enum PlacementProbeMode { BLOCKED_TILES GRID SITES }
 """Surface, force and prototype must be non-empty and exist; direction must be between 0 and 15. Area bounds match WorldResourcesInput, but the sampled tile count may not exceed 16384. mode selects which result list is filled (BLOCKED_TILES -> blockedTiles, GRID -> rows, SITES -> sites); siteWidth/siteHeight/maxSites only affect SITES and are tile counts from 1 to the area dimensions, maxSites 1 through 200."""
 input PlacementProbeInput { surface: String! = "nauvis" force: String! = "player" prototype: String! direction: Int! = 0 area: FactoryAreaInput! mode: PlacementProbeMode! = BLOCKED_TILES siteWidth: Float! = 1 siteHeight: Float! = 1 maxSites: Int! = 50 }
 
 type WorldArea { leftTopX: Float! leftTopY: Float! rightBottomX: Float! rightBottomY: Float! }
-type WorldLane { index: Int! items: [ItemStack!]! }
+type WorldLane { index: Int! items: [InventoryStack!]! }
 """One-based fluid box index and capacity; name, amount and temperature are null for an empty box."""
 type WorldFluid { index: Int! name: String amount: Float temperature: Float capacity: Float! }
-type WorldInventory { kind: String! items: [ItemStack!]! }
-type WorldLogisticsEntity { name: String! type: String! position: Position! direction: Int! unitNumber: ID status: String lanes: [WorldLane!]! heldStack: ItemStack pickupPosition: Position dropPosition: Position fluids: [WorldFluid!]! worldInventories: [WorldInventory!]! }
+type WorldInventory { kind: String! items: [InventoryStack!]! }
+type WorldLogisticsEntity { name: String! type: String! position: Position! direction: Int! unitNumber: UnitNumber status: String lanes: [WorldLane!]! heldStack: InventoryStack pickupPosition: Position dropPosition: Position fluids: [WorldFluid!]! worldInventories: [WorldInventory!]! }
 """Inserters whose actual pickup or drop target is the inspected entity, read in a separate game snapshot."""
 type InspectionLogistics { tick: Float! inserters: [ConnectedInserter!]! }
 type ConnectedInserter { inserter: LogisticsEndpoint! pickup: LogisticsEndpoint drop: LogisticsEndpoint }
 """An inserter or its actual target; lanes are populated for transport belts."""
-type LogisticsEndpoint { name: String! type: String! position: Position! unitNumber: ID status: String pickupPosition: Position dropPosition: Position heldStack: ItemStack lanes: [WorldLane!]! }
+type LogisticsEndpoint { name: String! type: String! position: Position! unitNumber: UnitNumber status: String pickupPosition: Position dropPosition: Position heldStack: InventoryStack lanes: [WorldLane!]! }
 """Total counts matching logistics entities before pagination."""
-type WorldLogisticsPage { tick: Float! surface: String! force: String! area: WorldArea! total: Int! limit: Int! offset: Int! logisticsEntities: [WorldLogisticsEntity!]! }
-type WorldDrill { name: String! position: Position! unitNumber: ID }
+type WorldLogisticsPage { tick: Float! surface: String! force: String! area: WorldArea! pageInfo: PageInfo! logisticsEntities: [WorldLogisticsEntity!]! }
+type WorldDrill { name: String! position: Position! unitNumber: UnitNumber }
 """Resource entities, trees, cliffs, simple entities and water-collision tiles. Nearby drills are distance matches, not proof of mining coverage."""
 type WorldResourceEntry { kind: String! name: String! position: Position! amount: Float requiredFluid: String fluidAmount: Float nearbyDrills: [WorldDrill!]! }
 """Totals count matching entries before pagination; resource, obstacle and water totals partition them. Patches are connected resource-entity clusters at least one tile apart from each other, sorted by total amount descending."""
-type WorldResourcesPage { tick: Float! surface: String! force: String! area: WorldArea! drillRadius: Float! total: Int! resourceTotal: Int! obstacleTotal: Int! waterTotal: Int! limit: Int! offset: Int! worldEntries: [WorldResourceEntry!]! patches: [ResourcePatch!]! }
+type WorldResourcesPage { tick: Float! surface: String! force: String! area: WorldArea! drillRadius: Float! pageInfo: PageInfo! resourceTotal: Int! obstacleTotal: Int! waterTotal: Int! worldEntries: [WorldResourceEntry!]! patches: [ResourcePatch!]! }
 """One connected resource patch. Bounds and centroid are computed from resource entity positions; nearby drills sit inside the bounds expanded by the request drill radius."""
 type ResourcePatch { name: String! tiles: Int! totalAmount: Float! bounds: WorldArea! centroid: Position! nearbyDrills: [WorldDrill!]! }
 """Engine collision/build check only; does not check player reach, inventory or research."""

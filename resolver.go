@@ -63,10 +63,10 @@ func inspect(r *Resolver, input InspectInput) (*EntityInspection, error) {
 		return nil, err
 	}
 	if result.MiningTarget != nil {
-		result.MiningTarget.Surface = result.Surface
+		result.MiningTarget.Surface = &result.Surface
 	}
 	for _, entity := range result.MiningResources {
-		entity.Surface = result.Surface
+		entity.Surface = &result.Surface
 	}
 	return result, nil
 }
@@ -125,7 +125,7 @@ func recipeInfo(r *Resolver, name *string, actor ActorInput) (*Recipe, error) {
 	if name == nil {
 		return nil, nil
 	}
-	return command[Recipe](r, "recipe", RecipeInput{Player: actor.Player, Character: actor.Character, Recipe: *name})
+	return command[Recipe](r, "recipe", RecipeInput{Actor: &actor, Recipe: *name})
 }
 
 // command invokes the private game backend for GraphQL resolvers and announces mutations.
@@ -149,6 +149,7 @@ func commandQuiet[T any](r *Resolver, name string, input any) (*T, error) {
 func runCommand[T any](r *Resolver, name string, input any) (*T, *string, error) {
 	args := []string{name}
 	var message *string
+	var actorIdentity *ActorIdentity
 	if input != nil {
 		v := reflect.ValueOf(input)
 		if v.Kind() == reflect.Pointer {
@@ -169,30 +170,24 @@ func runCommand[T any](r *Resolver, name string, input any) (*T, *string, error)
 					f = f.Elem()
 				}
 				key := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]
-				// Notification options are resolved here, not by the game backend.
-				switch key {
-				case "message":
+				if key == "message" {
 					value := f.String()
 					message = &value
 					continue
 				}
-				var value string
-				switch f.Kind() {
-				case reflect.String:
-					value = f.String()
-				case reflect.Bool:
-					value = strconv.FormatBool(f.Bool())
-				case reflect.Int:
-					value = strconv.FormatInt(f.Int(), 10)
-				case reflect.Float64:
-					value = strconv.FormatFloat(f.Float(), 'f', -1, 64)
-				default:
-					return nil, nil, fmt.Errorf("unsupported %s argument", key)
+				if key == "actor" && f.Type() == reflect.TypeFor[ActorInput]() {
+					actor := f.Interface().(ActorInput)
+					actorIdentity = newActorIdentity(&actor)
 				}
-				args = append(args, "--"+key+"="+value)
+				var err error
+				args, err = appendCommandArgument(args, key, f)
+				if err != nil {
+					return nil, nil, err
+				}
 			}
 		}
 	}
+
 	var out bytes.Buffer
 	if err := executeGameOperation(args, &out, r.addr, r.password); err != nil {
 		return nil, nil, err
@@ -216,7 +211,150 @@ func runCommand[T any](r *Resolver, name string, input any) (*T, *string, error)
 	if err = json.Unmarshal(data, &result); err != nil {
 		return nil, nil, fmt.Errorf("decode %s response: %w", name, err)
 	}
+	attachActorIdentity(&result, actorIdentity)
 	return &result, message, nil
+}
+
+func newActorIdentity(actor *ActorInput) *ActorIdentity {
+	if actor == nil {
+		return nil
+	}
+	return &ActorIdentity{Player: actor.Player, Character: actor.Character}
+}
+
+func attachActorIdentity(result any, actor *ActorIdentity) {
+	if result == nil {
+		return
+	}
+	if actor == nil {
+		switch value := result.(type) {
+		case *ActionResult:
+			if value.Player != nil || value.Character != nil {
+				actor = &ActorIdentity{Player: value.Player, Character: value.Character}
+			}
+		case *CraftQueue:
+			if value.Player != nil || value.Character != nil {
+				actor = &ActorIdentity{Player: value.Player, Character: value.Character}
+			}
+		}
+	}
+	if actor == nil {
+		return
+	}
+	switch value := result.(type) {
+	case *ActionResult:
+		value.Actor = actor
+	case *ActorLogisticResult:
+		value.Actor = actor
+	case *BuildGhostsResult:
+		value.Actor = actor
+	case *CapsuleResult:
+		value.Actor = actor
+	case *CraftQueue:
+		value.Actor = actor
+	case *DropItemResult:
+		value.Actor = actor
+	case *EntityMetaResult:
+		value.Actor = actor
+	case *EquipmentGridResult:
+		value.Actor = actor
+	case *FluidWriteResult:
+		value.Actor = actor
+	case *HarvestAreaResult:
+		value.Actor = actor
+	case *PickupAreaResult:
+		value.Actor = actor
+	case *PlaceManyResult:
+		value.Actor = actor
+	case *PlaceTileResult:
+		value.Actor = actor
+	case *RemoveManyResult:
+		value.Actor = actor
+	case *RemoveResult:
+		value.Actor = actor
+	case *RepairResult:
+		value.Actor = actor
+	case *SettingsResult:
+		value.Actor = actor
+	case *ShootResult:
+		value.Actor = actor
+	case *TrainInfo:
+		value.Actor = actor
+	case *WireResult:
+		value.Actor = actor
+	}
+}
+
+func setActorResult[T any](result *T, actor *ActorInput, err error) (*T, error) {
+	if err == nil {
+		attachActorIdentity(result, newActorIdentity(actor))
+	}
+	return result, err
+}
+func appendCommandArgument(args []string, key string, value reflect.Value) ([]string, error) {
+	if value.Kind() == reflect.Struct {
+		switch key {
+		case "actor", "position", "target":
+			typ := value.Type()
+			for i := range value.NumField() {
+				field := value.Field(i)
+				if field.Kind() == reflect.Pointer {
+					if field.IsNil() {
+						continue
+					}
+					field = field.Elem()
+				}
+				nestedKey := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]
+				var err error
+				args, err = appendCommandArgument(args, nestedKey, field)
+				if err != nil {
+					return nil, err
+				}
+			}
+			return args, nil
+		}
+	}
+
+	var text string
+	switch typed := value.Interface().(type) {
+	case InventoryKind:
+		text = inventoryKindKeys[typed.String()]
+		if text == "" {
+			text = strings.ToLower(typed.String())
+		}
+	case TransferDirection:
+		switch typed {
+		case TransferDirectionToActor:
+			text = "to-player"
+		case TransferDirectionToEntity:
+			text = "to-entity"
+		default:
+			text = typed.String()
+		}
+	case EquipmentTransferDirection:
+		switch typed {
+		case EquipmentTransferDirectionToMain:
+			text = "to-main"
+		case EquipmentTransferDirectionToEquipment:
+			text = "to-equipment"
+		default:
+			text = typed.String()
+		}
+	default:
+		switch value.Kind() {
+		case reflect.String:
+			text = value.String()
+		case reflect.Bool:
+			text = strconv.FormatBool(value.Bool())
+		case reflect.Int:
+			text = strconv.FormatInt(value.Int(), 10)
+		case reflect.Float64:
+			text = strconv.FormatFloat(value.Float(), 'f', -1, 64)
+		default:
+			return nil, fmt.Errorf("unsupported %s argument", key)
+		}
+	}
+	return append(args, "--"+key+"="+text), nil
 }
 
 // Factorio JSON uses snake_case, numeric unit IDs, and empty Lua tables for lists.
@@ -286,8 +424,10 @@ func isListField(key string) bool {
 		"ghostEntries", "placementAlternatives", "requestedMaterials", "rootBoxIds",
 		"fluidEntities", "fluidBoxes", "fluidConnections", "fluidSegments", "segmentFluids", "crossedItems", "characters", "blockedTiles", "blockers", "rows", "sites", "patches",
 		"sections", "slots", "trains", "schedule", "contents", "grid", "signals",
-		"killCounts", "missing", "created", "cargo", "equipmentGrid", "packs",
-		"roboportRobot", "roboportMaterial", "cargoWagon", "carTrunk", "spiderTrunk", "artilleryWagonAmmo":
+		"conditions", "outputs", "killCounts", "missing", "created", "cargo", "equipmentGrid", "packs",
+		"roboportRobot", "roboportMaterial", "cargoWagon", "carTrunk", "spiderTrunk", "artilleryWagonAmmo", "orders",
+		"beltNeighbours", "fluidboxNeighbours", "produced", "consumed", "production", "seedRequirements",
+		"shortfall", "surfaces", "theoreticalBaseProducts":
 		return true
 	}
 	return false

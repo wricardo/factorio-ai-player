@@ -18,11 +18,19 @@ for _,e in ipairs(found) do
   local dx=e.position.x-cx; local dy=e.position.y-cy
   items[#items+1]={e=e,d=dx*dx+dy*dy}
 end
+local function tie_less(a,b)
+  local au,bu=a.e.unit_number or 0,b.e.unit_number or 0
+  if au~=bu then return au<bu end
+  if a.e.name~=b.e.name then return a.e.name<b.e.name end
+  if a.e.position.y~=b.e.position.y then return a.e.position.y<b.e.position.y end
+  if a.e.position.x~=b.e.position.x then return a.e.position.x<b.e.position.x end
+  return (a.e.type or "")<(b.e.type or "")
+end
 local ordering=%s
 if ordering=="unit-number" or ordering=="unit_number" then
-  table.sort(items,function(a,b) return (a.e.unit_number or 0)<(b.e.unit_number or 0) end)
+  table.sort(items,tie_less)
 else
-  table.sort(items,function(a,b) return a.d<b.d end)
+  table.sort(items,function(a,b) if a.d~=b.d then return a.d<b.d end return tie_less(a,b) end)
 end
 local offset=%d; local limit=%d
 local entities={}
@@ -33,7 +41,7 @@ for i=first,last do
   if e.type=="resource" then entry.amount=e.amount end
   entities[#entities+1]=entry
 end
-rcon.print(helpers.table_to_json({surface=s.name,entities=entities,truncated=#items>last,total=#items}))`,
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,page_info={total=#items,limit=limit,offset=offset,has_more=#items>last},entities=entities}))`,
 		luaString(surface), formatFloat(x), formatFloat(y), formatFloat(radius),
 		luaString(name), luaString(kind), luaString(ordering), offset, limit)
 }

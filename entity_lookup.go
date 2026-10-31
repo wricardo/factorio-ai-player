@@ -8,32 +8,55 @@ import (
 	"math"
 )
 
-type entityByUnitArgs struct {
-	UnitNumber string `json:"unit-number"`
-	Surface    string `json:"surface"`
+func entityByRef(r *Resolver, input EntityRefInput) (*Entity, error) {
+	return command[Entity](r, "entity", input)
 }
 
-// entityByUnitNumber returns the basic entity record for a unit number.
 func entityByUnitNumber(r *Resolver, unitNumber, surface string) (*Entity, error) {
-	return command[Entity](r, "entity", entityByUnitArgs{UnitNumber: unitNumber, Surface: surface})
+	return entityByRef(r, EntityRefInput{UnitNumber: &unitNumber, Surface: &surface})
 }
 
 func entityLua(args []string, out io.Writer) (string, error) {
 	fs := flag.NewFlagSet("entity", flag.ContinueOnError)
 	fs.SetOutput(out)
-	unit := fs.Uint64("unit-number", 0, "Entity unit number (required)")
-	surface := fs.String("surface", "nauvis", "Surface to scan when the prototype does not support direct lookup")
+	unitNumber := fs.String("unitNumber", "", "Entity unit number, alternative to entity and x/y")
+	entity := fs.String("entity", "", "Entity prototype name")
+	surface := fs.String("surface", "nauvis", "Surface to scan")
+	x := fs.Float64("x", math.NaN(), "Entity center x")
+	y := fs.Float64("y", math.NaN(), "Entity center y")
 	if err := fs.Parse(args); err != nil {
 		return "", err
 	}
-	if fs.NArg() != 0 || *unit == 0 || *unit > math.MaxUint32 || *surface == "" {
-		return "", errors.New("unit number from 1 to 4294967295 and a surface are required; no positional arguments allowed")
+	if fs.NArg() != 0 || *surface == "" {
+		return "", errors.New("surface and no positional arguments are required")
 	}
-	return fmt.Sprintf(luaFail+`local unit=%d; local e=game.get_entity_by_unit_number(unit)
-if not e then
-  local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
-  for _,candidate in pairs(s.find_entities_filtered{}) do if candidate.unit_number==unit then e=candidate; break end end
+	unit, err := entityTarget(*entity, *unitNumber, *x, *y)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(luaFail+`local unit,name,surface_name=%d,%s,%s
+local position={x=%s,y=%s}
+local e
+if unit~=0 then
+  e=game.get_entity_by_unit_number(unit)
+  if not e then
+    local s=game.surfaces[surface_name]; if not s then fail("surface not found"); return end
+    local filter={}; if name~="" then filter.name=name end
+    for _,candidate in pairs(s.find_entities_filtered(filter)) do
+      if candidate.unit_number==unit then e=candidate; break end
+    end
+  end
+  if e and name~="" and e.name~=name then fail("entity name does not match unit number"); return end
+else
+  local s=game.surfaces[surface_name]; if not s then fail("surface not found"); return end
+  for _,candidate in pairs(s.find_entities_filtered{name=name,position=position,radius=0.01}) do
+    if math.abs(candidate.position.x-position.x)<0.001 and math.abs(candidate.position.y-position.y)<0.001 then
+      if e then fail("multiple matching entities at center"); return end
+      e=candidate
+    end
+  end
 end
-if not e then fail("entity not found; try another surface or nearby"); return end
-local result={name=e.name,type=e.type,position=e.position,surface=e.surface.name,direction=e.direction,unit_number=e.unit_number}; if e.type=="resource" then result.amount=e.amount end; rcon.print(helpers.table_to_json(result))`, *unit, luaString(*surface)), nil
+if not e then fail("entity not found"); return end
+local result={tick=game.tick,name=e.name,type=e.type,position=e.position,surface=e.surface.name,force=e.force and e.force.name or nil,direction=e.direction,unit_number=e.unit_number}; if e.type=="resource" then result.amount=e.amount end; rcon.print(helpers.table_to_json(result))`,
+		unit, luaString(*entity), luaString(*surface), luaCoordinate(*x), luaCoordinate(*y)), nil
 }

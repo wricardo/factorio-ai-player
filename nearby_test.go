@@ -1,41 +1,61 @@
 package main
 
 import (
+	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 )
 
-func TestNearbyLuaOrdersAndPaginates(t *testing.T) {
-	lua := nearbyLua("nauvis", 12, -4, 7, "electric-mining-drill", "mining-drill", "distance", 100, 50)
-	for _, want := range []string{
-		`local s=game.surfaces["\110\097\117\118\105\115"]`,
-		"local cx,cy=12,-4",
-		"radius=7",
-		"table.sort(items,function(a,b) return a.d<b.d end)",
-		"local offset=100; local limit=50",
-		"local first=offset+1; local last=math.min(#items,offset+limit)",
-		"truncated=#items>last,total=#items",
-		"distance=math.sqrt(items[i].d)",
-	} {
-		if !strings.Contains(lua, want) {
-			t.Fatalf("nearby lua missing %q:\n%s", want, lua)
-		}
+func TestNearbyPaginationUsesDeterministicTotalOrder(t *testing.T) {
+	luaBin, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("Lua interpreter not installed")
 	}
-}
-
-func TestNearbyLuaUnitNumberOrder(t *testing.T) {
-	lua := nearbyLua("nauvis", 0, 0, 10, "", "", "unit-number", 0, 100)
-	if !strings.Contains(lua, `if ordering=="unit-number" or ordering=="unit_number" then`) {
-		t.Fatalf("unit-number ordering branch missing:\n%s", lua)
+	entities := `{
+  {name="b",type="tree",position={x=1,y=0}},
+  {name="a",type="tree",position={x=0,y=1}},
+  {name="a",type="tree",position={x=0,y=-1},unit_number=5},
+  {name="a",type="tree",position={x=-1,y=0},unit_number=5},
+  {name="z",type="container",position={x=0,y=0},unit_number=9}
+}`
+	tests := []struct {
+		order string
+		want  []string
+	}{
+		{"distance", []string{"z:0:0:9", "a:0:1:nil", "b:1:0:nil", "a:0:-1:5", "a:-1:0:5"}},
+		{"unit-number", []string{"a:0:1:nil", "b:1:0:nil", "a:0:-1:5", "a:-1:0:5", "z:0:0:9"}},
 	}
-	if !strings.Contains(lua, "(a.e.unit_number or 0)<(b.e.unit_number or 0)") {
-		t.Fatalf("unit number comparison missing:\n%s", lua)
-	}
-}
-
-func TestNearbyLuaFiltersAreOptional(t *testing.T) {
-	lua := nearbyLua("nauvis", 0, 0, 5, "", "", "distance", 0, 100)
-	if !strings.Contains(lua, "local name=\"\"; local kind=\"\"") {
-		t.Fatalf("empty filters must stay empty locals:\n%s", lua)
+	for _, tc := range tests {
+		t.Run(tc.order, func(t *testing.T) {
+			for offset := 0; offset < len(tc.want); offset += 2 {
+				page := tc.want[offset:min(offset+2, len(tc.want))]
+				expected := make([]string, len(page))
+				for i, value := range page {
+					expected[i] = luaString(value)
+				}
+				harness := fmt.Sprintf(`local source=%s
+local expected={%s}
+game={tick=10,surfaces={nauvis={name="nauvis",find_entities_filtered=function() return source end}}}
+helpers={table_to_json=function(value)
+  assert(value.page_info.total==5)
+  assert(value.page_info.offset==%d)
+  assert(value.page_info.limit==2)
+  assert(value.page_info.has_more==(%t))
+  assert(#value.entities==#expected)
+  for i,e in ipairs(value.entities) do
+    local key=e.name..":"..e.position.x..":"..e.position.y..":"..tostring(e.unit_number)
+    assert(key==expected[i], "row "..i.." got "..key.." want "..expected[i])
+  end
+  return "ok"
+end}
+rcon={print=function(value) assert(value=="ok") end}
+`, entities, strings.Join(expected, ","), offset, offset+2 < len(tc.want))
+				out, err := exec.Command(luaBin, "-e", harness+nearbyLua("nauvis", 0, 0, 10, "", "", tc.order, offset, 2)).CombinedOutput()
+				if err != nil {
+					t.Fatalf("offset %d: %v\n%s", offset, err, out)
+				}
+			}
+		})
 	}
 }

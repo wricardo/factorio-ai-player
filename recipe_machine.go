@@ -141,7 +141,7 @@ func machineRecipeLua(args []string, out io.Writer) (string, error) {
 	prefix := luaFail + fmt.Sprintf(`local c=game.get_entity_by_unit_number(%d); if not c or c.type~="character" then fail("character not found"); return end
 local p=c
 `, *character) + targetLocals(targetUnit, *entity, *x, *y, "") + "surface_name=c.surface.name\n" + luaEntityResolve + resolveTargetLua() + `if e.type~="assembling-machine" then fail("assembling machine not found"); return end
-if not c.can_reach_entity(e) then fail("machine out of reach"); return end
+if ` + reachViolation("c", "e") + ` then fail("machine out of reach"); return end
 ` + machineDrainLua
 	return prefix + fmt.Sprintf(`local recipe=c.force.recipes[%s]; if not recipe or not recipe.enabled then fail("recipe not found or not enabled"); return end
 if not e.prototype.crafting_categories[recipe.category] then fail("machine cannot use recipe category"); return end

@@ -140,7 +140,7 @@ end
 local summaries = {}
 for _, summary in pairs(grouped) do summaries[#summaries+1] = summary end
 table.sort(summaries, function(a,b) return a.type < b.type end)
-rcon.print(helpers.table_to_json({tick=game.tick, surface=surface.name, force=force.name, total=#matches, offset=offset, limit=limit, machines=machines, summaries=summaries}))`, luaString(surface), luaString(force), luaString(status), luaString(entityType), areaLua, limit, offset)
+rcon.print(helpers.table_to_json({tick=game.tick, surface=surface.name, force=force.name, page_info={total=#matches,offset=offset,limit=limit,has_more=#matches>offset+limit}, machines=machines, summaries=summaries}))`, luaString(surface), luaString(force), luaString(status), luaString(entityType), areaLua, limit, offset)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	return response, err
 }

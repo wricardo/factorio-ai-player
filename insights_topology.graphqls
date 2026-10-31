@@ -1,6 +1,6 @@
 extend type Query {
-  """Read a directed belt component from the belt identified by unitNumber, or by the belt covering x/y. Traversal follows engine connections in both directions, including branches, underground pairs, and linked belts. maxEntities must be 1 through 1000."""
-  beltRun(surface: String! = "nauvis", x: Float, y: Float, unitNumber: ID, maxEntities: Int! = 1000): BeltRun!
+  """Read a directed belt component from one shared entity reference."""
+  beltRun(target: EntityRefInput!, maxEntities: Int! = 1000): BeltRun!
   """One engine snapshot of selected-force machines, belts, chests, inserters and fluid entities intersecting an area, plus every surface inserter targeting those entities. Area dimensions must be positive and at most 256 tiles. Boundary edges retain actual outside endpoints; no distance-based connections are inferred."""
   factoryGraph(area: FactoryAreaInput!, force: String! = "player", surface: String! = "nauvis"): FactoryGraph!
   """Geometric adjacency of selected-force entities inside an area, verified against engine connections. Pairs include entities whose axis-aligned bounding boxes are at most tolerance tiles apart; connection is empty when they only touch or lie near each other without an engine connection (the usual misaligned pipe, boiler or inserter case). Underground and linked belt partners are engine connections, not geometric ones, and appear in factoryGraph instead. Area dimensions must be positive and at most 64 tiles; limit bounds both nodes and pairs."""

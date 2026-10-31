@@ -16,20 +16,24 @@ func (r *mutationResolver) SetGameSpeed(ctx context.Context, input GameSpeedInpu
 
 // Teleport is the resolver for the teleport field.
 func (r *mutationResolver) Teleport(ctx context.Context, input TeleportInput) (*ActionResult, error) {
-	return teleportActor(r.Resolver, input)
+	result, err := teleportActor(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // UseCapsule is the resolver for the useCapsule field.
 func (r *mutationResolver) UseCapsule(ctx context.Context, input CapsuleInput) (*CapsuleResult, error) {
-	return useCapsule(r.Resolver, input)
+	result, err := useCapsule(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // Shoot is the resolver for the shoot field.
 func (r *mutationResolver) Shoot(ctx context.Context, input ShootInput) (*ShootResult, error) {
-	return shootAction(ctx, r.Resolver, input)
+	result, err := shootAction(ctx, r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // Repair is the resolver for the repair field.
 func (r *mutationResolver) Repair(ctx context.Context, input RepairInput) (*RepairResult, error) {
-	return repairEntity(r.Resolver, input)
+	result, err := repairEntity(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }

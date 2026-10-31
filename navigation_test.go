@@ -32,13 +32,20 @@ func TestActionController(t *testing.T) {
 	}
 }
 
+func TestUnknownEngineStatusPreservesRawAndStaysNonterminal(t *testing.T) {
+	status := engineStatus("future_engine_state")
+	if status.Category != StatusCategoryOther || status.RawName == nil || *status.RawName != "future_engine_state" || status.Terminal {
+		t.Fatalf("status = %+v", status)
+	}
+}
+
 func TestWaitForNavigation(t *testing.T) {
-	start := &NavigationJob{ID: "42", Status: "MOVING"}
+	start := &NavigationJob{ID: "42", Status: engineStatus("MOVING")}
 	t.Run("terminal state", func(t *testing.T) {
 		job, err := waitForNavigation(context.Background(), start, time.Second, func(context.Context, string) (*NavigationJob, error) {
-			return &NavigationJob{ID: "42", Status: "ARRIVED"}, nil
+			return &NavigationJob{ID: "42", Status: engineStatus("ARRIVED")}, nil
 		})
-		if err != nil || job.Status != "ARRIVED" {
+		if err != nil || statusRawName(job.Status) != "ARRIVED" {
 			t.Fatalf("got job %#v, error %v", job, err)
 		}
 	})
@@ -47,7 +54,7 @@ func TestWaitForNavigation(t *testing.T) {
 			<-ctx.Done()
 			return nil, ctx.Err()
 		})
-		if err != nil || job.ID != "42" || job.Status != "MOVING" {
+		if err != nil || job.ID != "42" || statusRawName(job.Status) != "MOVING" {
 			t.Fatalf("got job %#v, error %v", job, err)
 		}
 	})

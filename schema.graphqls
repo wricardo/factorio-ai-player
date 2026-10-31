@@ -3,9 +3,9 @@ directive @goField(forceResolver: Boolean, name: String, omittable: Boolean) on 
 type Query {
   """Returns the current game tick and connected players."""
   status: Status!
-  """Returns one entity by unit number; prototypes without direct engine lookup are found by scanning the given surface."""
-  entity(unitNumber: ID!, surface: String = "nauvis"): Entity!
-  """Finds up to 100 entities around a position; truncated indicates additional matches."""
+  """Returns one entity snapshot by shared unit-number or prototype-position reference."""
+  entity(input: EntityRefInput!): EntitySnapshot!
+  """Finds entities around a position with deterministic ordering and standard pagination."""
   nearby(input: NearbyInput = {}): Nearby!
   """Returns player or character state."""
   player(input: ActorInput!): Actor!
@@ -30,6 +30,7 @@ type Query {
   """Returns characters across a whole surface, including detached characters and connected players' characters."""
   characters(input: CharactersInput = {}): CharacterPage!
 }
+"""Mutating fields act as the selected actor's character. Reachability is not enforced by default, matching Factorio's administrative script API; set FACTORIO_ENFORCE_REACH=1 to enforce build and interaction distance, in which case entity-addressed fields reject out-of-reach targets. Batch operations report per-target reach failures instead of aborting."""
 type Mutation {
   """Creates a detached character near a disconnected player and transfers their main inventory."""
   characterCreate(input: CharacterCreateInput!): ActionResult!
@@ -59,9 +60,9 @@ type Mutation {
   cancelCraft(input: CancelCraftInput!): CraftQueue!
   """Instantly removes trees and rock-named simple entities inside a bounded area; yields no mining drops."""
   clearArea(input: ClearAreaInput!): ClearAreaResult!
-  """Mines reachable trees and rock-named simple entities with normal drops; unreachable or failed entities remain."""
+  """Mines trees and rock-named simple entities with normal drops. When reach enforcement is enabled, unreachable or failed entities remain."""
   harvestArea(input: HarvestAreaInput!): HarvestAreaResult!
-  """Picks up reachable dropped item stacks in bounds; partial stacks stay on ground."""
+  """Picks up dropped item stacks in bounds; partial stacks stay on ground. With reach enforcement enabled, out-of-reach stacks are counted and left."""
   pickupArea(input: PickupAreaInput!): PickupAreaResult!
   """Places deconstruction orders for every deconstructible entity in a bounded area, so the force's construction robots remove them and leave ghosts; returns the number of new orders."""
   deconstructArea(input: DeconstructAreaInput!): DeconstructionResult!
@@ -73,23 +74,23 @@ type Mutation {
   cancelDeconstructEntities(input: DeconstructEntitiesInput!): DeconstructionResult!
   """Instantly mines one selected resource, tree, or rock using the engine's player mining operation."""
   mine(input: MineInput!): ActionResult!
-  """Mines one reachable entity so the actor recovers it and its contents; supports any minable entity."""
+  """Mines one entity so the actor recovers it and its contents; supports any minable entity."""
   remove(input: RemoveInput!): RemoveResult!
-  """Mines up to 200 reachable entities at explicit positions, continuing past failures."""
+  """Mines up to 200 entities at explicit positions, continuing past failures."""
   removeMany(input: RemoveManyInput!): RemoveManyResult!
-  """Moves a reachable dropped item stack into the character's inventory, possibly partially."""
+  """Moves a dropped item stack into the character's inventory, possibly partially."""
   pickup(input: PickupInput!): ActionResult!
-  """Takes up to the requested number of normal-quality items from a reachable transport belt into the acting character's inventory."""
+  """Takes up to the requested number of normal-quality items from a transport belt into the acting character's inventory."""
   beltTake(input: BeltTakeInput!): ActionResult!
-  """Rotates a reachable entity by one to three clockwise quarter turns."""
+  """Rotates an entity by one to three clockwise quarter turns."""
   rotate(input: RotateInput!): ActionResult!
   """Transfers normal-quality items between the actor's main inventory and an entity inventory."""
   transfer(input: TransferInput!): ActionResult!
   """Moves normal-quality items between the actor's main inventory and a guns, ammo, armor, or trash slot."""
   equip(input: EquipInput!): ActionResult!
-  """Changes a reachable assembling machine's recipe after checking that it is idle and empty. Furnaces auto-select a recipe when an item is transferred into their input."""
+  """Changes an assembling machine's recipe after checking that it is idle and empty. Furnaces auto-select a recipe when an item is transferred into their input."""
   setRecipe(input: SetRecipeInput!): ActionResult!
-  """Clears a reachable assembling machine's recipe after checking that it is idle."""
+  """Clears an assembling machine's recipe after checking that it is idle."""
   clearRecipe(input: ClearRecipeInput!): ActionResult!
   """Starts research of an enabled, unresearched technology whose prerequisites are researched."""
   startResearch(input: StartResearchInput!): ResearchState!
@@ -102,22 +103,24 @@ type Mutation {
   """Requests server shutdown over RCON."""
   shutdown: ServerResult!
 }
-"""Select exactly one nonempty player name or character unit number from 1 to 4294967295."""
-input ActorInput { player: String character: ID }
-"""Search around finite x and y on a nonempty surface. Radius must be greater than 0 and at most 100; name and type filter exact entity prototype name and type."""
-input NearbyInput { surface: String = "nauvis" x: Float = 0 y: Float = 0 radius: Float = 10 name: String type: String order: NearbyOrder = DISTANCE offset: Int = 0 limit: Int = 100 }
-enum NearbyOrder { DISTANCE UNIT_NUMBER }
-"""Select exactly one nonempty player name or character unit number from 1 to 4294967295, and a nonempty recipe name."""
-input RecipeInput { player: String character: ID recipe: String! }
-"""Select exactly one player or character. Address the entity by unitNumber, or by entity name plus finite entity-center coordinates on surface; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes. Entity resolution matches the entity's reported center: 1x1 entities sit at half-integer coordinates (a chest on tile 96,11 reports 96.5,11.5), 3x3 machines at half-integer centers and some 2x2 entities at integer centers."""
-input InspectInput {
-  player: String
-  character: ID
+"""Search around a finite position on a nonempty surface. Radius must be greater than 0 and at most 100; limit is 1 through 1000 and offset is zero-based."""
+input NearbyInput {
   surface: String = "nauvis"
-  entity: String
-  x: Float
-  y: Float
-  unitNumber: ID
+  position: PositionInput = {x: 0, y: 0}
+  radius: FiniteFloat = 10
+  name: String
+  type: String
+  order: NearbyOrder = DISTANCE
+  offset: Int = 0
+  limit: Int = 100
+}
+enum NearbyOrder { DISTANCE UNIT_NUMBER }
+"""Select one actor and a nonempty recipe name."""
+input RecipeInput { actor: ActorInput! recipe: String! }
+"""Inspect one entity using the selected actor's force."""
+input InspectInput {
+  actor: ActorInput!
+  target: EntityRefInput!
 }
 """Player must be disconnected and have an empty crafting queue and a main inventory."""
 input CharacterCreateInput {
@@ -128,15 +131,14 @@ input CharacterCreateInput {
 """Player must be disconnected. Player and detached character must have empty crafting queues and matching forces; the character's non-main inventories must be empty."""
 input CharacterReturnInput {
   player: String!
-  character: ID!
+  character: UnitNumber!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Surface must exist and force must name an existing force; coordinates must be finite. The character is created at the closest non-colliding character position within 10 tiles."""
+"""Surface must exist and force must name an existing force. Position is the preferred spawn point; the engine selects the closest non-colliding point within 10 tiles."""
 input CharacterSpawnInput {
   surface: String! = "nauvis"
-  x: Float!
-  y: Float!
+  position: PositionInput!
   force: String = "player"
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
@@ -154,17 +156,13 @@ input CharactersInput {
   limit: Int! = 100
   offset: Int! = 0
 }
-"""Select exactly one player or character. Coordinates must be finite; direction must be north, east, south, or west, or use directionCode 0-15. Placement coordinates identify the item's placement position: a 1x1 entity placed at integer x,y occupies that tile and reports its center at x+0.5,y+0.5; pass an already half-integer center for 3x3 entities. The acting character, or the selected player's character, must be on the surface and within build reach."""
+"""Place one entity with a canonical engine direction from 0 through 15."""
 input PlaceInput {
-  player: String
-  character: ID
+  actor: ActorInput!
   surface: String = "nauvis"
-  x: Float!
-  y: Float!
+  position: PositionInput!
   item: String!
-  direction: String = "north"
-  """Engine direction 0 through 15, an alternative to direction; required for 8-way and 16-way prototypes such as rails."""
-  directionCode: Int
+  direction: Int! = 0
   """Item quality prototype name; defaults to normal."""
   quality: String = "normal"
   """Replace a fast-replaceable entity at the target instead of failing on the collision."""
@@ -172,12 +170,15 @@ input PlaceInput {
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""One entity center for placeMany; direction defaults to north. Placement coordinates follow Factorio's placement rules: for 1x1 entities pass the tile corner (integer), and the placed entity then reports its center one half-tile away. Pass an already half-integer center for 3x3 entities."""
-input PlacementInput { x: Float! y: Float! direction: String directionCode: Int fastReplace: Boolean = false }
-"""Select exactly one player or character and a nonempty item that places an entity. Positions are finite entity-center coordinates on the actor's force; each direction defaults to north. The acting character, or the selected player's character, must be on the surface and within build reach for each position. At most 1000 positions."""
+"""One placement position with canonical engine direction from 0 through 15."""
+input PlacementInput {
+  position: PositionInput!
+  direction: Int! = 0
+  fastReplace: Boolean = false
+}
+"""Place the same item at up to 1000 finite positions, continuing past per-entry failures."""
 input PlaceManyInput {
-  player: String
-  character: ID
+  actor: ActorInput!
   surface: String = "nauvis"
   item: String!
   """Item quality prototype name; defaults to normal."""
@@ -186,13 +187,11 @@ input PlaceManyInput {
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Select exactly one player or character, a nonempty tile item, and finite tile coordinates. Tile coordinates are whole tile positions (not entity centers). The acting character, or the selected player's character, must be on the surface and within build reach."""
+"""Place one tile item at a finite whole-tile position."""
 input PlaceTileInput {
-  player: String
-  character: ID
+  actor: ActorInput!
   surface: String = "nauvis"
-  x: Float!
-  y: Float!
+  position: PositionInput!
   item: String!
   """Item quality prototype name; defaults to normal."""
   quality: String = "normal"
@@ -212,27 +211,21 @@ input CreateBlueprintInput {
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Imports a blueprint string and places entity ghosts. Coordinates are finite and direction is north, east, south, or west."""
+"""Imports a blueprint string and places entity ghosts using one canonical engine direction."""
 input PlaceBlueprintInput {
   surface: String = "nauvis"
   force: String = "player"
   blueprint: String!
-  x: Float!
-  y: Float!
-  direction: String = "north"
-  """Engine direction 0 through 15, an alternative to direction."""
-  directionCode: Int
+  position: PositionInput!
+  direction: Int! = 0
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""One blueprint-relative entity. At most 1000 entities; positions are blueprint-relative, direction defaults north, quality defaults normal."""
+"""One blueprint-relative entity. At most 1000 entities; direction is 0 through 15."""
 input BlueprintEntityInput {
   name: String!
-  x: Float!
-  y: Float!
-  direction: String
-  """Engine direction 0 through 15, an alternative to direction."""
-  directionCode: Int
+  position: PositionInput!
+  direction: Int! = 0
   quality: String
   recipe: String
   recipeQuality: String
@@ -247,26 +240,20 @@ input CreateBlueprintFromEntitiesInput {
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Select exactly one player or character. Address the entity by unitNumber, or by entity name plus finite entity-center coordinates; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes. Count is a positive integer. The acting character, or the selected player's character, must be on the entity's surface and within build reach."""
+"""Fuel one entity as the selected actor."""
 input FuelInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  x: Float
-  y: Float
-  unitNumber: ID
+  actor: ActorInput!
+  target: EntityRefInput!
   item: String!
   """Item quality prototype name; defaults to normal."""
   quality: String = "normal"
-  entity: String
   count: Float = 1
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Select exactly one player or character and a nonempty recipe. Count is a positive number of recipe crafts, not items: a recipe that yields two products produces count times two (transport-belt count 5 -> 10 belts). Wait defaults false; waitTimeoutSeconds is 1 through 3600 (default 60). Waiting means the actor's entire queue is empty; timeout does not cancel remaining work."""
+"""Queue enabled recipe crafts for one actor."""
 input CraftInput {
-  player: String
-  character: ID
+  actor: ActorInput!
   recipe: String!
   count: Float = 1
   wait: Boolean! = false
@@ -274,67 +261,46 @@ input CraftInput {
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Select exactly one player or character. Index is the one-based crafting queue position; count is at least 1. Later crafts that depend on canceled crafts may also cancel."""
+"""Cancel crafts at a one-based queue index."""
 input CancelCraftInput {
-  player: String
-  character: ID
+  actor: ActorInput!
   index: Int! = 1
   count: Int! = 1
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Select exactly one player or character and a nonempty entity name. Coordinates are finite entity-center coordinates on the actor's surface; a player must control a character."""
+"""Mine one entity as the selected actor."""
 input MineInput {
-  player: String
-  character: ID
-  entity: String!
-  x: Float!
-  y: Float!
+  actor: ActorInput!
+  target: EntityRefInput!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Select exactly one player or character. Address the entity by unitNumber, or by a nonempty non-character entity name plus finite entity-center coordinates on the actor's surface; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes. The actor must be able to reach the entity, and the entity must be minable."""
+"""Mine one entity and recover its contents."""
 input RemoveInput {
-  player: String
-  character: ID
-  entity: String
-  x: Float
-  y: Float
-  unitNumber: ID
+  actor: ActorInput!
+  target: EntityRefInput!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""One entity to remove, addressed by unitNumber or by prototype name and center coordinates. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes."""
-input RemovalInput {
-  entity: String
-  x: Float
-  y: Float
-  unitNumber: ID
-}
-"""Select exactly one player or character and up to 200 explicit removal targets on the actor's surface. Each target must be reachable and minable; failures are reported per target and the rest still run."""
+"""Mine up to 200 entities, continuing past per-entry failures."""
 input RemoveManyInput {
-  player: String
-  character: ID
-  removals: [RemovalInput!]!
+  actor: ActorInput!
+  targets: [EntityRefInput!]!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Character is a unit number from 1 to 4294967295. Coordinates must be finite and identify a reachable dropped item."""
+"""Pick up one dropped stack at a finite position."""
 input PickupInput {
-  player: String
-  character: ID
-  x: Float!
-  y: Float!
+  actor: ActorInput!
+  position: PositionInput!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Select exactly one nonempty player name or character unit number from 1 to 4294967295, plus a nonempty item, the belt (unitNumber, or finite belt-center coordinates), and a positive count. The acting character, or the selected player's character, must be within reach of the belt."""
+"""Take items from one transport belt."""
 input BeltTakeInput {
-  player: String
-  character: ID
-  x: Float
-  y: Float
-  unitNumber: ID
+  actor: ActorInput!
+  target: EntityRefInput!
   item: String!
   """Item quality prototype name; defaults to normal."""
   quality: String = "normal"
@@ -342,31 +308,20 @@ input BeltTakeInput {
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Character is a unit number from 1 to 4294967295. Address the entity by unitNumber, or by entity name plus finite entity-center coordinates; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes. Turns must be 1 to 3."""
+"""Rotate one entity by one to three clockwise quarter turns."""
 input RotateInput {
-  player: String
-  character: ID
-  entity: String
-  x: Float
-  y: Float
-  unitNumber: ID
+  actor: ActorInput!
+  target: EntityRefInput!
   turns: Int = 1
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Select exactly one player or character. Address the entity by unitNumber, or by entity name plus finite entity-center coordinates; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes. Inventory is input, output, fuel, chest, modules, or turret-ammo; direction is to-entity or to-player. Count is an integer from 1 to 4294967295. The acting character, or the selected player's character, must be within reach of the entity."""
+"""Move items between actor main inventory and one entity."""
 input TransferInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  x: Float
-  y: Float
-  unitNumber: ID
-  inventory: String
-  """Typed alternative to inventory; give exactly one of inventory or inventoryKind."""
-  inventoryKind: InventoryKind
-  direction: String!
+  actor: ActorInput!
+  target: EntityRefInput!
+  inventory: InventoryKind!
+  direction: TransferDirection!
   item: String!
   """Item quality prototype name; defaults to normal."""
   quality: String = "normal"
@@ -374,27 +329,22 @@ input TransferInput {
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Select exactly one player or character. Inventory is guns, ammo, armor, or trash; direction is to-equipment or to-main. Count is an integer from 1 to 4294967295."""
+"""Move items between actor main inventory and an equipment inventory."""
 input EquipInput {
-  player: String
-  character: ID
+  actor: ActorInput!
   item: String!
   """Item quality prototype name; defaults to normal."""
   quality: String = "normal"
   count: Float = 1
   inventory: String!
-  direction: String!
+  direction: EquipmentTransferDirection!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Character is a unit number from 1 to 4294967295. Address the machine by unitNumber, or by entity name plus finite machine-center coordinates. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes. Recipe must be enabled and compatible; machine must not be crafting and its input, output, and fluids must be empty."""
+"""Change one machine's recipe."""
 input SetRecipeInput {
-  player: String
-  character: ID
-  entity: String
-  x: Float
-  y: Float
-  unitNumber: ID
+  actor: ActorInput!
+  target: EntityRefInput!
   recipe: String!
   """Selected recipe quality prototype name; defaults to normal."""
   recipeQuality: String
@@ -404,7 +354,7 @@ input SetRecipeInput {
 }
 enum ProductionWindow { ONE_MINUTE TEN_MINUTES ONE_HOUR }
 input FactoryOverviewInput { surface: String! = "nauvis" force: String! = "player" window: ProductionWindow! = ONE_MINUTE }
-input FactoryAreaInput { leftTopX: Float! leftTopY: Float! rightBottomX: Float! rightBottomY: Float! }
+input FactoryAreaInput { leftTopX: FiniteFloat! leftTopY: FiniteFloat! rightBottomX: FiniteFloat! rightBottomY: FiniteFloat! }
 """Clearing is limited to areas with positive dimensions no greater than 256 tiles per side."""
 input ClearAreaInput {
   surface: String! = "nauvis"
@@ -412,120 +362,107 @@ input ClearAreaInput {
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Exactly one player or character; mines reachable trees and rock-named simple entities. Area dimensions must be positive and at most 256 tiles per side."""
+"""Mine trees and rocks as one actor."""
 input HarvestAreaInput {
-  player: String
-  character: ID
+  actor: ActorInput!
   area: FactoryAreaInput!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Requires a character unit number. Area dimensions must be positive and at most 256 tiles per side."""
+"""Pick up dropped stacks as one actor."""
 input PickupAreaInput {
-  player: String
-  character: ID
+  actor: ActorInput!
   area: FactoryAreaInput!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Force must name an existing force. Area dimensions must be positive and at most 256 tiles per side."""
+"""Place or cancel deconstruction orders in a bounded area."""
 input DeconstructAreaInput {
-  """Optional actor; instant mode mines reachable targets as this actor instead of destroying them."""
-  player: String
-  character: ID
+  """Optional actor; instant mode mines targets as this actor instead of destroying them. With reach enforcement enabled, unreachable targets are destroyed instead."""
+  actor: ActorInput
   surface: String! = "nauvis"
   force: String = "player"
   area: FactoryAreaInput!
-  """Optional prototype-name filter; omitted selects every deconstructible entity."""
   names: [String!]
-  """Optional entity-type filter; omitted selects every deconstructible entity."""
   types: [String!]
-  """Immediately mine reachable targets and destroy and spill the rest instead of waiting for construction robots. A documented sandbox shortcut."""
   instant: Boolean = false
-  """Maximum targets processed, from 1 through 1000."""
   limit: Int = 500
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""One entity addressed by unitNumber, or by prototype name plus finite entity-center coordinates; giving both requires the name to match the unit number. Only characters resolve by unit number alone, so pass entity alongside unitNumber for other prototypes."""
-input DeconstructionTargetInput {
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
-}
-"""Force must name an existing force; targets must be on the given surface and belong to that force. At most 200 targets."""
+"""Place or cancel deconstruction orders for up to 200 explicit targets."""
 input DeconstructEntitiesInput {
-  surface: String! = "nauvis"
   force: String = "player"
-  targets: [DeconstructionTargetInput!]!
+  targets: [EntityRefInput!]!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
-"""Deconstruction orders placed or canceled, plus per-target failures by one-based index (at most 20); errors are empty for area requests."""
-type DeconstructionResult { tick: Float! surface: String! force: String! orders: Int! skipped: Int! removed: Int! items: [ItemStack!]! errors: [String!]! }
+"""Deconstruction work plus typed per-target failures."""
+type DeconstructionResult { tick: Float! surface: String! force: String! orders: Int! skipped: Int! removed: Int! items: [InventoryStack!]! errors: [BatchError!]! }
 input MachinesInput { surface: String! = "nauvis" force: String! = "player" status: String type: String area: FactoryAreaInput limit: Int! = 100 offset: Int! = 0 }
 type ProductionItem { item: String! produced: Float! consumed: Float! producedPerMinute: Float! consumedPerMinute: Float! }
 type FactoryProduction { tick: Float! surface: String! force: String! window: ProductionWindow! items: [ProductionItem!]! }
 type MachineSummary { type: String! total: Int! working: Int! idle: Int! noFuel: Int! "Machines reporting no_power, low_power, or not_connected_to_electric_network. Machine scans cover assembling machines, furnaces, mining drills, labs, and rocket silos; inserter power faults are visible through powerConsumers." noPower: Int! noIngredients: Int! outputFull: Int! other: Int! }
-type FactoryMachine { name: String! type: String! position: Position! status: String! fuel: [ItemStack!]! }
-type MachinePage { tick: Float! surface: String! force: String! total: Int! offset: Int! limit: Int! machines: [FactoryMachine!]! summaries: [MachineSummary!]! }
+type FactoryMachine { name: String! type: String! position: Position! status: String! fuel: [InventoryStack!]! }
+type MachinePage { tick: Float! surface: String! force: String! pageInfo: PageInfo! machines: [FactoryMachine!]! summaries: [MachineSummary!]! }
 """Area limits are positive and at most 256 tiles per side. Limits are 1 to 1000; offsets are non-negative."""
 input EntitiesInput { surface: String! = "nauvis" area: FactoryAreaInput! name: String type: String limit: Int! = 100 offset: Int! = 0 }
-type EntityPage { tick: Float! surface: String! total: Int! limit: Int! offset: Int! entities: [Entity!]! }
+type EntityPage { tick: Float! surface: String! pageInfo: PageInfo! entities: [Entity!]! }
 input BeltsInput { surface: String! = "nauvis" area: FactoryAreaInput! limit: Int! = 100 offset: Int! = 0 }
-type BeltLine { items: [ItemStack!]! }
-type BeltInfo { position: Position! direction: Int unitNumber: ID line1: BeltLine! line2: BeltLine! }
-type BeltPage { tick: Float! surface: String! total: Int! limit: Int! offset: Int! belts: [BeltInfo!]! }
-type CharacterInfo { unitNumber: ID! position: Position! surface: String! force: String! health: Float player: String }
-type CharacterPage { tick: Float! surface: String! total: Int! limit: Int! offset: Int! characters: [CharacterInfo!]! }
+type BeltLine { items: [InventoryStack!]! }
+type BeltInfo { position: Position! direction: Int unitNumber: UnitNumber line1: BeltLine! line2: BeltLine! }
+type BeltPage { tick: Float! surface: String! pageInfo: PageInfo! belts: [BeltInfo!]! }
+type CharacterInfo { unitNumber: UnitNumber! position: Position! surface: String! force: String! health: Float player: String }
+type CharacterPage { tick: Float! surface: String! pageInfo: PageInfo! characters: [CharacterInfo!]! }
 type FactoryOverview { productionTick: Float! machineTick: Float! surface: String! force: String! window: ProductionWindow! production: [ProductionItem!]! machines: [MachineSummary!]! }
 type Position { x: Float! y: Float! }
 type ConnectedPlayer { name: String! surface: String! position: Position! actor: Actor! @goField(forceResolver: true) }
 type Status { tick: Float! players: [ConnectedPlayer!]! }
-type Nearby { surface: String! entities: [Entity!]! truncated: Boolean! total: Int! }
-type Entity { name: String! type: String position: Position surface: String direction: Int unitNumber: ID amount: Float distance: Float inspection(actor: ActorInput!): EntityInspection @goField(forceResolver: true) }
-type Actor { tick: Float! player: String character: ID force: String surface: String position: Position hasCharacter: Boolean health: Float connected: Boolean controllerType: Int inventory: ActorInventory! @goField(forceResolver: true) queue: CraftQueue! @goField(forceResolver: true) recipe(name: String!): Recipe! @goField(forceResolver: true) nearby(radius: Float = 10, name: String, type: String): Nearby! @goField(forceResolver: true) }
-type ItemStack { name: String count: Float quality: String type: String amount: Float probability: Float amountMin: Float amountMax: Float temperature: Float minimumTemperature: Float maximumTemperature: Float }
+type Nearby { tick: Float! surface: String! pageInfo: PageInfo! entities: [Entity!]! }
+type Entity { tick: Float force: String name: String! type: String position: Position surface: String direction: Int unitNumber: UnitNumber amount: Float distance: Float inspection(actor: ActorInput!): EntityInspection @goField(forceResolver: true) }
+type EntitySnapshot { tick: Float! surface: String! force: String! entity: Entity! }
+"""Actor resolved for an actor-scoped operation. Input selector is preserved."""
+type ActorIdentity { player: String character: UnitNumber }
+type Actor { tick: Float! player: String character: UnitNumber force: String! surface: String! position: Position hasCharacter: Boolean health: Float connected: Boolean controllerType: Int inventory: ActorInventory! @goField(forceResolver: true) queue: CraftQueue! @goField(forceResolver: true) recipe(name: String!): Recipe! @goField(forceResolver: true) nearby(radius: FiniteFloat = 10, name: String, type: String, order: NearbyOrder = DISTANCE, offset: Int = 0, limit: Int = 100): Nearby! @goField(forceResolver: true) }
 """Aggregated fluid amount in an inspected entity."""
 type FluidContent { name: String! amount: Float! }
-type ActorInventory { tick: Float! player: String character: ID inventory: String items: [ItemStack!]! itemEntries: Int }
+type ActorInventory { tick: Float! surface: String! force: String! player: String character: UnitNumber inventory: String items: [InventoryStack!]! itemEntries: Int }
 type QueueEntry { recipe: String count: Float recipeInfo(actor: ActorInput!): Recipe @goField(forceResolver: true) }
-type CraftQueue { tick: Float! player: String character: ID queue: [QueueEntry!]! queueEntries: Int queueSize: Float progress: Float }
-type Recipe { tick: Float! player: String character: ID force: String name: String enabled: Boolean category: String energy: Float ingredients: [ItemStack!]! products: [ItemStack!]! hiddenFromPlayerCrafting: Boolean craftableCount: Float }
-type Inventories { input: [ItemStack!] output: [ItemStack!] fuel: [ItemStack!] chest: [ItemStack!] modules: [ItemStack!] turretAmmo: [ItemStack!] main: [ItemStack!] guns: [ItemStack!] ammo: [ItemStack!] armor: [ItemStack!] trash: [ItemStack!] roboportRobot: [ItemStack!] roboportMaterial: [ItemStack!] cargoWagon: [ItemStack!] carTrunk: [ItemStack!] spiderTrunk: [ItemStack!] artilleryWagonAmmo: [ItemStack!] }
+type CraftQueue { tick: Float! surface: String! force: String! actor: ActorIdentity! player: String character: UnitNumber queue: [QueueEntry!]! queueEntries: Int queueSize: Float progress: Float }
+type Recipe { tick: Float! player: String character: UnitNumber force: String! name: String enabled: Boolean category: String energy: Float ingredients: [RecipeIngredient!]! products: [RecipeProduct!]! hiddenFromPlayerCrafting: Boolean craftableCount: Float }
+type Inventories { input: [InventoryStack!] output: [InventoryStack!] fuel: [InventoryStack!] chest: [InventoryStack!] modules: [InventoryStack!] turretAmmo: [InventoryStack!] main: [InventoryStack!] guns: [InventoryStack!] ammo: [InventoryStack!] armor: [InventoryStack!] trash: [InventoryStack!] roboportRobot: [InventoryStack!] roboportMaterial: [InventoryStack!] cargoWagon: [InventoryStack!] carTrunk: [InventoryStack!] spiderTrunk: [InventoryStack!] artilleryWagonAmmo: [InventoryStack!] }
 type ProductionCount { name: String! count: Float! }
 type ProductionStatistics { produced: [ProductionCount!]! consumed: [ProductionCount!]! }
-type TransportLine { items: [ItemStack!]! }
-type EntityInspection { name: String type: String position: Position surface: String force: String health: Float maxHealth: Float inventories: Inventories fluids: [FluidContent!]! status: Int statusName: String recipe: String craftingProgress: Float transportLines: [TransportLine!] pickupPosition: Position dropPosition: Position heldStack: ItemStack miningProgress: Float miningTarget: Entity miningResources: [Entity!] forceItemProduction: ProductionStatistics toBeDeconstructed: Boolean! recipeInfo(actor: ActorInput!): Recipe @goField(forceResolver: true) logistics: InspectionLogistics! @goField(forceResolver: true) }
-type ActionResult { character: ID player: String tick: Float position: Position surface: String name: String entity: String item: String quality: String recipe: String direction: String before: Int turns: Int count: Float requested: Float started: Float queueSize: Float moved: Float remaining: Float available: Float capacity: Float inventory: String returned: [ItemStack!] items: [ItemStack!] unitNumber: ID inserted: Float transferredStacks: Int returnedStacks: Int type: String mined: Boolean instant: Boolean craftingComplete: Boolean waitTimedOut: Boolean waitedSeconds: Float }
-"""Batch placement counts; errors lists up to 20 per-position failures by one-based placement index."""
-type PlaceManyResult { tick: Float! surface: String! item: String! placed: Int! failed: Int! errors: [String!]! entities: [PlacedEntity!]! }
+type TransportLine { items: [InventoryStack!]! }
+type EntityInspection { tick: Float! name: String type: String position: Position surface: String! force: String! health: Float maxHealth: Float inventories: Inventories fluids: [FluidContent!]! status: Int statusName: String recipe: String craftingProgress: Float transportLines: [TransportLine!] pickupPosition: Position dropPosition: Position heldStack: InventoryStack miningProgress: Float miningTarget: Entity miningResources: [Entity!] forceItemProduction: ProductionStatistics toBeDeconstructed: Boolean! recipeInfo(actor: ActorInput!): Recipe @goField(forceResolver: true) logistics: InspectionLogistics! @goField(forceResolver: true) }
+type ActionResult { actor: ActorIdentity! character: UnitNumber player: String tick: Float! position: Position surface: String! force: String! name: String entity: String item: String quality: String recipe: String direction: Int transferDirection: TransferDirection equipmentDirection: EquipmentTransferDirection before: Int turns: Int count: Float requested: Float started: Float queueSize: Float moved: Float remaining: Float available: Float capacity: Float inventory: String returned: [InventoryStack!] items: [InventoryStack!] unitNumber: UnitNumber inserted: Float transferredStacks: Int returnedStacks: Int craftingComplete: Boolean waitTimedOut: Boolean waitedSeconds: Float instant: Boolean mined: Boolean }
+"""Batch placement counts and typed per-position failures."""
+type PlaceManyResult { tick: Float! surface: String! force: String! actor: ActorIdentity! item: String! placed: Int! failed: Int! errors: [BatchError!]! entities: [PlacedEntity!]! }
 """One entity reference used by placement and action results."""
-type PlacedEntity { name: String! type: String position: Position unitNumber: ID }
+type PlacedEntity { name: String! type: String position: Position unitNumber: UnitNumber }
 """Entity inventory key for transfer."""
 enum InventoryKind { INPUT OUTPUT FUEL CHEST MODULES TURRET_AMMO ROBO_PORT_ROBOT ROBO_PORT_MATERIAL CARGO_WAGON CAR_TRUNK SPIDER_TRUNK ARTILLERY_WAGON_AMMO }
 """How setRecipe handles a machine that still holds items or fluid."""
 enum RecipeDrainMode { ABORT TO_ACTOR SPILL }
 """Tile placed by placeTile."""
-type PlaceTileResult { tick: Float! surface: String! tile: String! position: Position! }
+type PlaceTileResult { tick: Float! surface: String! force: String! actor: ActorIdentity! tile: String! position: Position! }
 """Blueprint string created by createBlueprint."""
-type BlueprintResult { surface: String! force: String! entityCount: Int! blueprint: String! }
+type BlueprintResult { tick: Float! surface: String! force: String! entityCount: Int! blueprint: String! }
 """Blueprint string created from explicit entities and tiles."""
-type BlueprintFromEntitiesResult { entityCount: Int! tileCount: Int! blueprint: String! }
+type BlueprintFromEntitiesResult { tick: Float! entityCount: Int! tileCount: Int! blueprint: String! }
 """Entity ghost placed by placeBlueprint."""
-type BlueprintPlacedEntity { name: String! type: String! position: Position! unitNumber: ID }
+type BlueprintPlacedEntity { name: String! type: String! position: Position! unitNumber: UnitNumber }
 """Ghosts placed by placeBlueprint."""
 type BlueprintPlaceResult { tick: Float! surface: String! force: String! ghosts: Int! entities: [BlueprintPlacedEntity!]! }
 type ClearAreaResult { tick: Float! surface: String! treesRemoved: Int! rocksRemoved: Int! }
-type HarvestAreaResult { tick: Float! surface: String! treesMined: Int! rocksMined: Int! outOfReach: Int! failed: Int! items: [ItemStack!]! }
-type PickupAreaResult { tick: Float! surface: String! stacksFound: Int! stacksOutOfReach: Int! itemsPickedUp: [ItemStack!]! itemsRemaining: [ItemStack!]! }
-"""Mined entity and the stacks added to the actor's main inventory; anything the actor could not hold spills near it and is not listed."""
-type RemoveResult { tick: Float! surface: String! entity: String! type: String position: Position items: [ItemStack!]! }
-"""Bulk removal counts; errors lists up to 20 per-target failures by one-based index."""
-type RemoveManyResult { tick: Float! surface: String! removed: Int! failed: Int! errors: [String!]! }
+type HarvestAreaResult { tick: Float! surface: String! force: String! actor: ActorIdentity! treesMined: Int! rocksMined: Int! outOfReach: Int! failed: Int! errors: [BatchError!]! items: [InventoryStack!]! }
+type PickupAreaResult { tick: Float! surface: String! force: String! actor: ActorIdentity! stacksFound: Int! stacksOutOfReach: Int! errors: [BatchError!]! itemsPickedUp: [InventoryStack!]! itemsRemaining: [InventoryStack!]! }
+"""Mined entity and stacks added to actor main inventory."""
+type RemoveResult { tick: Float! surface: String! force: String! actor: ActorIdentity! entity: String! type: String position: Position items: [InventoryStack!]! }
+"""Bulk removal counts with typed per-target failures."""
+type RemoveManyResult { tick: Float! surface: String! force: String! actor: ActorIdentity! removed: Int! failed: Int! errors: [BatchError!]! }
 type ServerResult { response: String! }
-type AnnounceResult { message: String! }
+type AnnounceResult { tick: Float! message: String! }
 """Force and technology to start researching. Force defaults to player."""
 input StartResearchInput {
   force: String = "player"
@@ -540,16 +477,11 @@ input CancelResearchInput {
   message: String
 }
 """Force research state after a start request."""
-type ResearchState { force: String! technology: String! started: Boolean! currentResearch: String researchQueue: [String!]! }
-"""Select exactly one player or character. Address the machine by unitNumber, or by entity name plus finite machine-center coordinates. The machine must not be crafting."""
+type ResearchState { tick: Float! force: String! technology: String! started: Boolean! currentResearch: String researchQueue: [String!]! }
+"""Clear one machine's recipe."""
 input ClearRecipeInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }

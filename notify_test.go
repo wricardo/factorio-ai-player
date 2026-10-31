@@ -8,7 +8,7 @@ import (
 
 func TestMutationSummary(t *testing.T) {
 	placed, item := "stone-furnace", "coal"
-	entity, direction, moved := "stone-furnace", "to-entity", 5.0
+	entity, moved := "stone-furnace", 5.0
 	tests := []struct {
 		name   string
 		result any
@@ -16,7 +16,7 @@ func TestMutationSummary(t *testing.T) {
 	}{
 		{"place", &ActionResult{Name: &placed, Position: &Position{X: 3, Y: 4}}, "placed stone-furnace at (3, 4)"},
 		{"fuel", &ActionResult{Name: &entity, Item: &item, Inserted: &moved}, "inserted 5 coal into stone-furnace"},
-		{"transfer", &ActionResult{Entity: &entity, Item: &item, Direction: &direction, Moved: &moved}, "moved 5 coal into stone-furnace"},
+		{"transfer", &ActionResult{Entity: &entity, Item: &item, TransferDirection: new(TransferDirectionToEntity), Moved: &moved}, "moved 5 coal into stone-furnace"},
 		{"clear-area", &ClearAreaResult{Surface: "nauvis", TreesRemoved: 2, RocksRemoved: 1}, "cleared nauvis: 2 trees and 1 rocks removed"},
 		{"remove", &RemoveResult{Entity: "stone-furnace", Position: &Position{X: 3, Y: 4}}, "removed stone-furnace at (3, 4)"},
 		{"harvest-area", &HarvestAreaResult{Surface: "nauvis", TreesMined: 2, RocksMined: 1, OutOfReach: 3, Failed: 4}, "harvested nauvis: 2 trees and 1 rocks mined, 3 out of reach, 4 failed"},
@@ -61,7 +61,7 @@ func TestAnnouncePrintsMessage(t *testing.T) {
 			serverErr <- err
 			return
 		}
-		if err = writePacket(conn, 2, 0, "\n"); err != nil {
+		if err = writePacket(conn, 2, 0, `{"tick":42,"message":"hello world"}`+"\n"); err != nil {
 			serverErr <- err
 			return
 		}
@@ -73,12 +73,12 @@ func TestAnnouncePrintsMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Message != "hello world" {
-		t.Fatalf("message: got %q", result.Message)
+	if result.Message != "hello world" || result.Tick != 42 {
+		t.Fatalf("result: %+v", result)
 	}
-	want := "/silent-command game.print(" + luaString("hello world") + ")"
-	if got := <-commands; got != want {
-		t.Fatalf("command: got %q, want %q", got, want)
+	got := <-commands
+	if !strings.Contains(got, "game.print("+luaString("hello world")+")") || !strings.Contains(got, "rcon.print") {
+		t.Fatalf("announce command missing print and response: %q", got)
 	}
 	if err := <-serverErr; err != nil {
 		t.Fatal(err)

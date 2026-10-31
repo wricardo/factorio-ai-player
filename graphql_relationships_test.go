@@ -55,6 +55,9 @@ func relationshipResponse(lua string) string {
 		if bob && contains("p.force.recipes["+luaString("iron-gear-wheel")+"]") {
 			return `{"tick":5,"player":"Bob","name":"iron-gear-wheel","enabled":true,"ingredients":[{"name":"iron-plate","amount":2}],"products":[{"name":"iron-gear-wheel","amount":1}]}`
 		}
+		if alice && contains("p.force.recipes["+luaString("copper-cable")+"]") {
+			return `{"tick":5,"player":"Alice","name":"copper-cable","enabled":true,"ingredients":[{"name":"copper-plate","amount":1}],"products":[{"name":"copper-cable","amount":2}]}`
+		}
 		if character && contains("p.force.recipes["+luaString("copper-cable")+"]") {
 			return `{"tick":6,"character":42,"name":"copper-cable","enabled":false,"ingredients":{},"products":{}}`
 		}
@@ -81,7 +84,7 @@ func relationshipResponse(lua string) string {
 			return `{"tick":1,"character":42,"surface":"vulcanus","position":{"x":12,"y":-4},"has_character":true}`
 		}
 		if alice {
-			return `{"tick":1,"player":"Alice","surface":"vulcanus","position":{"x":12,"y":-4},"has_character":true}`
+			return `{"tick":1,"player":"Alice","character":77,"surface":"vulcanus","position":{"x":12,"y":-4},"has_character":true}`
 		}
 	}
 	return `{"error":"unexpected command or actor"}`
@@ -195,10 +198,29 @@ func TestGraphQLNestedActorAndPlayer(t *testing.T) {
 	relationshipAssertJSON(t, got, `{"data":{"player":{"character":"42","surface":"vulcanus","position":{"x":12,"y":-4},"inventory":{"character":"42","items":[{"name":"iron-plate","count":9}]},"queue":{"character":"42","queue":[{"recipe":"iron-gear-wheel","count":2,"recipeInfo":{"player":"Bob","name":"iron-gear-wheel","ingredients":[{"name":"iron-plate","amount":2}]}}]},"recipe":{"character":"42","name":"copper-cable","enabled":false,"ingredients":[],"products":[]},"nearby":{"surface":"vulcanus","entities":[{"name":"electric-mining-drill","surface":"vulcanus","position":{"x":13.5,"y":-4.5},"inspection":{"name":"electric-mining-drill","surface":"vulcanus","recipeInfo":{"player":"Bob","name":"iron-gear-wheel"},"miningTarget":{"name":"iron-ore","surface":"vulcanus","inspection":{"name":"iron-ore","surface":"vulcanus"}},"miningResources":[{"name":"copper-ore","surface":"vulcanus","inspection":{"name":"copper-ore","surface":"vulcanus"}}]}}]}},"status":{"players":[{"name":"Alice","actor":{"player":"Alice","inventory":{"player":"Alice","items":[]},"queue":{"player":"Alice","queue":[]},"nearby":{"surface":"vulcanus","entities":[]}}}]}}}`)
 }
 
+func TestGraphQLPlayerSelectorSurvivesForcedResolvers(t *testing.T) {
+	addr := relationshipServer(t)
+	got, err := relationshipQuery(t, addr, `query {
+	  player(input:{player:"Alice"}) {
+	    player character hasCharacter
+	    inventory { player itemEntries }
+	    queue { player queueEntries }
+	    recipe(name:"copper-cable") { player name }
+	  }
+	  status {
+	    players { name actor { player character inventory { player itemEntries } } }
+	  }
+	}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relationshipAssertJSON(t, got, `{"data":{"player":{"player":"Alice","character":"77","hasCharacter":true,"inventory":{"player":"Alice","itemEntries":0},"queue":{"player":"Alice","queueEntries":0},"recipe":{"player":"Alice","name":"copper-cable"}},"status":{"players":[{"name":"Alice","actor":{"player":"Alice","character":"77","inventory":{"player":"Alice","itemEntries":0}}}]}}}`)
+}
+
 func TestGraphQLInspectionWithoutRecipe(t *testing.T) {
 	addr := relationshipServer(t)
 	got, err := relationshipQuery(t, addr, `query {
-	  inspect(input:{character:"42",surface:"vulcanus",entity:"iron-ore",x:14,y:-5}) {
+	  inspect(input:{actor:{character:"42"},target:{surface:"vulcanus",entity:"iron-ore",position:{x:14,y:-5}}}) {
 	    name recipeInfo(actor:{player:"Bob"}) { name }
 	  }
 	}`)

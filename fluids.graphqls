@@ -1,5 +1,5 @@
 extend type Mutation {
-  """Adds, sets, or clears fluid in one reachable entity's fluidboxes. SET clamps the amount to capacity; ADD reports the amount actually accepted; CLEAR empties every box."""
+  """Adds, sets, or clears fluid in one entity's fluidboxes. SET clamps the amount to capacity; ADD reports the amount actually accepted; CLEAR empties every box."""
   setFluid(input: SetFluidInput!): FluidWriteResult!
 }
 
@@ -9,18 +9,13 @@ enum FluidWriteMode {
   CLEAR
 }
 
-"""Exactly one player or character. The entity is addressed by unitNumber, or by prototype name plus finite center coordinates. fluid is ignored for CLEAR. amount must be zero or more and temperature, when given, must be finite."""
+"""Write fluid in one entity."""
 input SetFluidInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   fluid: String
   amount: Float = 0
-  temperature: Float
+  temperature: FiniteFloat
   mode: FluidWriteMode! = SET
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
@@ -29,14 +24,16 @@ input SetFluidInput {
 type FluidWriteResult {
   tick: Float!
   surface: String!
+  force: String!
+  actor: ActorIdentity!
   name: String!
-  unitNumber: ID
+  unitNumber: UnitNumber
   position: Position!
   fluid: String
   before: Float!
   after: Float!
   capacity: Float!
-  mode: String!
+  mode: FluidWriteMode!
   boxesAffected: Int!
 }
 
@@ -61,12 +58,8 @@ type FluidStockPage {
   tick: Float!
   surface: String!
   force: String!
-  total: Int!
-  totalsTotal: Int!
-  limit: Int!
-  offset: Int!
-  totalsLimit: Int!
-  totalsOffset: Int!
+  locationPageInfo: PageInfo!
+  totalPageInfo: PageInfo!
   totals: [FluidTotal!]!
   locations: [FluidStockLocation!]!
 }

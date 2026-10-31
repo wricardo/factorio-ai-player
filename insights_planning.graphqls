@@ -19,18 +19,15 @@ type ItemFlow {
   force: String!
   surface: String!
   item: String!
-  producerTotal: Int!
-  consumerTotal: Int!
-  limit: Int!
-  offset: Int!
-  truncated: Boolean!
+  producerPageInfo: PageInfo!
+  consumerPageInfo: PageInfo!
   producers: [ItemFlowEndpoint!]!
   consumers: [ItemFlowEndpoint!]!
   rateAssumptions: String!
 }
 
 type ItemFlowEndpoint {
-  unitNumber: ID
+  unitNumber: UnitNumber
   name: String!
   type: String!
   surface: String!
@@ -42,7 +39,7 @@ type ItemFlowEndpoint {
   miningTarget: String
   materialType: String!
   """Matching item stacks in only this role's input/output inventory; never whole-factory stock."""
-  bufferedItems: [ItemStack!]!
+  bufferedItems: [InventoryStack!]!
   """Matching fluid in role-compatible fluidboxes; null for items."""
   bufferedFluidAmount: Float
   """Expected units/second at current speed, excluding productivity and quality upgrades. Null when uncomputable, including infinite mining resources."""

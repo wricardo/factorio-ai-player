@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 )
 
@@ -15,24 +14,19 @@ func playerInsight(r *Resolver, input *PlayerInsightInput) (*PlayerInsight, erro
 	if input.Recipe != nil && *input.Recipe == "" {
 		return nil, errors.New("recipe must not be empty")
 	}
-	if (input.TargetX == nil) != (input.TargetY == nil) {
-		return nil, errors.New("targetX and targetY must be supplied together")
-	}
-	if input.TargetUnitNumber != nil && input.TargetX != nil {
-		return nil, errors.New("targetUnitNumber and target position are mutually exclusive")
-	}
 	target := "nil"
-	if input.TargetUnitNumber != nil {
-		n, err := strconv.ParseUint(*input.TargetUnitNumber, 10, 64)
-		if err != nil || n == 0 {
-			return nil, errors.New("targetUnitNumber must be a positive integer")
+	if input.Target != nil {
+		if input.Target.UnitNumber != nil {
+			n, err := strconv.ParseUint(*input.Target.UnitNumber, 10, 32)
+			if err != nil || n == 0 {
+				return nil, errors.New("target unitNumber must be from 1 to 4294967295")
+			}
+			target = "{unit=" + strconv.FormatUint(n, 10) + "}"
+		} else if input.Target.Position != nil {
+			target = fmt.Sprintf("{position={x=%s,y=%s}}", strconv.FormatFloat(input.Target.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Target.Position.Y, 'g', -1, 64))
+		} else {
+			return nil, errors.New("target requires unitNumber or position")
 		}
-		target = "{unit=" + strconv.FormatUint(n, 10) + "}"
-	} else if input.TargetX != nil {
-		if math.IsNaN(*input.TargetX) || math.IsInf(*input.TargetX, 0) || math.IsNaN(*input.TargetY) || math.IsInf(*input.TargetY, 0) {
-			return nil, errors.New("target coordinates must be finite")
-		}
-		target = fmt.Sprintf("{position={x=%s,y=%s}}", strconv.FormatFloat(*input.TargetX, 'g', -1, 64), strconv.FormatFloat(*input.TargetY, 'g', -1, 64))
 	}
 	recipe := "nil"
 	if input.Recipe != nil {

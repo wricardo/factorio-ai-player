@@ -114,9 +114,9 @@ func TestCraftAnnouncesOnce(t *testing.T) {
 		input CraftInput
 		want  string
 	}{
-		{"queue only", CraftInput{Player: new("wricardo"), Recipe: "iron-gear-wheel", Count: &count, WaitTimeoutSeconds: 1}, "queued 1 of 1 iron-gear-wheel"},
-		{"custom message", CraftInput{Player: new("wricardo"), Recipe: "iron-gear-wheel", Count: &count, WaitTimeoutSeconds: 1, Message: new("custom note")}, "custom note"},
-		{"wait drains queue", CraftInput{Player: new("wricardo"), Recipe: "iron-gear-wheel", Count: &count, Wait: true, WaitTimeoutSeconds: 5}, "queued 1 of 1 iron-gear-wheel"},
+		{"queue only", CraftInput{Actor: &ActorInput{Player: new("wricardo")}, Recipe: "iron-gear-wheel", Count: &count, WaitTimeoutSeconds: 1}, "queued 1 of 1 iron-gear-wheel"},
+		{"custom message", CraftInput{Actor: &ActorInput{Player: new("wricardo")}, Recipe: "iron-gear-wheel", Count: &count, WaitTimeoutSeconds: 1, Message: new("custom note")}, "custom note"},
+		{"wait drains queue", CraftInput{Actor: &ActorInput{Player: new("wricardo")}, Recipe: "iron-gear-wheel", Count: &count, Wait: true, WaitTimeoutSeconds: 5}, "queued 1 of 1 iron-gear-wheel"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

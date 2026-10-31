@@ -84,6 +84,73 @@ type machineDiagnosticSnapshot struct {
 	Power             *MachinePowerState     `json:"power"`
 }
 
+const machineDiagnosticsBody = `
+local supported={["assembling-machine"]=true,furnace=true,["mining-drill"]=true,lab=true,["rocket-silo"]=true}
+if not supported[e.type] then fail("endpoint is no longer a supported machine"); return end
+local status_names={}; for name,code in pairs(defines.entity_status) do status_names[code]=name end
+local snapshot={tick=game.tick,ingredients={},products={},input={},fluids={},
+  raw_status_name=status_names[e.status] or "unknown",raw_status_code=e.status}
+local function quality_name(quality)
+  if quality==nil then return "normal" end
+  local ok,name=pcall(function() return quality.name end)
+  if ok and name then return name end
+  if type(quality)=="string" then return quality end
+  return "normal"
+end
+local function inventory_contents(inv)
+  if not inv then return {} end
+  local result={}
+  for _,stack in pairs(inv.get_contents()) do
+    result[#result+1]={name=stack.name,quality=quality_name(stack.quality),count=stack.count}
+  end
+  table.sort(result,function(a,b) if a.name~=b.name then return a.name<b.name end return a.quality<b.quality end)
+  return result
+end
+local recipe,recipe_quality
+if e.type=="furnace" or e.type=="assembling-machine" or e.type=="rocket-silo" then
+  recipe,recipe_quality=e.get_recipe()
+end
+if recipe then
+  snapshot.recipe=recipe.name
+  snapshot.recipe_quality=quality_name(recipe_quality)
+  snapshot.recipe_duration=recipe.energy
+  snapshot.ingredients=recipe.ingredients or {}
+  snapshot.products=recipe.products or {}
+end
+local ok_speed,speed=pcall(function() return e.crafting_speed end)
+snapshot.crafting_speed=ok_speed and speed or 0
+local ok_productivity,productivity=pcall(function() return e.productivity_bonus end)
+if ok_productivity then snapshot.productivity_bonus=productivity end
+if e.type=="furnace" then
+  snapshot.input=inventory_contents(e.get_inventory(defines.inventory.furnace_source))
+elseif e.type=="assembling-machine" or e.type=="rocket-silo" then
+  snapshot.input=inventory_contents(e.get_inventory(defines.inventory.crafter_input))
+elseif e.type=="lab" then
+  snapshot.input=inventory_contents(e.get_inventory(defines.inventory.lab_input))
+end
+for index=1,#e.fluidbox do
+  local fluid=e.fluidbox[index]
+  local include=true
+  local ok_proto,box=pcall(function() return e.fluidbox.get_prototype(index) end)
+  if ok_proto and box and box.production_type then include=box.production_type~="output" end
+  if include and fluid then
+    snapshot.fluids[#snapshot.fluids+1]={name=fluid.name,amount=fluid.amount,temperature=fluid.temperature}
+  end
+end
+local buffer=(e.electric_buffer_size or 0)
+local drain=(e.electric_drain or 0)
+local electric=buffer>0 or drain>0
+local connected,network_id,producing=nil,nil,nil
+if electric then
+  local ok_id,id=pcall(function() return e.electric_network_id end)
+  if ok_id and id then network_id=tostring(id); connected=true else connected=false end
+  local ok_connected,value=pcall(function() return e.is_connected_to_electric_network() end)
+  if ok_connected then producing=value end
+end
+snapshot.power={electric=electric,connected=connected,network_id=network_id,
+  connected_to_producing_network=producing,satisfaction_unavailable_reason="Factorio exposes no instantaneous per-machine power satisfaction ratio"}
+rcon.print(helpers.table_to_json(snapshot))`
+
 func machineDiagnosticsQuery(r *Resolver, obj *FactoryMachine) (*MachineDiagnostics, error) {
 	if obj == nil || obj.Force == "" {
 		return nil, errors.New("diagnostics require a machine and force")
@@ -92,9 +159,7 @@ func machineDiagnosticsQuery(r *Resolver, obj *FactoryMachine) (*MachineDiagnost
 	if err != nil {
 		return nil, err
 	}
-	lua := luaFail + entityLua + luaInserterSettingsBody + `
-if e.type ~= "inserter" then fail("endpoint is no longer an inserter"); return end
-rcon.print(helpers.table_to_json(inserter_settings(e)))`
+	lua := luaFail + entityLua + machineDiagnosticsBody
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

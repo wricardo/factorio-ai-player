@@ -100,8 +100,9 @@ end
 table.sort(producers,less); table.sort(consumers,less)
 local function page(list) local result={}; for i=offset+1,math.min(#list,offset+limit) do result[#result+1]=list[i] end; return result end
 rcon.print(helpers.table_to_json{tick=game.tick,force=force.name,surface=surface.name,item=item,
-  producerTotal=#producers,consumerTotal=#consumers,limit=limit,offset=offset,
-  truncated=offset>0 or #producers>offset+limit or #consumers>offset+limit,producers=page(producers),consumers=page(consumers),
+  producerPageInfo={total=#producers,limit=limit,offset=offset,hasMore=#producers>offset+limit},
+  consumerPageInfo={total=#consumers,limit=limit,offset=offset,hasMore=#consumers>offset+limit},
+  producers=page(producers),consumers=page(consumers),
   rateAssumptions="Theoretical expected base yields at current crafting/mining speed; excludes productivity, quality upgrades, downtime, power/fuel/ingredient shortages, output blocking and depletion. Not actual throughput. Mining uses current target only; fluid mining input uses engine fluid_amount / 10."})
 `, luaString(input.Force), luaString(input.Surface), luaString(input.Item), area, input.Limit, input.Offset)
 	response, _, err := executeLua(r.addr, r.password, lua)

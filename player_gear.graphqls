@@ -1,6 +1,6 @@
 extend type Actor {
   """Equipment installed in the actor's armor grid, read in one additional snapshot."""
-  equipmentGrid: [ItemStack!]
+  equipmentGrid: [InventoryStack!]
   """Logistic request sections configured on the actor's own requester point."""
   logisticRequests: LogisticSettings
 }
@@ -17,10 +17,9 @@ enum EquipmentDirection {
   TO_MAIN
 }
 
-"""Exactly one player or character. count is 1 through 4294967295."""
+"""Move items between selected actor main inventory and armor equipment grid."""
 input EquipGridInput {
-  player: String
-  character: ID
+  actor: ActorInput!
   item: String!
   count: Int! = 1
   direction: EquipmentDirection! = TO_GRID
@@ -30,16 +29,18 @@ input EquipGridInput {
 
 type EquipmentGridResult {
   tick: Float!
+  surface: String!
+  force: String!
+  actor: ActorIdentity!
   player: String
-  character: ID
-  items: [ItemStack!]!
+  character: UnitNumber
+  items: [InventoryStack!]!
   moved: Float!
 }
 
-"""Exactly one player or character. Either sections or clear must be given, not both."""
+"""Replace or clear selected actor logistic requests."""
 input ActorLogisticRequestsInput {
-  player: String
-  character: ID
+  actor: ActorInput!
   sections: [LogisticSectionInput!]
   clear: Boolean! = false
   """Print this text in-game to all connected players instead of the generated notification."""
@@ -48,7 +49,10 @@ input ActorLogisticRequestsInput {
 
 type ActorLogisticResult {
   tick: Float!
+  surface: String!
+  force: String!
+  actor: ActorIdentity!
   player: String
-  character: ID
+  character: UnitNumber
   sections: [LogisticSection!]!
 }

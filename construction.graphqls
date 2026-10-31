@@ -1,6 +1,45 @@
 extend type Query {
   """Reports logistic networks whose roboports lie on the surface or area: robot counts, contents and point counts. Separate snapshot per network."""
   logisticNetworks(input: LogisticNetworksInput = {}): LogisticNetworkPage!
+  """Lists entities currently registered with the force construction manager for deconstruction or upgrade. Omit area to scan the whole surface; the engine filter is cheap because only marked entities are matched."""
+  constructionOrders(input: ConstructionOrdersInput = {}): ConstructionOrderPage!
+}
+
+"""Orders are per force in the engine, but the filter matches any force; force is reported per entity."""
+input ConstructionOrdersInput {
+  surface: String! = "nauvis"
+  """Optional area (at most 256 tiles per side); omitted scans the whole surface."""
+  area: FactoryAreaInput
+  state: ConstructionOrderState! = DECONSTRUCTION
+  limit: Int! = 100
+  offset: Int! = 0
+}
+
+enum ConstructionOrderState {
+  DECONSTRUCTION
+  """Upgrade orders also report the target prototype and quality."""
+  UPGRADE
+}
+
+type ConstructionOrder {
+  name: String!
+  type: String
+  position: Position!
+  direction: Int
+  unitNumber: UnitNumber
+  """Force that owns the entity; neutral entities (trees, rocks) report their own force, if any."""
+  force: String
+  """Upgrade target prototype and quality for UPGRADE orders; null for deconstruction."""
+  upgradeTarget: String
+  upgradeQuality: String
+}
+
+type ConstructionOrderPage {
+  tick: Float!
+  surface: String!
+  state: ConstructionOrderState!
+  pageInfo: PageInfo!
+  orders: [ConstructionOrder!]!
 }
 
 input LogisticNetworksInput {
@@ -17,9 +56,7 @@ type LogisticNetworkPage {
   tick: Float!
   surface: String!
   force: String!
-  total: Int!
-  limit: Int!
-  offset: Int!
+  pageInfo: PageInfo!
   networks: [LogisticNetworkInfo!]!
 }
 
@@ -30,7 +67,7 @@ type LogisticNetworkInfo {
   cells: Int!
   logisticRobots: RobotCount!
   constructionRobots: RobotCount!
-  contents: [ItemStack!]!
+  contents: [InventoryStack!]!
   requesterPoints: Int!
   providerPoints: Int!
 }
@@ -47,8 +84,7 @@ extend type Mutation {
 
 """Area limits are positive and at most 256 tiles per side. limit is 1 through 1000."""
 input BuildGhostsInput {
-  player: String
-  character: ID
+  actor: ActorInput
   force: String = "player"
   surface: String = "nauvis"
   area: FactoryAreaInput!
@@ -68,10 +104,12 @@ enum BuildGhostsMode {
 type BuildGhostsResult {
   tick: Float!
   surface: String!
-  mode: String!
+  force: String!
+  actor: ActorIdentity
+  mode: BuildGhostsMode!
   revived: Int!
   failed: Int!
-  missing: [ItemStack!]!
+  missing: [ItemRequest!]!
   entities: [PlacedEntity!]!
-  errors: [String!]!
+  errors: [BatchError!]!
 }

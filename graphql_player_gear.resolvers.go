@@ -11,10 +11,12 @@ import (
 
 // EquipGrid is the resolver for the equipGrid field.
 func (r *mutationResolver) EquipGrid(ctx context.Context, input EquipGridInput) (*EquipmentGridResult, error) {
-	return equipGrid(r.Resolver, input)
+	result, err := equipGrid(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // SetActorLogisticRequests is the resolver for the setActorLogisticRequests field.
 func (r *mutationResolver) SetActorLogisticRequests(ctx context.Context, input ActorLogisticRequestsInput) (*ActorLogisticResult, error) {
-	return setActorLogisticRequests(r.Resolver, input)
+	result, err := setActorLogisticRequests(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }

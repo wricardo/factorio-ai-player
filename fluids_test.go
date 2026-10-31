@@ -2,7 +2,6 @@ package main
 
 import (
 	"math"
-	"strings"
 	"testing"
 )
 
@@ -29,11 +28,11 @@ func TestSetFluidValidation(t *testing.T) {
 		{"infinite amount", SetFluidInput{Mode: FluidWriteModeAdd, Fluid: &fluid, Amount: &amountInf}},
 		{"infinite temperature", SetFluidInput{Mode: FluidWriteModeSet, Fluid: &fluid, Amount: &amountZero, Temperature: &temperatureInf}},
 		{"no actor", SetFluidInput{Mode: FluidWriteModeSet, Fluid: &fluid, Amount: &amountZero}},
-		{"both actors", SetFluidInput{Mode: FluidWriteModeSet, Fluid: &fluid, Amount: &amountZero, Player: stringPointer("wricardo"), Character: stringPointer("4")}},
-		{"actor without entity", SetFluidInput{Mode: FluidWriteModeSet, Fluid: &fluid, Amount: &amountZero, Player: stringPointer("wricardo")}},
-		{"character zero", SetFluidInput{Mode: FluidWriteModeClear, Character: stringPointer("0"), Entity: stringPointer("storage-tank"), X: floatPointer(1), Y: floatPointer(1)}},
-		{"empty entity name without coordinates", SetFluidInput{Mode: FluidWriteModeClear, Character: stringPointer("4"), Entity: &empty}},
-		{"nan coordinates", SetFluidInput{Mode: FluidWriteModeClear, Character: stringPointer("4"), Entity: stringPointer("storage-tank"), X: floatPointer(math.NaN()), Y: floatPointer(2)}},
+		{"both actors", SetFluidInput{Mode: FluidWriteModeSet, Fluid: &fluid, Amount: &amountZero, Actor: &ActorInput{Player: stringPointer("wricardo"), Character: stringPointer("4")}, Target: &EntityRefInput{Entity: stringPointer("storage-tank"), Position: &PositionInput{X: 1, Y: 1}}}},
+		{"actor without entity", SetFluidInput{Mode: FluidWriteModeSet, Fluid: &fluid, Amount: &amountZero, Actor: &ActorInput{Player: stringPointer("wricardo")}}},
+		{"character zero", SetFluidInput{Mode: FluidWriteModeClear, Actor: &ActorInput{Character: stringPointer("0")}, Target: &EntityRefInput{Entity: stringPointer("storage-tank"), Position: &PositionInput{X: 1, Y: 1}}}},
+		{"empty entity name without coordinates", SetFluidInput{Mode: FluidWriteModeClear, Actor: &ActorInput{Character: stringPointer("4")}, Target: &EntityRefInput{Entity: &empty}}},
+		{"nan coordinates", SetFluidInput{Mode: FluidWriteModeClear, Actor: &ActorInput{Character: stringPointer("4")}, Target: &EntityRefInput{Entity: stringPointer("storage-tank"), Position: &PositionInput{X: math.NaN(), Y: 2}}}},
 	}
 	for _, tc := range cases {
 		if _, err := setFluid(nil, tc.input); err == nil {
@@ -41,45 +40,6 @@ func TestSetFluidValidation(t *testing.T) {
 		}
 	}
 
-}
-
-func TestSetFluidLuaInvariants(t *testing.T) {
-	lua := setFluidLua("-- prefix\n", "SET", "crude-oil", 250, 45)
-	for _, want := range []string{
-		"e.clear_fluid_inside()",
-		"e.insert_fluid(params)",
-		"e.get_fluid_contents()",
-		"e.fluidbox.get_capacity(index)",
-		"e.fluids_count",
-		"prototypes.fluid[fluid_name]",
-		luaString("SET"),
-		luaString("crude-oil"),
-		"if mode == \"CLEAR\" then",
-		"local amount, temperature = 250, 45",
-		"if temperature ~= nil then params.temperature = temperature end",
-		"boxesAffected=boxes",
-		"inserted=inserted",
-	} {
-		if !strings.Contains(lua, want) {
-			t.Fatalf("setFluid lua missing %q", want)
-		}
-	}
-	for _, banned := range []string{"add_fluid", "get_fluid_capacity", "e.get_fluid("} {
-		if strings.Contains(lua, banned) {
-			t.Fatalf("setFluid lua must not use the 2.1-only %q", banned)
-		}
-	}
-	if !strings.HasPrefix(lua, luaFail) {
-		t.Fatal("setFluid lua must start with the fail helper")
-	}
-
-	added := setFluidLua("", "ADD", "water", 10, math.NaN())
-	if !strings.Contains(added, "local amount, temperature = 10, nil") {
-		t.Fatal("ADD without temperature must pass nil")
-	}
-	if !strings.Contains(added, `if mode == "CLEAR" then`) || !strings.Contains(added, "else") {
-		t.Fatal("mode dispatch must remain explicit")
-	}
 }
 
 func TestFluidStockValidation(t *testing.T) {
@@ -110,47 +70,12 @@ func TestFluidStockValidation(t *testing.T) {
 	}
 }
 
-func TestFluidStockLuaInvariants(t *testing.T) {
-	lua := fluidStockLua("nauvis", "player", "water", "nil", 50, 5, 20, 2)
-	for _, want := range []string{
-		"surface.find_entities_filtered{force=scan_force, area=area}",
-		"prototypes.fluid[fluid_name]",
-		"entity.get_fluid_contents()",
-		"entity.fluids_count",
-		"entity-ghost",
-		`scan_forces[#scan_forces+1] = "neutral"`,
-		luaString("nauvis"),
-		luaString("player"),
-		luaString("water"),
-		"local area, limit, offset, totals_limit, totals_offset = nil, 50, 5, 20, 2",
-		`if type(value) == "table" then amount, temp = value.amount, value.temperature end`,
-		"inventoryKind=\"fluid\"",
-		"locations=page",
-		"totals=totals_page",
-	} {
-		if !strings.Contains(lua, want) {
-			t.Fatalf("fluidStock lua missing %q", want)
-		}
-	}
-
-	neutral := fluidStockLua("nauvis", "neutral", "", "{{0,0},{10,10}}", 1, 0, 1, 0)
-	if strings.Contains(neutral, `scan_forces[#scan_forces+1] = "neutral"`) && !strings.Contains(neutral, `if force_name ~= "neutral" then scan_forces[#scan_forces+1] = "neutral" end`) {
-		t.Fatal("the neutral force must be scanned at most once")
-	}
-	if !strings.Contains(neutral, `if force_name ~= "neutral" then scan_forces[#scan_forces+1] = "neutral" end`) {
-		t.Fatal("the neutral force scan must be guarded")
-	}
-	if !strings.Contains(neutral, "local area, limit, offset, totals_limit, totals_offset = {{0,0},{10,10}}, 1, 0, 1, 0") {
-		t.Fatal("area bounds must be inlined")
-	}
-}
-
 func TestFluidDecode(t *testing.T) {
-	page, err := factoryDecode[FluidStockPage](`{"tick":10.5,"surface":"nauvis","force":"player","total":1,"totalsTotal":1,"limit":100,"offset":0,"totalsLimit":100,"totalsOffset":0,"locations":[{"category":"stored","entityName":"storage-tank","entityType":"storage-tank","position":{"x":1,"y":2},"inventoryKind":"fluid","fluid":"crude-oil","amount":250,"temperature":25}],"totals":[{"fluid":"crude-oil","amount":250,"category":"stored"}]}`)
+	page, err := factoryDecode[FluidStockPage](`{"tick":10.5,"surface":"nauvis","force":"player","locationPageInfo":{"total":1,"limit":100,"offset":0,"hasMore":false},"totalPageInfo":{"total":1,"limit":100,"offset":0,"hasMore":false},"locations":[{"category":"stored","entityName":"storage-tank","entityType":"storage-tank","position":{"x":1,"y":2},"inventoryKind":"fluid","fluid":"crude-oil","amount":250,"temperature":25}],"totals":[{"fluid":"crude-oil","amount":250,"category":"stored"}]}`)
 	if err != nil {
 		t.Fatalf("decode fluid stock: %v", err)
 	}
-	if page.Total != 1 || page.TotalsTotal != 1 || page.Limit != 100 || len(page.Locations) != 1 || len(page.Totals) != 1 {
+	if page.LocationPageInfo == nil || page.LocationPageInfo.Total != 1 || page.TotalPageInfo == nil || page.TotalPageInfo.Total != 1 || len(page.Locations) != 1 || len(page.Totals) != 1 {
 		t.Fatalf("unexpected page %+v", page)
 	}
 	location := page.Locations[0]

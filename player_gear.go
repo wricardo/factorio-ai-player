@@ -78,7 +78,7 @@ end
 
 // equipGridLua validates the input and builds the mutation Lua.
 func equipGridLua(in EquipGridInput) (string, error) {
-	unit, player, err := settingsActor(stringValueOr(in.Character, ""), stringValueOr(in.Player, ""))
+	unit, player, err := settingsActorFrom(in.Actor)
 	if err != nil {
 		return "", err
 	}
@@ -144,7 +144,7 @@ end
 if gear_moved<1 then fail("main inventory cannot accept "..gear_item); return end
 `)
 	}
-	body.WriteString(`local gear_out={tick=game.tick,moved=gear_moved,items=grid.get_contents()}
+	body.WriteString(`local gear_out={tick=game.tick,surface=c.surface.name,force=c.force.name,moved=gear_moved,items=grid.get_contents()}
 `)
 	if unit != 0 {
 		fmt.Fprintf(&body, "gear_out.character=%d\n", unit)
@@ -211,7 +211,7 @@ if not gear_section then fail("could not add a logistic section"); return end
 
 // actorLogisticRequestsLua validates the input and builds the mutation Lua.
 func actorLogisticRequestsLua(in ActorLogisticRequestsInput) (string, error) {
-	unit, player, err := settingsActor(stringValueOr(in.Character, ""), stringValueOr(in.Player, ""))
+	unit, player, err := settingsActorFrom(in.Actor)
 	if err != nil {
 		return "", err
 	}
@@ -235,7 +235,7 @@ for gear_index=20,1,-1 do gear_point.remove_section(gear_index) end
 `)
 	body.WriteString(writes)
 	body.WriteString(`local gear_logistic=settings_logistic_point(gear_point)
-local gear_out={tick=game.tick,sections=(gear_logistic and gear_logistic.sections) or {}}
+local gear_out={tick=game.tick,surface=c.surface.name,force=c.force.name,sections=(gear_logistic and gear_logistic.sections) or {}}
 `)
 	if unit != 0 {
 		fmt.Fprintf(&body, "gear_out.character=%d\n", unit)

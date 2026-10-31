@@ -27,8 +27,8 @@ func TestDeconstructionEntitiesValidateTargetsBeforeRCON(t *testing.T) {
 	}{
 		{`mutation { deconstructEntities(input:{targets:[]}) { orders } }`, "targets"},
 		{`mutation { deconstructEntities(input:{targets:[{}]}) { orders } }`, "entity name or unitNumber"},
-		{`mutation { deconstructEntities(input:{targets:[{entity:"transport-belt",x:1,y:2,unitNumber:"3"}]}) { orders } }`, "not both"},
-		{`mutation { cancelDeconstructEntities(input:{targets:[{entity:"transport-belt",x:1}]}) { orders } }`, "both x and y"},
+		{`mutation { deconstructEntities(input:{targets:[{entity:"transport-belt",position:{x:1,y:2},unitNumber:"3"}]}) { orders } }`, "not both"},
+		{`mutation { cancelDeconstructEntities(input:{targets:[{entity:"transport-belt",position:{x:1}}]}) { orders } }`, "y"},
 		{`mutation { deconstructEntities(input:{force:"",targets:[{unitNumber:"3"}]}) { orders } }`, "force"},
 	}
 	for _, test := range tests {

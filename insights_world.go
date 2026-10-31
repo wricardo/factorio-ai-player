@@ -100,7 +100,7 @@ for i=offset+1,math.min(#matches,offset+limit) do
   local output=e.get_output_inventory(); if output then obj.worldInventories[#obj.worldInventories+1]={kind="output",items=contents(output)} end
   result[#result+1]=obj
 end
-rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,area=area_result,total=#matches,limit=limit,offset=offset,logisticsEntities=result})`
+rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,area=area_result,pageInfo={total=#matches,limit=limit,offset=offset,hasMore=#matches>offset+limit},logisticsEntities=result})`
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
@@ -240,7 +240,7 @@ if group_patches and #resources>0 then
     patches[#patches+1]={name=group.name,tiles=group.tiles,totalAmount=group.totalAmount,bounds={leftTopX=group.minx,leftTopY=group.miny,rightBottomX=group.maxx,rightBottomY=group.maxy},centroid={x=group.sumx/group.tiles,y=group.sumy/group.tiles},nearbyDrills=drills}
   end
 end
-rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,area=area_result,drillRadius=radius,total=#entries,resourceTotal=resource_total,obstacleTotal=obstacle_total,waterTotal=water_total,limit=limit,offset=offset,worldEntries=result,patches=patches})`
+rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,area=area_result,drillRadius=radius,pageInfo={total=#entries,limit=limit,offset=offset,hasMore=#entries>offset+limit},resourceTotal=resource_total,obstacleTotal=obstacle_total,waterTotal=water_total,worldEntries=result,patches=patches})`
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
@@ -252,14 +252,14 @@ func worldPlacementQuery(r *Resolver, input *WorldPlacementInput) (*WorldPlaceme
 	if input == nil || input.Surface == "" || input.Force == "" || input.Prototype == "" {
 		return nil, errors.New("surface, force and prototype are required")
 	}
-	if math.IsNaN(input.X) || math.IsInf(input.X, 0) || math.IsNaN(input.Y) || math.IsInf(input.Y, 0) {
-		return nil, errors.New("position must be finite")
+	if input.Position == nil {
+		return nil, errors.New("position is required")
 	}
 	if input.Direction < 0 || input.Direction > 15 {
 		return nil, errors.New("direction must be between 0 and 15")
 	}
 	lua := luaFail + fmt.Sprintf(`local surface_name,force_name=%s,%s; local prototype=%s; local x,y=%s,%s; local direction=%d
-`, luaString(input.Surface), luaString(input.Force), luaString(input.Prototype), strconv.FormatFloat(input.X, 'g', -1, 64), strconv.FormatFloat(input.Y, 'g', -1, 64), input.Direction) + worldCommonLua + `
+`, luaString(input.Surface), luaString(input.Force), luaString(input.Prototype), strconv.FormatFloat(input.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Position.Y, 'g', -1, 64), input.Direction) + worldCommonLua + `
 if not prototypes.entity[prototype] then fail("entity prototype not found"); return end
 local position={x=x,y=y}
 local can_place=surface.can_place_entity{name=prototype,position=position,direction=direction,force=force}

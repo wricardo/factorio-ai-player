@@ -11,10 +11,18 @@ import (
 
 // SetEntityTags is the resolver for the setEntityTags field.
 func (r *mutationResolver) SetEntityTags(ctx context.Context, input EntityTagsInput) (*EntityMetaResult, error) {
-	return setEntityTags(r.Resolver, input)
+	result, err := setEntityTags(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // SetNameTag is the resolver for the setNameTag field.
 func (r *mutationResolver) SetNameTag(ctx context.Context, input EntityNameTagInput) (*EntityMetaResult, error) {
-	return setNameTag(r.Resolver, input)
+	result, err := setNameTag(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
+}
+
+// SetCombinatorParameters is the resolver for the setCombinatorParameters field.
+func (r *mutationResolver) SetCombinatorParameters(ctx context.Context, input SetCombinatorParametersInput) (*EntityMetaResult, error) {
+	result, err := setCombinatorParameters(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }

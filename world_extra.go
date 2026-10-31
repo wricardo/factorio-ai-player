@@ -35,13 +35,12 @@ for _,surface in pairs(game.surfaces) do
   if tok then total=t end
   surfaces[#surfaces+1]={name=surface.name,index=surface.index,planet=planet,totalPollution=total,evolutionFactor=evolution_for(force,surface)}
 end
-rcon.print(helpers.table_to_json({surfaces=surfaces}))
+rcon.print(helpers.table_to_json({tick=game.tick,force=force.name,surfaces=surfaces}))
 `, luaString(force)), nil
 }
 
-// surfacesQuery reads every surface; the force only supplies the evolution
-// factor, so it must exist even when the caller only wants surface names.
-func surfacesQuery(r *Resolver, force string) ([]*SurfaceInfo, error) {
+// surfacesQuery reads every surface; force supplies evolution metadata.
+func surfacesQuery(r *Resolver, force string) (*SurfacePage, error) {
 	lua, err := surfaceQueryLua(force)
 	if err != nil {
 		return nil, err
@@ -50,39 +49,37 @@ func surfacesQuery(r *Resolver, force string) ([]*SurfaceInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	decoded, err := factoryDecode[struct {
-		Surfaces []*SurfaceInfo `json:"surfaces"`
-	}](response)
+	page, err := factoryDecode[SurfacePage](response)
 	if err != nil {
 		return nil, err
 	}
-	surfaces := decoded.Surfaces
-	sort.Slice(surfaces, func(i, j int) bool { return surfaces[i].Index < surfaces[j].Index })
-	return surfaces, nil
+	sort.Slice(page.Surfaces, func(i, j int) bool { return page.Surfaces[i].Index < page.Surfaces[j].Index })
+	return page, nil
 }
 
 // circuitNetworkLua reads the signals of one entity's red or green circuit
 // network. No actor is resolved: the query is purely observational, so the
 // entity is located directly on the requested surface without reach checks.
 func circuitNetworkLua(input CircuitNetworkInput) (string, error) {
-	surface := stringValueOr(input.Surface, "nauvis")
+	surfaceField, nameField, unitField, xField, yField := entityRefFields(input.Target)
+	surface := stringValueOr(surfaceField, "nauvis")
 	if surface == "" {
 		return "", errors.New("surface must not be empty")
 	}
-	name := stringValueOr(input.Entity, "")
-	unit := stringValueOr(input.UnitNumber, "")
+	name := stringValueOr(nameField, "")
+	unit := stringValueOr(unitField, "")
 	x, y := math.NaN(), math.NaN()
-	if input.X != nil {
-		x = *input.X
+	if xField != nil {
+		x = *xField
 	}
-	if input.Y != nil {
-		y = *input.Y
+	if yField != nil {
+		y = *yField
 	}
 	target, err := entityTarget(name, unit, x, y)
 	if err != nil {
 		return "", err
 	}
-	color := strings.ToLower(strings.TrimSpace(stringValueOr(input.Color, "red")))
+	color := strings.ToLower(strings.TrimSpace(input.Color.String()))
 	if color != "red" && color != "green" {
 		return "", errors.New(`color must be "red" or "green"`)
 	}

@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 )
 
@@ -60,7 +59,7 @@ func deconstructionArea(r *Resolver, input DeconstructAreaInput, cancel bool) (*
 	if instant && cancel {
 		return nil, errors.New("instant is not supported when canceling deconstruction")
 	}
-	character, player, err := optionalActor(stringValueOr(input.Character, ""), stringValueOr(input.Player, ""))
+	character, player, err := optionalActorFrom(input.Actor)
 	if err != nil {
 		return nil, err
 	}
@@ -115,10 +114,6 @@ func cancelDeconstructEntities(r *Resolver, input DeconstructEntitiesInput) (*De
 }
 
 func deconstructionEntities(r *Resolver, input DeconstructEntitiesInput, cancel bool) (*DeconstructionResult, error) {
-	surface, err := deconstructionSurface(input.Surface)
-	if err != nil {
-		return nil, err
-	}
 	force, err := deconstructionForce(input.Force)
 	if err != nil {
 		return nil, err
@@ -126,26 +121,22 @@ func deconstructionEntities(r *Resolver, input DeconstructEntitiesInput, cancel 
 	if len(input.Targets) < 1 || len(input.Targets) > 200 {
 		return nil, errors.New("targets must contain between 1 and 200 entries")
 	}
+	surface := stringValueOr(input.Targets[0].Surface, "nauvis")
+	if _, err := deconstructionSurface(surface); err != nil {
+		return nil, err
+	}
 	var targets strings.Builder
 	for i, target := range input.Targets {
 		if target == nil {
 			return nil, fmt.Errorf("target %d is missing", i+1)
 		}
-		unitNumber := ""
-		if target.UnitNumber != nil {
-			unitNumber = *target.UnitNumber
+		targetSurface := stringValueOr(target.Surface, "nauvis")
+		if targetSurface != surface {
+			return nil, fmt.Errorf("target %d surface %s differs from %s", i+1, targetSurface, surface)
 		}
-		name := ""
-		if target.Entity != nil {
-			name = *target.Entity
-		}
-		x, y := math.NaN(), math.NaN()
-		if target.X != nil || target.Y != nil {
-			if target.X == nil || target.Y == nil {
-				return nil, fmt.Errorf("target %d needs both x and y, or a unitNumber", i+1)
-			}
-			x, y = *target.X, *target.Y
-		}
+		unitNumber := stringValueOr(target.UnitNumber, "")
+		name := stringValueOr(target.Entity, "")
+		x, y := entityRefCoordinates(target)
 		unit, err := entityTarget(name, unitNumber, x, y)
 		if err != nil {
 			return nil, fmt.Errorf("target %d: %w", i+1, err)
@@ -153,13 +144,13 @@ func deconstructionEntities(r *Resolver, input DeconstructEntitiesInput, cancel 
 		if i > 0 {
 			targets.WriteString(",")
 		}
-		fmt.Fprintf(&targets, "{unit=%d,name=%s,x=%s,y=%s}", unit, luaString(name), luaCoordinate(x), luaCoordinate(y))
+		fmt.Fprintf(&targets, "{unit=%d,name=%s,x=%s,y=%s,surface=%s}", unit, luaString(name), luaCoordinate(x), luaCoordinate(y), luaString(surface))
 	}
 	lua := luaFail + fmt.Sprintf(`local surface_name=%s; local force_name=%s; local cancel=%t; local targets={%s}
 local s=game.surfaces[surface_name]; if not s then fail("surface not found"); return end
 local f=game.forces[force_name]; if not f then fail("force not found"); return end
 local orders,skipped=0,0; local errors={}
-local function add_error(message) if #errors<20 then errors[#errors+1]=message end end
+local function add_error(index,code,message,target) if #errors<20 then errors[#errors+1]={index=index,code=code,message=message,target={surface=surface_name,entity=target.name~="" and target.name or nil,unit_number=target.unit~=0 and target.unit or nil,position=(target.x==target.x and {x=target.x,y=target.y} or nil)}} end end
 local function resolve_target(t)
   local e,err
   if t.unit~=0 then
@@ -189,25 +180,25 @@ end
 for i,t in ipairs(targets) do
   local e,err=resolve_target(t)
   if not e then
-    skipped=skipped+1; add_error("target "..i..": "..err)
+    skipped=skipped+1; add_error(i,"LOOKUP",err,t)
   else
     local ok_marked,marked=pcall(e.to_be_deconstructed,e)
     marked=ok_marked and marked
     if cancel then
-      if not marked then skipped=skipped+1; add_error("target "..i..": entity is not marked for deconstruction")
+      if not marked then skipped=skipped+1; add_error(i,"VALIDATION","entity is not marked for deconstruction",t)
       else
         e.cancel_deconstruction(f)
         local ok_after,after=pcall(e.to_be_deconstructed,e)
-        if ok_after and after then skipped=skipped+1; add_error("target "..i..": deconstruction order could not be canceled")
+        if ok_after and after then skipped=skipped+1; add_error(i,"ENGINE","deconstruction order could not be canceled",t)
         else orders=orders+1 end
       end
     elseif marked then
-      skipped=skipped+1; add_error("target "..i..": entity is already marked for deconstruction")
+      skipped=skipped+1; add_error(i,"VALIDATION","entity is already marked for deconstruction",t)
     else
       local ok_order=e.order_deconstruction(f)
       local ok_after,after=pcall(e.to_be_deconstructed,e)
       if ok_order and ok_after and after then orders=orders+1
-      else skipped=skipped+1; add_error("target "..i..": engine refused the deconstruction order") end
+      else skipped=skipped+1; add_error(i,"ENGINE","engine refused the deconstruction order",t) end
     end
   end
 end
@@ -331,10 +322,11 @@ end
 local control=actor or player_object
 local before=inv and deconstruction_inventory_counts(inv) or {}
 local removed,skipped=0,0; local errors={}
-for _,e in pairs(targets()) do
+for index,e in ipairs(targets()) do
   if e.valid and e~=actor and e.type~="character" and e.type~="entity-ghost" and e.type~="tile-ghost" then
+    local target={surface=s.name,entity=e.name,position=e.position,unit_number=e.unit_number and tostring(e.unit_number) or nil}
     local mined=false
-    if control and actor and actor.can_reach_entity(e) then
+    if control and actor and `+reachable("actor", "e")+` then
       local okm,result=pcall(function() return control.mine_entity(e) end)
       mined=okm and result==true
     end
@@ -346,7 +338,7 @@ for _,e in pairs(targets()) do
         removed=removed+1
       else
         skipped=skipped+1
-        if #errors<20 then errors[#errors+1]=tostring(destroy_error) end
+        if #errors<20 then errors[#errors+1]={index=index,code="ENGINE",message=tostring(destroy_error),target=target} end
       end
     end
   end
@@ -358,7 +350,8 @@ rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,ord
 	cancel := options.Cancel
 	return luaFail + header + fmt.Sprintf(`local cancel=%t
 local orders,skipped=0,0; local errors={}
-for _,e in ipairs(targets()) do
+for index,e in ipairs(targets()) do
+  local target={surface=s.name,entity=e.name,position=e.position,unit_number=e.unit_number and tostring(e.unit_number) or nil}
   local ok,message=pcall(function()
     if cancel then
       if not e.to_be_deconstructed(f) then error("entity is not marked for deconstruction") end
@@ -374,7 +367,7 @@ for _,e in ipairs(targets()) do
     orders=orders+1
   else
     skipped=skipped+1
-    if #errors<20 then errors[#errors+1]=tostring(message) end
+    if #errors<20 then errors[#errors+1]={index=index,code="ENGINE",message=tostring(message),target=target} end
   end
 end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,orders=orders,skipped=skipped,removed=0,items={},errors=errors}))`, cancel)

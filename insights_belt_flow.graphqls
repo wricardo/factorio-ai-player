@@ -9,12 +9,8 @@ extend type Query {
 }
 
 input BeltThroughputStartInput {
-  surface: String! = "nauvis"
-  """Position selecting one normal transport-belt tile; finite map coordinates within +/-1000000 unless unitNumber is given."""
-  x: Float
-  y: Float
-  """Normal transport-belt unit number, alternative to the x/y tile position."""
-  unitNumber: ID
+  """Belt target by unit number or exact center position."""
+  target: EntityRefInput!
   """Sampling duration in game ticks, from 1 to 36000. Pausing simulation pauses measurement."""
   durationTicks: Int! = 600
   """Wait for completion or invalidation, bounded by waitTimeoutSeconds. Timeout returns latest state without cancelling measurement."""
@@ -25,14 +21,15 @@ input BeltThroughputStartInput {
 
 """Observed item crossings, not buffer-count deltas or theoretical capacity. Baseline snapshot at start is excluded; only IDs seen on both sides of each lane's fixed midpoint count. Items inserted downstream of that point do not count. Stack counts and quality are captured when crossing. Entity removal, replacement, rotation, relocation, or lane geometry changes invalidate the sample."""
 type BeltThroughputMeasurement {
+  """Game tick when this measurement state was observed."""
+  tick: Float!
   id: ID!
-  """RUNNING, COMPLETE, or INVALIDATED."""
-  status: String!
+  status: EngineStatus!
   reason: String
   surface: String!
   force: String!
   name: String!
-  unitNumber: ID
+  unitNumber: UnitNumber
   position: Position!
   startedTick: Float!
   updatedTick: Float!

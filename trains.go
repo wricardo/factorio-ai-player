@@ -52,7 +52,7 @@ local function trains_contents(contents)
   if contents[1]~=nil then
     for _,entry in ipairs(contents) do
       if type(entry)=="table" and entry.name then
-        result[#result+1]={name=entry.name,count=entry.count or entry.amount,quality=trains_quality_name(entry.quality)}
+        result[#result+1]={name=entry.name,count=entry.count or entry.amount,quality=trains_quality_name(entry.quality) or "normal"}
       end
     end
     table.sort(result,function(a,b) return tostring(a.name)<tostring(b.name) end)
@@ -66,7 +66,7 @@ local function trains_contents(contents)
       count=value.count or value.amount
       if quality==nil then quality=trains_quality_name(value.quality) end
     end
-    result[#result+1]={name=trains_key_name(key),count=count,quality=quality}
+    result[#result+1]={name=trains_key_name(key),count=count,quality=quality or "normal"}
   end
   return result
 end
@@ -103,6 +103,19 @@ local function trains_position(train)
   end
   return nil
 end
+local function trains_wait_condition(condition)
+  if not condition then return nil end
+  local raw_type=trains_field(condition,"type") or "other"
+  local known={time="TIME",inactivity="INACTIVITY",full="FULL",empty="EMPTY",item_count="ITEM_COUNT",fluid_count="FLUID_COUNT",passenger_present="PASSENGER_PRESENT",passenger_not_present="PASSENGER_NOT_PRESENT",robots_inactive="ROBOTS_INACTIVE",circuit="CIRCUIT"}
+  local result={
+    type=known[raw_type] or "OTHER",
+    raw_type=raw_type,
+    compare_type=string.upper(trains_field(condition,"compare_type") or "or"),
+    ticks=trains_field(condition,"ticks"),
+    condition=trains_field(condition,"condition")
+  }
+  return result
+end
 local function trains_schedule_records(train)
   local schedule=trains_field(train,"schedule")
   if not schedule then return {} end
@@ -113,25 +126,20 @@ local function trains_schedule_records(train)
   for _,record in ipairs(records) do
     local station=trains_field(record,"station")
     if type(station)=="table" then station=station.name end
-    local wait_seconds=nil
-    local condition_json=nil
-    local fallback=nil
     local conditions=trains_field(record,"wait_conditions") or {}
-    for _,condition in ipairs(conditions) do
-      local kind=trains_field(condition,"type")
-      if kind=="time" then
-        wait_seconds=(tonumber(trains_field(condition,"ticks")) or 0)/60
-        break
-      end
-      if not fallback then fallback=condition end
-    end
-    if wait_seconds==nil and fallback then
-      local ok,text=pcall(function() return helpers.table_to_json(fallback) end)
-      if ok then condition_json=text end
-    end
-    result[#result+1]={station=station or "",wait_seconds=wait_seconds,wait_condition_json=condition_json}
+    local raw_json=nil
+    local ok,text=pcall(function() return helpers.table_to_json(conditions) end)
+    if ok then raw_json=text end
+    result[#result+1]={station=station or "",wait_condition=trains_wait_condition(conditions[1]),wait_condition_raw_json=raw_json}
   end
   return result
+end
+local function trains_status(state,name)
+  local category="OTHER"
+  if name=="on_the_path" or name=="on_the_path_direct" then category="RUNNING"
+  elseif name=="path_lost" or name=="no_schedule" or name=="no_path" or name=="destination_full" then category="BLOCKED"
+  elseif name=="wait_station" or name=="arrive_station" or name=="manual_control" or name=="manual_control_stop" then category="IDLE" end
+  return {category=category,raw_name=name,raw_code=state,terminal=false}
 end
 local function trains_info(train)
   local carriages=trains_field(train,"carriages") or {}
@@ -153,10 +161,21 @@ local function trains_info(train)
   local fluids={}
   local ok_fluids,fluid_contents=pcall(function() return train.get_fluid_contents() end)
   if ok_fluids then fluids=trains_fluid_contents(fluid_contents) end
+  local state_name=train_states[state]
+  local representative=carriages[1] or trains_field(train,"front_stock")
+  local surface_name,force_name
+  if representative then
+    local ok_surface,value_surface=pcall(function() return representative.surface.name end)
+    if ok_surface then surface_name=value_surface end
+    local ok_force,value_force=pcall(function() return representative.force.name end)
+    if ok_force then force_name=value_force end
+  end
   return {
+    tick=game.tick,
+    surface=surface_name,
+    force=force_name,
     id=tostring(id),
-    state=state,
-    status_name=train_states[state],
+    status=trains_status(state,state_name),
     manual_mode=trains_field(train,"manual_mode") and true or false,
     speed=speed,
     locomotives=#locomotives,
@@ -232,7 +251,7 @@ local function trains_page(surface,force,station,area,limit,offset)
   local last=offset+limit
   if last>#matches then last=#matches end
   for i=first,last do page[#page+1]=matches[i] end
-  return {tick=game.tick,surface=surface.name,total=#matches,limit=limit,offset=offset,trains=page}
+  return {tick=game.tick,surface=surface.name,force=force.name,page_info={total=#matches,limit=limit,offset=offset,has_more=#matches>offset+limit},trains=page}
 end
 `
 
@@ -338,6 +357,34 @@ rcon.print(helpers.table_to_json(trains_info(train)))`)
 	return b.String(), nil
 }
 
+func trainWaitConditionLua(input TrainWaitConditionInput) (string, error) {
+	if input.Type == TrainWaitConditionTypeOther {
+		return "", errors.New("wait condition type OTHER is read-only")
+	}
+	compareType := TrainWaitCompareTypeOr
+	if input.CompareType != nil {
+		compareType = *input.CompareType
+	}
+	var condition string
+	if input.Condition != nil {
+		value, err := conditionLua(*input.Condition)
+		if err != nil {
+			return "", err
+		}
+		condition = ",condition=" + value
+	}
+	var ticks string
+	if input.Ticks != nil {
+		if math.IsNaN(*input.Ticks) || math.IsInf(*input.Ticks, 0) || *input.Ticks < 0 {
+			return "", errors.New("wait condition ticks must be finite and no less than 0")
+		}
+		ticks = ",ticks=" + formatFloat(*input.Ticks)
+	}
+	return "{type=" + luaString(strings.ToLower(input.Type.String())) +
+		",compare_type=" + luaString(strings.ToLower(compareType.String())) +
+		ticks + condition + "}", nil
+}
+
 // setTrainScheduleLua validates the schedule input and builds the write plus
 // post-write read.
 func setTrainScheduleLua(input SetTrainScheduleInput) (string, error) {
@@ -364,18 +411,18 @@ if not ok_clear then fail(tostring(clear_message)); return end
 			if record.Station == "" {
 				return "", errors.New("schedule record station must not be empty")
 			}
-			if math.IsNaN(record.WaitSeconds) || math.IsInf(record.WaitSeconds, 0) || record.WaitSeconds < 0 {
-				return "", fmt.Errorf("schedule record %q waitSeconds must be a finite number of seconds no less than 0", record.Station)
+			waitCondition, err := trainWaitConditionLua(*record.WaitCondition)
+			if err != nil {
+				return "", fmt.Errorf("schedule record %q: %w", record.Station, err)
 			}
-			fmt.Fprintf(&body, "  {station=%s,wait_conditions={{type=%s,ticks=math.floor(%s*60)}}},\n",
-				luaString(record.Station), luaString("time"), formatFloat(record.WaitSeconds))
+			fmt.Fprintf(&body, "  {station=%s,wait_conditions={%s}},\n", luaString(record.Station), waitCondition)
 		}
 		body.WriteString(`}
 local ok_schedule,schedule_message=pcall(function() train.schedule={current=1,records=records} end)
 if not ok_schedule then fail(tostring(schedule_message)); return end
 `)
 	}
-	target, err := trainsTarget(input.Player, input.Character, input.Surface, input.Entity, input.UnitNumber, input.X, input.Y)
+	target, err := settingsTargetFromRef(input.Actor, input.Target)
 	if err != nil {
 		return "", err
 	}
@@ -433,7 +480,7 @@ if not ok_go then fail(tostring(go_result)); return end
 if go_result==false then fail("train could not go to station: "..%s); return end
 `, luaString(station), luaString(station), luaString(station))
 	}
-	target, err := trainsTarget(input.Player, input.Character, input.Surface, input.Entity, input.UnitNumber, input.X, input.Y)
+	target, err := settingsTargetFromRef(input.Actor, input.Target)
 	if err != nil {
 		return "", err
 	}
@@ -477,7 +524,7 @@ func setDirectionLua(input SetDirectionInput) (string, error) {
 	if input.Direction < 0 || input.Direction > 15 {
 		return "", errors.New("direction must be between 0 and 15")
 	}
-	target, err := trainsTarget(input.Player, input.Character, input.Surface, input.Entity, input.UnitNumber, input.X, input.Y)
+	target, err := settingsTargetFromRef(input.Actor, input.Target)
 	if err != nil {
 		return "", err
 	}
@@ -500,10 +547,10 @@ if not applied then
   end
 end
 if not applied then
-  fail("the engine ignored the scripted direction change for this prototype; it does not allow scripted direction changes here, place it with directionCode instead")
+  fail("the engine ignored the scripted direction change for this prototype; it does not allow scripted direction changes here; place it with the requested direction instead")
   return
 end
-rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,before=before,direction=tostring(e.direction),unit_number=tostring(e.unit_number)}))`, input.Direction), nil
+rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,before=before,direction=e.direction,unit_number=tostring(e.unit_number)}))`, input.Direction), nil
 }
 
 func setDirection(r *Resolver, input SetDirectionInput) (*ActionResult, error) {
@@ -519,6 +566,6 @@ func setDirection(r *Resolver, input SetDirectionInput) (*ActionResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	announceMutation(r, input.Message, "set the direction of "+stringValue(result.Name)+" to "+stringValue(result.Direction)+" (was "+intValue(result.Before)+")"+positionText(result.Position))
+	announceMutation(r, input.Message, "set the direction of "+stringValue(result.Name)+" to "+intValue(result.Direction)+" (was "+intValue(result.Before)+")"+positionText(result.Position))
 	return result, nil
 }

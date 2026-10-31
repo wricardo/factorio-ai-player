@@ -27,16 +27,17 @@ func printGameMessage(r *Resolver, text string) {
 	_, _ = execute(r.addr, r.password, "/silent-command game.print("+luaString(text)+")", true)
 }
 
-// announce prints a caller-supplied message to every connected player in chat.
-// Unlike mutation notifications, a failed print fails the mutation.
+// announce prints a caller-supplied message and returns same-operation tick.
 func announce(r *Resolver, message string) (*AnnounceResult, error) {
 	if strings.TrimSpace(message) == "" {
 		return nil, errors.New("message must not be empty")
 	}
-	if _, err := execute(r.addr, r.password, "/silent-command game.print("+luaString(message)+")", false); err != nil {
+	lua := fmt.Sprintf(`game.print(%s); rcon.print(helpers.table_to_json({tick=game.tick,message=%s}))`, luaString(message), luaString(message))
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
 		return nil, fmt.Errorf("print message: %w", err)
 	}
-	return &AnnounceResult{Message: message}, nil
+	return factoryDecode[AnnounceResult](response)
 }
 
 // mutationSummary derives a short human-readable summary from a mutation result.
@@ -95,7 +96,7 @@ func actionResultSummary(name string, r *ActionResult) string {
 	case "rotate":
 		return fmt.Sprintf("rotated %s by %s quarter turn(s)%s", stringValue(r.Name), intValue(r.Turns), at)
 	case "transfer":
-		if r.Direction != nil && *r.Direction == "to-player" {
+		if r.TransferDirection != nil && *r.TransferDirection == TransferDirectionToActor {
 			return fmt.Sprintf("took %s %s from %s%s", numberValue(r.Moved), stringValue(r.Item), stringValue(r.Entity), at)
 		}
 		return fmt.Sprintf("moved %s %s into %s%s", numberValue(r.Moved), stringValue(r.Item), stringValue(r.Entity), at)
@@ -103,7 +104,7 @@ func actionResultSummary(name string, r *ActionResult) string {
 		return fmt.Sprintf("set %s recipe to %s%s", stringValue(r.Entity), stringValue(r.Recipe), at)
 	case "equip":
 		where := "into " + stringValue(r.Inventory)
-		if r.Direction != nil && *r.Direction == "to-main" {
+		if r.EquipmentDirection != nil && *r.EquipmentDirection == EquipmentTransferDirectionToMain {
 			where = "from " + stringValue(r.Inventory) + " to main"
 		}
 		return fmt.Sprintf("moved %s %s %s", numberValue(r.Moved), stringValue(r.Item), where)
@@ -112,7 +113,7 @@ func actionResultSummary(name string, r *ActionResult) string {
 }
 
 func navigationSummary(r *NavigationJob) string {
-	summary := fmt.Sprintf("navigation %s: %s%s", r.ID, r.Status, positionText(r.Destination))
+	summary := fmt.Sprintf("navigation %s: %s%s", r.ID, statusRawName(r.Status), positionText(r.Destination))
 	if r.Reason != nil && *r.Reason != "" {
 		summary += " (" + *r.Reason + ")"
 	}

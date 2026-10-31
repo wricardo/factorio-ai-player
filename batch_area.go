@@ -32,8 +32,8 @@ func harvestArea(r *Resolver, input HarvestAreaInput) (*HarvestAreaResult, error
 		return nil, errors.New("area is required")
 	}
 	return command[HarvestAreaResult](r, "harvest-area", harvestAreaCommandInput{
-		Player:       input.Player,
-		Character:    input.Character,
+		Player:       input.Actor.Player,
+		Character:    input.Actor.Character,
 		LeftTopX:     input.Area.LeftTopX,
 		LeftTopY:     input.Area.LeftTopY,
 		RightBottomX: input.Area.RightBottomX,
@@ -46,7 +46,7 @@ func pickupArea(r *Resolver, input PickupAreaInput) (*PickupAreaResult, error) {
 	if input.Area == nil {
 		return nil, errors.New("area is required")
 	}
-	character, err := resolveActorCharacter(r, input.Player, input.Character)
+	character, err := resolveActorCharacterInput(r, input.Actor)
 	if err != nil {
 		return nil, err
 	}
@@ -99,20 +99,23 @@ table.sort(targets,function(a,b)
   if a.position.y~=b.position.y then return a.position.y<b.position.y end
   return a.name<b.name
 end)
-local trees,rocks,out_of_reach,failed=0,0,0,0
-for _,e in ipairs(targets) do
+local trees,rocks,out_of_reach,failed=0,0,0,0; local errors={}
+for index,e in ipairs(targets) do
   local kind=e.type
-  if not actor.can_reach_entity(e) then
+  local target={surface=surface.name,entity=e.name,position=e.position,unit_number=e.unit_number and tostring(e.unit_number) or nil}
+  if ` + reachViolation("actor", "e") + ` then
     out_of_reach=out_of_reach+1
+    if #errors<20 then errors[#errors+1]={index=index,code="REACH",message="entity is out of actor reach",target=target} end
   elseif actor.mine_entity(e,false) then
     if kind=="tree" then trees=trees+1 else rocks=rocks+1 end
   else
     failed=failed+1
+    if #errors<20 then errors[#errors+1]={index=index,code="ENGINE",message="engine refused to mine entity",target=target} end
   end
 end
 local items=inventory_item_difference(before,inv)
 
-rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,trees_mined=trees,rocks_mined=rocks,out_of_reach=out_of_reach,failed=failed,items=items}))`, nil
+rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=actor.force.name,trees_mined=trees,rocks_mined=rocks,out_of_reach=out_of_reach,failed=failed,errors=errors,items=items}))`, nil
 }
 
 func pickupAreaLua(args []string, out io.Writer) (string, error) {
@@ -147,21 +150,27 @@ table.sort(candidates,function(a,b)
   if a.stack.name~=b.stack.name then return a.stack.name<b.stack.name end
   return a.stack.quality.name<b.stack.quality.name
 end)
-local picked_up,remaining_items={},{}; local stacks_out_of_reach=0
-for _,e in ipairs(candidates) do
+local picked_up,remaining_items={},{}; local stacks_out_of_reach=0; local errors={}
+for index,e in ipairs(candidates) do
   local stack=e.stack; local name,quality,before=stack.name,stack.quality.name,stack.count
-  if c.can_reach_entity(e) then
+  local target={surface=surface.name,entity=e.name,position=e.position}
+  local in_reach=` + reachable("c", "e") + `
+  if in_reach then
     for i=1,#inv do if not e.valid or not stack.valid_for_read then break end; inv[i].transfer_stack(stack) end
   else
     stacks_out_of_reach=stacks_out_of_reach+1
+    if #errors<20 then errors[#errors+1]={index=index,code="REACH",message="item stack is out of actor reach",target=target} end
   end
   local remaining=0
   if e.valid and stack.valid_for_read then remaining=stack.count end
   add_item_count(picked_up,name,quality,before-remaining)
   add_item_count(remaining_items,name,quality,remaining)
+  if in_reach and remaining>0 and #errors<20 then
+    errors[#errors+1]={index=index,code="INVENTORY",message="actor inventory could not accept the complete item stack",target=target}
+  end
   if e.valid and remaining==0 then e.destroy() end
 end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,stacks_found=#candidates,stacks_out_of_reach=stacks_out_of_reach,items_picked_up=sorted_items(picked_up),items_remaining=sorted_items(remaining_items)}))`, nil
+rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=c.force.name,stacks_found=#candidates,stacks_out_of_reach=stacks_out_of_reach,errors=errors,items_picked_up=sorted_items(picked_up),items_remaining=sorted_items(remaining_items)}))`, nil
 }
 
 const inventoryItemHelpersLua = `

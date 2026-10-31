@@ -22,16 +22,17 @@ type rotateCommandInput struct {
 
 // rotateMutation resolves the acting character and rotates a reachable entity.
 func rotateMutation(r *Resolver, input RotateInput) (*ActionResult, error) {
-	character, err := resolveActorCharacter(r, input.Player, input.Character)
+	character, err := resolveActorCharacterInput(r, input.Actor)
 	if err != nil {
 		return nil, err
 	}
+	_, entity, unitNumber, x, y := entityRefFields(input.Target)
 	return command[ActionResult](r, "rotate", rotateCommandInput{
 		Character:  &character,
-		Entity:     input.Entity,
-		X:          input.X,
-		Y:          input.Y,
-		UnitNumber: input.UnitNumber,
+		Entity:     entity,
+		X:          x,
+		Y:          y,
+		UnitNumber: unitNumber,
 		Turns:      input.Turns,
 		Message:    input.Message,
 	})
@@ -61,7 +62,7 @@ func rotateLua(args []string, out io.Writer) (string, error) {
 	}
 	return luaFail + fmt.Sprintf(`local p=game.get_entity_by_unit_number(%d); if not p or p.type~="character" then fail("character not found"); return end
 `, *character) + targetLocals(targetUnit, *entity, *x, *y, "") + `surface_name=p.surface.name
-` + luaEntityResolve + resolveTargetLua() + fmt.Sprintf(`if not p.can_reach_entity(e) then fail("entity is out of reach"); return end
+` + luaEntityResolve + resolveTargetLua() + fmt.Sprintf(`if %s then fail("entity is out of reach"); return end
 local before=e.direction; local completed=0; for i=1,%d do if not e.rotate{} then fail("rotation failed after "..completed.." turns"); return end; completed=completed+1 end
-rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,before=before,direction=e.direction,turns=completed,unit_number=e.unit_number}))`, *turns), nil
+rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,before=before,direction=e.direction,turns=completed,unit_number=e.unit_number}))`, reachViolation("p", "e"), *turns), nil
 }

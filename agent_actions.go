@@ -33,24 +33,22 @@ func validateAgentCoordinates(what string, x, y float64) error {
 }
 
 func validateTeleportInput(input TeleportInput) error {
-	if _, _, err := settingsActor(stringValueOr(input.Character, ""), stringValueOr(input.Player, "")); err != nil {
+	if _, _, err := settingsActorFrom(input.Actor); err != nil {
 		return err
 	}
-	if err := validateAgentCoordinates("teleport", input.X, input.Y); err != nil {
-		return err
+	if input.Position == nil {
+		return errors.New("position is required")
 	}
 	if input.Surface != nil && *input.Surface == "" {
 		return errors.New("surface must not be empty")
 	}
-	return nil
+	return validateAgentCoordinates("position", input.Position.X, input.Position.Y)
 }
 
-// validateCapsuleInput covers the Go-side contract: a player name, an item, a
-// count of one through 100, and finite target coordinates. The item prototype
-// and the character reach are checked inside the engine script.
+// validateCapsuleInput covers player-only actor selection, item, count, and target.
 func validateCapsuleInput(input CapsuleInput) error {
-	if strings.TrimSpace(input.Player) == "" {
-		return errors.New("player is required")
+	if input.Actor == nil || input.Actor.Player == nil || strings.TrimSpace(*input.Actor.Player) == "" || input.Actor.Character != nil {
+		return errors.New("capsule actor must select one player")
 	}
 	if input.Item == "" {
 		return errors.New("item must not be empty")
@@ -58,22 +56,23 @@ func validateCapsuleInput(input CapsuleInput) error {
 	if input.Count < 1 || input.Count > 100 {
 		return errors.New("count must be between 1 and 100")
 	}
-	return validateAgentCoordinates("capsule target", input.X, input.Y)
+	if input.Target == nil {
+		return errors.New("target is required")
+	}
+	return validateAgentCoordinates("target", input.Target.X, input.Target.Y)
 }
 
 // validateRepairInput covers the shared actor addressing plus the action bound.
 // The entity addressing is validated by settingsTargetFrom.
 func validateRepairInput(input RepairInput) error {
-	if _, _, err := settingsActor(stringValueOr(input.Character, ""), stringValueOr(input.Player, "")); err != nil {
+	if _, _, err := settingsActorFrom(input.Actor); err != nil {
 		return err
 	}
 	if input.Count < 1 || input.Count > 100 {
 		return errors.New("count must be between 1 and 100")
 	}
-	if input.Surface != nil && *input.Surface == "" {
-		return errors.New("surface must not be empty")
-	}
-	return nil
+	_, err := settingsTargetFromRef(input.Actor, input.Target)
+	return err
 }
 
 func setGameSpeedLua(input GameSpeedInput) string {
@@ -110,7 +109,7 @@ local position={x=%s,y=%s}
 local ok,result=pcall(function() return c.teleport(position, s, false, %t, defines.build_check_type.script_ghost) end)
 if not ok then fail("teleport failed: "..tostring(result)); return end
 if result==false then fail("teleport was rejected by the engine"); return end
-local out={tick=game.tick,surface=c.surface.name,position={x=c.position.x,y=c.position.y}}
+local out={tick=game.tick,surface=c.surface.name,force=c.force.name,position={x=c.position.x,y=c.position.y}}
 if %d~=0 then out.character=%d else out.player=p.name end
 rcon.print(helpers.table_to_json(out))`,
 		luaString(surface), luaCoordinate(x), luaCoordinate(y), snap, character, character)
@@ -122,13 +121,13 @@ func teleportActor(r *Resolver, input TeleportInput) (*ActionResult, error) {
 	if err := validateTeleportInput(input); err != nil {
 		return nil, err
 	}
-	character, player, err := settingsActor(stringValueOr(input.Character, ""), stringValueOr(input.Player, ""))
+	character, player, err := settingsActorFrom(input.Actor)
 	if err != nil {
 		return nil, err
 	}
 	surface := stringValueOr(input.Surface, "nauvis")
 	snap := input.SnapToGrid != nil && *input.SnapToGrid
-	response, _, err := executeLua(r.addr, r.password, luaFail+teleportLua(character, player, surface, input.X, input.Y, snap))
+	response, _, err := executeLua(r.addr, r.password, luaFail+teleportLua(character, player, surface, input.Position.X, input.Position.Y, snap))
 	if err != nil {
 		return nil, err
 	}
@@ -136,19 +135,19 @@ func teleportActor(r *Resolver, input TeleportInput) (*ActionResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	announceMutation(r, input.Message, "teleported to "+positionText(result.Position)+" on "+stringValue(result.Surface))
+	announceMutation(r, input.Message, "teleported to "+positionText(result.Position)+" on "+result.Surface)
 	return result, nil
 }
 
 func useCapsuleLua(input CapsuleInput) string {
-	return settingsActorPrefix(0, input.Player) + fmt.Sprintf(`if not p.connected then fail("player must be connected"); return end
+	return settingsActorPrefix(0, *input.Actor.Player) + fmt.Sprintf(`if not p.connected then fail("player must be connected"); return end
 local s=c.surface
 local position={x=%s,y=%s}
 local item=%s
 local requested=%d
 local proto=prototypes.item[item]; if not proto then fail("item prototype not found"); return end
 local dx=c.position.x-position.x; local dy=c.position.y-position.y
-if dx*dx+dy*dy>c.reach_distance*c.reach_distance then fail("capsule target is out of reach"); return end
+if %s then fail("capsule target is out of reach"); return end
 local inv=c.get_main_inventory(); if not inv then fail("character has no main inventory"); return end
 local stack=inv.find_item_stack(item); if not stack then fail("character has no "..item.." in the main inventory"); return end
 local created={}
@@ -164,8 +163,9 @@ for i=1,requested do
   if result then created[#created+1]={name=result.name,type=result.type,position=result.position,unit_number=result.unit_number} end
 end
 if used==0 then fail("capsule was not used"); return end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,item=item,used=used,position=position,created=created}))`,
-		luaCoordinate(input.X), luaCoordinate(input.Y), luaString(input.Item), input.Count)
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=c.force.name,item=item,used=used,position=position,created=created}))`,
+		luaCoordinate(input.Target.X), luaCoordinate(input.Target.Y), luaString(input.Item), input.Count,
+		distanceViolation("dx", "dy", "c.reach_distance"))
 }
 
 // useCapsule uses a capsule item from a player character's main inventory at a
@@ -221,7 +221,7 @@ if not set_ok then
   inv.insert{name="repair-pack",quality="normal",count=packs}
   fail("could not apply repair: "..tostring(set_error)); return
 end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=e.surface.name,name=e.name,unit_number=e.unit_number,position=e.position,before=health,after=after,max_health=max_health,packs_used=packs}))`, count), nil
+rcon.print(helpers.table_to_json({tick=game.tick,surface=e.surface.name,force=e.force.name,name=e.name,unit_number=e.unit_number,position=e.position,before=health,after=after,max_health=max_health,packs_used=packs}))`, count), nil
 }
 
 // repairEntity repairs a reachable damaged entity using repair packs from the
@@ -231,7 +231,7 @@ func repairEntity(r *Resolver, input RepairInput) (*RepairResult, error) {
 	if err := validateRepairInput(input); err != nil {
 		return nil, err
 	}
-	target, err := settingsTargetFrom(input.Player, input.Character, input.Surface, input.Entity, input.UnitNumber, input.X, input.Y)
+	target, err := settingsTargetFromRef(input.Actor, input.Target)
 	if err != nil {
 		return nil, err
 	}

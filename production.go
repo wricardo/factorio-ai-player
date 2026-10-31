@@ -209,7 +209,11 @@ rcon.print(helpers.table_to_json(result))`, nil
 	if *item == "" || *count == 0 || *count > math.MaxUint32 {
 		return "", errors.New("item and count between 1 and 4294967295 are required")
 	}
-	prefix += `local c; if p.object_name=="LuaEntity" then c=p else c=p.character; if not c then fail("player has no character"); return end end; if c.surface~=s or not c.can_reach_entity(e) then fail("entity is out of reach"); return end` + "\n"
+	outputDirection := "TO_ENTITY"
+	if *direction == "to-player" {
+		outputDirection = "TO_ACTOR"
+	}
+	prefix += `local c; if p.object_name=="LuaEntity" then c=p else c=p.character; if not c then fail("player has no character"); return end end; if c.surface~=s or ` + reachViolation("c", "e") + ` then fail("entity is out of reach"); return end` + "\n"
 	return prefix + fmt.Sprintf(`local target_name=%s; target_name=string.gsub(target_name,"-","_"); local target=inventories(e)[target_name]; if not target then fail("entity does not have requested inventory"); return end
 local player_inventory=p.get_main_inventory(); if not player_inventory then fail("player has no main inventory"); return end
 local source,destination=player_inventory,target
@@ -238,5 +242,5 @@ for i=1,#source do
     end
   end
 end
-rcon.print(helpers.table_to_json({entity=e.name,position=e.position,surface=s.name,inventory=%s,direction=%s,item=item,quality=quality,requested=requested,available=available,capacity=capacity,moved=moved}))`, luaString(*inventory), luaString(*direction), luaString(*item), luaString(*quality), *count, luaString(*inventory), luaString(*direction)), nil
+rcon.print(helpers.table_to_json({entity=e.name,position=e.position,surface=s.name,inventory=%s,transfer_direction=%s,item=item,quality=quality,requested=requested,available=available,capacity=capacity,moved=moved}))`, luaString(*inventory), luaString(*direction), luaString(*item), luaString(*quality), *count, luaString(*inventory), luaString(outputDirection)), nil
 }

@@ -20,9 +20,10 @@ func craftMutation(ctx context.Context, r *Resolver, input CraftInput) (*ActionR
 	if input.WaitTimeoutSeconds < 1 || input.WaitTimeoutSeconds > 3600 {
 		return nil, errors.New("waitTimeoutSeconds must be from 1 to 3600")
 	}
+	player, character := actorFields(input.Actor)
 	result, err := commandQuiet[ActionResult](r, "craft", craftCommandInput{
-		Player:    input.Player,
-		Character: input.Character,
+		Player:    player,
+		Character: character,
 		Recipe:    input.Recipe,
 		Count:     input.Count,
 	})
@@ -87,17 +88,15 @@ func waitForCraftQueue(ctx context.Context, queueSize float64, timeout time.Dura
 
 func craftQueueSize(ctx context.Context, r *Resolver, input CraftInput) (float64, error) {
 	unit := uint64(0)
-	if input.Character != nil {
-		parsed, err := strconv.ParseUint(*input.Character, 10, 32)
+	playerValue, character := actorFields(input.Actor)
+	if character != nil {
+		parsed, err := strconv.ParseUint(*character, 10, 32)
 		if err != nil || parsed == 0 {
 			return 0, errors.New("character must be a unit number from 1 to 4294967295")
 		}
 		unit = parsed
 	}
-	player := ""
-	if input.Player != nil {
-		player = *input.Player
-	}
+	player := stringValueOr(playerValue, "")
 	lua := luaFail + fmt.Sprintf(`local unit=%d; local p
 if unit~=0 then p=game.get_entity_by_unit_number(unit); if not p or p.type~="character" then fail("character not found"); return end
 else p=game.get_player(%s); if not p then fail("player not found"); return end end

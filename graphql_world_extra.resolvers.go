@@ -10,7 +10,7 @@ import (
 )
 
 // Surfaces is the resolver for the surfaces field.
-func (r *queryResolver) Surfaces(ctx context.Context, force string) ([]*SurfaceInfo, error) {
+func (r *queryResolver) Surfaces(ctx context.Context, force string) (*SurfacePage, error) {
 	return surfacesQuery(r.Resolver, force)
 }
 

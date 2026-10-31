@@ -3,26 +3,15 @@ package main
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 )
 
 // placeTile replaces one tile using a tile item after checking the item's
 // prototype placement condition. Base tile items have condition size 1.
 func placeTile(r *Resolver, input PlaceTileInput) (*PlaceTileResult, error) {
-	player, character := "", uint64(0)
-	if input.Player != nil {
-		player = *input.Player
-	}
-	if input.Character != nil {
-		parsed, err := strconv.ParseUint(*input.Character, 10, 32)
-		if err != nil || parsed == 0 {
-			return nil, errors.New("character must be a unit number from 1 to 4294967295")
-		}
-		character = parsed
-	}
-	if (player == "") == (character == 0) {
-		return nil, errors.New("exactly one of player or character is required")
+	character, player, err := settingsActorFrom(input.Actor)
+	if err != nil {
+		return nil, err
 	}
 	surface := "nauvis"
 	if input.Surface != nil {
@@ -38,8 +27,8 @@ func placeTile(r *Resolver, input PlaceTileInput) (*PlaceTileResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	if math.IsNaN(input.X) || math.IsInf(input.X, 0) || math.IsNaN(input.Y) || math.IsInf(input.Y, 0) {
-		return nil, errors.New("coordinates must be finite")
+	if input.Position == nil {
+		return nil, errors.New("position is required")
 	}
 	lua := luaFail + fmt.Sprintf(`local player=%s; local unit=%d; local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
 local position={x=%s,y=%s}; local item=%s; local quality=%s; if not prototypes.quality[quality] then fail("quality not found"); return end
@@ -55,7 +44,7 @@ else
 end
 if c.surface~=s then fail("actor is on another surface"); return end
 local dx=c.position.x-position.x; local dy=c.position.y-position.y
-if dx*dx+dy*dy>c.build_distance*c.build_distance then fail("position is out of build reach"); return end
+if %s then fail("position is out of build reach"); return end
 local tile=s.get_tile(position); if not tile then fail("tile is not available at position"); return end
 local allowed
 local conditions=placement.tile_condition
@@ -77,9 +66,10 @@ if inv.get_item_count({name=item,quality=quality})<1 then fail("actor lacks item
 if inv.remove{name=item,quality=quality,count=1}~=1 then fail("could not remove item"); return end
 s.set_tiles({{name=result_tile.name,position=position}})
 local placed=s.get_tile(position); if not placed or placed.name~=result_tile.name then inv.insert{name=item,quality=quality,count=1}; fail("tile placement failed; item returned"); return end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,tile=placed.name,position=position}))`,
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=c.force.name,tile=placed.name,position=position}))`,
 		luaString(player), character, luaString(surface),
-		strconv.FormatFloat(input.X, 'g', -1, 64), strconv.FormatFloat(input.Y, 'g', -1, 64), luaString(input.Item), luaString(quality))
+		strconv.FormatFloat(input.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Position.Y, 'g', -1, 64), luaString(input.Item), luaString(quality),
+		distanceViolation("dx", "dy", "c.build_distance"))
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

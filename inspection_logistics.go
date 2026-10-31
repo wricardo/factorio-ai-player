@@ -9,12 +9,12 @@ import (
 
 // inspectionLogistics reads actual inserter targets in one game snapshot.
 func inspectionLogistics(r *Resolver, obj *EntityInspection) (*InspectionLogistics, error) {
-	if obj == nil || obj.Surface == nil || *obj.Surface == "" || obj.Force == nil || *obj.Force == "" || obj.Name == nil || *obj.Name == "" || obj.Position == nil || math.IsNaN(obj.Position.X) || math.IsInf(obj.Position.X, 0) || math.IsNaN(obj.Position.Y) || math.IsInf(obj.Position.Y, 0) {
+	if obj == nil || obj.Surface == "" || obj.Force == "" || obj.Name == nil || *obj.Name == "" || obj.Position == nil || math.IsNaN(obj.Position.X) || math.IsInf(obj.Position.X, 0) || math.IsNaN(obj.Position.Y) || math.IsInf(obj.Position.Y, 0) {
 		return nil, errors.New("inspection surface, force, name, and finite position are required")
 	}
 	lua := luaFail + fmt.Sprintf(`local surface_name,force_name,entity_name=%s,%s,%s
 local position={x=%s,y=%s}
-`, luaString(*obj.Surface), luaString(*obj.Force), luaString(*obj.Name), strconv.FormatFloat(obj.Position.X, 'g', -1, 64), strconv.FormatFloat(obj.Position.Y, 'g', -1, 64)) + `
+`, luaString(obj.Surface), luaString(obj.Force), luaString(*obj.Name), strconv.FormatFloat(obj.Position.X, 'g', -1, 64), strconv.FormatFloat(obj.Position.Y, 'g', -1, 64)) + `
 local surface=game.surfaces[surface_name]
 if not surface then fail("surface not found"); return end
 local force=game.forces[force_name]

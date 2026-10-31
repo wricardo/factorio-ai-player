@@ -16,7 +16,6 @@ Mutations are not transactional: an error or lost response does not prove action
 - `mods/factorio_ai_navigation/`: Factorio Lua navigation mod and its Lua test harness.
 - `scripts/`: managed server lifecycle script, invoked through `justfile`.
 - `play/`: gameplay-specific agent handbook and save-state notes; not general source documentation.
-- `play/harness/`: Pi Durable agent harness (planner / foreman / worker conversations over GraphQL and beads tickets). See its README; run with `just agents`.
 
 ## Development Commands
 
@@ -31,8 +30,6 @@ just save                       # request server save
 just logs                       # inspect server log
 just stop                       # save and stop server
 just graphql                    # serve the GraphQL schema over HTTP on 127.0.0.1:8080
-just agents-up                  # Pi Durable web console on http://127.0.0.1:8787 (background; agents-down stops it)
-just agents status              # Pi Durable agent harness (planner/foreman/workers)
 ```
 
 Example GraphQL call (server must be running; password comes from managed state):
@@ -163,7 +160,7 @@ the working tree as shared state.
 - `resolver.go`, `graphql_*_resolvers.go`: resolver bridge and schema adapters.
 - `gqlgen.yml`, `graphql_generated.go`, `graphql_models.go`: gqlgen configuration and generated output.
 - `actions.go`, `production.go`, `insights_*.go`, `factory_*.go`, `navigation.go`: gameplay operations and read-only insights. Topology (`insights_topology.go`), machine diagnostics (`insights_diagnostics.go`), planning (`insights_planning.go`), research/construction/fluids (`insights_operations.go`), belt-flow measurement (`insights_belt_flow.go`, backed by the navigation mod's `belt_flow.lua`) and tile-grid placement probing (`placement_probe.go`, one RCON call per area) live in their own domain files.
-- Newer write domains: `deconstruction.go`, `construction.go` (buildGhosts, logistic networks), `trains.go` (train reads/control, setDirection), `fluids.go` (setFluid, fluidStock), `agent_actions.go` (game speed, teleport, capsules, repair), `agent_shoot.go` (mod-backed shooting), `writes_extra.go` (dropItem), `entity_meta.go` (inspection metadata, tags, name tag), `player_gear.go` (equipment grid, actor logistic requests), `research_extra.go` (research queue, sandbox unlock), `world_extra.go` (surfaces, circuit signals), `recipe_machine.go`/`machineRecipe.go` (recipe drain, clearRecipe), `actor_resolve.go` (player→character resolver helper), and `nearby.go` (ordered, paginated nearby).
+- Newer write domains: `deconstruction.go`, `construction.go` (buildGhosts, logistic networks), `construction_orders.go` (deconstruction/upgrade order reads), `trains.go` (train reads/control, setDirection), `fluids.go` (setFluid, fluidStock), `agent_actions.go` (game speed, teleport, capsules, repair), `agent_shoot.go` (mod-backed shooting), `writes_extra.go` (dropItem), `entity_meta.go` (inspection metadata, tags, name tag), `player_gear.go` (equipment grid, actor logistic requests), `research_extra.go` (research queue, sandbox unlock), `world_extra.go` (surfaces, circuit signals), `recipe_machine.go`/`machineRecipe.go` (recipe drain, clearRecipe), `actor_resolve.go` (player→character resolver helper), and `nearby.go` (ordered, paginated nearby).
 - The navigation mod also owns `actions.lua` (tick-driven shooting jobs) and its Lua tests (`actions_test.lua`); Factorio 2.0.77 stores tags only as blueprint/ghost metadata and ignores scripted direction writes on belts and rails, so those paths fail with actionable errors rather than pretending to succeed.
 - `go.mod`: Go version and dependencies. `justfile`, `scripts/server.sh`, `server-settings.json`: local server workflows/configuration.
 - `README.md`: operational and GraphQL behavior reference; `play/AGENTS.md`: gameplay-specific notes.
@@ -174,11 +171,20 @@ Use Go modules; `go.mod` declares Go 1.26.0 (README currently says Go 1.25+, so 
 
 Server defaults target macOS Factorio paths. `scripts/server.sh` supports `FACTORIO_BIN`, `FACTORIO_SAVE`, `FACTORIO_GAME_PORT`, `FACTORIO_RCON_PORT`, `FACTORIO_STATE_DIR`, and optional `FACTORIO_MOD_DIR`; use the same state/mod directories when managing one instance. Runtime credentials and state live in ignored `.factorio/`.
 
+Reach checks live in the generated Lua (`reach.go` helpers), not in the engine: the script API acts at any distance. They are permissive by default; `FACTORIO_ENFORCE_REACH=1` enables every actor build/interaction/capsule guard, and unsetting it restores the permissive default. `serve` reads it per operation, so restart the process to change it.
+
 ## Testing & QA
 
 Tests use Go's standard `testing` package. Run `go test ./...`; tests cover validation and CLI behavior, pure helpers and polling, GraphQL relationships, and RCON framing with fake TCP servers. `TestNavigationController` runs `lua mods/factorio_ai_navigation/navigation_test.lua` and `TestActionController` runs `lua mods/factorio_ai_navigation/actions_test.lua` when `lua` is installed; both skip otherwise. There is no configured coverage target or CI/lint workflow.
 
 Unit tests do not exercise Factorio itself. For changes that affect server behavior, smoke-test against a local Factorio server using `just start` and a focused `go run . query|mutation ...` operation, then inspect the resulting state before considering the change verified. Consult `README.md` for mutation semantics, environment variables, and server safety constraints.
+
+Real-engine coverage is opt-in: `go test -tags integration -run TestIntegration -v ./...`
+boots a disposable sandbox scenario on random localhost ports, runs the working-tree GraphQL
+schema against Factorio, saves, shuts down, and removes its temporary write-data directory.
+`FACTORIO_BIN` overrides the executable; `FACTORIO_DATA` locates the bundled sandbox scenario
+when it is not beside the executable. The suite takes roughly 20–30 seconds and never uses
+`.factorio/` or the managed save.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:1105d646 -->
 ## Beads Issue Tracker

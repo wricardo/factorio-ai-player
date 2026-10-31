@@ -35,14 +35,14 @@ type SafetyEntity {
   type: String!
   force: String!
   position: Position!
-  unitNumber: ID
+  unitNumber: UnitNumber
   health: Float
   maxHealth: Float
   status: String
   statusCode: Int
   pollution: SafetyPollution!
 }
-type SafetyEntityPage { total: Int! limit: Int! offset: Int! entities: [SafetyEntity!]! }
+type SafetyEntityPage { pageInfo: PageInfo! entities: [SafetyEntity!]! }
 """Message is JSON containing the untranslated Factorio LocalisedString under key 'value'."""
 type SafetyAlert {
   type: String
@@ -63,9 +63,7 @@ type SafetyAlertPage {
   available: Boolean!
   unavailableReason: String
   player: String
-  total: Int!
-  limit: Int!
-  offset: Int!
+  pageInfo: PageInfo!
   alerts: [SafetyAlert!]!
 }
 """Enemy classification uses force.is_enemy; damaged entities belong to the selected force or its friends. Alerts without positions remain included with areaMatchUnknown=true."""

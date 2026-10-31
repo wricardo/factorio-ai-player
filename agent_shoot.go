@@ -52,28 +52,27 @@ end
 // it to finish, and reports the ammo consumed. A lost response does not prove the
 // job did not run; inspect the character before retrying.
 func shootAction(ctx context.Context, r *Resolver, in ShootInput) (*ShootResult, error) {
-	if strings.TrimSpace(in.Player) == "" {
-		return nil, errors.New("player must not be empty")
+	if in.Actor == nil || in.Actor.Player == nil || strings.TrimSpace(*in.Actor.Player) == "" || in.Actor.Character != nil {
+		return nil, errors.New("shoot actor must select one player")
 	}
 	if in.Count < 1 || in.Count > 100 {
 		return nil, errors.New("count must be between 1 and 100 shooting ticks")
 	}
-	hasUnit := in.TargetUnitNumber != nil && *in.TargetUnitNumber != ""
-	hasCoords := in.X != nil || in.Y != nil
-	if hasUnit == hasCoords {
-		return nil, errors.New("address the target by targetUnitNumber or by x and y, not both")
+	if in.Target == nil {
+		return nil, errors.New("target is required")
+	}
+	hasUnit := in.Target.UnitNumber != nil
+	hasPosition := in.Target.Position != nil
+	if !hasUnit && !hasPosition {
+		return nil, errors.New("target requires unitNumber or position")
 	}
 	var unit uint64
 	if hasUnit {
-		parsed, err := strconv.ParseUint(*in.TargetUnitNumber, 10, 32)
+		parsed, err := strconv.ParseUint(*in.Target.UnitNumber, 10, 32)
 		if err != nil || parsed == 0 {
-			return nil, errors.New("targetUnitNumber must be an entity unit number from 1 to 4294967295")
+			return nil, errors.New("target unitNumber must be from 1 to 4294967295")
 		}
 		unit = parsed
-	} else {
-		if in.X == nil || in.Y == nil || math.IsNaN(*in.X) || math.IsInf(*in.X, 0) || math.IsNaN(*in.Y) || math.IsInf(*in.Y, 0) {
-			return nil, errors.New("target x and y must both be finite")
-		}
 	}
 
 	if lua, err := shootStartLua(in, unit); err == nil {
@@ -106,7 +105,7 @@ func shootAction(ctx context.Context, r *Resolver, in ShootInput) (*ShootResult,
 		used := int(math.Max(0, start.Ammo-after))
 		result := &ShootResult{
 			Tick:      job.UpdatedTick,
-			Player:    in.Player,
+			Player:    *in.Actor.Player,
 			Character: &start.Character,
 			AmmoUsed:  used,
 			Target:    start.Target,
@@ -121,27 +120,26 @@ func shootAction(ctx context.Context, r *Resolver, in ShootInput) (*ShootResult,
 
 func shootStartLua(in ShootInput, unit uint64) (string, error) {
 	x, y := 0.0, 0.0
-	if in.X != nil {
-		x = *in.X
+	if in.Target.Position != nil {
+		x, y = in.Target.Position.X, in.Target.Position.Y
 	}
-	if in.Y != nil {
-		y = *in.Y
-	}
+	name := stringValueOr(in.Target.Entity, "")
+	surface := stringValueOr(in.Target.Surface, "nauvis")
 	return luaFail + fmt.Sprintf(`local p=game.players[%s]; if not p then fail("player not found"); return end
 local c=p.character; if not c then fail("player has no character"); return end
 local target_unit=%d
 local target_name=%s
 local target_position={x=%s,y=%s}
-local surface_name=p.surface.name
-`, luaString(in.Player), unit, luaString(""),
-		strconv.FormatFloat(x, 'g', -1, 64), strconv.FormatFloat(y, 'g', -1, 64)) +
+local surface_name=%s
+`, luaString(*in.Actor.Player), unit, luaString(name),
+		strconv.FormatFloat(x, 'g', -1, 64), strconv.FormatFloat(y, 'g', -1, 64), luaString(surface)) +
 		luaEntityResolve + shootAmmoLua + fmt.Sprintf(`local e=resolve_entity(target_unit,target_name,target_position,surface_name,p); if not e then return end
 if e.surface~=c.surface then fail("target is on another surface"); return end
 local before=shoot_ammo_count(c)
 local ok,job=pcall(function() return remote.call("factorio_ai_actions","start_shoot",c.unit_number,e.position.x,e.position.y,%d) end)
 if not ok then fail(tostring(job)); return end
 if type(job)~="table" or job.error then fail(type(job)=="table" and tostring(job.error) or "shooting interface returned no job"); return end
-rcon.print(helpers.table_to_json({tick=game.tick,player=p.name,character=c.unit_number,surface=c.surface.name,position=e.position,ammo=before,job=job,target={name=e.name,type=e.type,position=e.position,unit_number=e.unit_number}}))`, in.Count), nil
+rcon.print(helpers.table_to_json({tick=game.tick,player=p.name,character=c.unit_number,surface=c.surface.name,force=c.force.name,position=e.position,ammo=before,job=job,target={name=e.name,type=e.type,position=e.position,unit_number=e.unit_number}}))`, in.Count), nil
 }
 
 func waitForActionJob(ctx context.Context, r *Resolver, id string, timeout time.Duration) (*actionJobStatus, error) {

@@ -80,7 +80,7 @@ func TestCharactersQueryRejectsBadPages(t *testing.T) {
 }
 
 func TestNavigationStartChaseValidation(t *testing.T) {
-	x, y := 1.0, 2.0
+	position := &PositionInput{X: 1, Y: 2}
 	zero := "0"
 	target := "2"
 	tests := []struct {
@@ -88,18 +88,17 @@ func TestNavigationStartChaseValidation(t *testing.T) {
 		input NavigateStartInput
 		want  string
 	}{
-		{"character required", NavigateStartInput{Character: "", X: &x, Y: &y, Tolerance: 0.5, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "character"},
-		{"destination required", NavigateStartInput{Character: "1", Tolerance: 0.5, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "x and y"},
-		{"coordinates or target", NavigateStartInput{Character: "1", X: &x, Y: &y, TargetCharacter: &target, Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "exactly one"},
-		{"target unit", NavigateStartInput{Character: "1", TargetCharacter: &zero, Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "targetCharacter"},
-		{"entity unit", NavigateStartInput{Character: "1", TargetEntity: &zero, Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "targetEntity"},
-		{"entity differs", NavigateStartInput{Character: "1", TargetEntity: new("1"), Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "differ"},
-		{"entity plus coordinates", NavigateStartInput{Character: "1", X: &x, Y: &y, TargetEntity: new("3"), Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "exactly one"},
-		{"entity plus character", NavigateStartInput{Character: "1", TargetCharacter: &target, TargetEntity: new("3"), Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "exactly one"},
-		{"unpaired coordinate", NavigateStartInput{Character: "1", X: &x, Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "together"},
-		{"target differs", NavigateStartInput{Character: "1", TargetCharacter: new("1"), Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "differ"},
-		{"chase tolerance", NavigateStartInput{Character: "1", TargetCharacter: &target, Tolerance: 0.5, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "at least 1"},
-		{"tolerance bound", NavigateStartInput{Character: "1", X: &x, Y: &y, Tolerance: 11, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "tolerance"},
+		{"character required", NavigateStartInput{Position: position, Tolerance: 0.5, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "exactly one"},
+		{"destination required", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, Tolerance: 0.5, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "position"},
+		{"coordinates or target", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, Position: position, TargetCharacter: &target, Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "exactly one"},
+		{"target unit", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, TargetCharacter: &zero, Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "targetCharacter"},
+		{"entity unit", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, TargetEntity: &zero, Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "targetEntity"},
+		{"entity differs", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, TargetEntity: new("1"), Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "differ"},
+		{"entity plus coordinates", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, Position: position, TargetEntity: new("3"), Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "exactly one"},
+		{"entity plus character", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, TargetCharacter: &target, TargetEntity: new("3"), Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "exactly one"},
+		{"target differs", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, TargetCharacter: new("1"), Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "differ"},
+		{"chase tolerance", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, TargetCharacter: &target, Tolerance: 0.5, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "at least 1"},
+		{"tolerance bound", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, Position: position, Tolerance: 11, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "tolerance"},
 	}
 	for _, tt := range tests {
 		if _, err := navigationStart(t.Context(), &Resolver{}, tt.input); err == nil || !strings.Contains(err.Error(), tt.want) {

@@ -75,7 +75,7 @@ func (t settingsTarget) lua() (string, error) {
 	}
 	b.WriteString(luaEntityResolve)
 	b.WriteString(resolveTargetLua())
-	b.WriteString(`if not c.can_reach_entity(e) then fail("entity is out of reach"); return end
+	b.WriteString("if " + reachViolation("c", "e") + ` then fail("entity is out of reach"); return end
 `)
 	return b.String(), nil
 }
@@ -136,7 +136,7 @@ local function settings_item_filter(filter)
   return {name=name,quality=settings_quality_name(filter.quality),comparator=filter.comparator}
 end
 local function settings_common(e)
-  return {tick=game.tick,surface=e.surface.name,name=e.name,unitNumber=e.unit_number,position={x=e.position.x,y=e.position.y}}
+  return {tick=game.tick,surface=e.surface.name,force=e.force.name,name=e.name,unitNumber=e.unit_number,position={x=e.position.x,y=e.position.y}}
 end
 local function settings_control(e)
   local ok,control=pcall(function() return e.get_control_behavior() end)
@@ -303,7 +303,7 @@ func entitySettings(r *Resolver, obj *EntityInspection, inventory *string) (*Set
 	if obj == nil {
 		return nil, errors.New("settings require an inspection")
 	}
-	entityLua, err := diagnosticsEntityLua(stringValueOr(obj.Surface, "nauvis"), stringValueOr(obj.Name, ""), nil, obj.Position, stringValueOr(obj.Force, ""))
+	entityLua, err := diagnosticsEntityLua(obj.Surface, stringValueOr(obj.Name, ""), nil, obj.Position, obj.Force)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +319,7 @@ func entitySettings(r *Resolver, obj *EntityInspection, inventory *string) (*Set
 }
 
 func setSplitterSettings(r *Resolver, in SplitterSettingsInput) (*SettingsResult, error) {
-	target, err := settingsTargetFrom(in.Player, in.Character, in.Surface, in.Entity, in.UnitNumber, in.X, in.Y)
+	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +387,7 @@ e.splitter_output_priority="none"
 }
 
 func setInserterSettings(r *Resolver, in InserterSettingsInput) (*SettingsResult, error) {
-	target, err := settingsTargetFrom(in.Player, in.Character, in.Surface, in.Entity, in.UnitNumber, in.X, in.Y)
+	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -464,7 +464,7 @@ e.inserter_stack_size_override=0
 }
 
 func setLampSettings(r *Resolver, in LampSettingsInput) (*SettingsResult, error) {
-	target, err := settingsTargetFrom(in.Player, in.Character, in.Surface, in.Entity, in.UnitNumber, in.X, in.Y)
+	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +516,7 @@ func setLampSettings(r *Resolver, in LampSettingsInput) (*SettingsResult, error)
 }
 
 func setContainerBar(r *Resolver, in ContainerBarInput) (*SettingsResult, error) {
-	target, err := settingsTargetFrom(in.Player, in.Character, in.Surface, in.Entity, in.UnitNumber, in.X, in.Y)
+	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -558,7 +558,7 @@ if %d>#inventory then fail("bar %d exceeds inventory size "..#inventory); return
 }
 
 func setLogisticRequests(r *Resolver, in LogisticRequestsInput) (*SettingsResult, error) {
-	target, err := settingsTargetFrom(in.Player, in.Character, in.Surface, in.Entity, in.UnitNumber, in.X, in.Y)
+	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -620,7 +620,7 @@ if not section then fail("could not add a logistic section"); return end
 }
 
 func setTrainStop(r *Resolver, in TrainStopInput) (*SettingsResult, error) {
-	target, err := settingsTargetFrom(in.Player, in.Character, in.Surface, in.Entity, in.UnitNumber, in.X, in.Y)
+	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -675,7 +675,7 @@ func setTrainStop(r *Resolver, in TrainStopInput) (*SettingsResult, error) {
 }
 
 func setRocketSilo(r *Resolver, in RocketSiloInput) (*SettingsResult, error) {
-	target, err := settingsTargetFrom(in.Player, in.Character, in.Surface, in.Entity, in.UnitNumber, in.X, in.Y)
+	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -695,7 +695,7 @@ e.send_to_orbit_automatically=%t
 }
 
 func launchRocket(r *Resolver, in RocketLaunchInput) (*SettingsResult, error) {
-	target, err := settingsTargetFrom(in.Player, in.Character, in.Surface, in.Entity, in.UnitNumber, in.X, in.Y)
+	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -722,7 +722,7 @@ if not e.launch_rocket() then fail("rocket silo refused the launch at status "..
 }
 
 func setCircuitBehavior(r *Resolver, in CircuitBehaviorInput) (*SettingsResult, error) {
-	target, err := settingsTargetFrom(in.Player, in.Character, in.Surface, in.Entity, in.UnitNumber, in.X, in.Y)
+	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -986,23 +986,20 @@ func signalLua(in SignalInput) (string, error) {
 }
 
 func connectWire(r *Resolver, in WireInput, connect bool) (*WireResult, error) {
-	surface := "nauvis"
-	if in.Surface != nil && *in.Surface != "" {
-		surface = *in.Surface
+	if in.From == nil || in.To == nil || in.From.Target == nil || in.To.Target == nil {
+		return nil, errors.New("from and to endpoints are required")
 	}
-	character, player, err := settingsActor(stringValueOr(in.Character, ""), stringValueOr(in.Player, ""))
+	surface := stringValueOr(in.From.Target.Surface, "nauvis")
+	if stringValueOr(in.To.Target.Surface, "nauvis") != surface {
+		return nil, errors.New("wire endpoints must be on the same surface")
+	}
+	character, player, err := settingsActorFrom(in.Actor)
 	if err != nil {
 		return nil, err
 	}
-	color := "red"
-	if in.Color != nil && *in.Color != "" {
-		color = *in.Color
-	}
+	color := strings.ToLower(string(in.Color))
 	if color != "red" && color != "green" {
-		return nil, errors.New("color must be red or green")
-	}
-	if in.From == nil || in.To == nil {
-		return nil, errors.New("from and to endpoints are required")
+		return nil, errors.New("color must be RED or GREEN")
 	}
 	var b strings.Builder
 	b.WriteString(luaFail)
@@ -1014,11 +1011,13 @@ func connectWire(r *Resolver, in WireInput, connect bool) (*WireResult, error) {
 	}
 	fromConnector := stringValueOr(in.From.Connector, "")
 	toConnector := stringValueOr(in.To.Connector, "")
-	fromUnit, err := entityTarget(stringValueOr(in.From.Entity, ""), stringValueOr(in.From.UnitNumber, ""), floatValueOr(in.From.X), floatValueOr(in.From.Y))
+	_, fromEntity, fromUnitNumber, fromX, fromY := entityRefFields(in.From.Target)
+	_, toEntity, toUnitNumber, toX, toY := entityRefFields(in.To.Target)
+	fromUnit, err := entityTarget(stringValueOr(fromEntity, ""), stringValueOr(fromUnitNumber, ""), floatValueOr(fromX), floatValueOr(fromY))
 	if err != nil {
 		return nil, fmt.Errorf("from: %w", err)
 	}
-	toUnit, err := entityTarget(stringValueOr(in.To.Entity, ""), stringValueOr(in.To.UnitNumber, ""), floatValueOr(in.To.X), floatValueOr(in.To.Y))
+	toUnit, err := entityTarget(stringValueOr(toEntity, ""), stringValueOr(toUnitNumber, ""), floatValueOr(toX), floatValueOr(toY))
 	if err != nil {
 		return nil, fmt.Errorf("to: %w", err)
 	}
@@ -1028,8 +1027,8 @@ func connectWire(r *Resolver, in WireInput, connect bool) (*WireResult, error) {
 		name string
 		x, y float64
 	}{
-		{"from", fromUnit, stringValueOr(in.From.Entity, ""), floatValueOr(in.From.X), floatValueOr(in.From.Y)},
-		{"to", toUnit, stringValueOr(in.To.Entity, ""), floatValueOr(in.To.X), floatValueOr(in.To.Y)},
+		{"from", fromUnit, stringValueOr(fromEntity, ""), floatValueOr(fromX), floatValueOr(fromY)},
+		{"to", toUnit, stringValueOr(toEntity, ""), floatValueOr(toX), floatValueOr(toY)},
 	} {
 		fmt.Fprintf(&b, "local %s_unit=%d\nlocal %s_name=%s\nlocal %s_position={x=%s,y=%s}\n",
 			endpoint.tag, endpoint.unit, endpoint.tag, luaString(endpoint.name), endpoint.tag,
@@ -1040,8 +1039,8 @@ func connectWire(r *Resolver, in WireInput, connect bool) (*WireResult, error) {
 	b.WriteString(luaEntityResolve)
 	b.WriteString("local from_entity=resolve_entity(from_unit,from_name,from_position,surface_name,p); if not from_entity then return end\n")
 	b.WriteString("local to_entity=resolve_entity(to_unit,to_name,to_position,surface_name,p); if not to_entity then return end\n")
-	b.WriteString(`if not c.can_reach_entity(from_entity) then fail("from entity is out of reach"); return end
-if not c.can_reach_entity(to_entity) then fail("to entity is out of reach"); return end
+	b.WriteString("if " + reachViolation("c", "from_entity") + ` then fail("from entity is out of reach"); return end
+if ` + reachViolation("c", "to_entity") + ` then fail("to entity is out of reach"); return end
 `)
 	fmt.Fprintf(&b, `local function connector_id(name)
   if name~="" then
@@ -1069,10 +1068,10 @@ if not to_connector then fail("to entity has no matching circuit connector"); re
 	fmt.Fprintf(&b, `local ok,result=pcall(function() return %s end)
 if not ok then fail("wire operation failed: "..tostring(result)); return end
 if not result then fail("wire operation was rejected; entities may be out of wire reach"); return end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=surface_name,color=%s,connected=from_connector.is_connected_to(to_connector),
+rcon.print(helpers.table_to_json({tick=game.tick,surface=surface_name,force=from_entity.force.name,color=%s,connected=from_connector.is_connected_to(to_connector),
   from={name=from_entity.name,unitNumber=from_entity.unit_number,position={x=from_entity.position.x,y=from_entity.position.y}},
   to={name=to_entity.name,unitNumber=to_entity.unit_number,position={x=to_entity.position.x,y=to_entity.position.y}}}))
-`, call, luaString(color))
+`, call, luaString(strings.ToUpper(color)))
 	response, _, err := executeLua(r.addr, r.password, b.String())
 	if err != nil {
 		return nil, err

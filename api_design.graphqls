@@ -1,0 +1,143 @@
+"""Positive Factorio engine unit number, serialized as a decimal string."""
+scalar UnitNumber
+
+"""Finite floating-point value. NaN and infinities fail GraphQL coercion."""
+scalar FiniteFloat
+
+"""Select exactly one nonempty player name or character unit number."""
+input ActorInput {
+  player: String
+  character: UnitNumber
+}
+
+"""Finite map position."""
+input PositionInput {
+  x: FiniteFloat!
+  y: FiniteFloat!
+}
+
+"""Address one entity by unit number, or by prototype name and exact center position."""
+input EntityRefInput {
+  surface: String = "nauvis"
+  entity: String
+  unitNumber: UnitNumber
+  position: PositionInput
+}
+
+"""Stable pagination metadata. offset is zero-based; hasMore means another item exists after this page."""
+type PageInfo {
+  total: Int!
+  limit: Int!
+  offset: Int!
+  hasMore: Boolean!
+}
+
+"""Stable category for one continuing batch-entry failure."""
+enum BatchErrorCode {
+  VALIDATION
+  LOOKUP
+  """Actor out of reach; only produced when FACTORIO_ENFORCE_REACH=1."""
+  REACH
+  INVENTORY
+  COLLISION
+  ENGINE
+}
+
+"""Identity of the failed batch target when available."""
+type BatchTarget {
+  surface: String
+  entity: String
+  unitNumber: UnitNumber
+  position: Position
+}
+
+"""One batch-entry failure. index is one-based to match input order."""
+type BatchError {
+  index: Int!
+  code: BatchErrorCode!
+  message: String!
+  target: BatchTarget
+}
+
+"""Circuit-wire color supported by Factorio's red/green wire networks."""
+enum WireColor {
+  RED
+  GREEN
+}
+
+"""Item transfer direction between actor main inventory and an entity."""
+enum TransferDirection {
+  TO_ENTITY
+  TO_ACTOR
+}
+
+"""Item transfer direction between actor main inventory and equipment slots."""
+enum EquipmentTransferDirection {
+  TO_EQUIPMENT
+  TO_MAIN
+}
+
+"""Stable cross-domain lifecycle category. Raw engine state remains available beside it."""
+enum StatusCategory {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  BLOCKED
+  IDLE
+  OTHER
+}
+
+"""Normalized status plus unmodified engine truth."""
+type EngineStatus {
+  category: StatusCategory!
+  rawName: String
+  rawCode: Int
+  terminal: Boolean!
+}
+
+"""An item stack held in inventory or on a transport line."""
+type InventoryStack {
+  name: String!
+  count: Float!
+  quality: String!
+}
+
+"""One recipe ingredient. Fluids may carry accepted temperature bounds; items may carry quality."""
+type RecipeIngredient {
+  name: String!
+  type: String!
+  amount: Float!
+  quality: String
+  minimumTemperature: Float
+  maximumTemperature: Float
+}
+
+"""One recipe product, including probabilistic and ranged yields."""
+type RecipeProduct {
+  name: String!
+  type: String!
+  amount: Float
+  probability: Float!
+  amountMin: Float
+  amountMax: Float
+  temperature: Float
+  quality: String
+}
+
+"""One fluid quantity, optionally at a known temperature."""
+type FluidAmount {
+  name: String!
+  amount: Float!
+  temperature: Float
+}
+
+"""One requested item quantity or range."""
+type ItemRequest {
+  name: String!
+  quality: String!
+  count: Float
+  min: Float
+  max: Float
+}

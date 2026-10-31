@@ -1,8 +1,10 @@
 extend type EntityInspection {
   """Engine unit number of the inspected entity, when it has one."""
-  unitNumber: ID
-  """JSON encoding of the engine parameters, when the entity exposes them (for example combinators)."""
-  parametersJSON: String
+  unitNumber: UnitNumber
+  """Typed arithmetic or decider combinator parameters; null for other entities."""
+  combinatorParameters: CombinatorParameters
+  """Unmodified JSON encoding of engine parameters for unsupported parameter-bearing entities."""
+  parametersRawJSON: String
   """JSON encoding of the entity tags, when readable."""
   tagsJSON: String
   """Engine name tag, when the entity supports one."""
@@ -20,43 +22,136 @@ extend type Mutation {
   setEntityTags(input: EntityTagsInput!): EntityMetaResult!
   """Sets or clears an entity's map name tag."""
   setNameTag(input: EntityNameTagInput!): EntityMetaResult!
+  """Replaces typed arithmetic or decider combinator parameters."""
+  setCombinatorParameters(input: SetCombinatorParametersInput!): EntityMetaResult!
 }
 
-"""Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates. tagsJSON must be a JSON object."""
+"""Replace one entity's tags."""
 input EntityTagsInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   tagsJSON: String!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
 
-"""Exactly one player or character. Address the entity by unitNumber, or by entity name plus finite center coordinates. An empty nameTag clears the tag."""
+"""Set or clear one entity's map name tag."""
 input EntityNameTagInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   nameTag: String!
   """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+
+"""Circuit network selection. Omitted flags default to both networks in Factorio."""
+type CircuitNetworkSelection {
+  red: Boolean!
+  green: Boolean!
+}
+
+type ArithmeticCombinatorParameters {
+  firstSignal: CircuitSignal
+  firstSignalNetworks: CircuitNetworkSelection
+  firstConstant: Int
+  secondSignal: CircuitSignal
+  secondSignalNetworks: CircuitNetworkSelection
+  secondConstant: Int
+  operation: String!
+  outputSignal: CircuitSignal!
+}
+
+type DeciderCombinatorCondition {
+  firstSignal: CircuitSignal
+  firstSignalNetworks: CircuitNetworkSelection
+  secondSignal: CircuitSignal
+  secondSignalNetworks: CircuitNetworkSelection
+  constant: Int
+  comparator: String
+  compareType: String
+}
+
+type DeciderCombinatorOutput {
+  signal: CircuitSignal!
+  copyCountFromInput: Boolean!
+  constant: Int
+  networks: CircuitNetworkSelection
+}
+
+type DeciderCombinatorParameters {
+  conditions: [DeciderCombinatorCondition!]!
+  outputs: [DeciderCombinatorOutput!]!
+}
+
+"""Exactly one field is populated."""
+type CombinatorParameters {
+  arithmetic: ArithmeticCombinatorParameters
+  decider: DeciderCombinatorParameters
+}
+
+input CircuitNetworkSelectionInput {
+  red: Boolean = true
+  green: Boolean = true
+}
+
+input ArithmeticCombinatorParametersInput {
+  firstSignal: SignalInput
+  firstSignalNetworks: CircuitNetworkSelectionInput
+  firstConstant: Int
+  secondSignal: SignalInput
+  secondSignalNetworks: CircuitNetworkSelectionInput
+  secondConstant: Int
+  operation: String!
+  outputSignal: SignalInput!
+}
+
+input DeciderCombinatorConditionInput {
+  firstSignal: SignalInput
+  firstSignalNetworks: CircuitNetworkSelectionInput
+  secondSignal: SignalInput
+  secondSignalNetworks: CircuitNetworkSelectionInput
+  constant: Int
+  comparator: String
+  compareType: String
+}
+
+input DeciderCombinatorOutputInput {
+  signal: SignalInput!
+  copyCountFromInput: Boolean = true
+  constant: Int
+  networks: CircuitNetworkSelectionInput
+}
+
+input DeciderCombinatorParametersInput {
+  conditions: [DeciderCombinatorConditionInput!]!
+  outputs: [DeciderCombinatorOutputInput!]!
+}
+
+"""Provide exactly one parameter family matching target combinator type."""
+input CombinatorParametersInput {
+  arithmetic: ArithmeticCombinatorParametersInput
+  decider: DeciderCombinatorParametersInput
+}
+
+input SetCombinatorParametersInput {
+  actor: ActorInput!
+  target: EntityRefInput!
+  parameters: CombinatorParametersInput!
+  """Print this text in-game to all connected players instead of generated notification."""
   message: String
 }
 
 type EntityMetaResult {
   tick: Float!
   surface: String!
+  force: String!
+  actor: ActorIdentity
   name: String!
-  unitNumber: ID
+  unitNumber: UnitNumber
   position: Position!
-  parametersJSON: String
+  combinatorParameters: CombinatorParameters
+  parametersRawJSON: String
   tagsJSON: String
   nameTag: String
 }

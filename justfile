@@ -2,6 +2,23 @@
 default:
     @just --list
 
+# Run the default Go test suite (no Factorio server required).
+test:
+    go test ./...
+
+
+# Regenerate GraphQL models, execution code, and resolver adapters with pinned gqlgen.
+generate:
+    @bash scripts/generate.sh
+
+# Verify formatting, generated files, vet, build, and tests without rewriting this checkout.
+check:
+    @bash scripts/check.sh
+
+# Run the opt-in suite against a disposable real Factorio server.
+test-integration:
+    go test -tags integration -run TestIntegration -v ./...
+
 # Start the real save as a local RCON-enabled server.
 start:
     @bash scripts/server.sh start
@@ -49,61 +66,60 @@ logs:
 logs-follow:
     @bash scripts/server.sh logs-follow
 
-# Serve the GraphQL schema over HTTP for gqlcli TS and the agent harness.
+# Serve the GraphQL schema over HTTP for gqlcli TS clients.
 graphql:
     #!/usr/bin/env bash
     set -euo pipefail
     exec env FACTORIO_RCON_PASSWORD="$(cat .factorio/password)" go run . serve --listen 127.0.0.1:8080
 
-# Run the Pi Durable agent harness: agents status | ask ... | foreman ... | auto <role> ...
-agents *args:
-    @cd play/harness && node --experimental-strip-types src/main.ts {{args}}
-
-# Start the agent web console in the background (idempotent; refuses a second writer).
-agents-up:
+# Stop your processes listening on TCP 127.0.0.1:8080.
+graphql-stop:
     #!/usr/bin/env bash
     set -euo pipefail
-    url=http://127.0.0.1:8787
-    if curl -sf -m 2 "$url/api/state" >/dev/null 2>&1; then
-        echo "agents already running: $url"
+    port=8080
+    pids=$(lsof -nP -a -u "$(id -u)" -iTCP:$port -sTCP:LISTEN -t 2>/dev/null || true)
+    if [[ -z "${pids//[[:space:]]/}" ]]; then
+        echo "nothing listening on 127.0.0.1:$port"
         exit 0
     fi
-    cd play/harness
-    mkdir -p agents
-    nohup node --experimental-strip-types src/main.ts ui >> agents/ui.log 2>&1 &
-    echo $! > agents/ui.pid
-    for _ in $(seq 1 120); do
-        if curl -sf -m 2 "$url/api/state" >/dev/null 2>&1; then
-            echo "agents started: $url"
-            echo "pid $(cat agents/ui.pid) — log play/harness/agents/ui.log — stop with: just agents-down"
+    echo "stopping: $pids"
+    for pid in $pids; do kill -TERM "$pid" 2>/dev/null || true; done
+    for _ in $(seq 50); do
+        lsof -nP -a -u "$(id -u)" -iTCP:$port -sTCP:LISTEN -t >/dev/null 2>&1 || {
+            echo "127.0.0.1:$port is free"
             exit 0
-        fi
-        if ! kill -0 "$(cat agents/ui.pid)" 2>/dev/null; then
-            echo "agents exited during start; last lines:" >&2
-            tail -n 5 agents/ui.log >&2
-            rm -f agents/ui.pid
-            exit 1
-        fi
-        sleep 0.5
+        }
+        sleep 0.1
     done
-    echo "agents did not answer on $url within 60s; check play/harness/agents/ui.log" >&2
-    exit 1
+    for pid in $(lsof -nP -a -u "$(id -u)" -iTCP:$port -sTCP:LISTEN -t 2>/dev/null || true); do
+        kill -KILL "$pid" 2>/dev/null || true
+    done
+    sleep 0.2
+    if lsof -nP -a -u "$(id -u)" -iTCP:$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+        echo "error: 127.0.0.1:$port still in use" >&2
+        exit 1
+    fi
+    echo "127.0.0.1:$port is free"
 
-# Stop the background agent web console.
-agents-down:
+# Restart the GraphQL HTTP server: kill your :8080 listeners, start a fresh one, return.
+graphql-restart: graphql-stop
     #!/usr/bin/env bash
     set -euo pipefail
-    pidfile=play/harness/agents/ui.pid
-    [[ -f $pidfile ]] || { echo "agents not started by just (no pid file)"; exit 0; }
-    pid=$(cat "$pidfile")
-    if kill "$pid" 2>/dev/null; then
-        for _ in $(seq 1 40); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
-        echo "stopped agents (pid $pid)"
-    else
-        echo "agents (pid $pid) was not running"
-    fi
-    rm -f "$pidfile"
-
-# Show the agent console log.
-agents-logs:
-    @tail -n 40 play/harness/agents/ui.log
+    log=".factorio/graphql.log"
+    mkdir -p .factorio
+    : > "$log"
+    nohup env FACTORIO_RCON_PASSWORD="$(cat .factorio/password)" \
+        go run . serve --listen 127.0.0.1:8080 >>"$log" 2>&1 < /dev/null &
+    pid=$!
+    for _ in $(seq 120); do
+        if curl -fsS -o /dev/null -X POST -H 'Content-Type: application/json' \
+            -d '{"query":"{ __typename }"}' http://127.0.0.1:8080/query 2>/dev/null; then
+            echo "GraphQL endpoint: http://127.0.0.1:8080/query (pid $pid, log $log)"
+            exit 0
+        fi
+        kill -0 "$pid" 2>/dev/null || { echo "error: server exited during startup" >&2; tail -n 20 "$log" >&2; exit 1; }
+        sleep 0.5
+    done
+    echo "error: server did not answer within 60s" >&2
+    tail -n 20 "$log" >&2
+    exit 1

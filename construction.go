@@ -46,7 +46,7 @@ func buildGhosts(r *Resolver, input BuildGhostsInput) (*BuildGhostsResult, error
 	if !mode.IsValid() {
 		return nil, errors.New("mode must be REVIVE or SILENT")
 	}
-	if _, _, err := optionalActor(stringValueOr(input.Character, ""), stringValueOr(input.Player, "")); err != nil {
+	if _, _, err := optionalActorFrom(input.Actor); err != nil {
 		return nil, err
 	}
 	response, _, err := executeLua(r.addr, r.password, buildGhostsLua(surface, force, bounds, string(mode), input.Limit))
@@ -114,7 +114,7 @@ local function prototype_cost(g)
   return cost
 end
 local silent=%t
-for _,g in pairs(ghosts) do
+for index,g in ipairs(ghosts) do
   if g.valid then
     -- Reviving invalidates the ghost, so snapshot everything read later first.
     local ghost_name=g.name
@@ -136,18 +136,22 @@ for _,g in pairs(ghosts) do
         for _,stack in pairs(cost) do add_missing(stack.name,stack.count,"normal") end
       end
       if #errors<20 then
+        local code,message
         if ok then
-          errors[#errors+1]="ghost "..ghost_name.." at "..tostring(ghost_position.x)..","..tostring(ghost_position.y).." could not be revived (blocked)"
+          code="COLLISION"
+          message="ghost could not be revived because placement is blocked"
         else
-          errors[#errors+1]=tostring(r1)
+          code="ENGINE"
+          message=tostring(r1)
         end
+        errors[#errors+1]={index=index,code=code,message=message,target={surface=s.name,entity=ghost_name,position=ghost_position}}
       end
     end
   end
 end
 local missing_list={}; for _,item in pairs(missing) do missing_list[#missing_list+1]=item end
 table.sort(missing_list,function(a,b) if a.name~=b.name then return a.name<b.name end return a.quality<b.quality end)
-rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,mode=%s,revived=revived,failed=failed,missing=missing_list,entities=entities,errors=errors}))`,
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,mode=%s,revived=revived,failed=failed,missing=missing_list,entities=entities,errors=errors}))`,
 		luaString(surface), luaString(force), bounds.lua(), limit, mode == string(BuildGhostsModeSilent), revive, luaString(mode))
 }
 
@@ -249,6 +253,6 @@ for i=offset+1,math.min(total,offset+limit) do
   local okprov,prov=pcall(function() return net.provider_points end); if okprov and type(prov)=="table" then info.provider_points=#prov end
   list[#list+1]=info
 end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,total=total,limit=limit,offset=offset,networks=list}))`,
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,page_info={total=total,limit=limit,offset=offset,has_more=total>offset+limit},networks=list}))`,
 		luaString(surface), luaString(force), area, limit, offset, luaString(requested))
 }

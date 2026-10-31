@@ -3,29 +3,16 @@ package main
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 )
 
-var placeDirections = map[string]int{"north": 0, "east": 4, "south": 8, "west": 12}
-
 // placeMany places one normal-quality item at each requested position. Per
 // position failures are counted and reported instead of aborting the batch.
 func placeMany(r *Resolver, input PlaceManyInput) (*PlaceManyResult, error) {
-	player, character := "", uint64(0)
-	if input.Player != nil {
-		player = *input.Player
-	}
-	if input.Character != nil {
-		parsed, err := strconv.ParseUint(*input.Character, 10, 32)
-		if err != nil || parsed == 0 {
-			return nil, errors.New("character must be a unit number from 1 to 4294967295")
-		}
-		character = parsed
-	}
-	if (player == "") == (character == 0) {
-		return nil, errors.New("exactly one of player or character is required")
+	character, player, err := settingsActorFrom(input.Actor)
+	if err != nil {
+		return nil, err
 	}
 	surface := "nauvis"
 	if input.Surface != nil {
@@ -49,29 +36,20 @@ func placeMany(r *Resolver, input PlaceManyInput) (*PlaceManyResult, error) {
 		if placement == nil {
 			return nil, fmt.Errorf("placement %d is missing", i+1)
 		}
-		if math.IsNaN(placement.X) || math.IsInf(placement.X, 0) || math.IsNaN(placement.Y) || math.IsInf(placement.Y, 0) {
-			return nil, fmt.Errorf("placement %d coordinates must be finite", i+1)
+		if placement.Position == nil {
+			return nil, fmt.Errorf("placement %d position is required", i+1)
 		}
-		direction := 0
-		if placement.DirectionCode != nil {
-			if *placement.DirectionCode < 0 || *placement.DirectionCode > 15 {
-				return nil, fmt.Errorf("placement %d directionCode must be between 0 and 15", i+1)
-			}
-			direction = *placement.DirectionCode
-		} else if placement.Direction != nil && *placement.Direction != "" {
-			var ok bool
-			direction, ok = placeDirections[*placement.Direction]
-			if !ok {
-				return nil, fmt.Errorf("placement %d direction must be north, east, south, or west", i+1)
-			}
+		if placement.Direction < 0 || placement.Direction > 15 {
+			return nil, fmt.Errorf("placement %d direction must be between 0 and 15", i+1)
 		}
+		direction := placement.Direction
 		fastReplace := placement.FastReplace != nil && *placement.FastReplace
 		if i > 0 {
 			placements.WriteString(",")
 		}
 		fmt.Fprintf(&placements, "{x=%s,y=%s,direction=%d,fast_replace=%t}",
-			strconv.FormatFloat(placement.X, 'g', -1, 64),
-			strconv.FormatFloat(placement.Y, 'g', -1, 64), direction, fastReplace)
+			strconv.FormatFloat(placement.Position.X, 'g', -1, 64),
+			strconv.FormatFloat(placement.Position.Y, 'g', -1, 64), direction, fastReplace)
 	}
 	lua := luaFail + fmt.Sprintf(`local player=%s; local unit=%d; local actor; local c
 if unit~=0 then actor=game.get_entity_by_unit_number(unit); if not actor or actor.type~="character" then fail("character not found"); return end; c=actor
@@ -83,14 +61,17 @@ local item=%s; local quality=%s; local proto=prototypes.item[item]; if not proto
 if not prototypes.quality[quality] then fail("quality not found"); return end
 local placements={%s}
 local placed,failed=0,0; local errors={}; local entities={}
-local function fail_at(i,reason) failed=failed+1; if #errors<20 then errors[#errors+1]="placement "..i..": "..reason end end
+local function fail_at(i,code,reason,p)
+  failed=failed+1
+  if #errors<20 then errors[#errors+1]={index=i,code=code,message=reason,target={surface=s.name,entity=name,position={x=p.x,y=p.y}}} end
+end
 for i,p in ipairs(placements) do
   local ok=true
   local dx=c.position.x-p.x; local dy=c.position.y-p.y
-  if dx*dx+dy*dy>c.build_distance*c.build_distance then ok=false; fail_at(i,"out of build reach") end
-  if ok and inv.get_item_count({name=item,quality=quality})<1 then ok=false; fail_at(i,"actor lacks item") end
-  if ok and not p.fast_replace and not s.can_place_entity{name=name,position={x=p.x,y=p.y},direction=p.direction,force=c.force} then ok=false; fail_at(i,"cannot place entity") end
-  if ok and inv.remove{name=item,quality=quality,count=1}~=1 then ok=false; fail_at(i,"could not remove item") end
+  if %s then ok=false; fail_at(i,"REACH","out of build reach",p) end
+  if ok and inv.get_item_count({name=item,quality=quality})<1 then ok=false; fail_at(i,"INVENTORY","actor lacks item",p) end
+  if ok and not p.fast_replace and not s.can_place_entity{name=name,position={x=p.x,y=p.y},direction=p.direction,force=c.force} then ok=false; fail_at(i,"COLLISION","cannot place entity",p) end
+  if ok and inv.remove{name=item,quality=quality,count=1}~=1 then ok=false; fail_at(i,"INVENTORY","could not remove item",p) end
   if ok then
     local params={name=name,position={x=p.x,y=p.y},direction=p.direction,quality=quality,force=c.force,raise_built=true}
     if p.fast_replace then params.fast_replace=true; params.spill=true end
@@ -100,12 +81,13 @@ for i,p in ipairs(placements) do
       entities[#entities+1]={name=e.name,type=e.type,position=e.position,unit_number=e.unit_number}
     else
       inv.insert{name=item,quality=quality,count=1}
-      fail_at(i,"entity creation failed"..(created and "" or ": "..tostring(e)))
+      fail_at(i,"ENGINE","entity creation failed"..(created and "" or ": "..tostring(e)),p)
     end
   end
 end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,item=item,placed=placed,failed=failed,errors=errors,entities=entities}))`,
-		luaString(player), character, luaString(surface), luaString(input.Item), luaString(quality), placements.String())
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=c.force.name,item=item,placed=placed,failed=failed,errors=errors,entities=entities}))`,
+		luaString(player), character, luaString(surface), luaString(input.Item), luaString(quality), placements.String(),
+		distanceViolation("dx", "dy", "c.build_distance"))
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

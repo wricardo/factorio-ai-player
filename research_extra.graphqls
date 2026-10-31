@@ -38,6 +38,6 @@ enum TechnologyUnlockMode {
 type ResearchUnlockResult {
   tick: Float!
   force: String!
-  mode: String!
+  mode: TechnologyUnlockMode!
   technologies: Int!
 }

@@ -8,13 +8,13 @@ extend type FactoryMachine {
   """Current recipe and quality, when the entity exposes a recipe."""
   recipeName: String
   recipeQuality: String
-  recipeIngredients: [ItemStack!]
+  recipeIngredients: [RecipeIngredient!]
   """Crafting progress and speed, when applicable."""
   craftingProgress: Float
   craftingSpeed: Float
   "Null when this machine has no corresponding inventory."
-  input: [ItemStack!]
-  output: [ItemStack!]
+  input: [InventoryStack!]
+  output: [InventoryStack!]
   """Occupied fluid boxes with one-based indices."""
   machineFluids: [MachineInsightFluid!]!
   """Mining progress and current target, when available."""
@@ -35,10 +35,7 @@ input PlayerInsightInput {
   """Optional non-empty recipe name in the player's force; unknown recipes produce an error."""
   recipe: String
   """Positive integer entity unit number, mutually exclusive with target coordinates."""
-  targetUnitNumber: ID
-  """Finite target coordinates; both must be supplied together and cannot accompany targetUnitNumber."""
-  targetX: Float
-  targetY: Float
+  target: EntityRefInput
 }
 type PlayerInsight {
   tick: Float!
@@ -50,7 +47,7 @@ type PlayerInsight {
   position: Position!
   hasCharacter: Boolean!
   "Null without a character or main inventory."
-  items: [ItemStack!]
+  items: [InventoryStack!]
   queue: [QueueEntry!]
   queueSize: Float
   queueProgress: Float
@@ -66,7 +63,7 @@ type PlayerInsightRecipe {
   "Engine craftable count; null without a character. This may include intermediate crafts."
   craftableCount: Float
   ingredients: [PlayerInsightIngredient!]!
-  products: [ItemStack!]!
+  products: [RecipeProduct!]!
 }
 type PlayerInsightIngredient {
   name: String!
@@ -81,7 +78,7 @@ type PlayerInsightReach {
   targetName: String
   "Straight-line distance from the character or player position, when on the target surface; not a reachability test."
   distance: Float
-  "Engine can_reach_entity result; null for position-only targets or absent character."
+  "Engine can_reach_entity result, independent of FACTORIO_ENFORCE_REACH; null for position-only targets or absent character."
   canReachEntity: Boolean
   unavailableReason: String
 }

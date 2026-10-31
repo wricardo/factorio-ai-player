@@ -12,3 +12,8 @@ resolver:
   package: main
   filename_template: "graphql_{name}.resolvers.go"
 autobind: []
+models:
+  UnitNumber:
+    model: github.com/wricardo/factorio-ai-player.UnitNumber
+  FiniteFloat:
+    model: github.com/wricardo/factorio-ai-player.FiniteFloat

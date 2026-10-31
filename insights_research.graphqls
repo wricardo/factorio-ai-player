@@ -40,10 +40,7 @@ type ResearchInsights {
   progress: Float
   """Queue order as reported by Factorio; may include current research."""
   researchQueue: [String!]!
-  """Number of matching technologies before pagination."""
-  total: Int!
-  limit: Int!
-  offset: Int!
+  pageInfo: PageInfo!
   technologies: [ResearchInsightsTechnology!]!
 }
 

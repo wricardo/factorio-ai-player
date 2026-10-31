@@ -16,55 +16,66 @@ func (r *entityInspectionResolver) Settings(ctx context.Context, obj *EntityInsp
 
 // SetSplitterSettings is the resolver for the setSplitterSettings field.
 func (r *mutationResolver) SetSplitterSettings(ctx context.Context, input SplitterSettingsInput) (*SettingsResult, error) {
-	return setSplitterSettings(r.Resolver, input)
+	result, err := setSplitterSettings(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // SetInserterSettings is the resolver for the setInserterSettings field.
 func (r *mutationResolver) SetInserterSettings(ctx context.Context, input InserterSettingsInput) (*SettingsResult, error) {
-	return setInserterSettings(r.Resolver, input)
+	result, err := setInserterSettings(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // SetLampSettings is the resolver for the setLampSettings field.
 func (r *mutationResolver) SetLampSettings(ctx context.Context, input LampSettingsInput) (*SettingsResult, error) {
-	return setLampSettings(r.Resolver, input)
+	result, err := setLampSettings(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // SetContainerBar is the resolver for the setContainerBar field.
 func (r *mutationResolver) SetContainerBar(ctx context.Context, input ContainerBarInput) (*SettingsResult, error) {
-	return setContainerBar(r.Resolver, input)
+	result, err := setContainerBar(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // SetLogisticRequests is the resolver for the setLogisticRequests field.
 func (r *mutationResolver) SetLogisticRequests(ctx context.Context, input LogisticRequestsInput) (*SettingsResult, error) {
-	return setLogisticRequests(r.Resolver, input)
+	result, err := setLogisticRequests(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // SetTrainStop is the resolver for the setTrainStop field.
 func (r *mutationResolver) SetTrainStop(ctx context.Context, input TrainStopInput) (*SettingsResult, error) {
-	return setTrainStop(r.Resolver, input)
+	result, err := setTrainStop(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // SetRocketSilo is the resolver for the setRocketSilo field.
 func (r *mutationResolver) SetRocketSilo(ctx context.Context, input RocketSiloInput) (*SettingsResult, error) {
-	return setRocketSilo(r.Resolver, input)
+	result, err := setRocketSilo(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // LaunchRocket is the resolver for the launchRocket field.
 func (r *mutationResolver) LaunchRocket(ctx context.Context, input RocketLaunchInput) (*SettingsResult, error) {
-	return launchRocket(r.Resolver, input)
+	result, err := launchRocket(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // SetCircuitBehavior is the resolver for the setCircuitBehavior field.
 func (r *mutationResolver) SetCircuitBehavior(ctx context.Context, input CircuitBehaviorInput) (*SettingsResult, error) {
-	return setCircuitBehavior(r.Resolver, input)
+	result, err := setCircuitBehavior(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
 }
 
 // ConnectWire is the resolver for the connectWire field.
 func (r *mutationResolver) ConnectWire(ctx context.Context, input WireInput) (*WireResult, error) {
-	return connectWire(r.Resolver, input, true)
+	result, err := connectWire(r.Resolver, input, true)
+	return setActorResult(result, input.Actor, err)
 }
 
 // DisconnectWire is the resolver for the disconnectWire field.
 func (r *mutationResolver) DisconnectWire(ctx context.Context, input WireInput) (*WireResult, error) {
-	return connectWire(r.Resolver, input, false)
+	result, err := connectWire(r.Resolver, input, false)
+	return setActorResult(result, input.Actor, err)
 }

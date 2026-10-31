@@ -41,15 +41,9 @@ type StockPage {
   tick: Float!
   surface: String!
   force: String!
-  """Number of matching locations before pagination."""
-  total: Int!
-  limit: Int!
-  offset: Int!
+  locationPageInfo: PageInfo!
   locations: [StockLocation!]!
-  """Number of item, quality, and category groups before totals pagination."""
-  totalsTotal: Int!
-  totalsLimit: Int!
-  totalsOffset: Int!
+  totalPageInfo: PageInfo!
   totals: [StockTotal!]!
 }
 

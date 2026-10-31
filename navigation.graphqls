@@ -16,16 +16,14 @@ extend type Query {
 
 """Destination and limits for navigation of a detached character or connected player's current character. Provide exactly one of finite x and y, targetCharacter, or targetEntity. With targetCharacter the destination follows that character's current position, so the walker chases it; tolerance must then be at least 1 because characters collide. With targetEntity the character walks to the nearest point on the entity's bounding box expanded by tolerance, which suits chests, assembling machines, inserters, and other static entities."""
 input NavigateStartInput {
-  """Character unit number from 1 to 4294967295; may be detached or player-controlled."""
-  character: ID!
+  """Actor whose character moves. Player selectors resolve current character before starting."""
+  actor: ActorInput!
   """Finite destination coordinates on the character's current surface. Required unless targetCharacter or targetEntity is set."""
-  x: Float
-  """Finite destination coordinates on the character's current surface. Required unless targetCharacter or targetEntity is set."""
-  y: Float
+  position: PositionInput
   """Character unit number from 1 to 4294967295 on the same surface; the destination tracks this character and must differ from character. Use targetEntity for anything that is not a character."""
-  targetCharacter: ID
-  """Unit number of a static entity on the character's current surface, such as a chest, assembling machine, or inserter. The destination is the closest point on its bounding box expanded by tolerance, so the walk ends within tolerance of the entity and not inside it. Resolved once from the entity's position at start; the job ends TARGET_MISSING when the entity is removed or moved to another surface."""
-  targetEntity: ID
+  targetCharacter: UnitNumber
+  """Unit number of a static entity on the character's current surface."""
+  targetEntity: UnitNumber
   """Arrival distance, greater than zero and at most 10. For a chase (targetCharacter) it is the gap from the target character; for targetEntity it is the gap from the entity's bounding box. At least 1 when targetCharacter is set."""
   tolerance: Float! = 0.5
   """Maximum job duration in ticks, from 1 to 216000."""
@@ -40,22 +38,27 @@ input NavigateStartInput {
 
 """Persistent navigation job state, including terminal outcomes."""
 type NavigationJob {
+  """Game tick when this job state was observed."""
+  tick: Float!
+  """Character force when its character still exists."""
+  force: String
+  """Resolved moving character identity."""
+  actor: ActorIdentity!
   """Opaque job identifier."""
   id: ID!
   """Character unit number, detached or player-controlled."""
-  character: ID!
-  """Character unit number being chased, when the job was started with targetCharacter."""
-  targetCharacter: ID
-  """Unit number of the static entity being approached, when the job was started with targetEntity."""
-  targetEntity: ID
+  character: UnitNumber!
+  """Character unit number being chased, when applicable."""
+  targetCharacter: UnitNumber
+  """Static entity unit number being approached, when applicable."""
+  targetEntity: UnitNumber
   """Surface on which navigation started."""
   surface: String!
   """Requested destination."""
   destination: Position!
   """Latest character position, if available."""
   position: Position
-  """PATHFINDING, MOVING, ARRIVED, NO_PATH, STUCK, CANCELLED, TIMED_OUT, CHARACTER_MISSING, or TARGET_MISSING."""
-  status: String!
+  status: EngineStatus!
   """Optional explanation of the job state."""
   reason: String
   """Tick at which the job started."""

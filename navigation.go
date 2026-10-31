@@ -11,7 +11,11 @@ import (
 )
 
 func navigationStart(ctx context.Context, r *Resolver, input NavigateStartInput) (*NavigationJob, error) {
-	character, err := strconv.ParseUint(input.Character, 10, 32)
+	characterText, err := resolveActorCharacterInput(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	character, err := strconv.ParseUint(characterText, 10, 32)
 	if err != nil || character == 0 {
 		return nil, fmt.Errorf("character must be a unit number from 1 to 4294967295")
 	}
@@ -19,7 +23,7 @@ func navigationStart(ctx context.Context, r *Resolver, input NavigateStartInput)
 		return nil, fmt.Errorf("tolerance must be greater than 0 and at most 10")
 	}
 	forms := 0
-	if input.X != nil || input.Y != nil {
+	if input.Position != nil {
 		forms++
 	}
 	if input.TargetCharacter != nil {
@@ -29,10 +33,7 @@ func navigationStart(ctx context.Context, r *Resolver, input NavigateStartInput)
 		forms++
 	}
 	if forms != 1 {
-		return nil, fmt.Errorf("provide exactly one of x and y, targetCharacter, or targetEntity")
-	}
-	if (input.X == nil) != (input.Y == nil) {
-		return nil, fmt.Errorf("x and y must be provided together")
+		return nil, fmt.Errorf("provide exactly one of position, targetCharacter, or targetEntity")
 	}
 	targetCharacter, targetEntity := "nil", "nil"
 	if input.TargetCharacter != nil {
@@ -58,7 +59,7 @@ func navigationStart(ctx context.Context, r *Resolver, input NavigateStartInput)
 		}
 		targetEntity = strconv.FormatUint(unit, 10)
 	}
-	if (input.X != nil && (math.IsNaN(*input.X) || math.IsInf(*input.X, 0))) || (input.Y != nil && (math.IsNaN(*input.Y) || math.IsInf(*input.Y, 0))) {
+	if input.Position != nil && (math.IsNaN(input.Position.X) || math.IsInf(input.Position.X, 0) || math.IsNaN(input.Position.Y) || math.IsInf(input.Position.Y, 0)) {
 		return nil, fmt.Errorf("destination coordinates must be finite")
 	}
 	if input.TimeoutTicks < 1 || input.TimeoutTicks > 216000 {
@@ -68,11 +69,9 @@ func navigationStart(ctx context.Context, r *Resolver, input NavigateStartInput)
 		return nil, fmt.Errorf("waitTimeoutSeconds must be from 1 to 3600")
 	}
 	x, y := "nil", "nil"
-	if input.X != nil {
-		x = strconv.FormatFloat(*input.X, 'g', -1, 64)
-	}
-	if input.Y != nil {
-		y = strconv.FormatFloat(*input.Y, 'g', -1, 64)
+	if input.Position != nil {
+		x = strconv.FormatFloat(input.Position.X, 'g', -1, 64)
+		y = strconv.FormatFloat(input.Position.Y, 'g', -1, 64)
 	}
 	args := fmt.Sprintf("%d,%s,%s,%s,%d,%s,%s", character, x, y,
 		strconv.FormatFloat(input.Tolerance, 'g', -1, 64), input.TimeoutTicks, targetCharacter, targetEntity)
@@ -113,7 +112,7 @@ func waitForNavigation(ctx context.Context, job *NavigationJob, timeout time.Dur
 	defer cancel()
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
-	for job.Status == "PATHFINDING" || job.Status == "MOVING" {
+	for statusRawName(job.Status) == "PATHFINDING" || statusRawName(job.Status) == "MOVING" {
 		select {
 		case <-waitCtx.Done():
 			if ctx.Err() != nil {
@@ -142,14 +141,40 @@ func navigationCall(r *Resolver, method, args string) (*NavigationJob, error) {
 }
 
 func navigationCallContext(ctx context.Context, r *Resolver, method, args string) (*NavigationJob, error) {
-	lua := luaFail + fmt.Sprintf(`local interface=remote.interfaces["factorio_ai_navigation"]; if not interface or not interface[%s] then fail("factorio_ai_navigation mod or remote function is unavailable"); return end; rcon.print(helpers.table_to_json(remote.call("factorio_ai_navigation",%s,%s)))`, luaString(method), luaString(method), args)
+	lua := luaFail + fmt.Sprintf(`local interface=remote.interfaces["factorio_ai_navigation"]; if not interface or not interface[%s] then fail("factorio_ai_navigation mod or remote function is unavailable"); return end; local result=remote.call("factorio_ai_navigation",%s,%s); result.tick=game.tick; local character=game.get_entity_by_unit_number(tonumber(result.character)); if character and character.valid and character.force then result.force=character.force.name end; rcon.print(helpers.table_to_json(result))`, luaString(method), luaString(method), args)
 	response, _, err := executeLuaContext(ctx, r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
 	}
-	var job NavigationJob
-	if err := json.Unmarshal([]byte(response), &job); err != nil {
+	var wire navigationJobWire
+	if err := json.Unmarshal([]byte(response), &wire); err != nil {
 		return nil, fmt.Errorf("decode navigation response: %w", err)
 	}
-	return &job, nil
+	return wire.model(), nil
+}
+
+type navigationJobWire struct {
+	Tick            float64   `json:"tick"`
+	Force           *string   `json:"force,omitempty"`
+	ID              string    `json:"id"`
+	Character       string    `json:"character"`
+	TargetCharacter *string   `json:"targetCharacter,omitempty"`
+	TargetEntity    *string   `json:"targetEntity,omitempty"`
+	Surface         string    `json:"surface"`
+	Destination     *Position `json:"destination"`
+	Position        *Position `json:"position,omitempty"`
+	Status          string    `json:"status"`
+	Reason          *string   `json:"reason,omitempty"`
+	StartedTick     float64   `json:"startedTick"`
+	UpdatedTick     float64   `json:"updatedTick"`
+}
+
+func (wire navigationJobWire) model() *NavigationJob {
+	return &NavigationJob{
+		Tick: wire.Tick, Force: wire.Force, Actor: &ActorIdentity{Character: &wire.Character},
+		ID: wire.ID, Character: wire.Character, TargetCharacter: wire.TargetCharacter,
+		TargetEntity: wire.TargetEntity, Surface: wire.Surface, Destination: wire.Destination,
+		Position: wire.Position, Status: engineStatus(wire.Status), Reason: wire.Reason,
+		StartedTick: wire.StartedTick, UpdatedTick: wire.UpdatedTick,
+	}
 }

@@ -1,7 +1,7 @@
 extend type FactoryMachine {
   surface: String!
   force: String!
-  unitNumber: ID
+  unitNumber: UnitNumber
   """One additional game snapshot for ingredient demand, theoretical throughput, blocking status and electric state together."""
   diagnostics: MachineDiagnostics! @goField(forceResolver: true)
 }

@@ -10,15 +10,18 @@ import (
 )
 
 func beltThroughputStart(ctx context.Context, r *Resolver, input BeltThroughputStartInput) (*BeltThroughputMeasurement, error) {
-	if strings.TrimSpace(input.Surface) == "" {
+	surfaceField, _, unitNumber, inputX, inputY := entityRefFields(input.Target)
+	surface := stringValueOr(surfaceField, "nauvis")
+	if strings.TrimSpace(surface) == "" {
 		return nil, fmt.Errorf("surface is required")
 	}
-	surface, x, y, err := resolveBeltAddress(r, input.Surface, input.UnitNumber, input.X, input.Y)
+	resolvedSurface, x, y, err := resolveBeltAddress(r, surface, unitNumber, inputX, inputY)
 	if err != nil {
 		return nil, err
 	}
-	if input.UnitNumber != nil && *input.UnitNumber != "" {
-		belt, err := entityByUnitNumber(r, *input.UnitNumber, input.Surface)
+	surface = resolvedSurface
+	if unitNumber != nil && *unitNumber != "" {
+		belt, err := entityByUnitNumber(r, *unitNumber, surface)
 		if err != nil {
 			return nil, err
 		}
@@ -40,14 +43,14 @@ func beltThroughputStart(ctx context.Context, r *Resolver, input BeltThroughputS
 	args := fmt.Sprintf("%s,%s,%s,%d", luaString(surface),
 		strconv.FormatFloat(x, 'g', -1, 64), strconv.FormatFloat(y, 'g', -1, 64), input.DurationTicks)
 	measurement, err := beltThroughputCall(ctx, r, "start", args)
-	if err != nil || !input.Wait || measurement.Status != "RUNNING" {
+	if err != nil || !input.Wait || measurement.Status == nil || measurement.Status.RawName == nil || *measurement.Status.RawName != "RUNNING" {
 		return measurement, err
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, time.Duration(input.WaitTimeoutSeconds)*time.Second)
 	defer cancel()
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
-	for measurement.Status == "RUNNING" {
+	for measurement.Status != nil && measurement.Status.RawName != nil && *measurement.Status.RawName == "RUNNING" {
 		select {
 		case <-waitCtx.Done():
 			if ctx.Err() != nil {
@@ -83,7 +86,13 @@ func beltThroughputCall(ctx context.Context, r *Resolver, method, args string) (
 local interface=remote.interfaces["factorio_ai_belt_flow"]
 if not interface or not interface.version or not interface[%s] then fail("belt measurement requires updated factorio_ai_navigation loaded in this save (factorio_ai_belt_flow protocol 1)"); return end
 if remote.call("factorio_ai_belt_flow","version") ~= 1 then fail("unsupported factorio_ai_belt_flow protocol; expected 1"); return end
-rcon.print(helpers.table_to_json(remote.call("factorio_ai_belt_flow",%s,%s)))`, luaString(method), luaString(method), args)
+local result=remote.call("factorio_ai_belt_flow",%s,%s)
+local raw=result.status
+local category="OTHER"
+if raw=="RUNNING" then category="RUNNING" elseif raw=="COMPLETE" then category="SUCCEEDED" elseif raw=="INVALIDATED" then category="FAILED" end
+result.status={category=category,rawName=raw,terminal=raw~="RUNNING"}
+result.tick=game.tick
+rcon.print(helpers.table_to_json(result))`, luaString(method), luaString(method), args)
 	response, _, err := executeLuaContext(ctx, r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

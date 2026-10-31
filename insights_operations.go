@@ -108,7 +108,7 @@ rcon.print(helpers.table_to_json(result))`
 // operationsInspectionLua resolves the same identity in a fresh snapshot. Exact
 // center matching avoids silently inspecting a neighbor after an entity vanishes.
 func operationsInspectionLua(obj *EntityInspection) (string, error) {
-	if obj == nil || obj.Surface == nil || *obj.Surface == "" || obj.Force == nil || *obj.Force == "" || obj.Name == nil || *obj.Name == "" || obj.Position == nil {
+	if obj == nil || obj.Surface == "" || obj.Force == "" || obj.Name == nil || *obj.Name == "" || obj.Position == nil {
 		return "", errors.New("inspection surface, force, name, and position are required")
 	}
 	x, y := obj.Position.X, obj.Position.Y
@@ -128,7 +128,7 @@ for _,e in pairs(surface.find_entities_filtered{name=%s,force=force,position=pos
   end
 end
 if not target then fail("entity not found at center on force"); return end
-`, luaString(*obj.Surface), luaString(*obj.Force), strconv.FormatFloat(x, 'g', -1, 64), strconv.FormatFloat(y, 'g', -1, 64), luaString(*obj.Name)), nil
+`, luaString(obj.Surface), luaString(obj.Force), strconv.FormatFloat(x, 'g', -1, 64), strconv.FormatFloat(y, 'g', -1, 64), luaString(*obj.Name)), nil
 }
 
 func inspectionMissingSciencePacks(r *Resolver, obj *EntityInspection) ([]*MissingSciencePack, error) {
@@ -215,7 +215,7 @@ for i=offset+1,math.min(#matches,offset+limit) do
   entries[#entries+1]=row
 end
 rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,area=` + responseArea + `,
-  total=#matches,limit=limit,offset=offset,ghostEntries=entries})`
+  pageInfo={total=#matches,limit=limit,offset=offset,hasMore=#matches>offset+limit},ghostEntries=entries})`
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

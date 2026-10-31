@@ -18,16 +18,43 @@ func TestQueryRejectsMutation(t *testing.T) {
 
 func TestGraphQLRejectsInvalidCraftCount(t *testing.T) {
 	var out bytes.Buffer
-	err := runWithCredentials([]string{"mutation", `mutation($id: ID!) { craft(input: {character: $id, recipe: "stone-furnace", count: 0}) { started } }`, "--variables", `{"id":"4294967295"}`}, &out, "")
+	err := runWithCredentials([]string{"mutation", `mutation($id: UnitNumber!) { craft(input: {actor:{character: $id}, recipe: "stone-furnace", count: 0}) { started } }`, "--variables", `{"id":"4294967295"}`}, &out, "")
 	if err == nil || !strings.Contains(err.Error(), "count") {
 		t.Fatalf("invalid count should be rejected before RCON, got %v", err)
+	}
+}
+
+func TestDomainScalarsRejectInvalidLiteralsAndVariablesBeforeRCON(t *testing.T) {
+	tests := []struct {
+		name      string
+		document  string
+		variables string
+		want      string
+	}{
+		{"unit literal zero", `mutation { craft(input:{actor:{character:"0"},recipe:"iron-plate"}) { started } }`, "", "UnitNumber"},
+		{"unit variable text", `mutation($id:UnitNumber!){ craft(input:{actor:{character:$id},recipe:"iron-plate"}) { started } }`, `{"id":"abc"}`, "UnitNumber"},
+		{"finite literal nonnumber", `mutation { teleport(input:{actor:{character:"7"},position:{x:NaN,y:0}}) { tick } }`, "", "FiniteFloat"},
+		{"finite variable nonnumber", `mutation($x:FiniteFloat!){ teleport(input:{actor:{character:"7"},position:{x:$x,y:0}}) { tick } }`, `{"x":"NaN"}`, "FiniteFloat"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			args := []string{"mutation", tc.document}
+			if tc.variables != "" {
+				args = append(args, "--variables", tc.variables)
+			}
+			var out bytes.Buffer
+			err := runWithCredentials(args, &out, "")
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %q coercion failure", err, tc.want)
+			}
+		})
 	}
 }
 
 func TestCraftWaitTimeoutBoundsBeforeRCON(t *testing.T) {
 	for _, timeout := range []int{0, 3601} {
 		var out bytes.Buffer
-		mutation := fmt.Sprintf(`mutation { craft(input:{character:"7",recipe:"iron-plate",waitTimeoutSeconds:%d}) { started } }`, timeout)
+		mutation := fmt.Sprintf(`mutation { craft(input:{actor:{character:"7"},recipe:"iron-plate",waitTimeoutSeconds:%d}) { started } }`, timeout)
 		err := runWithCredentials([]string{"mutation", mutation}, &out, "")
 		if err == nil || !strings.Contains(err.Error(), "waitTimeoutSeconds") {
 			t.Errorf("expected timeout validation for %d, got %v", timeout, err)
@@ -37,7 +64,7 @@ func TestCraftWaitTimeoutBoundsBeforeRCON(t *testing.T) {
 
 func TestCraftWaitOptionsDefaultToImmediate(t *testing.T) {
 	var out bytes.Buffer
-	err := runWithCredentials([]string{"mutation", `mutation { craft(input:{character:"7",recipe:"iron-plate"}) { started } }`}, &out, "")
+	err := runWithCredentials([]string{"mutation", `mutation { craft(input:{actor:{character:"7"},recipe:"iron-plate"}) { started } }`}, &out, "")
 	if err == nil || !strings.Contains(err.Error(), "FACTORIO_RCON_PASSWORD is required") {
 		t.Fatalf("default craft options should proceed without waiting, got %v", err)
 	}
@@ -68,8 +95,8 @@ func TestClearAreaRejectsInvalidBoundsBeforeRCON(t *testing.T) {
 
 func TestBatchAreaMutationsValidateBoundsBeforeRCON(t *testing.T) {
 	invalid := []string{
-		`mutation { harvestArea(input:{character:"7",area:{leftTopX:0,leftTopY:0,rightBottomX:257,rightBottomY:1}}) { treesMined } }`,
-		`mutation { pickupArea(input:{character:"7",area:{leftTopX:0,leftTopY:0,rightBottomX:0,rightBottomY:1}}) { stacksFound } }`,
+		`mutation { harvestArea(input:{actor:{character:"7"},area:{leftTopX:0,leftTopY:0,rightBottomX:257,rightBottomY:1}}) { treesMined } }`,
+		`mutation { pickupArea(input:{actor:{character:"7"},area:{leftTopX:0,leftTopY:0,rightBottomX:0,rightBottomY:1}}) { stacksFound } }`,
 	}
 	for _, mutation := range invalid {
 		var out bytes.Buffer
@@ -80,8 +107,8 @@ func TestBatchAreaMutationsValidateBoundsBeforeRCON(t *testing.T) {
 	}
 
 	valid := []string{
-		`mutation { harvestArea(input:{character:"7",area:{leftTopX:0,leftTopY:0,rightBottomX:256,rightBottomY:256}}) { treesMined } }`,
-		`mutation { pickupArea(input:{character:"7",area:{leftTopX:0,leftTopY:0,rightBottomX:256,rightBottomY:256}}) { stacksFound } }`,
+		`mutation { harvestArea(input:{actor:{character:"7"},area:{leftTopX:0,leftTopY:0,rightBottomX:256,rightBottomY:256}}) { treesMined } }`,
+		`mutation { pickupArea(input:{actor:{character:"7"},area:{leftTopX:0,leftTopY:0,rightBottomX:256,rightBottomY:256}}) { stacksFound } }`,
 	}
 	for _, mutation := range valid {
 		var out bytes.Buffer
@@ -97,9 +124,9 @@ func TestMachineQueryRejectsInvalidBounds(t *testing.T) {
 		query string
 		want  string
 	}{
-		{`{ machines(input:{limit:0}) { total } }`, "limit"},
-		{`{ machines(input:{offset:-1}) { total } }`, "offset"},
-		{`{ machines(input:{area:{leftTopX:2,leftTopY:0,rightBottomX:1,rightBottomY:1}}) { total } }`, "area"},
+		{`{ machines(input:{limit:0}) { pageInfo { total } } }`, "limit"},
+		{`{ machines(input:{offset:-1}) { pageInfo { total } } }`, "offset"},
+		{`{ machines(input:{area:{leftTopX:2,leftTopY:0,rightBottomX:1,rightBottomY:1}}) { pageInfo { total } } }`, "area"},
 	}
 	for _, tt := range tests {
 		var out bytes.Buffer
@@ -194,11 +221,11 @@ func TestObservationQueriesRejectInvalidBounds(t *testing.T) {
 		query string
 		want  string
 	}{
-		{`{ stock(input:{limit:0}) { total } }`, "limit"},
-		{`{ electricNetworks(input:{offset:-1}) { total } }`, "offset"},
-		{`{ worldResources(input:{area:{leftTopX:0,leftTopY:0,rightBottomX:257,rightBottomY:1}}) { total } }`, "area"},
+		{`{ stock(input:{limit:0}) { locationPageInfo { total } } }`, "limit"},
+		{`{ electricNetworks(input:{offset:-1}) { pageInfo { total } } }`, "offset"},
+		{`{ worldResources(input:{area:{leftTopX:0,leftTopY:0,rightBottomX:257,rightBottomY:1}}) { pageInfo { total } } }`, "area"},
 		{`{ safety(input:{enemyLimit:1001}) { tick } }`, "limit"},
-		{`{ itemRecipes(input:{item:"iron-plate",offset:-1}) { total } }`, "offset"},
+		{`{ itemRecipes(input:{item:"iron-plate",offset:-1}) { pageInfo { total } } }`, "offset"},
 	}
 	for _, tt := range tests {
 		var out bytes.Buffer
@@ -211,7 +238,7 @@ func TestObservationQueriesRejectInvalidBounds(t *testing.T) {
 
 func TestMutationNotificationOptionsAreAccepted(t *testing.T) {
 	mutations := []string{
-		`mutation { pickup(input:{character:"7",x:0,y:0,message:"took item"}) { moved } }`,
+		`mutation { pickup(input:{actor:{character:"7"},position:{x:0,y:0},message:"took item"}) { moved } }`,
 		`mutation { clearArea(input:{area:{leftTopX:0,leftTopY:0,rightBottomX:1,rightBottomY:1}}) { treesRemoved } }`,
 	}
 	for _, mutation := range mutations {

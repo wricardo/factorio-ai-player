@@ -47,7 +47,7 @@ for i=offset+1,math.min(#matching,offset+limit) do
   local recipe=matching[i]
   recipes[#recipes+1]={name=recipe.name,enabled=recipe.enabled,category=recipe.category,energy=recipe.energy,ingredients=recipe.ingredients,products=recipe.products,craftingMachines=categories[recipe.category] or {}}
 end
-rcon.print(helpers.table_to_json({tick=game.tick,force=force.name,item=item,total=#matching,limit=limit,offset=offset,recipes=recipes}))`, luaString(input.Force), luaString(input.Item), enabled, input.Limit, input.Offset)
+rcon.print(helpers.table_to_json({tick=game.tick,force=force.name,item=item,page_info={total=#matching,limit=limit,offset=offset,has_more=#matching>offset+limit},recipes=recipes}))`, luaString(input.Force), luaString(input.Item), enabled, input.Limit, input.Offset)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

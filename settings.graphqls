@@ -128,8 +128,10 @@ type CircuitBehaviorSettings {
 type SettingsResult {
   tick: Float!
   surface: String!
+  force: String!
+  actor: ActorIdentity
   name: String!
-  unitNumber: ID
+  unitNumber: UnitNumber
   position: Position!
   splitter: SplitterSettings
   inserter: InserterSettings
@@ -144,7 +146,7 @@ type SettingsResult {
 """One end of a circuit wire."""
 type WireEndpoint {
   name: String!
-  unitNumber: ID
+  unitNumber: UnitNumber
   position: Position!
 }
 
@@ -152,8 +154,9 @@ type WireEndpoint {
 type WireResult {
   tick: Float!
   surface: String!
-  """red or green."""
-  color: String!
+  force: String!
+  actor: ActorIdentity!
+  color: WireColor!
   connected: Boolean!
   from: WireEndpoint!
   to: WireEndpoint!
@@ -165,27 +168,27 @@ extend type EntityInspection {
 }
 
 extend type Mutation {
-  """Replaces or clears a reachable splitter's filter and lane priorities."""
+  """Replaces or clears a splitter's filter and lane priorities."""
   setSplitterSettings(input: SplitterSettingsInput!): SettingsResult!
-  """Replaces or clears a reachable inserter's filter slots, filter mode and stack size override."""
+  """Replaces or clears an inserter's filter slots, filter mode and stack size override."""
   setInserterSettings(input: InserterSettingsInput!): SettingsResult!
-  """Sets a reachable lamp's color and circuit-driven color state."""
+  """Sets a lamp's color and circuit-driven color state."""
   setLampSettings(input: LampSettingsInput!): SettingsResult!
-  """Sets a reachable container inventory's bar limit."""
+  """Sets a container inventory's bar limit."""
   setContainerBar(input: ContainerBarInput!): SettingsResult!
-  """Replaces or clears the logistic request sections of a reachable logistic container."""
+  """Replaces or clears the logistic request sections of a logistic container."""
   setLogisticRequests(input: LogisticRequestsInput!): SettingsResult!
-  """Sets a reachable train stop's name, train limit, priority and color."""
+  """Sets a train stop's name, train limit, priority and color."""
   setTrainStop(input: TrainStopInput!): SettingsResult!
-  """Sets a reachable rocket silo's automatic launch flag."""
+  """Sets a rocket silo's automatic launch flag."""
   setRocketSilo(input: RocketSiloInput!): SettingsResult!
   """Launches a loaded rocket silo, refusing with a precise reason when the silo is not ready."""
   launchRocket(input: RocketLaunchInput!): SettingsResult!
-  """Writes the supported fields of a reachable entity's control behavior."""
+  """Writes the supported fields of an entity's control behavior."""
   setCircuitBehavior(input: CircuitBehaviorInput!): SettingsResult!
-  """Connects a red or green circuit wire between two reachable entities."""
+  """Connects a red or green circuit wire between two entities."""
   connectWire(input: WireInput!): WireResult!
-  """Disconnects a red or green circuit wire between two reachable entities."""
+  """Disconnects a red or green circuit wire between two entities."""
   disconnectWire(input: WireInput!): WireResult!
 }
 
@@ -227,13 +230,8 @@ input InserterFilterInput {
 }
 
 input SplitterSettingsInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   """Filter items must match; omitted keeps the current filter. When a filter is set, outputPriority defaults to left and an explicit none is rejected because the filter would be inert. An omitted comparator keeps the engine default (=)."""
   filter: ItemFilterInput
   """none, left, or right."""
@@ -247,13 +245,8 @@ input SplitterSettingsInput {
 }
 
 input InserterSettingsInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   """Replaces every filter slot; slots not listed are cleared."""
   filters: [InserterFilterInput!]
   """whitelist or blacklist."""
@@ -267,13 +260,8 @@ input InserterSettingsInput {
 }
 
 input LampSettingsInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   color: ColorInput
   alwaysOn: Boolean
   """Take the color from circuit signals instead of the fixed color."""
@@ -285,13 +273,8 @@ input LampSettingsInput {
 }
 
 input ContainerBarInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   """Inventory key: input, output, fuel, chest, modules or turret-ammo."""
   inventory: String = "chest"
   """Allowed slots from 0 (no limit) to the inventory size."""
@@ -314,13 +297,8 @@ input LogisticSectionInput {
 }
 
 input LogisticRequestsInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   """Replaces every request section on the container when given."""
   sections: [LogisticSectionInput!]
   """Remove every request section."""
@@ -330,13 +308,8 @@ input LogisticRequestsInput {
 }
 
 input TrainStopInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   """New stop name; omitted keeps the current name."""
   name: String
   """Maximum trains routed to the stop; 0 routes none."""
@@ -349,38 +322,23 @@ input TrainStopInput {
 }
 
 input RocketSiloInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   sendToOrbitAutomatically: Boolean!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
 
 input RocketLaunchInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
 
 input CircuitBehaviorInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  actor: ActorInput!
+  target: EntityRefInput!
   enabled: Boolean
   circuitEnableDisable: Boolean
   circuitCondition: SignalConditionInput
@@ -425,22 +383,16 @@ input CircuitBehaviorInput {
 }
 
 input WireEndpointInput {
-  entity: String
-  unitNumber: ID
-  x: Float
-  y: Float
+  target: EntityRefInput!
   """Engine wire connector id, for example circuit_red, circuit_green, combinator_output_red. Defaults to circuit_<color>."""
   connector: String
 }
 
 input WireInput {
-  player: String
-  character: ID
-  surface: String = "nauvis"
+  actor: ActorInput!
   from: WireEndpointInput!
   to: WireEndpointInput!
-  """red or green."""
-  color: String = "red"
+  color: WireColor! = RED
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }

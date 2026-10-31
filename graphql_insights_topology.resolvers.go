@@ -15,8 +15,9 @@ func (r *inspectionLogisticsResolver) BeltRuns(ctx context.Context, obj *Inspect
 }
 
 // BeltRun is the resolver for the beltRun field.
-func (r *queryResolver) BeltRun(ctx context.Context, surface string, x *float64, y *float64, unitNumber *string, maxEntities int) (*BeltRun, error) {
-	return beltRunQuery(r.Resolver, surface, x, y, unitNumber, maxEntities)
+func (r *queryResolver) BeltRun(ctx context.Context, target EntityRefInput, maxEntities int) (*BeltRun, error) {
+	surface, _, unitNumber, x, y := entityRefFields(&target)
+	return beltRunQuery(r.Resolver, stringValueOr(surface, "nauvis"), x, y, unitNumber, maxEntities)
 }
 
 // FactoryGraph is the resolver for the factoryGraph field.
