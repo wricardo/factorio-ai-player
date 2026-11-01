@@ -1,0 +1,135 @@
+extend type Query {
+  """Plan one axis-aligned straight or single-bend connection run without changing the world. The route snaps both endpoints to tile centers and reports every step with the direction needed for that tile. A tile that already holds the requested entity with the required direction is marked existing and is not counted in needed. Conflicts are typed and explain why a step cannot be built, so a caller can move an endpoint instead of spending items on a partial run. Pipes are additionally checked for orthogonal neighbours that are not part of this run; joining a foreign fluid network is rejected unless allowFluidAdjacency is true. Surface tiles only: tunnels are not planned, and an obstruction is reported as a collision."""
+  connectionPlan(input: ConnectionPlanInput!): ConnectionPlan!
+}
+
+extend type Mutation {
+  """Plan and then place one belt, pipe or power-pole run. The mutation refuses to place anything when the plan has conflicts or the actor lacks the needed items, so a failed call leaves the world unchanged. Each existing tile is skipped and each placed tile consumes one normal-quality item from the actor's main inventory. Reach applies to every placed tile when reach enforcement is enabled."""
+  connectEntities(input: ConnectEntitiesInput!): ConnectEntitiesResult!
+}
+
+enum ConnectionKind {
+  """Transport belts placed along the route, each facing the next tile."""
+  BELT
+  """Pipes placed along the route; the run may not touch pipe entities outside itself unless allowFluidAdjacency is true."""
+  PIPE
+  """One electric pole every floor(wire reach) route tiles so consecutive poles stay within wire distance."""
+  POWER_POLE_CHAIN
+}
+
+enum ConnectionBend {
+  """Plans both single-bend orientations and keeps the one with fewer conflicts; a tie keeps horizontal-first. A route that is already straight reports the orientation it lies on."""
+  AUTO
+  """Walk the horizontal leg first, then the vertical leg."""
+  HORIZONTAL_FIRST
+  """Walk the vertical leg first, then the horizontal leg."""
+  VERTICAL_FIRST
+}
+
+enum ConnectionConflictKind {
+  """The tile refuses the entity; blockers lists colliding prototypes."""
+  COLLISION
+  """A same-name entity sits on the tile but faces another direction."""
+  DIRECTION_MISMATCH
+  """A pipe-like entity outside this run touches the tile, which would merge fluid networks."""
+  FLUID_ADJACENCY
+  """The item does not place an entity of the kind's required type."""
+  PROTOTYPE
+  """A supplied prototype does not match the kind (for example a furnace with BELT)."""
+  KIND_MISMATCH
+  """The actor cannot reach the tile; only produced when reach enforcement is enabled."""
+  REACH
+  """The actor lacks the item count reported by needed."""
+  INVENTORY
+  """The engine rejected creation at this tile."""
+  ENGINE
+}
+
+input ConnectionPlanInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  """Start position; it snaps to the center of the tile containing it."""
+  from: PositionInput!
+  """End position; it snaps to the center of the tile containing it."""
+  to: PositionInput!
+  kind: ConnectionKind!
+  """Entity item to place; defaults to transport-belt, pipe, or medium-electric-pole for the kind. The item must place a matching entity type."""
+  item: String
+  bend: ConnectionBend! = AUTO
+  """Allow a PIPE run to touch pipes outside the run, which merges their fluid networks and can contaminate either side."""
+  allowFluidAdjacency: Boolean! = false
+}
+
+input ConnectEntitiesInput {
+  actor: ActorInput!
+  surface: String! = "nauvis"
+  """Force the run belongs to; must match the acting character's force."""
+  force: String! = "player"
+  from: PositionInput!
+  to: PositionInput!
+  kind: ConnectionKind!
+  item: String
+  bend: ConnectionBend! = AUTO
+  allowFluidAdjacency: Boolean! = false
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type ConnectionStep {
+  """Tile-center position of the entity to place."""
+  position: Position!
+  """Engine direction the entity needs, toward the next step."""
+  direction: Int!
+  """The tile already holds the requested entity with the required direction, so nothing is placed or consumed."""
+  existing: Boolean!
+}
+
+type ConnectionConflict {
+  position: Position!
+  kind: ConnectionConflictKind!
+  """Colliding prototype names, one per name, sorted; empty when the refusal is not a collision."""
+  blockers: [String!]!
+  """True when the ground tile itself refuses the prototype."""
+  terrain: Boolean!
+  """Ground tile prototype name."""
+  tile: String!
+  message: String!
+}
+
+type ConnectionPlan {
+  tick: Float!
+  surface: String!
+  force: String!
+  kind: ConnectionKind!
+  item: String!
+  from: Position!
+  to: Position!
+  bend: ConnectionBend!
+  """True when no conflict was found and needed entities can be placed."""
+  possible: Boolean!
+  """Entities that would be placed; excludes existing tiles."""
+  needed: Int!
+  steps: [ConnectionStep!]!
+  conflicts: [ConnectionConflict!]!
+}
+
+type ConnectEntitiesResult {
+  tick: Float!
+  surface: String!
+  force: String!
+  actor: ActorIdentity!
+  kind: ConnectionKind!
+  item: String!
+  from: Position!
+  to: Position!
+  bend: ConnectionBend!
+  """False when the mutation refused to place anything because the plan had conflicts."""
+  possible: Boolean!
+  placed: Int!
+  """Existing tiles that already held the requested entity."""
+  skipped: Int!
+  failed: Int!
+  entities: [PlacedEntity!]!
+  conflicts: [ConnectionConflict!]!
+  errors: [BatchError!]!
+}

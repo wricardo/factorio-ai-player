@@ -1,0 +1,51 @@
+extend type Query {
+  """Render a compact textual map of one bounded area for headless clients that cannot take screenshots. The area is downsampled to at most maxRows by maxColumns cells; each cell reports the highest-priority entity whose center falls in it, or water, or empty. Priority is character, machine, inserter, belt, pipe or fluid entity, pole, chest, resource, tree, rock, cliff. Cells use characters from a fixed alphabet and the legend maps every character back to the prototype name, type, first entity unit number, and cell count. Empty cells are `.` and water is `~`. Natural entities are included regardless of force; built entities are limited to the selected force."""
+  mapArea(input: MapAreaInput!): MapArea!
+}
+
+enum MapLayer {
+  """Built entities, characters, resources, trees, rocks, cliffs and water."""
+  ALL
+  """Characters and built factory entities only; natural obstacles and resources are omitted."""
+  FACTORY
+  """Resource entities only, with water as terrain."""
+  RESOURCES
+}
+
+input MapAreaInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  """Area bounds match the other world scans: positive dimensions of at most 256 tiles per side."""
+  area: FactoryAreaInput!
+  """Maximum output rows, 1 through 64."""
+  maxRows: Int! = 32
+  """Maximum output columns, 1 through 64."""
+  maxColumns: Int! = 32
+  layer: MapLayer! = ALL
+}
+
+type MapArea {
+  tick: Float!
+  surface: String!
+  force: String!
+  area: WorldArea!
+  """Tiles per cell; greater than 1 when the area was downsampled."""
+  cellSize: Float!
+  columns: Int!
+  rows: [String!]!
+  legend: [MapLegendEntry!]!
+  """True when cellSize is greater than 1."""
+  truncated: Boolean!
+}
+
+type MapLegendEntry {
+  char: String!
+  """Prototype name, `empty`, or `water`."""
+  name: String!
+  """Entity type, `empty`, or `tile`."""
+  type: String!
+  """Unit number of the first entity of this prototype in the scan; null for empty and water."""
+  unitNumber: UnitNumber
+  """Number of cells showing this character."""
+  count: Int!
+}

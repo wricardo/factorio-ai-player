@@ -70,3 +70,49 @@ func TestWorldResourcesKindValidation(t *testing.T) {
 		t.Fatalf("expected unsupported kind error, got %v", err)
 	}
 }
+
+// A refused single-position check must explain itself: blockers from the
+// prototype collision mask, the ground tile, and the terrain flag decode
+// without a follow-up probe.
+func TestWorldPlacementBlockers(t *testing.T) {
+	r, commands := serveLuaOnce(t, `{"tick":10,"surface":"nauvis","force":"player","prototype":"small-lamp","position":{"x":4.5,"y":5.5},"direction":0,"canPlace":false,"blockers":["small-lamp"],"terrain":false,"tile":"grass-1"}`)
+	result, err := worldPlacementQuery(r, &WorldPlacementInput{
+		Surface: "nauvis", Force: "player", Prototype: "small-lamp",
+		Position: &PositionInput{X: 4.5, Y: 5.5},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.CanPlace || result.Tile != "grass-1" || result.Terrain {
+		t.Fatalf("placement result: %+v", result)
+	}
+	if len(result.Blockers) != 1 || result.Blockers[0] != "small-lamp" {
+		t.Fatalf("blockers: %v", result.Blockers)
+	}
+	lua := <-commands
+	for _, want := range []string{
+		"collision_mask=proto.collision_mask.layers",
+		"table.sort(blockers)",
+		"tile.prototype.collision_mask",
+		"canPlace=can_place",
+	} {
+		if !strings.Contains(lua, want) {
+			t.Fatalf("worldPlacement Lua missing %q\n%s", want, lua)
+		}
+	}
+}
+
+// An allowed position must decode empty blocker and terrain fields.
+func TestWorldPlacementClear(t *testing.T) {
+	r, _ := serveLuaOnce(t, `{"tick":10,"surface":"nauvis","force":"player","prototype":"small-lamp","position":{"x":0.5,"y":0.5},"direction":0,"canPlace":true,"blockers":{},"terrain":false,"tile":"grass-1"}`)
+	result, err := worldPlacementQuery(r, &WorldPlacementInput{
+		Surface: "nauvis", Force: "player", Prototype: "small-lamp",
+		Position: &PositionInput{X: 0.5, Y: 0.5},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.CanPlace || result.Blockers == nil || len(result.Blockers) != 0 {
+		t.Fatalf("clear placement: %+v", result)
+	}
+}

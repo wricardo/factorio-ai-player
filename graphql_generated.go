@@ -448,6 +448,25 @@ type ComplexityRoot struct {
 		Decider    func(childComplexity int) int
 	}
 
+	ConnectEntitiesResult struct {
+		Actor     func(childComplexity int) int
+		Bend      func(childComplexity int) int
+		Conflicts func(childComplexity int) int
+		Entities  func(childComplexity int) int
+		Errors    func(childComplexity int) int
+		Failed    func(childComplexity int) int
+		Force     func(childComplexity int) int
+		From      func(childComplexity int) int
+		Item      func(childComplexity int) int
+		Kind      func(childComplexity int) int
+		Placed    func(childComplexity int) int
+		Possible  func(childComplexity int) int
+		Skipped   func(childComplexity int) int
+		Surface   func(childComplexity int) int
+		Tick      func(childComplexity int) int
+		To        func(childComplexity int) int
+	}
+
 	ConnectedInserter struct {
 		Drop     func(childComplexity int) int
 		Inserter func(childComplexity int) int
@@ -459,6 +478,36 @@ type ComplexityRoot struct {
 		Name     func(childComplexity int) int
 		Position func(childComplexity int) int
 		Surface  func(childComplexity int) int
+	}
+
+	ConnectionConflict struct {
+		Blockers func(childComplexity int) int
+		Kind     func(childComplexity int) int
+		Message  func(childComplexity int) int
+		Position func(childComplexity int) int
+		Terrain  func(childComplexity int) int
+		Tile     func(childComplexity int) int
+	}
+
+	ConnectionPlan struct {
+		Bend      func(childComplexity int) int
+		Conflicts func(childComplexity int) int
+		Force     func(childComplexity int) int
+		From      func(childComplexity int) int
+		Item      func(childComplexity int) int
+		Kind      func(childComplexity int) int
+		Needed    func(childComplexity int) int
+		Possible  func(childComplexity int) int
+		Steps     func(childComplexity int) int
+		Surface   func(childComplexity int) int
+		Tick      func(childComplexity int) int
+		To        func(childComplexity int) int
+	}
+
+	ConnectionStep struct {
+		Direction func(childComplexity int) int
+		Existing  func(childComplexity int) int
+		Position  func(childComplexity int) int
 	}
 
 	ConstructionOrder struct {
@@ -640,6 +689,26 @@ type ComplexityRoot struct {
 		PageInfo func(childComplexity int) int
 		Surface  func(childComplexity int) int
 		Tick     func(childComplexity int) int
+	}
+
+	EntityPrototype struct {
+		BeltSpeed              func(childComplexity int) int
+		CollisionBox           func(childComplexity int) int
+		CraftingCategories     func(childComplexity int) int
+		CraftingSpeed          func(childComplexity int) int
+		FluidBoxCount          func(childComplexity int) int
+		InserterDrop           func(childComplexity int) int
+		InserterPickup         func(childComplexity int) int
+		MaxHealth              func(childComplexity int) int
+		MaxUndergroundDistance func(childComplexity int) int
+		Mineable               func(childComplexity int) int
+		Name                   func(childComplexity int) int
+		SelectionBox           func(childComplexity int) int
+		SupplyArea             func(childComplexity int) int
+		TileHeight             func(childComplexity int) int
+		TileWidth              func(childComplexity int) int
+		Type                   func(childComplexity int) int
+		WireReach              func(childComplexity int) int
 	}
 
 	EntitySnapshot struct {
@@ -986,6 +1055,16 @@ type ComplexityRoot struct {
 		UnitNumber               func(childComplexity int) int
 	}
 
+	ItemPrototype struct {
+		BurntResult  func(childComplexity int) int
+		FuelCategory func(childComplexity int) int
+		FuelValue    func(childComplexity int) int
+		Name         func(childComplexity int) int
+		PlaceResult  func(childComplexity int) int
+		StackSize    func(childComplexity int) int
+		Stackable    func(childComplexity int) int
+	}
+
 	ItemRecipe struct {
 		Category         func(childComplexity int) int
 		CraftingMachines func(childComplexity int) int
@@ -1163,6 +1242,26 @@ type ComplexityRoot struct {
 		TheoreticalCraftsPerSecond func(childComplexity int) int
 	}
 
+	MapArea struct {
+		Area      func(childComplexity int) int
+		CellSize  func(childComplexity int) int
+		Columns   func(childComplexity int) int
+		Force     func(childComplexity int) int
+		Legend    func(childComplexity int) int
+		Rows      func(childComplexity int) int
+		Surface   func(childComplexity int) int
+		Tick      func(childComplexity int) int
+		Truncated func(childComplexity int) int
+	}
+
+	MapLegendEntry struct {
+		Char       func(childComplexity int) int
+		Count      func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Type       func(childComplexity int) int
+		UnitNumber func(childComplexity int) int
+	}
+
 	MissingSciencePack struct {
 		Available func(childComplexity int) int
 		Missing   func(childComplexity int) int
@@ -1186,6 +1285,7 @@ type ComplexityRoot struct {
 		ClearArea                   func(childComplexity int, input ClearAreaInput) int
 		ClearRecipe                 func(childComplexity int, input ClearRecipeInput) int
 		ClearResearchQueue          func(childComplexity int, input ResearchQueueInput) int
+		ConnectEntities             func(childComplexity int, input ConnectEntitiesInput) int
 		ConnectWire                 func(childComplexity int, input WireInput) int
 		Craft                       func(childComplexity int, input CraftInput) int
 		CreateBlueprint             func(childComplexity int, input CreateBlueprintInput) int
@@ -1207,6 +1307,7 @@ type ComplexityRoot struct {
 		Place                       func(childComplexity int, input PlaceInput) int
 		PlaceBlueprint              func(childComplexity int, input PlaceBlueprintInput) int
 		PlaceMany                   func(childComplexity int, input PlaceManyInput) int
+		PlaceNextTo                 func(childComplexity int, input PlaceNextToInput) int
 		PlaceTile                   func(childComplexity int, input PlaceTileInput) int
 		PlayerRestoreCharacter      func(childComplexity int, input PlayerRestoreInput) int
 		QueueResearch               func(childComplexity int, input QueueResearchInput) int
@@ -1240,6 +1341,7 @@ type ComplexityRoot struct {
 		Transfer                    func(childComplexity int, input TransferInput) int
 		UnlockAllTechnologies       func(childComplexity int, input UnlockTechnologiesInput) int
 		UseCapsule                  func(childComplexity int, input CapsuleInput) int
+		WaitUntil                   func(childComplexity int, input WaitUntilInput) int
 	}
 
 	NavigationJob struct {
@@ -1295,6 +1397,20 @@ type ComplexityRoot struct {
 		Placed   func(childComplexity int) int
 		Surface  func(childComplexity int) int
 		Tick     func(childComplexity int) int
+	}
+
+	PlaceNextToResult struct {
+		Actor      func(childComplexity int) int
+		Force      func(childComplexity int) int
+		Gap        func(childComplexity int) int
+		Item       func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Position   func(childComplexity int) int
+		RelativeTo func(childComplexity int) int
+		Side       func(childComplexity int) int
+		Surface    func(childComplexity int) int
+		Tick       func(childComplexity int) int
+		UnitNumber func(childComplexity int) int
 	}
 
 	PlaceTileResult struct {
@@ -1439,6 +1555,17 @@ type ComplexityRoot struct {
 		Produced func(childComplexity int) int
 	}
 
+	Prototype struct {
+		Entity func(childComplexity int) int
+		Item   func(childComplexity int) int
+		Name   func(childComplexity int) int
+	}
+
+	PrototypeBox struct {
+		LeftTop     func(childComplexity int) int
+		RightBottom func(childComplexity int) int
+	}
+
 	Query struct {
 		Adjacency          func(childComplexity int, area FactoryAreaInput, force string, surface string, tolerance float64, limit int) int
 		BeltRun            func(childComplexity int, target EntityRefInput, maxEntities int) int
@@ -1447,6 +1574,7 @@ type ComplexityRoot struct {
 		BillOfMaterials    func(childComplexity int, input BillOfMaterialsInput) int
 		Characters         func(childComplexity int, input *CharactersInput) int
 		CircuitNetwork     func(childComplexity int, input CircuitNetworkInput) int
+		ConnectionPlan     func(childComplexity int, input ConnectionPlanInput) int
 		ConstructionOrders func(childComplexity int, input *ConstructionOrdersInput) int
 		ElectricNetworks   func(childComplexity int, input *PowerInsightsInput) int
 		Entities           func(childComplexity int, input EntitiesInput) int
@@ -1461,6 +1589,7 @@ type ComplexityRoot struct {
 		ItemRecipes        func(childComplexity int, input ItemRecipesInput) int
 		LogisticNetworks   func(childComplexity int, input *LogisticNetworksInput) int
 		Machines           func(childComplexity int, input *MachinesInput) int
+		MapArea            func(childComplexity int, input MapAreaInput) int
 		Navigation         func(childComplexity int, id string) int
 		Nearby             func(childComplexity int, input *NearbyInput) int
 		Player             func(childComplexity int, input ActorInput) int
@@ -1468,6 +1597,7 @@ type ComplexityRoot struct {
 		PowerConsumers     func(childComplexity int, input *PowerInsightsInput) int
 		ProbePlacement     func(childComplexity int, input PlacementProbeInput) int
 		Production         func(childComplexity int, input *FactoryOverviewInput) int
+		Prototype          func(childComplexity int, name string) int
 		Queue              func(childComplexity int, input ActorInput) int
 		Recipe             func(childComplexity int, input RecipeInput) int
 		ResearchInsights   func(childComplexity int, input *ResearchInsightsInput) int
@@ -1874,6 +2004,25 @@ type ComplexityRoot struct {
 		Items func(childComplexity int) int
 	}
 
+	WaitObservation struct {
+		Count      func(childComplexity int) int
+		Detail     func(childComplexity int) int
+		QueueSize  func(childComplexity int) int
+		Researched func(childComplexity int) int
+		Status     func(childComplexity int) int
+		Tick       func(childComplexity int) int
+	}
+
+	WaitResult struct {
+		Condition     func(childComplexity int) int
+		Last          func(childComplexity int) int
+		Polls         func(childComplexity int) int
+		Satisfied     func(childComplexity int) int
+		Tick          func(childComplexity int) int
+		TimedOut      func(childComplexity int) int
+		WaitedSeconds func(childComplexity int) int
+	}
+
 	WireEndpoint struct {
 		Name       func(childComplexity int) int
 		Position   func(childComplexity int) int
@@ -1947,13 +2096,16 @@ type ComplexityRoot struct {
 	}
 
 	WorldPlacementResult struct {
+		Blockers  func(childComplexity int) int
 		CanPlace  func(childComplexity int) int
 		Direction func(childComplexity int) int
 		Force     func(childComplexity int) int
 		Position  func(childComplexity int) int
 		Prototype func(childComplexity int) int
 		Surface   func(childComplexity int) int
+		Terrain   func(childComplexity int) int
 		Tick      func(childComplexity int) int
+		Tile      func(childComplexity int) int
 	}
 
 	WorldResourceEntry struct {
@@ -2051,6 +2203,7 @@ type MutationResolver interface {
 	UseCapsule(ctx context.Context, input CapsuleInput) (*CapsuleResult, error)
 	Shoot(ctx context.Context, input ShootInput) (*ShootResult, error)
 	Repair(ctx context.Context, input RepairInput) (*RepairResult, error)
+	ConnectEntities(ctx context.Context, input ConnectEntitiesInput) (*ConnectEntitiesResult, error)
 	BuildGhosts(ctx context.Context, input BuildGhostsInput) (*BuildGhostsResult, error)
 	SetEntityTags(ctx context.Context, input EntityTagsInput) (*EntityMetaResult, error)
 	SetNameTag(ctx context.Context, input EntityNameTagInput) (*EntityMetaResult, error)
@@ -2061,6 +2214,7 @@ type MutationResolver interface {
 	NavigateCancel(ctx context.Context, id string, message *string) (*NavigationJob, error)
 	EquipGrid(ctx context.Context, input EquipGridInput) (*EquipmentGridResult, error)
 	SetActorLogisticRequests(ctx context.Context, input ActorLogisticRequestsInput) (*ActorLogisticResult, error)
+	PlaceNextTo(ctx context.Context, input PlaceNextToInput) (*PlaceNextToResult, error)
 	QueueResearch(ctx context.Context, input QueueResearchInput) (*ResearchState, error)
 	ClearResearchQueue(ctx context.Context, input ResearchQueueInput) (*ResearchState, error)
 	UnlockAllTechnologies(ctx context.Context, input UnlockTechnologiesInput) (*ResearchUnlockResult, error)
@@ -2078,6 +2232,7 @@ type MutationResolver interface {
 	SetTrainSchedule(ctx context.Context, input SetTrainScheduleInput) (*TrainInfo, error)
 	TrainControl(ctx context.Context, input TrainControlInput) (*TrainInfo, error)
 	SetDirection(ctx context.Context, input SetDirectionInput) (*ActionResult, error)
+	WaitUntil(ctx context.Context, input WaitUntilInput) (*WaitResult, error)
 	DropItem(ctx context.Context, input DropItemInput) (*DropItemResult, error)
 }
 type QueryResolver interface {
@@ -2095,6 +2250,7 @@ type QueryResolver interface {
 	Entities(ctx context.Context, input EntitiesInput) (*EntityPage, error)
 	Belts(ctx context.Context, input BeltsInput) (*BeltPage, error)
 	Characters(ctx context.Context, input *CharactersInput) (*CharacterPage, error)
+	ConnectionPlan(ctx context.Context, input ConnectionPlanInput) (*ConnectionPlan, error)
 	LogisticNetworks(ctx context.Context, input *LogisticNetworksInput) (*LogisticNetworkPage, error)
 	ConstructionOrders(ctx context.Context, input *ConstructionOrdersInput) (*ConstructionOrderPage, error)
 	FluidStock(ctx context.Context, input *FluidStockInput) (*FluidStockPage, error)
@@ -2117,7 +2273,9 @@ type QueryResolver interface {
 	WorldResources(ctx context.Context, input WorldResourcesInput) (*WorldResourcesPage, error)
 	WorldPlacement(ctx context.Context, input WorldPlacementInput) (*WorldPlacementResult, error)
 	ProbePlacement(ctx context.Context, input PlacementProbeInput) (*PlacementProbeResult, error)
+	MapArea(ctx context.Context, input MapAreaInput) (*MapArea, error)
 	Navigation(ctx context.Context, id string) (*NavigationJob, error)
+	Prototype(ctx context.Context, name string) (*Prototype, error)
 	Trains(ctx context.Context, input *TrainsInput) (*TrainPage, error)
 	Surfaces(ctx context.Context, force string) (*SurfacePage, error)
 	CircuitNetwork(ctx context.Context, input CircuitNetworkInput) (*CircuitNetworkSignals, error)
@@ -3951,6 +4109,103 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CombinatorParameters.Decider(childComplexity), true
 
+	case "ConnectEntitiesResult.actor":
+		if e.ComplexityRoot.ConnectEntitiesResult.Actor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Actor(childComplexity), true
+	case "ConnectEntitiesResult.bend":
+		if e.ComplexityRoot.ConnectEntitiesResult.Bend == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Bend(childComplexity), true
+	case "ConnectEntitiesResult.conflicts":
+		if e.ComplexityRoot.ConnectEntitiesResult.Conflicts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Conflicts(childComplexity), true
+	case "ConnectEntitiesResult.entities":
+		if e.ComplexityRoot.ConnectEntitiesResult.Entities == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Entities(childComplexity), true
+	case "ConnectEntitiesResult.errors":
+		if e.ComplexityRoot.ConnectEntitiesResult.Errors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Errors(childComplexity), true
+	case "ConnectEntitiesResult.failed":
+		if e.ComplexityRoot.ConnectEntitiesResult.Failed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Failed(childComplexity), true
+	case "ConnectEntitiesResult.force":
+		if e.ComplexityRoot.ConnectEntitiesResult.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Force(childComplexity), true
+	case "ConnectEntitiesResult.from":
+		if e.ComplexityRoot.ConnectEntitiesResult.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.From(childComplexity), true
+	case "ConnectEntitiesResult.item":
+		if e.ComplexityRoot.ConnectEntitiesResult.Item == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Item(childComplexity), true
+	case "ConnectEntitiesResult.kind":
+		if e.ComplexityRoot.ConnectEntitiesResult.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Kind(childComplexity), true
+	case "ConnectEntitiesResult.placed":
+		if e.ComplexityRoot.ConnectEntitiesResult.Placed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Placed(childComplexity), true
+	case "ConnectEntitiesResult.possible":
+		if e.ComplexityRoot.ConnectEntitiesResult.Possible == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Possible(childComplexity), true
+	case "ConnectEntitiesResult.skipped":
+		if e.ComplexityRoot.ConnectEntitiesResult.Skipped == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Skipped(childComplexity), true
+	case "ConnectEntitiesResult.surface":
+		if e.ComplexityRoot.ConnectEntitiesResult.Surface == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Surface(childComplexity), true
+	case "ConnectEntitiesResult.tick":
+		if e.ComplexityRoot.ConnectEntitiesResult.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.Tick(childComplexity), true
+	case "ConnectEntitiesResult.to":
+		if e.ComplexityRoot.ConnectEntitiesResult.To == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectEntitiesResult.To(childComplexity), true
+
 	case "ConnectedInserter.drop":
 		if e.ComplexityRoot.ConnectedInserter.Drop == nil {
 			break
@@ -3994,6 +4249,135 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ConnectedPlayer.Surface(childComplexity), true
+
+	case "ConnectionConflict.blockers":
+		if e.ComplexityRoot.ConnectionConflict.Blockers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionConflict.Blockers(childComplexity), true
+	case "ConnectionConflict.kind":
+		if e.ComplexityRoot.ConnectionConflict.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionConflict.Kind(childComplexity), true
+	case "ConnectionConflict.message":
+		if e.ComplexityRoot.ConnectionConflict.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionConflict.Message(childComplexity), true
+	case "ConnectionConflict.position":
+		if e.ComplexityRoot.ConnectionConflict.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionConflict.Position(childComplexity), true
+	case "ConnectionConflict.terrain":
+		if e.ComplexityRoot.ConnectionConflict.Terrain == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionConflict.Terrain(childComplexity), true
+	case "ConnectionConflict.tile":
+		if e.ComplexityRoot.ConnectionConflict.Tile == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionConflict.Tile(childComplexity), true
+
+	case "ConnectionPlan.bend":
+		if e.ComplexityRoot.ConnectionPlan.Bend == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.Bend(childComplexity), true
+	case "ConnectionPlan.conflicts":
+		if e.ComplexityRoot.ConnectionPlan.Conflicts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.Conflicts(childComplexity), true
+	case "ConnectionPlan.force":
+		if e.ComplexityRoot.ConnectionPlan.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.Force(childComplexity), true
+	case "ConnectionPlan.from":
+		if e.ComplexityRoot.ConnectionPlan.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.From(childComplexity), true
+	case "ConnectionPlan.item":
+		if e.ComplexityRoot.ConnectionPlan.Item == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.Item(childComplexity), true
+	case "ConnectionPlan.kind":
+		if e.ComplexityRoot.ConnectionPlan.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.Kind(childComplexity), true
+	case "ConnectionPlan.needed":
+		if e.ComplexityRoot.ConnectionPlan.Needed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.Needed(childComplexity), true
+	case "ConnectionPlan.possible":
+		if e.ComplexityRoot.ConnectionPlan.Possible == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.Possible(childComplexity), true
+	case "ConnectionPlan.steps":
+		if e.ComplexityRoot.ConnectionPlan.Steps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.Steps(childComplexity), true
+	case "ConnectionPlan.surface":
+		if e.ComplexityRoot.ConnectionPlan.Surface == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.Surface(childComplexity), true
+	case "ConnectionPlan.tick":
+		if e.ComplexityRoot.ConnectionPlan.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.Tick(childComplexity), true
+	case "ConnectionPlan.to":
+		if e.ComplexityRoot.ConnectionPlan.To == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionPlan.To(childComplexity), true
+
+	case "ConnectionStep.direction":
+		if e.ComplexityRoot.ConnectionStep.Direction == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionStep.Direction(childComplexity), true
+	case "ConnectionStep.existing":
+		if e.ComplexityRoot.ConnectionStep.Existing == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionStep.Existing(childComplexity), true
+	case "ConnectionStep.position":
+		if e.ComplexityRoot.ConnectionStep.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectionStep.Position(childComplexity), true
 
 	case "ConstructionOrder.direction":
 		if e.ComplexityRoot.ConstructionOrder.Direction == nil {
@@ -4828,6 +5212,109 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.EntityPage.Tick(childComplexity), true
+
+	case "EntityPrototype.beltSpeed":
+		if e.ComplexityRoot.EntityPrototype.BeltSpeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.BeltSpeed(childComplexity), true
+	case "EntityPrototype.collisionBox":
+		if e.ComplexityRoot.EntityPrototype.CollisionBox == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.CollisionBox(childComplexity), true
+	case "EntityPrototype.craftingCategories":
+		if e.ComplexityRoot.EntityPrototype.CraftingCategories == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.CraftingCategories(childComplexity), true
+	case "EntityPrototype.craftingSpeed":
+		if e.ComplexityRoot.EntityPrototype.CraftingSpeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.CraftingSpeed(childComplexity), true
+	case "EntityPrototype.fluidBoxCount":
+		if e.ComplexityRoot.EntityPrototype.FluidBoxCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.FluidBoxCount(childComplexity), true
+	case "EntityPrototype.inserterDrop":
+		if e.ComplexityRoot.EntityPrototype.InserterDrop == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.InserterDrop(childComplexity), true
+	case "EntityPrototype.inserterPickup":
+		if e.ComplexityRoot.EntityPrototype.InserterPickup == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.InserterPickup(childComplexity), true
+	case "EntityPrototype.maxHealth":
+		if e.ComplexityRoot.EntityPrototype.MaxHealth == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.MaxHealth(childComplexity), true
+	case "EntityPrototype.maxUndergroundDistance":
+		if e.ComplexityRoot.EntityPrototype.MaxUndergroundDistance == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.MaxUndergroundDistance(childComplexity), true
+	case "EntityPrototype.mineable":
+		if e.ComplexityRoot.EntityPrototype.Mineable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.Mineable(childComplexity), true
+	case "EntityPrototype.name":
+		if e.ComplexityRoot.EntityPrototype.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.Name(childComplexity), true
+	case "EntityPrototype.selectionBox":
+		if e.ComplexityRoot.EntityPrototype.SelectionBox == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.SelectionBox(childComplexity), true
+	case "EntityPrototype.supplyArea":
+		if e.ComplexityRoot.EntityPrototype.SupplyArea == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.SupplyArea(childComplexity), true
+	case "EntityPrototype.tileHeight":
+		if e.ComplexityRoot.EntityPrototype.TileHeight == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.TileHeight(childComplexity), true
+	case "EntityPrototype.tileWidth":
+		if e.ComplexityRoot.EntityPrototype.TileWidth == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.TileWidth(childComplexity), true
+	case "EntityPrototype.type":
+		if e.ComplexityRoot.EntityPrototype.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.Type(childComplexity), true
+	case "EntityPrototype.wireReach":
+		if e.ComplexityRoot.EntityPrototype.WireReach == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.WireReach(childComplexity), true
 
 	case "EntitySnapshot.entity":
 		if e.ComplexityRoot.EntitySnapshot.Entity == nil {
@@ -6320,6 +6807,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ItemFlowEndpoint.UnitNumber(childComplexity), true
 
+	case "ItemPrototype.burntResult":
+		if e.ComplexityRoot.ItemPrototype.BurntResult == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ItemPrototype.BurntResult(childComplexity), true
+	case "ItemPrototype.fuelCategory":
+		if e.ComplexityRoot.ItemPrototype.FuelCategory == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ItemPrototype.FuelCategory(childComplexity), true
+	case "ItemPrototype.fuelValue":
+		if e.ComplexityRoot.ItemPrototype.FuelValue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ItemPrototype.FuelValue(childComplexity), true
+	case "ItemPrototype.name":
+		if e.ComplexityRoot.ItemPrototype.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ItemPrototype.Name(childComplexity), true
+	case "ItemPrototype.placeResult":
+		if e.ComplexityRoot.ItemPrototype.PlaceResult == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ItemPrototype.PlaceResult(childComplexity), true
+	case "ItemPrototype.stackSize":
+		if e.ComplexityRoot.ItemPrototype.StackSize == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ItemPrototype.StackSize(childComplexity), true
+	case "ItemPrototype.stackable":
+		if e.ComplexityRoot.ItemPrototype.Stackable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ItemPrototype.Stackable(childComplexity), true
+
 	case "ItemRecipe.category":
 		if e.ComplexityRoot.ItemRecipe.Category == nil {
 			break
@@ -7025,6 +7555,92 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MachineTheoreticalThroughput.TheoreticalCraftsPerSecond(childComplexity), true
 
+	case "MapArea.area":
+		if e.ComplexityRoot.MapArea.Area == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapArea.Area(childComplexity), true
+	case "MapArea.cellSize":
+		if e.ComplexityRoot.MapArea.CellSize == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapArea.CellSize(childComplexity), true
+	case "MapArea.columns":
+		if e.ComplexityRoot.MapArea.Columns == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapArea.Columns(childComplexity), true
+	case "MapArea.force":
+		if e.ComplexityRoot.MapArea.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapArea.Force(childComplexity), true
+	case "MapArea.legend":
+		if e.ComplexityRoot.MapArea.Legend == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapArea.Legend(childComplexity), true
+	case "MapArea.rows":
+		if e.ComplexityRoot.MapArea.Rows == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapArea.Rows(childComplexity), true
+	case "MapArea.surface":
+		if e.ComplexityRoot.MapArea.Surface == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapArea.Surface(childComplexity), true
+	case "MapArea.tick":
+		if e.ComplexityRoot.MapArea.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapArea.Tick(childComplexity), true
+	case "MapArea.truncated":
+		if e.ComplexityRoot.MapArea.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapArea.Truncated(childComplexity), true
+
+	case "MapLegendEntry.char":
+		if e.ComplexityRoot.MapLegendEntry.Char == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapLegendEntry.Char(childComplexity), true
+	case "MapLegendEntry.count":
+		if e.ComplexityRoot.MapLegendEntry.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapLegendEntry.Count(childComplexity), true
+	case "MapLegendEntry.name":
+		if e.ComplexityRoot.MapLegendEntry.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapLegendEntry.Name(childComplexity), true
+	case "MapLegendEntry.type":
+		if e.ComplexityRoot.MapLegendEntry.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapLegendEntry.Type(childComplexity), true
+	case "MapLegendEntry.unitNumber":
+		if e.ComplexityRoot.MapLegendEntry.UnitNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MapLegendEntry.UnitNumber(childComplexity), true
+
 	case "MissingSciencePack.available":
 		if e.ComplexityRoot.MissingSciencePack.Available == nil {
 			break
@@ -7210,6 +7826,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ClearResearchQueue(childComplexity, args["input"].(ResearchQueueInput)), true
+	case "Mutation.connectEntities":
+		if e.ComplexityRoot.Mutation.ConnectEntities == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_connectEntities_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ConnectEntities(childComplexity, args["input"].(ConnectEntitiesInput)), true
 	case "Mutation.connectWire":
 		if e.ComplexityRoot.Mutation.ConnectWire == nil {
 			break
@@ -7441,6 +8068,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.PlaceMany(childComplexity, args["input"].(PlaceManyInput)), true
+	case "Mutation.placeNextTo":
+		if e.ComplexityRoot.Mutation.PlaceNextTo == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_placeNextTo_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.PlaceNextTo(childComplexity, args["input"].(PlaceNextToInput)), true
 	case "Mutation.placeTile":
 		if e.ComplexityRoot.Mutation.PlaceTile == nil {
 			break
@@ -7794,6 +8432,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UseCapsule(childComplexity, args["input"].(CapsuleInput)), true
+	case "Mutation.waitUntil":
+		if e.ComplexityRoot.Mutation.WaitUntil == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_waitUntil_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.WaitUntil(childComplexity, args["input"].(WaitUntilInput)), true
 
 	case "NavigationJob.actor":
 		if e.ComplexityRoot.NavigationJob.Actor == nil {
@@ -8039,6 +8688,73 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PlaceManyResult.Tick(childComplexity), true
+
+	case "PlaceNextToResult.actor":
+		if e.ComplexityRoot.PlaceNextToResult.Actor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaceNextToResult.Actor(childComplexity), true
+	case "PlaceNextToResult.force":
+		if e.ComplexityRoot.PlaceNextToResult.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaceNextToResult.Force(childComplexity), true
+	case "PlaceNextToResult.gap":
+		if e.ComplexityRoot.PlaceNextToResult.Gap == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaceNextToResult.Gap(childComplexity), true
+	case "PlaceNextToResult.item":
+		if e.ComplexityRoot.PlaceNextToResult.Item == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaceNextToResult.Item(childComplexity), true
+	case "PlaceNextToResult.name":
+		if e.ComplexityRoot.PlaceNextToResult.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaceNextToResult.Name(childComplexity), true
+	case "PlaceNextToResult.position":
+		if e.ComplexityRoot.PlaceNextToResult.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaceNextToResult.Position(childComplexity), true
+	case "PlaceNextToResult.relativeTo":
+		if e.ComplexityRoot.PlaceNextToResult.RelativeTo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaceNextToResult.RelativeTo(childComplexity), true
+	case "PlaceNextToResult.side":
+		if e.ComplexityRoot.PlaceNextToResult.Side == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaceNextToResult.Side(childComplexity), true
+	case "PlaceNextToResult.surface":
+		if e.ComplexityRoot.PlaceNextToResult.Surface == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaceNextToResult.Surface(childComplexity), true
+	case "PlaceNextToResult.tick":
+		if e.ComplexityRoot.PlaceNextToResult.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaceNextToResult.Tick(childComplexity), true
+	case "PlaceNextToResult.unitNumber":
+		if e.ComplexityRoot.PlaceNextToResult.UnitNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaceNextToResult.UnitNumber(childComplexity), true
 
 	case "PlaceTileResult.actor":
 		if e.ComplexityRoot.PlaceTileResult.Actor == nil {
@@ -8620,6 +9336,38 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ProductionStatistics.Produced(childComplexity), true
 
+	case "Prototype.entity":
+		if e.ComplexityRoot.Prototype.Entity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Prototype.Entity(childComplexity), true
+	case "Prototype.item":
+		if e.ComplexityRoot.Prototype.Item == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Prototype.Item(childComplexity), true
+	case "Prototype.name":
+		if e.ComplexityRoot.Prototype.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Prototype.Name(childComplexity), true
+
+	case "PrototypeBox.leftTop":
+		if e.ComplexityRoot.PrototypeBox.LeftTop == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrototypeBox.LeftTop(childComplexity), true
+	case "PrototypeBox.rightBottom":
+		if e.ComplexityRoot.PrototypeBox.RightBottom == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrototypeBox.RightBottom(childComplexity), true
+
 	case "Query.adjacency":
 		if e.ComplexityRoot.Query.Adjacency == nil {
 			break
@@ -8697,6 +9445,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.CircuitNetwork(childComplexity, args["input"].(CircuitNetworkInput)), true
+	case "Query.connectionPlan":
+		if e.ComplexityRoot.Query.ConnectionPlan == nil {
+			break
+		}
+
+		args, err := ec.field_Query_connectionPlan_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ConnectionPlan(childComplexity, args["input"].(ConnectionPlanInput)), true
 	case "Query.constructionOrders":
 		if e.ComplexityRoot.Query.ConstructionOrders == nil {
 			break
@@ -8852,6 +9611,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Machines(childComplexity, args["input"].(*MachinesInput)), true
+	case "Query.mapArea":
+		if e.ComplexityRoot.Query.MapArea == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mapArea_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MapArea(childComplexity, args["input"].(MapAreaInput)), true
 	case "Query.navigation":
 		if e.ComplexityRoot.Query.Navigation == nil {
 			break
@@ -8929,6 +9699,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Production(childComplexity, args["input"].(*FactoryOverviewInput)), true
+	case "Query.prototype":
+		if e.ComplexityRoot.Query.Prototype == nil {
+			break
+		}
+
+		args, err := ec.field_Query_prototype_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Prototype(childComplexity, args["name"].(string)), true
 	case "Query.queue":
 		if e.ComplexityRoot.Query.Queue == nil {
 			break
@@ -10683,6 +11464,86 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.TransportLine.Items(childComplexity), true
 
+	case "WaitObservation.count":
+		if e.ComplexityRoot.WaitObservation.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitObservation.Count(childComplexity), true
+	case "WaitObservation.detail":
+		if e.ComplexityRoot.WaitObservation.Detail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitObservation.Detail(childComplexity), true
+	case "WaitObservation.queueSize":
+		if e.ComplexityRoot.WaitObservation.QueueSize == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitObservation.QueueSize(childComplexity), true
+	case "WaitObservation.researched":
+		if e.ComplexityRoot.WaitObservation.Researched == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitObservation.Researched(childComplexity), true
+	case "WaitObservation.status":
+		if e.ComplexityRoot.WaitObservation.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitObservation.Status(childComplexity), true
+	case "WaitObservation.tick":
+		if e.ComplexityRoot.WaitObservation.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitObservation.Tick(childComplexity), true
+
+	case "WaitResult.condition":
+		if e.ComplexityRoot.WaitResult.Condition == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitResult.Condition(childComplexity), true
+	case "WaitResult.last":
+		if e.ComplexityRoot.WaitResult.Last == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitResult.Last(childComplexity), true
+	case "WaitResult.polls":
+		if e.ComplexityRoot.WaitResult.Polls == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitResult.Polls(childComplexity), true
+	case "WaitResult.satisfied":
+		if e.ComplexityRoot.WaitResult.Satisfied == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitResult.Satisfied(childComplexity), true
+	case "WaitResult.tick":
+		if e.ComplexityRoot.WaitResult.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitResult.Tick(childComplexity), true
+	case "WaitResult.timedOut":
+		if e.ComplexityRoot.WaitResult.TimedOut == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitResult.TimedOut(childComplexity), true
+	case "WaitResult.waitedSeconds":
+		if e.ComplexityRoot.WaitResult.WaitedSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WaitResult.WaitedSeconds(childComplexity), true
+
 	case "WireEndpoint.name":
 		if e.ComplexityRoot.WireEndpoint.Name == nil {
 			break
@@ -10962,6 +11823,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.WorldLogisticsPage.Tick(childComplexity), true
 
+	case "WorldPlacementResult.blockers":
+		if e.ComplexityRoot.WorldPlacementResult.Blockers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorldPlacementResult.Blockers(childComplexity), true
 	case "WorldPlacementResult.canPlace":
 		if e.ComplexityRoot.WorldPlacementResult.CanPlace == nil {
 			break
@@ -10998,12 +11865,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.WorldPlacementResult.Surface(childComplexity), true
+	case "WorldPlacementResult.terrain":
+		if e.ComplexityRoot.WorldPlacementResult.Terrain == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorldPlacementResult.Terrain(childComplexity), true
 	case "WorldPlacementResult.tick":
 		if e.ComplexityRoot.WorldPlacementResult.Tick == nil {
 			break
 		}
 
 		return e.ComplexityRoot.WorldPlacementResult.Tick(childComplexity), true
+	case "WorldPlacementResult.tile":
+		if e.ComplexityRoot.WorldPlacementResult.Tile == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorldPlacementResult.Tile(childComplexity), true
 
 	case "WorldResourceEntry.amount":
 		if e.ComplexityRoot.WorldResourceEntry.Amount == nil {
@@ -11149,6 +12028,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputClearRecipeInput,
 		ec.unmarshalInputColorInput,
 		ec.unmarshalInputCombinatorParametersInput,
+		ec.unmarshalInputConnectEntitiesInput,
+		ec.unmarshalInputConnectionPlanInput,
 		ec.unmarshalInputConstructionOrdersInput,
 		ec.unmarshalInputContainerBarInput,
 		ec.unmarshalInputCraftInput,
@@ -11185,6 +12066,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputLogisticRequestsInput,
 		ec.unmarshalInputLogisticSectionInput,
 		ec.unmarshalInputMachinesInput,
+		ec.unmarshalInputMapAreaInput,
 		ec.unmarshalInputMineInput,
 		ec.unmarshalInputNavigateStartInput,
 		ec.unmarshalInputNearbyInput,
@@ -11193,6 +12075,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputPlaceBlueprintInput,
 		ec.unmarshalInputPlaceInput,
 		ec.unmarshalInputPlaceManyInput,
+		ec.unmarshalInputPlaceNextToInput,
 		ec.unmarshalInputPlaceTileInput,
 		ec.unmarshalInputPlacementInput,
 		ec.unmarshalInputPlacementProbeInput,
@@ -11231,6 +12114,13 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputTrainsInput,
 		ec.unmarshalInputTransferInput,
 		ec.unmarshalInputUnlockTechnologiesInput,
+		ec.unmarshalInputWaitConditionInput,
+		ec.unmarshalInputWaitFluidInput,
+		ec.unmarshalInputWaitInventoryInput,
+		ec.unmarshalInputWaitMachineStatusInput,
+		ec.unmarshalInputWaitProductionInput,
+		ec.unmarshalInputWaitResearchInput,
+		ec.unmarshalInputWaitUntilInput,
 		ec.unmarshalInputWireEndpointInput,
 		ec.unmarshalInputWireInput,
 		ec.unmarshalInputWorldLogisticsInput,
@@ -11310,7 +12200,7 @@ func newExecutionContext(
 	}
 }
 
-//go:embed "agent_actions.graphqls" "api_design.graphqls" "construction.graphqls" "entity_meta.graphqls" "fluids.graphqls" "insights_belt_flow.graphqls" "insights_diagnostics.graphqls" "insights_operations.graphqls" "insights_planning.graphqls" "insights_player.graphqls" "insights_power.graphqls" "insights_recipes.graphqls" "insights_research.graphqls" "insights_safety.graphqls" "insights_stock.graphqls" "insights_topology.graphqls" "insights_world.graphqls" "navigation.graphqls" "player_gear.graphqls" "research_extra.graphqls" "schema.graphqls" "settings.graphqls" "trains.graphqls" "world_extra.graphqls" "writes_extra.graphqls"
+//go:embed "agent_actions.graphqls" "api_design.graphqls" "connection.graphqls" "construction.graphqls" "entity_meta.graphqls" "fluids.graphqls" "insights_belt_flow.graphqls" "insights_diagnostics.graphqls" "insights_operations.graphqls" "insights_planning.graphqls" "insights_player.graphqls" "insights_power.graphqls" "insights_recipes.graphqls" "insights_research.graphqls" "insights_safety.graphqls" "insights_stock.graphqls" "insights_topology.graphqls" "insights_world.graphqls" "map_area.graphqls" "navigation.graphqls" "player_gear.graphqls" "prototype.graphqls" "research_extra.graphqls" "schema.graphqls" "settings.graphqls" "trains.graphqls" "wait.graphqls" "world_extra.graphqls" "writes_extra.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -11324,6 +12214,7 @@ func sourceData(filename string) string {
 var sources = []*ast.Source{
 	{Name: "agent_actions.graphqls", Input: sourceData("agent_actions.graphqls"), BuiltIn: false},
 	{Name: "api_design.graphqls", Input: sourceData("api_design.graphqls"), BuiltIn: false},
+	{Name: "connection.graphqls", Input: sourceData("connection.graphqls"), BuiltIn: false},
 	{Name: "construction.graphqls", Input: sourceData("construction.graphqls"), BuiltIn: false},
 	{Name: "entity_meta.graphqls", Input: sourceData("entity_meta.graphqls"), BuiltIn: false},
 	{Name: "fluids.graphqls", Input: sourceData("fluids.graphqls"), BuiltIn: false},
@@ -11339,12 +12230,15 @@ var sources = []*ast.Source{
 	{Name: "insights_stock.graphqls", Input: sourceData("insights_stock.graphqls"), BuiltIn: false},
 	{Name: "insights_topology.graphqls", Input: sourceData("insights_topology.graphqls"), BuiltIn: false},
 	{Name: "insights_world.graphqls", Input: sourceData("insights_world.graphqls"), BuiltIn: false},
+	{Name: "map_area.graphqls", Input: sourceData("map_area.graphqls"), BuiltIn: false},
 	{Name: "navigation.graphqls", Input: sourceData("navigation.graphqls"), BuiltIn: false},
 	{Name: "player_gear.graphqls", Input: sourceData("player_gear.graphqls"), BuiltIn: false},
+	{Name: "prototype.graphqls", Input: sourceData("prototype.graphqls"), BuiltIn: false},
 	{Name: "research_extra.graphqls", Input: sourceData("research_extra.graphqls"), BuiltIn: false},
 	{Name: "schema.graphqls", Input: sourceData("schema.graphqls"), BuiltIn: false},
 	{Name: "settings.graphqls", Input: sourceData("settings.graphqls"), BuiltIn: false},
 	{Name: "trains.graphqls", Input: sourceData("trains.graphqls"), BuiltIn: false},
+	{Name: "wait.graphqls", Input: sourceData("wait.graphqls"), BuiltIn: false},
 	{Name: "world_extra.graphqls", Input: sourceData("world_extra.graphqls"), BuiltIn: false},
 	{Name: "writes_extra.graphqls", Input: sourceData("writes_extra.graphqls"), BuiltIn: false},
 }
@@ -11610,6 +12504,17 @@ func (ec *executionContext) field_Mutation_clearResearchQueue_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_connectEntities_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNConnectEntitiesInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectEntitiesInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_connectWire_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -11828,6 +12733,17 @@ func (ec *executionContext) field_Mutation_placeMany_args(ctx context.Context, r
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNPlaceManyInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPlaceManyInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_placeNextTo_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNPlaceNextToInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPlaceNextToInput)
 	if err != nil {
 		return nil, err
 	}
@@ -12187,6 +13103,17 @@ func (ec *executionContext) field_Mutation_useCapsule_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_waitUntil_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNWaitUntilInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitUntilInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -12293,6 +13220,17 @@ func (ec *executionContext) field_Query_circuitNetwork_args(ctx context.Context,
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCircuitNetworkInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCircuitNetworkInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_connectionPlan_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNConnectionPlanInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionPlanInput)
 	if err != nil {
 		return nil, err
 	}
@@ -12464,6 +13402,17 @@ func (ec *executionContext) field_Query_machines_args(ctx context.Context, rawAr
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_mapArea_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMapAreaInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapAreaInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_navigation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -12538,6 +13487,17 @@ func (ec *executionContext) field_Query_production_args(ctx context.Context, raw
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_prototype_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
 	return args, nil
 }
 
@@ -22094,6 +23054,522 @@ func (ec *executionContext) fieldContext_CombinatorParameters_decider(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _ConnectEntitiesResult_tick(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_surface(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_surface,
+		func(ctx context.Context) (any, error) {
+			return obj.Surface, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_surface(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_force(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_actor(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_actor,
+		func(ctx context.Context) (any, error) {
+			return obj.Actor, nil
+		},
+		nil,
+		ec.marshalNActorIdentity2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorIdentity,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_actor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "player":
+				return ec.fieldContext_ActorIdentity_player(ctx, field)
+			case "character":
+				return ec.fieldContext_ActorIdentity_character(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ActorIdentity", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_kind(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_kind,
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		ec.marshalNConnectionKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionKind,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ConnectionKind does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_item(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_item,
+		func(ctx context.Context) (any, error) {
+			return obj.Item, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_item(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_from(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_from,
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_to(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_to,
+		func(ctx context.Context) (any, error) {
+			return obj.To, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_bend(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_bend,
+		func(ctx context.Context) (any, error) {
+			return obj.Bend, nil
+		},
+		nil,
+		ec.marshalNConnectionBend2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionBend,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_bend(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ConnectionBend does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_possible(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_possible,
+		func(ctx context.Context) (any, error) {
+			return obj.Possible, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_possible(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_placed(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_placed,
+		func(ctx context.Context) (any, error) {
+			return obj.Placed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_placed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_skipped(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_skipped,
+		func(ctx context.Context) (any, error) {
+			return obj.Skipped, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_skipped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_failed(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_failed,
+		func(ctx context.Context) (any, error) {
+			return obj.Failed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_failed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_entities(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_entities,
+		func(ctx context.Context) (any, error) {
+			return obj.Entities, nil
+		},
+		nil,
+		ec.marshalNPlacedEntity2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPlacedEntityᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_entities(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_PlacedEntity_name(ctx, field)
+			case "type":
+				return ec.fieldContext_PlacedEntity_type(ctx, field)
+			case "position":
+				return ec.fieldContext_PlacedEntity_position(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_PlacedEntity_unitNumber(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PlacedEntity", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_conflicts(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_conflicts,
+		func(ctx context.Context) (any, error) {
+			return obj.Conflicts, nil
+		},
+		nil,
+		ec.marshalNConnectionConflict2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionConflictᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_conflicts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "position":
+				return ec.fieldContext_ConnectionConflict_position(ctx, field)
+			case "kind":
+				return ec.fieldContext_ConnectionConflict_kind(ctx, field)
+			case "blockers":
+				return ec.fieldContext_ConnectionConflict_blockers(ctx, field)
+			case "terrain":
+				return ec.fieldContext_ConnectionConflict_terrain(ctx, field)
+			case "tile":
+				return ec.fieldContext_ConnectionConflict_tile(ctx, field)
+			case "message":
+				return ec.fieldContext_ConnectionConflict_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionConflict", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectEntitiesResult_errors(ctx context.Context, field graphql.CollectedField, obj *ConnectEntitiesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectEntitiesResult_errors,
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		ec.marshalNBatchError2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBatchErrorᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectEntitiesResult_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectEntitiesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "index":
+				return ec.fieldContext_BatchError_index(ctx, field)
+			case "code":
+				return ec.fieldContext_BatchError_code(ctx, field)
+			case "message":
+				return ec.fieldContext_BatchError_message(ctx, field)
+			case "target":
+				return ec.fieldContext_BatchError_target(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type BatchError", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ConnectedInserter_inserter(ctx context.Context, field graphql.CollectedField, obj *ConnectedInserter) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22404,6 +23880,661 @@ func (ec *executionContext) fieldContext_ConnectedPlayer_actor(_ context.Context
 				return ec.fieldContext_Actor_logisticRequests(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Actor", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionConflict_position(ctx context.Context, field graphql.CollectedField, obj *ConnectionConflict) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionConflict_position,
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionConflict_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionConflict",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionConflict_kind(ctx context.Context, field graphql.CollectedField, obj *ConnectionConflict) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionConflict_kind,
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		ec.marshalNConnectionConflictKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionConflictKind,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionConflict_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionConflict",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ConnectionConflictKind does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionConflict_blockers(ctx context.Context, field graphql.CollectedField, obj *ConnectionConflict) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionConflict_blockers,
+		func(ctx context.Context) (any, error) {
+			return obj.Blockers, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionConflict_blockers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionConflict",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionConflict_terrain(ctx context.Context, field graphql.CollectedField, obj *ConnectionConflict) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionConflict_terrain,
+		func(ctx context.Context) (any, error) {
+			return obj.Terrain, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionConflict_terrain(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionConflict",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionConflict_tile(ctx context.Context, field graphql.CollectedField, obj *ConnectionConflict) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionConflict_tile,
+		func(ctx context.Context) (any, error) {
+			return obj.Tile, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionConflict_tile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionConflict",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionConflict_message(ctx context.Context, field graphql.CollectedField, obj *ConnectionConflict) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionConflict_message,
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionConflict_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionConflict",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_tick(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_surface(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_surface,
+		func(ctx context.Context) (any, error) {
+			return obj.Surface, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_surface(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_force(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_kind(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_kind,
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		ec.marshalNConnectionKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionKind,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ConnectionKind does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_item(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_item,
+		func(ctx context.Context) (any, error) {
+			return obj.Item, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_item(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_from(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_from,
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_to(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_to,
+		func(ctx context.Context) (any, error) {
+			return obj.To, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_bend(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_bend,
+		func(ctx context.Context) (any, error) {
+			return obj.Bend, nil
+		},
+		nil,
+		ec.marshalNConnectionBend2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionBend,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_bend(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ConnectionBend does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_possible(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_possible,
+		func(ctx context.Context) (any, error) {
+			return obj.Possible, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_possible(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_needed(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_needed,
+		func(ctx context.Context) (any, error) {
+			return obj.Needed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_needed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_steps(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_steps,
+		func(ctx context.Context) (any, error) {
+			return obj.Steps, nil
+		},
+		nil,
+		ec.marshalNConnectionStep2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionStepᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_steps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "position":
+				return ec.fieldContext_ConnectionStep_position(ctx, field)
+			case "direction":
+				return ec.fieldContext_ConnectionStep_direction(ctx, field)
+			case "existing":
+				return ec.fieldContext_ConnectionStep_existing(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionStep", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionPlan_conflicts(ctx context.Context, field graphql.CollectedField, obj *ConnectionPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionPlan_conflicts,
+		func(ctx context.Context) (any, error) {
+			return obj.Conflicts, nil
+		},
+		nil,
+		ec.marshalNConnectionConflict2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionConflictᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionPlan_conflicts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "position":
+				return ec.fieldContext_ConnectionConflict_position(ctx, field)
+			case "kind":
+				return ec.fieldContext_ConnectionConflict_kind(ctx, field)
+			case "blockers":
+				return ec.fieldContext_ConnectionConflict_blockers(ctx, field)
+			case "terrain":
+				return ec.fieldContext_ConnectionConflict_terrain(ctx, field)
+			case "tile":
+				return ec.fieldContext_ConnectionConflict_tile(ctx, field)
+			case "message":
+				return ec.fieldContext_ConnectionConflict_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionConflict", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionStep_position(ctx context.Context, field graphql.CollectedField, obj *ConnectionStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionStep_position,
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionStep_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionStep_direction(ctx context.Context, field graphql.CollectedField, obj *ConnectionStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionStep_direction,
+		func(ctx context.Context) (any, error) {
+			return obj.Direction, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionStep_direction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionStep_existing(ctx context.Context, field graphql.CollectedField, obj *ConnectionStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionStep_existing,
+		func(ctx context.Context) (any, error) {
+			return obj.Existing, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionStep_existing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -26883,6 +29014,523 @@ func (ec *executionContext) fieldContext_EntityPage_entities(_ context.Context, 
 				return ec.fieldContext_Entity_inspection(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Entity", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_name(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_type(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_tileWidth(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_tileWidth,
+		func(ctx context.Context) (any, error) {
+			return obj.TileWidth, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_tileWidth(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_tileHeight(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_tileHeight,
+		func(ctx context.Context) (any, error) {
+			return obj.TileHeight, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_tileHeight(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_collisionBox(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_collisionBox,
+		func(ctx context.Context) (any, error) {
+			return obj.CollisionBox, nil
+		},
+		nil,
+		ec.marshalOPrototypeBox2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPrototypeBox,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_collisionBox(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "leftTop":
+				return ec.fieldContext_PrototypeBox_leftTop(ctx, field)
+			case "rightBottom":
+				return ec.fieldContext_PrototypeBox_rightBottom(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PrototypeBox", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_selectionBox(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_selectionBox,
+		func(ctx context.Context) (any, error) {
+			return obj.SelectionBox, nil
+		},
+		nil,
+		ec.marshalOPrototypeBox2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPrototypeBox,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_selectionBox(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "leftTop":
+				return ec.fieldContext_PrototypeBox_leftTop(ctx, field)
+			case "rightBottom":
+				return ec.fieldContext_PrototypeBox_rightBottom(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PrototypeBox", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_maxHealth(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_maxHealth,
+		func(ctx context.Context) (any, error) {
+			return obj.MaxHealth, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_maxHealth(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_beltSpeed(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_beltSpeed,
+		func(ctx context.Context) (any, error) {
+			return obj.BeltSpeed, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_beltSpeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_maxUndergroundDistance(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_maxUndergroundDistance,
+		func(ctx context.Context) (any, error) {
+			return obj.MaxUndergroundDistance, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_maxUndergroundDistance(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_inserterPickup(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_inserterPickup,
+		func(ctx context.Context) (any, error) {
+			return obj.InserterPickup, nil
+		},
+		nil,
+		ec.marshalOPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_inserterPickup(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_inserterDrop(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_inserterDrop,
+		func(ctx context.Context) (any, error) {
+			return obj.InserterDrop, nil
+		},
+		nil,
+		ec.marshalOPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_inserterDrop(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_wireReach(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_wireReach,
+		func(ctx context.Context) (any, error) {
+			return obj.WireReach, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_wireReach(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_supplyArea(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_supplyArea,
+		func(ctx context.Context) (any, error) {
+			return obj.SupplyArea, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_supplyArea(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_craftingSpeed(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_craftingSpeed,
+		func(ctx context.Context) (any, error) {
+			return obj.CraftingSpeed, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_craftingSpeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_craftingCategories(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_craftingCategories,
+		func(ctx context.Context) (any, error) {
+			return obj.CraftingCategories, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_craftingCategories(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_fluidBoxCount(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_fluidBoxCount,
+		func(ctx context.Context) (any, error) {
+			return obj.FluidBoxCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_fluidBoxCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityPrototype_mineable(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_mineable,
+		func(ctx context.Context) (any, error) {
+			return obj.Mineable, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_mineable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -34806,6 +37454,209 @@ func (ec *executionContext) fieldContext_ItemFlowEndpoint_rateUnavailableReason(
 	return fc, nil
 }
 
+func (ec *executionContext) _ItemPrototype_name(ctx context.Context, field graphql.CollectedField, obj *ItemPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ItemPrototype_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ItemPrototype_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ItemPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ItemPrototype_stackSize(ctx context.Context, field graphql.CollectedField, obj *ItemPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ItemPrototype_stackSize,
+		func(ctx context.Context) (any, error) {
+			return obj.StackSize, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ItemPrototype_stackSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ItemPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ItemPrototype_stackable(ctx context.Context, field graphql.CollectedField, obj *ItemPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ItemPrototype_stackable,
+		func(ctx context.Context) (any, error) {
+			return obj.Stackable, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ItemPrototype_stackable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ItemPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ItemPrototype_placeResult(ctx context.Context, field graphql.CollectedField, obj *ItemPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ItemPrototype_placeResult,
+		func(ctx context.Context) (any, error) {
+			return obj.PlaceResult, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ItemPrototype_placeResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ItemPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ItemPrototype_fuelCategory(ctx context.Context, field graphql.CollectedField, obj *ItemPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ItemPrototype_fuelCategory,
+		func(ctx context.Context) (any, error) {
+			return obj.FuelCategory, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ItemPrototype_fuelCategory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ItemPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ItemPrototype_fuelValue(ctx context.Context, field graphql.CollectedField, obj *ItemPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ItemPrototype_fuelValue,
+		func(ctx context.Context) (any, error) {
+			return obj.FuelValue, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ItemPrototype_fuelValue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ItemPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ItemPrototype_burntResult(ctx context.Context, field graphql.CollectedField, obj *ItemPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ItemPrototype_burntResult,
+		func(ctx context.Context) (any, error) {
+			return obj.BurntResult, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ItemPrototype_burntResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ItemPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ItemRecipe_name(ctx context.Context, field graphql.CollectedField, obj *ItemRecipe) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38446,6 +41297,434 @@ func (ec *executionContext) fieldContext_MachineTheoreticalThroughput_actualCraf
 	return fc, nil
 }
 
+func (ec *executionContext) _MapArea_tick(ctx context.Context, field graphql.CollectedField, obj *MapArea) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapArea_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapArea_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapArea",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapArea_surface(ctx context.Context, field graphql.CollectedField, obj *MapArea) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapArea_surface,
+		func(ctx context.Context) (any, error) {
+			return obj.Surface, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapArea_surface(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapArea",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapArea_force(ctx context.Context, field graphql.CollectedField, obj *MapArea) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapArea_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapArea_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapArea",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapArea_area(ctx context.Context, field graphql.CollectedField, obj *MapArea) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapArea_area,
+		func(ctx context.Context) (any, error) {
+			return obj.Area, nil
+		},
+		nil,
+		ec.marshalNWorldArea2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWorldArea,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapArea_area(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapArea",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "leftTopX":
+				return ec.fieldContext_WorldArea_leftTopX(ctx, field)
+			case "leftTopY":
+				return ec.fieldContext_WorldArea_leftTopY(ctx, field)
+			case "rightBottomX":
+				return ec.fieldContext_WorldArea_rightBottomX(ctx, field)
+			case "rightBottomY":
+				return ec.fieldContext_WorldArea_rightBottomY(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorldArea", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapArea_cellSize(ctx context.Context, field graphql.CollectedField, obj *MapArea) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapArea_cellSize,
+		func(ctx context.Context) (any, error) {
+			return obj.CellSize, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapArea_cellSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapArea",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapArea_columns(ctx context.Context, field graphql.CollectedField, obj *MapArea) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapArea_columns,
+		func(ctx context.Context) (any, error) {
+			return obj.Columns, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapArea_columns(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapArea",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapArea_rows(ctx context.Context, field graphql.CollectedField, obj *MapArea) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapArea_rows,
+		func(ctx context.Context) (any, error) {
+			return obj.Rows, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapArea_rows(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapArea",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapArea_legend(ctx context.Context, field graphql.CollectedField, obj *MapArea) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapArea_legend,
+		func(ctx context.Context) (any, error) {
+			return obj.Legend, nil
+		},
+		nil,
+		ec.marshalNMapLegendEntry2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapLegendEntryᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapArea_legend(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapArea",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "char":
+				return ec.fieldContext_MapLegendEntry_char(ctx, field)
+			case "name":
+				return ec.fieldContext_MapLegendEntry_name(ctx, field)
+			case "type":
+				return ec.fieldContext_MapLegendEntry_type(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MapLegendEntry_unitNumber(ctx, field)
+			case "count":
+				return ec.fieldContext_MapLegendEntry_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MapLegendEntry", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapArea_truncated(ctx context.Context, field graphql.CollectedField, obj *MapArea) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapArea_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapArea_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapArea",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapLegendEntry_char(ctx context.Context, field graphql.CollectedField, obj *MapLegendEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapLegendEntry_char,
+		func(ctx context.Context) (any, error) {
+			return obj.Char, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapLegendEntry_char(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapLegendEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapLegendEntry_name(ctx context.Context, field graphql.CollectedField, obj *MapLegendEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapLegendEntry_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapLegendEntry_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapLegendEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapLegendEntry_type(ctx context.Context, field graphql.CollectedField, obj *MapLegendEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapLegendEntry_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapLegendEntry_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapLegendEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapLegendEntry_unitNumber(ctx context.Context, field graphql.CollectedField, obj *MapLegendEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapLegendEntry_unitNumber,
+		func(ctx context.Context) (any, error) {
+			return obj.UnitNumber, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapLegendEntry_unitNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapLegendEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapLegendEntry_count(ctx context.Context, field graphql.CollectedField, obj *MapLegendEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MapLegendEntry_count,
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MapLegendEntry_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapLegendEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _MissingSciencePack_name(ctx context.Context, field graphql.CollectedField, obj *MissingSciencePack) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -41781,6 +45060,81 @@ func (ec *executionContext) fieldContext_Mutation_repair(ctx context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_connectEntities(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_connectEntities,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ConnectEntities(ctx, fc.Args["input"].(ConnectEntitiesInput))
+		},
+		nil,
+		ec.marshalNConnectEntitiesResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectEntitiesResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_connectEntities(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_ConnectEntitiesResult_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_ConnectEntitiesResult_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_ConnectEntitiesResult_force(ctx, field)
+			case "actor":
+				return ec.fieldContext_ConnectEntitiesResult_actor(ctx, field)
+			case "kind":
+				return ec.fieldContext_ConnectEntitiesResult_kind(ctx, field)
+			case "item":
+				return ec.fieldContext_ConnectEntitiesResult_item(ctx, field)
+			case "from":
+				return ec.fieldContext_ConnectEntitiesResult_from(ctx, field)
+			case "to":
+				return ec.fieldContext_ConnectEntitiesResult_to(ctx, field)
+			case "bend":
+				return ec.fieldContext_ConnectEntitiesResult_bend(ctx, field)
+			case "possible":
+				return ec.fieldContext_ConnectEntitiesResult_possible(ctx, field)
+			case "placed":
+				return ec.fieldContext_ConnectEntitiesResult_placed(ctx, field)
+			case "skipped":
+				return ec.fieldContext_ConnectEntitiesResult_skipped(ctx, field)
+			case "failed":
+				return ec.fieldContext_ConnectEntitiesResult_failed(ctx, field)
+			case "entities":
+				return ec.fieldContext_ConnectEntitiesResult_entities(ctx, field)
+			case "conflicts":
+				return ec.fieldContext_ConnectEntitiesResult_conflicts(ctx, field)
+			case "errors":
+				return ec.fieldContext_ConnectEntitiesResult_errors(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectEntitiesResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_connectEntities_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_buildGhosts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -42435,6 +45789,71 @@ func (ec *executionContext) fieldContext_Mutation_setActorLogisticRequests(ctx c
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_setActorLogisticRequests_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_placeNextTo(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_placeNextTo,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().PlaceNextTo(ctx, fc.Args["input"].(PlaceNextToInput))
+		},
+		nil,
+		ec.marshalNPlaceNextToResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPlaceNextToResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_placeNextTo(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_PlaceNextToResult_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_PlaceNextToResult_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_PlaceNextToResult_force(ctx, field)
+			case "actor":
+				return ec.fieldContext_PlaceNextToResult_actor(ctx, field)
+			case "item":
+				return ec.fieldContext_PlaceNextToResult_item(ctx, field)
+			case "name":
+				return ec.fieldContext_PlaceNextToResult_name(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_PlaceNextToResult_unitNumber(ctx, field)
+			case "position":
+				return ec.fieldContext_PlaceNextToResult_position(ctx, field)
+			case "relativeTo":
+				return ec.fieldContext_PlaceNextToResult_relativeTo(ctx, field)
+			case "side":
+				return ec.fieldContext_PlaceNextToResult_side(ctx, field)
+			case "gap":
+				return ec.fieldContext_PlaceNextToResult_gap(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PlaceNextToResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_placeNextTo_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -43630,6 +47049,63 @@ func (ec *executionContext) fieldContext_Mutation_setDirection(ctx context.Conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_setDirection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_waitUntil(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_waitUntil,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().WaitUntil(ctx, fc.Args["input"].(WaitUntilInput))
+		},
+		nil,
+		ec.marshalNWaitResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_waitUntil(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_WaitResult_tick(ctx, field)
+			case "condition":
+				return ec.fieldContext_WaitResult_condition(ctx, field)
+			case "satisfied":
+				return ec.fieldContext_WaitResult_satisfied(ctx, field)
+			case "timedOut":
+				return ec.fieldContext_WaitResult_timedOut(ctx, field)
+			case "waitedSeconds":
+				return ec.fieldContext_WaitResult_waitedSeconds(ctx, field)
+			case "polls":
+				return ec.fieldContext_WaitResult_polls(ctx, field)
+			case "last":
+				return ec.fieldContext_WaitResult_last(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WaitResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_waitUntil_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -44974,6 +48450,337 @@ func (ec *executionContext) fieldContext_PlaceManyResult_entities(_ context.Cont
 				return ec.fieldContext_PlacedEntity_unitNumber(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type PlacedEntity", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaceNextToResult_tick(ctx context.Context, field graphql.CollectedField, obj *PlaceNextToResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaceNextToResult_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaceNextToResult_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaceNextToResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaceNextToResult_surface(ctx context.Context, field graphql.CollectedField, obj *PlaceNextToResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaceNextToResult_surface,
+		func(ctx context.Context) (any, error) {
+			return obj.Surface, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaceNextToResult_surface(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaceNextToResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaceNextToResult_force(ctx context.Context, field graphql.CollectedField, obj *PlaceNextToResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaceNextToResult_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaceNextToResult_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaceNextToResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaceNextToResult_actor(ctx context.Context, field graphql.CollectedField, obj *PlaceNextToResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaceNextToResult_actor,
+		func(ctx context.Context) (any, error) {
+			return obj.Actor, nil
+		},
+		nil,
+		ec.marshalNActorIdentity2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorIdentity,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaceNextToResult_actor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaceNextToResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "player":
+				return ec.fieldContext_ActorIdentity_player(ctx, field)
+			case "character":
+				return ec.fieldContext_ActorIdentity_character(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ActorIdentity", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaceNextToResult_item(ctx context.Context, field graphql.CollectedField, obj *PlaceNextToResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaceNextToResult_item,
+		func(ctx context.Context) (any, error) {
+			return obj.Item, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaceNextToResult_item(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaceNextToResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaceNextToResult_name(ctx context.Context, field graphql.CollectedField, obj *PlaceNextToResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaceNextToResult_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaceNextToResult_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaceNextToResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaceNextToResult_unitNumber(ctx context.Context, field graphql.CollectedField, obj *PlaceNextToResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaceNextToResult_unitNumber,
+		func(ctx context.Context) (any, error) {
+			return obj.UnitNumber, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaceNextToResult_unitNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaceNextToResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaceNextToResult_position(ctx context.Context, field graphql.CollectedField, obj *PlaceNextToResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaceNextToResult_position,
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaceNextToResult_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaceNextToResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaceNextToResult_relativeTo(ctx context.Context, field graphql.CollectedField, obj *PlaceNextToResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaceNextToResult_relativeTo,
+		func(ctx context.Context) (any, error) {
+			return obj.RelativeTo, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaceNextToResult_relativeTo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaceNextToResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaceNextToResult_side(ctx context.Context, field graphql.CollectedField, obj *PlaceNextToResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaceNextToResult_side,
+		func(ctx context.Context) (any, error) {
+			return obj.Side, nil
+		},
+		nil,
+		ec.marshalNRelativeSide2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐRelativeSide,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaceNextToResult_side(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaceNextToResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type RelativeSide does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaceNextToResult_gap(ctx context.Context, field graphql.CollectedField, obj *PlaceNextToResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaceNextToResult_gap,
+		func(ctx context.Context) (any, error) {
+			return obj.Gap, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaceNextToResult_gap(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaceNextToResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -47917,6 +51724,215 @@ func (ec *executionContext) fieldContext_ProductionStatistics_consumed(_ context
 	return fc, nil
 }
 
+func (ec *executionContext) _Prototype_name(ctx context.Context, field graphql.CollectedField, obj *Prototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Prototype_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Prototype_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Prototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Prototype_item(ctx context.Context, field graphql.CollectedField, obj *Prototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Prototype_item,
+		func(ctx context.Context) (any, error) {
+			return obj.Item, nil
+		},
+		nil,
+		ec.marshalOItemPrototype2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐItemPrototype,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Prototype_item(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Prototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_ItemPrototype_name(ctx, field)
+			case "stackSize":
+				return ec.fieldContext_ItemPrototype_stackSize(ctx, field)
+			case "stackable":
+				return ec.fieldContext_ItemPrototype_stackable(ctx, field)
+			case "placeResult":
+				return ec.fieldContext_ItemPrototype_placeResult(ctx, field)
+			case "fuelCategory":
+				return ec.fieldContext_ItemPrototype_fuelCategory(ctx, field)
+			case "fuelValue":
+				return ec.fieldContext_ItemPrototype_fuelValue(ctx, field)
+			case "burntResult":
+				return ec.fieldContext_ItemPrototype_burntResult(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ItemPrototype", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Prototype_entity(ctx context.Context, field graphql.CollectedField, obj *Prototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Prototype_entity,
+		func(ctx context.Context) (any, error) {
+			return obj.Entity, nil
+		},
+		nil,
+		ec.marshalOEntityPrototype2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐEntityPrototype,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Prototype_entity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Prototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_EntityPrototype_name(ctx, field)
+			case "type":
+				return ec.fieldContext_EntityPrototype_type(ctx, field)
+			case "tileWidth":
+				return ec.fieldContext_EntityPrototype_tileWidth(ctx, field)
+			case "tileHeight":
+				return ec.fieldContext_EntityPrototype_tileHeight(ctx, field)
+			case "collisionBox":
+				return ec.fieldContext_EntityPrototype_collisionBox(ctx, field)
+			case "selectionBox":
+				return ec.fieldContext_EntityPrototype_selectionBox(ctx, field)
+			case "maxHealth":
+				return ec.fieldContext_EntityPrototype_maxHealth(ctx, field)
+			case "beltSpeed":
+				return ec.fieldContext_EntityPrototype_beltSpeed(ctx, field)
+			case "maxUndergroundDistance":
+				return ec.fieldContext_EntityPrototype_maxUndergroundDistance(ctx, field)
+			case "inserterPickup":
+				return ec.fieldContext_EntityPrototype_inserterPickup(ctx, field)
+			case "inserterDrop":
+				return ec.fieldContext_EntityPrototype_inserterDrop(ctx, field)
+			case "wireReach":
+				return ec.fieldContext_EntityPrototype_wireReach(ctx, field)
+			case "supplyArea":
+				return ec.fieldContext_EntityPrototype_supplyArea(ctx, field)
+			case "craftingSpeed":
+				return ec.fieldContext_EntityPrototype_craftingSpeed(ctx, field)
+			case "craftingCategories":
+				return ec.fieldContext_EntityPrototype_craftingCategories(ctx, field)
+			case "fluidBoxCount":
+				return ec.fieldContext_EntityPrototype_fluidBoxCount(ctx, field)
+			case "mineable":
+				return ec.fieldContext_EntityPrototype_mineable(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EntityPrototype", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PrototypeBox_leftTop(ctx context.Context, field graphql.CollectedField, obj *PrototypeBox) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PrototypeBox_leftTop,
+		func(ctx context.Context) (any, error) {
+			return obj.LeftTop, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PrototypeBox_leftTop(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PrototypeBox",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PrototypeBox_rightBottom(ctx context.Context, field graphql.CollectedField, obj *PrototypeBox) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PrototypeBox_rightBottom,
+		func(ctx context.Context) (any, error) {
+			return obj.RightBottom, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PrototypeBox_rightBottom(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PrototypeBox",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_status(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -48749,6 +52765,73 @@ func (ec *executionContext) fieldContext_Query_characters(ctx context.Context, f
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_characters_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_connectionPlan(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_connectionPlan,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ConnectionPlan(ctx, fc.Args["input"].(ConnectionPlanInput))
+		},
+		nil,
+		ec.marshalNConnectionPlan2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionPlan,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_connectionPlan(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_ConnectionPlan_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_ConnectionPlan_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_ConnectionPlan_force(ctx, field)
+			case "kind":
+				return ec.fieldContext_ConnectionPlan_kind(ctx, field)
+			case "item":
+				return ec.fieldContext_ConnectionPlan_item(ctx, field)
+			case "from":
+				return ec.fieldContext_ConnectionPlan_from(ctx, field)
+			case "to":
+				return ec.fieldContext_ConnectionPlan_to(ctx, field)
+			case "bend":
+				return ec.fieldContext_ConnectionPlan_bend(ctx, field)
+			case "possible":
+				return ec.fieldContext_ConnectionPlan_possible(ctx, field)
+			case "needed":
+				return ec.fieldContext_ConnectionPlan_needed(ctx, field)
+			case "steps":
+				return ec.fieldContext_ConnectionPlan_steps(ctx, field)
+			case "conflicts":
+				return ec.fieldContext_ConnectionPlan_conflicts(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionPlan", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_connectionPlan_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -50022,6 +54105,12 @@ func (ec *executionContext) fieldContext_Query_worldPlacement(ctx context.Contex
 				return ec.fieldContext_WorldPlacementResult_direction(ctx, field)
 			case "canPlace":
 				return ec.fieldContext_WorldPlacementResult_canPlace(ctx, field)
+			case "blockers":
+				return ec.fieldContext_WorldPlacementResult_blockers(ctx, field)
+			case "terrain":
+				return ec.fieldContext_WorldPlacementResult_terrain(ctx, field)
+			case "tile":
+				return ec.fieldContext_WorldPlacementResult_tile(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorldPlacementResult", field.Name)
 		},
@@ -50107,6 +54196,67 @@ func (ec *executionContext) fieldContext_Query_probePlacement(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_mapArea(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_mapArea,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MapArea(ctx, fc.Args["input"].(MapAreaInput))
+		},
+		nil,
+		ec.marshalNMapArea2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapArea,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_mapArea(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_MapArea_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_MapArea_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_MapArea_force(ctx, field)
+			case "area":
+				return ec.fieldContext_MapArea_area(ctx, field)
+			case "cellSize":
+				return ec.fieldContext_MapArea_cellSize(ctx, field)
+			case "columns":
+				return ec.fieldContext_MapArea_columns(ctx, field)
+			case "rows":
+				return ec.fieldContext_MapArea_rows(ctx, field)
+			case "legend":
+				return ec.fieldContext_MapArea_legend(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MapArea_truncated(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MapArea", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mapArea_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_navigation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -50172,6 +54322,55 @@ func (ec *executionContext) fieldContext_Query_navigation(ctx context.Context, f
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_navigation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_prototype(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_prototype,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Prototype(ctx, fc.Args["name"].(string))
+		},
+		nil,
+		ec.marshalNPrototype2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPrototype,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_prototype(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_Prototype_name(ctx, field)
+			case "item":
+				return ec.fieldContext_Prototype_item(ctx, field)
+			case "entity":
+				return ec.fieldContext_Prototype_entity(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Prototype", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_prototype_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -58880,6 +63079,397 @@ func (ec *executionContext) fieldContext_TransportLine_items(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _WaitObservation_tick(ctx context.Context, field graphql.CollectedField, obj *WaitObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitObservation_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitObservation_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitObservation_count(ctx context.Context, field graphql.CollectedField, obj *WaitObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitObservation_count,
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitObservation_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitObservation_status(ctx context.Context, field graphql.CollectedField, obj *WaitObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitObservation_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitObservation_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitObservation_researched(ctx context.Context, field graphql.CollectedField, obj *WaitObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitObservation_researched,
+		func(ctx context.Context) (any, error) {
+			return obj.Researched, nil
+		},
+		nil,
+		ec.marshalOBoolean2ᚖbool,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitObservation_researched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitObservation_queueSize(ctx context.Context, field graphql.CollectedField, obj *WaitObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitObservation_queueSize,
+		func(ctx context.Context) (any, error) {
+			return obj.QueueSize, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitObservation_queueSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitObservation_detail(ctx context.Context, field graphql.CollectedField, obj *WaitObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitObservation_detail,
+		func(ctx context.Context) (any, error) {
+			return obj.Detail, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitObservation_detail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitResult_tick(ctx context.Context, field graphql.CollectedField, obj *WaitResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitResult_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitResult_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitResult_condition(ctx context.Context, field graphql.CollectedField, obj *WaitResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitResult_condition,
+		func(ctx context.Context) (any, error) {
+			return obj.Condition, nil
+		},
+		nil,
+		ec.marshalNWaitConditionKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitConditionKind,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitResult_condition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type WaitConditionKind does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitResult_satisfied(ctx context.Context, field graphql.CollectedField, obj *WaitResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitResult_satisfied,
+		func(ctx context.Context) (any, error) {
+			return obj.Satisfied, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitResult_satisfied(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitResult_timedOut(ctx context.Context, field graphql.CollectedField, obj *WaitResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitResult_timedOut,
+		func(ctx context.Context) (any, error) {
+			return obj.TimedOut, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitResult_timedOut(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitResult_waitedSeconds(ctx context.Context, field graphql.CollectedField, obj *WaitResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitResult_waitedSeconds,
+		func(ctx context.Context) (any, error) {
+			return obj.WaitedSeconds, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitResult_waitedSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitResult_polls(ctx context.Context, field graphql.CollectedField, obj *WaitResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitResult_polls,
+		func(ctx context.Context) (any, error) {
+			return obj.Polls, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitResult_polls(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WaitResult_last(ctx context.Context, field graphql.CollectedField, obj *WaitResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WaitResult_last,
+		func(ctx context.Context) (any, error) {
+			return obj.Last, nil
+		},
+		nil,
+		ec.marshalNWaitObservation2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitObservation,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WaitResult_last(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WaitResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_WaitObservation_tick(ctx, field)
+			case "count":
+				return ec.fieldContext_WaitObservation_count(ctx, field)
+			case "status":
+				return ec.fieldContext_WaitObservation_status(ctx, field)
+			case "researched":
+				return ec.fieldContext_WaitObservation_researched(ctx, field)
+			case "queueSize":
+				return ec.fieldContext_WaitObservation_queueSize(ctx, field)
+			case "detail":
+				return ec.fieldContext_WaitObservation_detail(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WaitObservation", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _WireEndpoint_name(ctx context.Context, field graphql.CollectedField, obj *WireEndpoint) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -60535,6 +65125,93 @@ func (ec *executionContext) fieldContext_WorldPlacementResult_canPlace(_ context
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorldPlacementResult_blockers(ctx context.Context, field graphql.CollectedField, obj *WorldPlacementResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorldPlacementResult_blockers,
+		func(ctx context.Context) (any, error) {
+			return obj.Blockers, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorldPlacementResult_blockers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorldPlacementResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorldPlacementResult_terrain(ctx context.Context, field graphql.CollectedField, obj *WorldPlacementResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorldPlacementResult_terrain,
+		func(ctx context.Context) (any, error) {
+			return obj.Terrain, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorldPlacementResult_terrain(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorldPlacementResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorldPlacementResult_tile(ctx context.Context, field graphql.CollectedField, obj *WorldPlacementResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorldPlacementResult_tile,
+		func(ctx context.Context) (any, error) {
+			return obj.Tile, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorldPlacementResult_tile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorldPlacementResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -64122,6 +68799,196 @@ func (ec *executionContext) unmarshalInputCombinatorParametersInput(ctx context.
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputConnectEntitiesInput(ctx context.Context, obj any) (ConnectEntitiesInput, error) {
+	var it ConnectEntitiesInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["force"]; !present {
+		asMap["force"] = "player"
+	}
+	if _, present := asMap["bend"]; !present {
+		asMap["bend"] = "AUTO"
+	}
+	if _, present := asMap["allowFluidAdjacency"]; !present {
+		asMap["allowFluidAdjacency"] = false
+	}
+
+	fieldsInOrder := [...]string{"actor", "surface", "force", "from", "to", "kind", "item", "bend", "allowFluidAdjacency", "message"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "actor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actor"))
+			data, err := ec.unmarshalNActorInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Actor = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "force":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("force"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Force = data
+		case "from":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+			data, err := ec.unmarshalNPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.From = data
+		case "to":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
+			data, err := ec.unmarshalNPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.To = data
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalNConnectionKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "item":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Item = data
+		case "bend":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bend"))
+			data, err := ec.unmarshalNConnectionBend2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionBend(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Bend = data
+		case "allowFluidAdjacency":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("allowFluidAdjacency"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AllowFluidAdjacency = data
+		case "message":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Message = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputConnectionPlanInput(ctx context.Context, obj any) (ConnectionPlanInput, error) {
+	var it ConnectionPlanInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["force"]; !present {
+		asMap["force"] = "player"
+	}
+	if _, present := asMap["bend"]; !present {
+		asMap["bend"] = "AUTO"
+	}
+	if _, present := asMap["allowFluidAdjacency"]; !present {
+		asMap["allowFluidAdjacency"] = false
+	}
+
+	fieldsInOrder := [...]string{"surface", "force", "from", "to", "kind", "item", "bend", "allowFluidAdjacency"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "force":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("force"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Force = data
+		case "from":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+			data, err := ec.unmarshalNPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.From = data
+		case "to":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
+			data, err := ec.unmarshalNPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.To = data
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalNConnectionKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "item":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Item = data
+		case "bend":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bend"))
+			data, err := ec.unmarshalNConnectionBend2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionBend(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Bend = data
+		case "allowFluidAdjacency":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("allowFluidAdjacency"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AllowFluidAdjacency = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputConstructionOrdersInput(ctx context.Context, obj any) (ConstructionOrdersInput, error) {
 	var it ConstructionOrdersInput
 	asMap := map[string]any{}
@@ -66299,6 +71166,83 @@ func (ec *executionContext) unmarshalInputMachinesInput(ctx context.Context, obj
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputMapAreaInput(ctx context.Context, obj any) (MapAreaInput, error) {
+	var it MapAreaInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["force"]; !present {
+		asMap["force"] = "player"
+	}
+	if _, present := asMap["maxRows"]; !present {
+		asMap["maxRows"] = 32
+	}
+	if _, present := asMap["maxColumns"]; !present {
+		asMap["maxColumns"] = 32
+	}
+	if _, present := asMap["layer"]; !present {
+		asMap["layer"] = "ALL"
+	}
+
+	fieldsInOrder := [...]string{"surface", "force", "area", "maxRows", "maxColumns", "layer"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "force":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("force"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Force = data
+		case "area":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("area"))
+			data, err := ec.unmarshalNFactoryAreaInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactoryAreaInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Area = data
+		case "maxRows":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxRows"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxRows = data
+		case "maxColumns":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxColumns"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxColumns = data
+		case "layer":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("layer"))
+			data, err := ec.unmarshalNMapLayer2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapLayer(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Layer = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputMineInput(ctx context.Context, obj any) (MineInput, error) {
 	var it MineInput
 	asMap := map[string]any{}
@@ -66823,6 +71767,101 @@ func (ec *executionContext) unmarshalInputPlaceManyInput(ctx context.Context, ob
 				return it, err
 			}
 			it.Placements = data
+		case "message":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Message = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputPlaceNextToInput(ctx context.Context, obj any) (PlaceNextToInput, error) {
+	var it PlaceNextToInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["gap"]; !present {
+		asMap["gap"] = 0
+	}
+	if _, present := asMap["direction"]; !present {
+		asMap["direction"] = 0
+	}
+	if _, present := asMap["quality"]; !present {
+		asMap["quality"] = "normal"
+	}
+
+	fieldsInOrder := [...]string{"actor", "surface", "item", "relativeTo", "side", "gap", "direction", "quality", "message"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "actor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actor"))
+			data, err := ec.unmarshalNActorInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Actor = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "item":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Item = data
+		case "relativeTo":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("relativeTo"))
+			data, err := ec.unmarshalNEntityRefInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐEntityRefInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RelativeTo = data
+		case "side":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("side"))
+			data, err := ec.unmarshalNRelativeSide2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐRelativeSide(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Side = data
+		case "gap":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("gap"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Gap = data
+		case "direction":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("direction"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Direction = data
+		case "quality":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quality"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Quality = data
 		case "message":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -68944,6 +73983,346 @@ func (ec *executionContext) unmarshalInputUnlockTechnologiesInput(ctx context.Co
 				return it, err
 			}
 			it.Message = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputWaitConditionInput(ctx context.Context, obj any) (WaitConditionInput, error) {
+	var it WaitConditionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"tick", "inventory", "craftQueueEmpty", "machineStatus", "research", "fluid", "production"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "tick":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tick"))
+			data, err := ec.unmarshalOFiniteFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Tick = data
+		case "inventory":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("inventory"))
+			data, err := ec.unmarshalOWaitInventoryInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitInventoryInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Inventory = data
+		case "craftQueueEmpty":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("craftQueueEmpty"))
+			data, err := ec.unmarshalOActorInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CraftQueueEmpty = data
+		case "machineStatus":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("machineStatus"))
+			data, err := ec.unmarshalOWaitMachineStatusInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitMachineStatusInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MachineStatus = data
+		case "research":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("research"))
+			data, err := ec.unmarshalOWaitResearchInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitResearchInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Research = data
+		case "fluid":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fluid"))
+			data, err := ec.unmarshalOWaitFluidInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitFluidInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Fluid = data
+		case "production":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("production"))
+			data, err := ec.unmarshalOWaitProductionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitProductionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Production = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputWaitFluidInput(ctx context.Context, obj any) (WaitFluidInput, error) {
+	var it WaitFluidInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"target", "fluid", "atLeast"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "target":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("target"))
+			data, err := ec.unmarshalNEntityRefInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐEntityRefInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Target = data
+		case "fluid":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fluid"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Fluid = data
+		case "atLeast":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("atLeast"))
+			data, err := ec.unmarshalNFiniteFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AtLeast = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputWaitInventoryInput(ctx context.Context, obj any) (WaitInventoryInput, error) {
+	var it WaitInventoryInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["quality"]; !present {
+		asMap["quality"] = "normal"
+	}
+
+	fieldsInOrder := [...]string{"actor", "item", "quality", "count"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "actor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actor"))
+			data, err := ec.unmarshalNActorInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Actor = data
+		case "item":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Item = data
+		case "quality":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quality"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Quality = data
+		case "count":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
+			data, err := ec.unmarshalNFiniteFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Count = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputWaitMachineStatusInput(ctx context.Context, obj any) (WaitMachineStatusInput, error) {
+	var it WaitMachineStatusInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"target", "statuses"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "target":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("target"))
+			data, err := ec.unmarshalNEntityRefInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐEntityRefInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Target = data
+		case "statuses":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("statuses"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Statuses = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputWaitProductionInput(ctx context.Context, obj any) (WaitProductionInput, error) {
+	var it WaitProductionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["force"]; !present {
+		asMap["force"] = "player"
+	}
+	if _, present := asMap["window"]; !present {
+		asMap["window"] = "ONE_MINUTE"
+	}
+
+	fieldsInOrder := [...]string{"surface", "force", "item", "count", "window"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "force":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("force"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Force = data
+		case "item":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Item = data
+		case "count":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
+			data, err := ec.unmarshalNFiniteFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Count = data
+		case "window":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("window"))
+			data, err := ec.unmarshalNProductionWindow2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐProductionWindow(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Window = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputWaitResearchInput(ctx context.Context, obj any) (WaitResearchInput, error) {
+	var it WaitResearchInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["force"]; !present {
+		asMap["force"] = "player"
+	}
+
+	fieldsInOrder := [...]string{"force", "technology"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "force":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("force"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Force = data
+		case "technology":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("technology"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Technology = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputWaitUntilInput(ctx context.Context, obj any) (WaitUntilInput, error) {
+	var it WaitUntilInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["timeoutSeconds"]; !present {
+		asMap["timeoutSeconds"] = 30
+	}
+	if _, present := asMap["pollSeconds"]; !present {
+		asMap["pollSeconds"] = 0.250000
+	}
+
+	fieldsInOrder := [...]string{"timeoutSeconds", "pollSeconds", "condition"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "timeoutSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("timeoutSeconds"))
+			data, err := ec.unmarshalNFiniteFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TimeoutSeconds = data
+		case "pollSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pollSeconds"))
+			data, err := ec.unmarshalNFiniteFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PollSeconds = data
+		case "condition":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("condition"))
+			data, err := ec.unmarshalNWaitConditionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitConditionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Condition = data
 		}
 	}
 	return it, nil
@@ -71806,6 +77185,120 @@ func (ec *executionContext) _CombinatorParameters(ctx context.Context, sel ast.S
 	return out
 }
 
+var connectEntitiesResultImplementors = []string{"ConnectEntitiesResult"}
+
+func (ec *executionContext) _ConnectEntitiesResult(ctx context.Context, sel ast.SelectionSet, obj *ConnectEntitiesResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, connectEntitiesResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ConnectEntitiesResult")
+		case "tick":
+			out.Values[i] = ec._ConnectEntitiesResult_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "surface":
+			out.Values[i] = ec._ConnectEntitiesResult_surface(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._ConnectEntitiesResult_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "actor":
+			out.Values[i] = ec._ConnectEntitiesResult_actor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._ConnectEntitiesResult_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "item":
+			out.Values[i] = ec._ConnectEntitiesResult_item(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "from":
+			out.Values[i] = ec._ConnectEntitiesResult_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "to":
+			out.Values[i] = ec._ConnectEntitiesResult_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "bend":
+			out.Values[i] = ec._ConnectEntitiesResult_bend(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "possible":
+			out.Values[i] = ec._ConnectEntitiesResult_possible(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "placed":
+			out.Values[i] = ec._ConnectEntitiesResult_placed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skipped":
+			out.Values[i] = ec._ConnectEntitiesResult_skipped(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failed":
+			out.Values[i] = ec._ConnectEntitiesResult_failed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "entities":
+			out.Values[i] = ec._ConnectEntitiesResult_entities(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "conflicts":
+			out.Values[i] = ec._ConnectEntitiesResult_conflicts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._ConnectEntitiesResult_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var connectedInserterImplementors = []string{"ConnectedInserter"}
 
 func (ec *executionContext) _ConnectedInserter(ctx context.Context, sel ast.SelectionSet, obj *ConnectedInserter) graphql.Marshaler {
@@ -71911,6 +77404,213 @@ func (ec *executionContext) _ConnectedPlayer(ctx context.Context, sel ast.Select
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var connectionConflictImplementors = []string{"ConnectionConflict"}
+
+func (ec *executionContext) _ConnectionConflict(ctx context.Context, sel ast.SelectionSet, obj *ConnectionConflict) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, connectionConflictImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ConnectionConflict")
+		case "position":
+			out.Values[i] = ec._ConnectionConflict_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._ConnectionConflict_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "blockers":
+			out.Values[i] = ec._ConnectionConflict_blockers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "terrain":
+			out.Values[i] = ec._ConnectionConflict_terrain(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tile":
+			out.Values[i] = ec._ConnectionConflict_tile(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._ConnectionConflict_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var connectionPlanImplementors = []string{"ConnectionPlan"}
+
+func (ec *executionContext) _ConnectionPlan(ctx context.Context, sel ast.SelectionSet, obj *ConnectionPlan) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, connectionPlanImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ConnectionPlan")
+		case "tick":
+			out.Values[i] = ec._ConnectionPlan_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "surface":
+			out.Values[i] = ec._ConnectionPlan_surface(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._ConnectionPlan_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._ConnectionPlan_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "item":
+			out.Values[i] = ec._ConnectionPlan_item(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "from":
+			out.Values[i] = ec._ConnectionPlan_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "to":
+			out.Values[i] = ec._ConnectionPlan_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "bend":
+			out.Values[i] = ec._ConnectionPlan_bend(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "possible":
+			out.Values[i] = ec._ConnectionPlan_possible(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "needed":
+			out.Values[i] = ec._ConnectionPlan_needed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "steps":
+			out.Values[i] = ec._ConnectionPlan_steps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "conflicts":
+			out.Values[i] = ec._ConnectionPlan_conflicts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var connectionStepImplementors = []string{"ConnectionStep"}
+
+func (ec *executionContext) _ConnectionStep(ctx context.Context, sel ast.SelectionSet, obj *ConnectionStep) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, connectionStepImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ConnectionStep")
+		case "position":
+			out.Values[i] = ec._ConnectionStep_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "direction":
+			out.Values[i] = ec._ConnectionStep_direction(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "existing":
+			out.Values[i] = ec._ConnectionStep_existing(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -73102,6 +78802,95 @@ func (ec *executionContext) _EntityPage(ctx context.Context, sel ast.SelectionSe
 			}
 		case "entities":
 			out.Values[i] = ec._EntityPage_entities(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var entityPrototypeImplementors = []string{"EntityPrototype"}
+
+func (ec *executionContext) _EntityPrototype(ctx context.Context, sel ast.SelectionSet, obj *EntityPrototype) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, entityPrototypeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EntityPrototype")
+		case "name":
+			out.Values[i] = ec._EntityPrototype_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._EntityPrototype_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tileWidth":
+			out.Values[i] = ec._EntityPrototype_tileWidth(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tileHeight":
+			out.Values[i] = ec._EntityPrototype_tileHeight(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "collisionBox":
+			out.Values[i] = ec._EntityPrototype_collisionBox(ctx, field, obj)
+		case "selectionBox":
+			out.Values[i] = ec._EntityPrototype_selectionBox(ctx, field, obj)
+		case "maxHealth":
+			out.Values[i] = ec._EntityPrototype_maxHealth(ctx, field, obj)
+		case "beltSpeed":
+			out.Values[i] = ec._EntityPrototype_beltSpeed(ctx, field, obj)
+		case "maxUndergroundDistance":
+			out.Values[i] = ec._EntityPrototype_maxUndergroundDistance(ctx, field, obj)
+		case "inserterPickup":
+			out.Values[i] = ec._EntityPrototype_inserterPickup(ctx, field, obj)
+		case "inserterDrop":
+			out.Values[i] = ec._EntityPrototype_inserterDrop(ctx, field, obj)
+		case "wireReach":
+			out.Values[i] = ec._EntityPrototype_wireReach(ctx, field, obj)
+		case "supplyArea":
+			out.Values[i] = ec._EntityPrototype_supplyArea(ctx, field, obj)
+		case "craftingSpeed":
+			out.Values[i] = ec._EntityPrototype_craftingSpeed(ctx, field, obj)
+		case "craftingCategories":
+			out.Values[i] = ec._EntityPrototype_craftingCategories(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fluidBoxCount":
+			out.Values[i] = ec._EntityPrototype_fluidBoxCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mineable":
+			out.Values[i] = ec._EntityPrototype_mineable(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -75367,6 +81156,63 @@ func (ec *executionContext) _ItemFlowEndpoint(ctx context.Context, sel ast.Selec
 	return out
 }
 
+var itemPrototypeImplementors = []string{"ItemPrototype"}
+
+func (ec *executionContext) _ItemPrototype(ctx context.Context, sel ast.SelectionSet, obj *ItemPrototype) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, itemPrototypeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ItemPrototype")
+		case "name":
+			out.Values[i] = ec._ItemPrototype_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stackSize":
+			out.Values[i] = ec._ItemPrototype_stackSize(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stackable":
+			out.Values[i] = ec._ItemPrototype_stackable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "placeResult":
+			out.Values[i] = ec._ItemPrototype_placeResult(ctx, field, obj)
+		case "fuelCategory":
+			out.Values[i] = ec._ItemPrototype_fuelCategory(ctx, field, obj)
+		case "fuelValue":
+			out.Values[i] = ec._ItemPrototype_fuelValue(ctx, field, obj)
+		case "burntResult":
+			out.Values[i] = ec._ItemPrototype_burntResult(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var itemRecipeImplementors = []string{"ItemRecipe"}
 
 func (ec *executionContext) _ItemRecipe(ctx context.Context, sel ast.SelectionSet, obj *ItemRecipe) graphql.Marshaler {
@@ -76595,6 +82441,141 @@ func (ec *executionContext) _MachineTheoreticalThroughput(ctx context.Context, s
 	return out
 }
 
+var mapAreaImplementors = []string{"MapArea"}
+
+func (ec *executionContext) _MapArea(ctx context.Context, sel ast.SelectionSet, obj *MapArea) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mapAreaImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MapArea")
+		case "tick":
+			out.Values[i] = ec._MapArea_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "surface":
+			out.Values[i] = ec._MapArea_surface(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._MapArea_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "area":
+			out.Values[i] = ec._MapArea_area(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cellSize":
+			out.Values[i] = ec._MapArea_cellSize(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "columns":
+			out.Values[i] = ec._MapArea_columns(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rows":
+			out.Values[i] = ec._MapArea_rows(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "legend":
+			out.Values[i] = ec._MapArea_legend(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MapArea_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mapLegendEntryImplementors = []string{"MapLegendEntry"}
+
+func (ec *executionContext) _MapLegendEntry(ctx context.Context, sel ast.SelectionSet, obj *MapLegendEntry) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mapLegendEntryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MapLegendEntry")
+		case "char":
+			out.Values[i] = ec._MapLegendEntry_char(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._MapLegendEntry_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._MapLegendEntry_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unitNumber":
+			out.Values[i] = ec._MapLegendEntry_unitNumber(ctx, field, obj)
+		case "count":
+			out.Values[i] = ec._MapLegendEntry_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var missingSciencePackImplementors = []string{"MissingSciencePack"}
 
 func (ec *executionContext) _MissingSciencePack(ctx context.Context, sel ast.SelectionSet, obj *MissingSciencePack) graphql.Marshaler {
@@ -76953,6 +82934,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "connectEntities":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_connectEntities(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "buildGhosts":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_buildGhosts(ctx, field)
@@ -77019,6 +83007,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "setActorLogisticRequests":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_setActorLogisticRequests(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "placeNextTo":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_placeNextTo(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -77138,6 +83133,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "setDirection":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_setDirection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "waitUntil":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_waitUntil(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -77501,6 +83503,89 @@ func (ec *executionContext) _PlaceManyResult(ctx context.Context, sel ast.Select
 			}
 		case "entities":
 			out.Values[i] = ec._PlaceManyResult_entities(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var placeNextToResultImplementors = []string{"PlaceNextToResult"}
+
+func (ec *executionContext) _PlaceNextToResult(ctx context.Context, sel ast.SelectionSet, obj *PlaceNextToResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, placeNextToResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PlaceNextToResult")
+		case "tick":
+			out.Values[i] = ec._PlaceNextToResult_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "surface":
+			out.Values[i] = ec._PlaceNextToResult_surface(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._PlaceNextToResult_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "actor":
+			out.Values[i] = ec._PlaceNextToResult_actor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "item":
+			out.Values[i] = ec._PlaceNextToResult_item(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._PlaceNextToResult_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unitNumber":
+			out.Values[i] = ec._PlaceNextToResult_unitNumber(ctx, field, obj)
+		case "position":
+			out.Values[i] = ec._PlaceNextToResult_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "relativeTo":
+			out.Values[i] = ec._PlaceNextToResult_relativeTo(ctx, field, obj)
+		case "side":
+			out.Values[i] = ec._PlaceNextToResult_side(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "gap":
+			out.Values[i] = ec._PlaceNextToResult_gap(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -78463,6 +84548,93 @@ func (ec *executionContext) _ProductionStatistics(ctx context.Context, sel ast.S
 	return out
 }
 
+var prototypeImplementors = []string{"Prototype"}
+
+func (ec *executionContext) _Prototype(ctx context.Context, sel ast.SelectionSet, obj *Prototype) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, prototypeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Prototype")
+		case "name":
+			out.Values[i] = ec._Prototype_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "item":
+			out.Values[i] = ec._Prototype_item(ctx, field, obj)
+		case "entity":
+			out.Values[i] = ec._Prototype_entity(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var prototypeBoxImplementors = []string{"PrototypeBox"}
+
+func (ec *executionContext) _PrototypeBox(ctx context.Context, sel ast.SelectionSet, obj *PrototypeBox) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, prototypeBoxImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PrototypeBox")
+		case "leftTop":
+			out.Values[i] = ec._PrototypeBox_leftTop(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rightBottom":
+			out.Values[i] = ec._PrototypeBox_rightBottom(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var queryImplementors = []string{"Query"}
 
 func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -78778,6 +84950,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_characters(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "connectionPlan":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_connectionPlan(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -79274,6 +85468,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mapArea":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mapArea(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "navigation":
 			field := field
 
@@ -79284,6 +85500,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_navigation(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "prototype":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_prototype(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -81979,6 +88217,127 @@ func (ec *executionContext) _TransportLine(ctx context.Context, sel ast.Selectio
 	return out
 }
 
+var waitObservationImplementors = []string{"WaitObservation"}
+
+func (ec *executionContext) _WaitObservation(ctx context.Context, sel ast.SelectionSet, obj *WaitObservation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, waitObservationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WaitObservation")
+		case "tick":
+			out.Values[i] = ec._WaitObservation_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._WaitObservation_count(ctx, field, obj)
+		case "status":
+			out.Values[i] = ec._WaitObservation_status(ctx, field, obj)
+		case "researched":
+			out.Values[i] = ec._WaitObservation_researched(ctx, field, obj)
+		case "queueSize":
+			out.Values[i] = ec._WaitObservation_queueSize(ctx, field, obj)
+		case "detail":
+			out.Values[i] = ec._WaitObservation_detail(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var waitResultImplementors = []string{"WaitResult"}
+
+func (ec *executionContext) _WaitResult(ctx context.Context, sel ast.SelectionSet, obj *WaitResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, waitResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WaitResult")
+		case "tick":
+			out.Values[i] = ec._WaitResult_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "condition":
+			out.Values[i] = ec._WaitResult_condition(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "satisfied":
+			out.Values[i] = ec._WaitResult_satisfied(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "timedOut":
+			out.Values[i] = ec._WaitResult_timedOut(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "waitedSeconds":
+			out.Values[i] = ec._WaitResult_waitedSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "polls":
+			out.Values[i] = ec._WaitResult_polls(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "last":
+			out.Values[i] = ec._WaitResult_last(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var wireEndpointImplementors = []string{"WireEndpoint"}
 
 func (ec *executionContext) _WireEndpoint(ctx context.Context, sel ast.SelectionSet, obj *WireEndpoint) graphql.Marshaler {
@@ -82523,6 +88882,21 @@ func (ec *executionContext) _WorldPlacementResult(ctx context.Context, sel ast.S
 			}
 		case "canPlace":
 			out.Values[i] = ec._WorldPlacementResult_canPlace(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "blockers":
+			out.Values[i] = ec._WorldPlacementResult_blockers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "terrain":
+			out.Values[i] = ec._WorldPlacementResult_terrain(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tile":
+			out.Values[i] = ec._WorldPlacementResult_tile(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -83808,6 +90182,25 @@ func (ec *executionContext) unmarshalNCombinatorParametersInput2ᚖgithubᚗcom�
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNConnectEntitiesInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectEntitiesInput(ctx context.Context, v any) (ConnectEntitiesInput, error) {
+	res, err := ec.unmarshalInputConnectEntitiesInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNConnectEntitiesResult2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectEntitiesResult(ctx context.Context, sel ast.SelectionSet, v ConnectEntitiesResult) graphql.Marshaler {
+	return ec._ConnectEntitiesResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNConnectEntitiesResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectEntitiesResult(ctx context.Context, sel ast.SelectionSet, v *ConnectEntitiesResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ConnectEntitiesResult(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNConnectedInserter2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectedInserterᚄ(ctx context.Context, sel ast.SelectionSet, v []*ConnectedInserter) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -83858,6 +90251,107 @@ func (ec *executionContext) marshalNConnectedPlayer2ᚖgithubᚗcomᚋwricardo�
 		return graphql.Null
 	}
 	return ec._ConnectedPlayer(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNConnectionBend2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionBend(ctx context.Context, v any) (ConnectionBend, error) {
+	var res ConnectionBend
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNConnectionBend2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionBend(ctx context.Context, sel ast.SelectionSet, v ConnectionBend) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNConnectionConflict2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionConflictᚄ(ctx context.Context, sel ast.SelectionSet, v []*ConnectionConflict) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNConnectionConflict2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionConflict(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNConnectionConflict2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionConflict(ctx context.Context, sel ast.SelectionSet, v *ConnectionConflict) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ConnectionConflict(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNConnectionConflictKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionConflictKind(ctx context.Context, v any) (ConnectionConflictKind, error) {
+	var res ConnectionConflictKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNConnectionConflictKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionConflictKind(ctx context.Context, sel ast.SelectionSet, v ConnectionConflictKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNConnectionKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionKind(ctx context.Context, v any) (ConnectionKind, error) {
+	var res ConnectionKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNConnectionKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionKind(ctx context.Context, sel ast.SelectionSet, v ConnectionKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNConnectionPlan2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionPlan(ctx context.Context, sel ast.SelectionSet, v ConnectionPlan) graphql.Marshaler {
+	return ec._ConnectionPlan(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNConnectionPlan2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionPlan(ctx context.Context, sel ast.SelectionSet, v *ConnectionPlan) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ConnectionPlan(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNConnectionPlanInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionPlanInput(ctx context.Context, v any) (ConnectionPlanInput, error) {
+	res, err := ec.unmarshalInputConnectionPlanInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNConnectionStep2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionStepᚄ(ctx context.Context, sel ast.SelectionSet, v []*ConnectionStep) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNConnectionStep2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionStep(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNConnectionStep2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionStep(ctx context.Context, sel ast.SelectionSet, v *ConnectionStep) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ConnectionStep(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNConstructionOrder2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConstructionOrderᚄ(ctx context.Context, sel ast.SelectionSet, v []*ConstructionOrder) graphql.Marshaler {
@@ -85383,6 +91877,61 @@ func (ec *executionContext) marshalNMachineTheoreticalProductRate2ᚖgithubᚗco
 	return ec._MachineTheoreticalProductRate(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNMapArea2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapArea(ctx context.Context, sel ast.SelectionSet, v MapArea) graphql.Marshaler {
+	return ec._MapArea(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMapArea2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapArea(ctx context.Context, sel ast.SelectionSet, v *MapArea) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MapArea(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMapAreaInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapAreaInput(ctx context.Context, v any) (MapAreaInput, error) {
+	res, err := ec.unmarshalInputMapAreaInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNMapLayer2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapLayer(ctx context.Context, v any) (MapLayer, error) {
+	var res MapLayer
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMapLayer2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapLayer(ctx context.Context, sel ast.SelectionSet, v MapLayer) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNMapLegendEntry2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapLegendEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*MapLegendEntry) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMapLegendEntry2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapLegendEntry(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMapLegendEntry2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMapLegendEntry(ctx context.Context, sel ast.SelectionSet, v *MapLegendEntry) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MapLegendEntry(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNMineInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMineInput(ctx context.Context, v any) (MineInput, error) {
 	res, err := ec.unmarshalInputMineInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -85508,6 +92057,25 @@ func (ec *executionContext) marshalNPlaceManyResult2ᚖgithubᚗcomᚋwricardo�
 		return graphql.Null
 	}
 	return ec._PlaceManyResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNPlaceNextToInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPlaceNextToInput(ctx context.Context, v any) (PlaceNextToInput, error) {
+	res, err := ec.unmarshalInputPlaceNextToInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPlaceNextToResult2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPlaceNextToResult(ctx context.Context, sel ast.SelectionSet, v PlaceNextToResult) graphql.Marshaler {
+	return ec._PlaceNextToResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPlaceNextToResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPlaceNextToResult(ctx context.Context, sel ast.SelectionSet, v *PlaceNextToResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PlaceNextToResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNPlaceTileInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPlaceTileInput(ctx context.Context, v any) (PlaceTileInput, error) {
@@ -85849,6 +92417,20 @@ func (ec *executionContext) marshalNProductionWindow2githubᚗcomᚋwricardoᚋf
 	return v
 }
 
+func (ec *executionContext) marshalNPrototype2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPrototype(ctx context.Context, sel ast.SelectionSet, v Prototype) graphql.Marshaler {
+	return ec._Prototype(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPrototype2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPrototype(ctx context.Context, sel ast.SelectionSet, v *Prototype) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Prototype(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNQueueEntry2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐQueueEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*QueueEntry) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -85949,6 +92531,16 @@ func (ec *executionContext) marshalNRecipeProduct2ᚖgithubᚗcomᚋwricardoᚋf
 		return graphql.Null
 	}
 	return ec._RecipeProduct(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRelativeSide2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐRelativeSide(ctx context.Context, v any) (RelativeSide, error) {
+	var res RelativeSide
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRelativeSide2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐRelativeSide(ctx context.Context, sel ast.SelectionSet, v RelativeSide) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNRemoveInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐRemoveInput(ctx context.Context, v any) (RemoveInput, error) {
@@ -86826,6 +93418,50 @@ func (ec *executionContext) unmarshalNUnlockTechnologiesInput2githubᚗcomᚋwri
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNWaitConditionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitConditionInput(ctx context.Context, v any) (*WaitConditionInput, error) {
+	res, err := ec.unmarshalInputWaitConditionInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNWaitConditionKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitConditionKind(ctx context.Context, v any) (WaitConditionKind, error) {
+	var res WaitConditionKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNWaitConditionKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitConditionKind(ctx context.Context, sel ast.SelectionSet, v WaitConditionKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNWaitObservation2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitObservation(ctx context.Context, sel ast.SelectionSet, v *WaitObservation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WaitObservation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWaitResult2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitResult(ctx context.Context, sel ast.SelectionSet, v WaitResult) graphql.Marshaler {
+	return ec._WaitResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNWaitResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitResult(ctx context.Context, sel ast.SelectionSet, v *WaitResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WaitResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNWaitUntilInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitUntilInput(ctx context.Context, v any) (WaitUntilInput, error) {
+	res, err := ec.unmarshalInputWaitUntilInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNWireColor2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWireColor(ctx context.Context, v any) (WireColor, error) {
 	var res WireColor
 	err := res.UnmarshalGQL(v)
@@ -87441,6 +94077,13 @@ func (ec *executionContext) marshalOEntityInspection2ᚖgithubᚗcomᚋwricardo�
 	return ec._EntityInspection(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalOEntityPrototype2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐEntityPrototype(ctx context.Context, sel ast.SelectionSet, v *EntityPrototype) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._EntityPrototype(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalOEntityRefInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐEntityRefInput(ctx context.Context, v any) (*EntityRefInput, error) {
 	if v == nil {
 		return nil, nil
@@ -87654,6 +94297,13 @@ func (ec *executionContext) unmarshalOItemFilterInput2ᚖgithubᚗcomᚋwricardo
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalOItemPrototype2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐItemPrototype(ctx context.Context, sel ast.SelectionSet, v *ItemPrototype) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ItemPrototype(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOLampSettings2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐLampSettings(ctx context.Context, sel ast.SelectionSet, v *LampSettings) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -87834,6 +94484,13 @@ func (ec *executionContext) marshalOProductionStatistics2ᚖgithubᚗcomᚋwrica
 		return graphql.Null
 	}
 	return ec._ProductionStatistics(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOPrototypeBox2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPrototypeBox(ctx context.Context, sel ast.SelectionSet, v *PrototypeBox) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._PrototypeBox(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOQueueEntry2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐQueueEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*QueueEntry) graphql.Marshaler {
@@ -88141,6 +94798,46 @@ func (ec *executionContext) marshalOUnitNumber2ᚖstring(ctx context.Context, se
 	_ = ctx
 	res := MarshalUnitNumber(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOWaitFluidInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitFluidInput(ctx context.Context, v any) (*WaitFluidInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputWaitFluidInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOWaitInventoryInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitInventoryInput(ctx context.Context, v any) (*WaitInventoryInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputWaitInventoryInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOWaitMachineStatusInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitMachineStatusInput(ctx context.Context, v any) (*WaitMachineStatusInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputWaitMachineStatusInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOWaitProductionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitProductionInput(ctx context.Context, v any) (*WaitProductionInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputWaitProductionInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOWaitResearchInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitResearchInput(ctx context.Context, v any) (*WaitResearchInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputWaitResearchInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

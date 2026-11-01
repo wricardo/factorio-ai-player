@@ -250,6 +250,8 @@ func attachActorIdentity(result any, actor *ActorIdentity) {
 		value.Actor = actor
 	case *CapsuleResult:
 		value.Actor = actor
+	case *ConnectEntitiesResult:
+		value.Actor = actor
 	case *CraftQueue:
 		value.Actor = actor
 	case *DropItemResult:
@@ -265,6 +267,8 @@ func attachActorIdentity(result any, actor *ActorIdentity) {
 	case *PickupAreaResult:
 		value.Actor = actor
 	case *PlaceManyResult:
+		value.Actor = actor
+	case *PlaceNextToResult:
 		value.Actor = actor
 	case *PlaceTileResult:
 		value.Actor = actor
@@ -361,7 +365,7 @@ func appendCommandArgument(args []string, key string, value reflect.Value) ([]st
 func normalizeGraphQL(value any, key, command string) any {
 	switch v := value.(type) {
 	case json.Number:
-		if key == "character" || key == "unitNumber" || (key == "direction" && (command == "place" || command == "rotate")) {
+		if key == "character" || key == "unitNumber" || (key == "direction" && (command == "place" || command == "rotate")) || key == "relativeTo" {
 			return v.String()
 		}
 		return v
@@ -427,7 +431,7 @@ func isListField(key string) bool {
 		"conditions", "outputs", "killCounts", "missing", "created", "cargo", "equipmentGrid", "packs",
 		"roboportRobot", "roboportMaterial", "cargoWagon", "carTrunk", "spiderTrunk", "artilleryWagonAmmo", "orders",
 		"beltNeighbours", "fluidboxNeighbours", "produced", "consumed", "production", "seedRequirements",
-		"shortfall", "surfaces", "theoreticalBaseProducts":
+		"shortfall", "surfaces", "theoreticalBaseProducts", "conflicts", "legend", "craftingCategories":
 		return true
 	}
 	return false

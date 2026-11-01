@@ -1,0 +1,93 @@
+extend type Mutation {
+  """Poll one game-state condition from the backend until it holds or a wall-clock timeout expires. Every poll is a separate RCON read, so the game thread is never blocked and other agents are not starved; the mutation changes no game state and prints no notification. Supply exactly one condition. A first observation that already satisfies the condition returns immediately; a condition that becomes unobservable (a removed entity, an unknown technology) is an error rather than a timeout, because the outcome is unknown."""
+  waitUntil(input: WaitUntilInput!): WaitResult!
+}
+
+"""One condition selected per call. Exactly one field must be set."""
+input WaitConditionInput {
+  """Wait until the game tick is at least this value."""
+  tick: FiniteFloat
+  """Wait until the actor's main inventory holds at least count of item."""
+  inventory: WaitInventoryInput
+  """Wait until the actor's crafting queue is empty."""
+  craftQueueEmpty: ActorInput
+  """Wait until an entity reports one of the given engine status names."""
+  machineStatus: WaitMachineStatusInput
+  """Wait until a technology is researched on the force."""
+  research: WaitResearchInput
+  """Wait until an entity holds at least the given amount of a fluid."""
+  fluid: WaitFluidInput
+  """Wait until a force produced at least count of item in the production window."""
+  production: WaitProductionInput
+}
+
+input WaitInventoryInput {
+  actor: ActorInput!
+  item: String!
+  """Item quality prototype name; defaults to normal."""
+  quality: String! = "normal"
+  count: FiniteFloat!
+}
+
+input WaitMachineStatusInput {
+  target: EntityRefInput!
+  """Engine status names such as no_recipe, no_fuel, no_power, or waiting_for_source_items."""
+  statuses: [String!]!
+}
+
+input WaitResearchInput {
+  force: String! = "player"
+  technology: String!
+}
+
+input WaitFluidInput {
+  target: EntityRefInput!
+  """Fluid prototype name; empty or omitted sums every fluid in the entity."""
+  fluid: String
+  atLeast: FiniteFloat!
+}
+
+input WaitProductionInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  item: String!
+  count: FiniteFloat!
+  window: ProductionWindow! = ONE_MINUTE
+}
+
+input WaitUntilInput {
+  """Total wall-clock limit in seconds, 1 through 300."""
+  timeoutSeconds: FiniteFloat! = 30
+  """Delay between polls in seconds, 0.05 through 5."""
+  pollSeconds: FiniteFloat! = 0.25
+  condition: WaitConditionInput!
+}
+
+enum WaitConditionKind { TICK INVENTORY CRAFT_QUEUE_EMPTY MACHINE_STATUS RESEARCH FLUID PRODUCTION }
+
+"""Facts observed on the last poll. Only the fields relevant to the condition are set."""
+type WaitObservation {
+  tick: Float!
+  """Observed count for inventory, fluid, production and tick conditions."""
+  count: Float
+  """Engine status name for MACHINE_STATUS."""
+  status: String
+  """Research state for RESEARCH."""
+  researched: Boolean
+  """Queued craft count for CRAFT_QUEUE_EMPTY."""
+  queueSize: Float
+  """Human-readable summary of the last observation."""
+  detail: String!
+}
+
+type WaitResult {
+  """Tick observed on the last poll."""
+  tick: Float!
+  condition: WaitConditionKind!
+  satisfied: Boolean!
+  """True when the timeout expired before the condition held."""
+  timedOut: Boolean!
+  waitedSeconds: Float!
+  polls: Int!
+  last: WaitObservation!
+}

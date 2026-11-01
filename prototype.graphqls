@@ -1,0 +1,98 @@
+extend type Query {
+  """Read static engine prototype data for an item and an entity of the same name. Use it to size a build, learn stack sizes and fuel values, or check reach distances without guessing or probing tiles. Exactly one of item and entity is set unless both prototypes share the name; when only the item exists and it places an entity, entity describes that place result. A name with neither prototype is an error."""
+  prototype(name: String!): Prototype!
+}
+
+extend type Mutation {
+  """Place one entity beside an existing target with a tile gap. The target and the new prototype supply their own bounding boxes, so callers do not compute footprints or coordinates. The mutation tries the centered position first and then deterministic half-tile nudges, keeps only positions that stay at least gap tiles away on the requested side, consumes one normal-quality item from the actor's main inventory, applies reach policy, and prints the generated notification. Refusal leaves the inventory and the world unchanged."""
+  placeNextTo(input: PlaceNextToInput!): PlaceNextToResult!
+}
+
+type Prototype {
+  name: String!
+  item: ItemPrototype
+  entity: EntityPrototype
+}
+
+type ItemPrototype {
+  name: String!
+  """Maximum stack size in one inventory slot."""
+  stackSize: Int!
+  stackable: Boolean!
+  """Entity created by placing this item, when it places an entity."""
+  placeResult: String
+  """Fuel category when the item burns, otherwise null."""
+  fuelCategory: String
+  fuelValue: Float
+  """Item left behind after burning, when any."""
+  burntResult: String
+}
+
+type EntityPrototype {
+  name: String!
+  type: String!
+  """Whole-tile footprint width."""
+  tileWidth: Int!
+  """Whole-tile footprint height."""
+  tileHeight: Int!
+  """Collision box relative to the entity center."""
+  collisionBox: PrototypeBox
+  """Selection box relative to the entity center."""
+  selectionBox: PrototypeBox
+  maxHealth: Float
+  """Transport-belt speed for belt-like entities in tiles per tick."""
+  beltSpeed: Float
+  """Maximum underground span for underground belts and pipes."""
+  maxUndergroundDistance: Float
+  """Inserter pickup offset relative to its position and rotation."""
+  inserterPickup: Position
+  """Inserter drop offset relative to its position and rotation."""
+  inserterDrop: Position
+  """Maximum electric wire distance for poles; 0 or null when the entity has no wires."""
+  wireReach: Float
+  """Supply area distance for electric poles."""
+  supplyArea: Float
+  """Crafting speed at normal quality when the entity crafts."""
+  craftingSpeed: Float
+  craftingCategories: [String!]!
+  fluidBoxCount: Int!
+  mineable: Boolean!
+}
+
+type PrototypeBox {
+  leftTop: Position!
+  rightBottom: Position!
+}
+
+enum RelativeSide { EAST WEST NORTH SOUTH }
+
+input PlaceNextToInput {
+  actor: ActorInput!
+  surface: String! = "nauvis"
+  item: String!
+  """Existing entity used as the anchor. Pass entity with unitNumber when the prototype does not support lookup by unit number alone."""
+  relativeTo: EntityRefInput!
+  side: RelativeSide!
+  """Whole tiles between the two bounding boxes; 0 means touching."""
+  gap: Int! = 0
+  """Engine direction of the new entity, 0 through 15."""
+  direction: Int! = 0
+  """Item quality prototype name; defaults to normal."""
+  quality: String = "normal"
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type PlaceNextToResult {
+  tick: Float!
+  surface: String!
+  force: String!
+  actor: ActorIdentity!
+  item: String!
+  name: String!
+  unitNumber: UnitNumber
+  position: Position!
+  relativeTo: UnitNumber
+  side: RelativeSide!
+  gap: Int!
+}

@@ -260,10 +260,28 @@ func worldPlacementQuery(r *Resolver, input *WorldPlacementInput) (*WorldPlaceme
 	}
 	lua := luaFail + fmt.Sprintf(`local surface_name,force_name=%s,%s; local prototype=%s; local x,y=%s,%s; local direction=%d
 `, luaString(input.Surface), luaString(input.Force), luaString(input.Prototype), strconv.FormatFloat(input.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Position.Y, 'g', -1, 64), input.Direction) + worldCommonLua + `
-if not prototypes.entity[prototype] then fail("entity prototype not found"); return end
+local proto=prototypes.entity[prototype]
+if not proto then fail("entity prototype not found"); return end
 local position={x=x,y=y}
 local can_place=surface.can_place_entity{name=prototype,position=position,direction=direction,force=force}
-rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,prototype=prototype,position=position,direction=direction,canPlace=can_place})`
+local blockers={}
+local terrain=false
+local tx,ty=math.floor(x),math.floor(y)
+local tile=surface.get_tile(tx,ty)
+local tile_name=(tile and tile.valid) and tile.name or ""
+if not can_place then
+  local seen={}
+  for _,e in pairs(surface.find_entities_filtered{area={{tx,ty},{tx+1,ty+1}},collision_mask=proto.collision_mask.layers}) do
+    if e.valid and not seen[e.name] then seen[e.name]=true; blockers[#blockers+1]=e.name end
+  end
+  table.sort(blockers)
+  local tile_mask=tile and tile.valid and tile.prototype.collision_mask or nil
+  local layers=tile_mask and tile_mask.layers or {}
+  for layer,_ in pairs(proto.collision_mask.layers) do
+    if layers[layer] then terrain=true; break end
+  end
+end
+rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,prototype=prototype,position=position,direction=direction,canPlace=can_place,blockers=blockers,terrain=terrain,tile=tile_name})`
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

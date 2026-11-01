@@ -710,6 +710,42 @@ type CombinatorParametersInput struct {
 	Decider    *DeciderCombinatorParametersInput    `json:"decider,omitempty"`
 }
 
+type ConnectEntitiesInput struct {
+	Actor   *ActorInput `json:"actor"`
+	Surface string      `json:"surface"`
+	// Force the run belongs to; must match the acting character's force.
+	Force               string         `json:"force"`
+	From                *PositionInput `json:"from"`
+	To                  *PositionInput `json:"to"`
+	Kind                ConnectionKind `json:"kind"`
+	Item                *string        `json:"item,omitempty"`
+	Bend                ConnectionBend `json:"bend"`
+	AllowFluidAdjacency bool           `json:"allowFluidAdjacency"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type ConnectEntitiesResult struct {
+	Tick    float64        `json:"tick"`
+	Surface string         `json:"surface"`
+	Force   string         `json:"force"`
+	Actor   *ActorIdentity `json:"actor"`
+	Kind    ConnectionKind `json:"kind"`
+	Item    string         `json:"item"`
+	From    *Position      `json:"from"`
+	To      *Position      `json:"to"`
+	Bend    ConnectionBend `json:"bend"`
+	// False when the mutation refused to place anything because the plan had conflicts.
+	Possible bool `json:"possible"`
+	Placed   int  `json:"placed"`
+	// Existing tiles that already held the requested entity.
+	Skipped   int                   `json:"skipped"`
+	Failed    int                   `json:"failed"`
+	Entities  []*PlacedEntity       `json:"entities"`
+	Conflicts []*ConnectionConflict `json:"conflicts"`
+	Errors    []*BatchError         `json:"errors"`
+}
+
 type ConnectedInserter struct {
 	Inserter *LogisticsEndpoint `json:"inserter"`
 	Pickup   *LogisticsEndpoint `json:"pickup,omitempty"`
@@ -721,6 +757,59 @@ type ConnectedPlayer struct {
 	Surface  string    `json:"surface"`
 	Position *Position `json:"position"`
 	Actor    *Actor    `json:"actor"`
+}
+
+type ConnectionConflict struct {
+	Position *Position              `json:"position"`
+	Kind     ConnectionConflictKind `json:"kind"`
+	// Colliding prototype names, one per name, sorted; empty when the refusal is not a collision.
+	Blockers []string `json:"blockers"`
+	// True when the ground tile itself refuses the prototype.
+	Terrain bool `json:"terrain"`
+	// Ground tile prototype name.
+	Tile    string `json:"tile"`
+	Message string `json:"message"`
+}
+
+type ConnectionPlan struct {
+	Tick    float64        `json:"tick"`
+	Surface string         `json:"surface"`
+	Force   string         `json:"force"`
+	Kind    ConnectionKind `json:"kind"`
+	Item    string         `json:"item"`
+	From    *Position      `json:"from"`
+	To      *Position      `json:"to"`
+	Bend    ConnectionBend `json:"bend"`
+	// True when no conflict was found and needed entities can be placed.
+	Possible bool `json:"possible"`
+	// Entities that would be placed; excludes existing tiles.
+	Needed    int                   `json:"needed"`
+	Steps     []*ConnectionStep     `json:"steps"`
+	Conflicts []*ConnectionConflict `json:"conflicts"`
+}
+
+type ConnectionPlanInput struct {
+	Surface string `json:"surface"`
+	Force   string `json:"force"`
+	// Start position; it snaps to the center of the tile containing it.
+	From *PositionInput `json:"from"`
+	// End position; it snaps to the center of the tile containing it.
+	To   *PositionInput `json:"to"`
+	Kind ConnectionKind `json:"kind"`
+	// Entity item to place; defaults to transport-belt, pipe, or medium-electric-pole for the kind. The item must place a matching entity type.
+	Item *string        `json:"item,omitempty"`
+	Bend ConnectionBend `json:"bend"`
+	// Allow a PIPE run to touch pipes outside the run, which merges their fluid networks and can contaminate either side.
+	AllowFluidAdjacency bool `json:"allowFluidAdjacency"`
+}
+
+type ConnectionStep struct {
+	// Tile-center position of the entity to place.
+	Position *Position `json:"position"`
+	// Engine direction the entity needs, toward the next step.
+	Direction int `json:"direction"`
+	// The tile already holds the requested entity with the required direction, so nothing is placed or consumed.
+	Existing bool `json:"existing"`
 }
 
 type ConstructionOrder struct {
@@ -1056,6 +1145,37 @@ type EntityPage struct {
 	Surface  string    `json:"surface"`
 	PageInfo *PageInfo `json:"pageInfo"`
 	Entities []*Entity `json:"entities"`
+}
+
+type EntityPrototype struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+	// Whole-tile footprint width.
+	TileWidth int `json:"tileWidth"`
+	// Whole-tile footprint height.
+	TileHeight int `json:"tileHeight"`
+	// Collision box relative to the entity center.
+	CollisionBox *PrototypeBox `json:"collisionBox,omitempty"`
+	// Selection box relative to the entity center.
+	SelectionBox *PrototypeBox `json:"selectionBox,omitempty"`
+	MaxHealth    *float64      `json:"maxHealth,omitempty"`
+	// Transport-belt speed for belt-like entities in tiles per tick.
+	BeltSpeed *float64 `json:"beltSpeed,omitempty"`
+	// Maximum underground span for underground belts and pipes.
+	MaxUndergroundDistance *float64 `json:"maxUndergroundDistance,omitempty"`
+	// Inserter pickup offset relative to its position and rotation.
+	InserterPickup *Position `json:"inserterPickup,omitempty"`
+	// Inserter drop offset relative to its position and rotation.
+	InserterDrop *Position `json:"inserterDrop,omitempty"`
+	// Maximum electric wire distance for poles; 0 or null when the entity has no wires.
+	WireReach *float64 `json:"wireReach,omitempty"`
+	// Supply area distance for electric poles.
+	SupplyArea *float64 `json:"supplyArea,omitempty"`
+	// Crafting speed at normal quality when the entity crafts.
+	CraftingSpeed      *float64 `json:"craftingSpeed,omitempty"`
+	CraftingCategories []string `json:"craftingCategories"`
+	FluidBoxCount      int      `json:"fluidBoxCount"`
+	Mineable           bool     `json:"mineable"`
 }
 
 // Address one entity by unit number, or by prototype name and exact center position.
@@ -1584,6 +1704,20 @@ type ItemFlowInput struct {
 	Offset  int               `json:"offset"`
 }
 
+type ItemPrototype struct {
+	Name string `json:"name"`
+	// Maximum stack size in one inventory slot.
+	StackSize int  `json:"stackSize"`
+	Stackable bool `json:"stackable"`
+	// Entity created by placing this item, when it places an entity.
+	PlaceResult *string `json:"placeResult,omitempty"`
+	// Fuel category when the item burns, otherwise null.
+	FuelCategory *string  `json:"fuelCategory,omitempty"`
+	FuelValue    *float64 `json:"fuelValue,omitempty"`
+	// Item left behind after burning, when any.
+	BurntResult *string `json:"burntResult,omitempty"`
+}
+
 // Crafting machines are entity prototype names with a matching category, not necessarily built or available to the force.
 type ItemRecipe struct {
 	Name             string              `json:"name"`
@@ -1852,6 +1986,44 @@ type MachinesInput struct {
 	Offset  int               `json:"offset"`
 }
 
+type MapArea struct {
+	Tick    float64    `json:"tick"`
+	Surface string     `json:"surface"`
+	Force   string     `json:"force"`
+	Area    *WorldArea `json:"area"`
+	// Tiles per cell; greater than 1 when the area was downsampled.
+	CellSize float64           `json:"cellSize"`
+	Columns  int               `json:"columns"`
+	Rows     []string          `json:"rows"`
+	Legend   []*MapLegendEntry `json:"legend"`
+	// True when cellSize is greater than 1.
+	Truncated bool `json:"truncated"`
+}
+
+type MapAreaInput struct {
+	Surface string `json:"surface"`
+	Force   string `json:"force"`
+	// Area bounds match the other world scans: positive dimensions of at most 256 tiles per side.
+	Area *FactoryAreaInput `json:"area"`
+	// Maximum output rows, 1 through 64.
+	MaxRows int `json:"maxRows"`
+	// Maximum output columns, 1 through 64.
+	MaxColumns int      `json:"maxColumns"`
+	Layer      MapLayer `json:"layer"`
+}
+
+type MapLegendEntry struct {
+	Char string `json:"char"`
+	// Prototype name, `empty`, or `water`.
+	Name string `json:"name"`
+	// Entity type, `empty`, or `tile`.
+	Type string `json:"type"`
+	// Unit number of the first entity of this prototype in the scan; null for empty and water.
+	UnitNumber *string `json:"unitNumber,omitempty"`
+	// Number of cells showing this character.
+	Count int `json:"count"`
+}
+
 // Mine one entity as the selected actor.
 type MineInput struct {
 	Actor  *ActorInput     `json:"actor"`
@@ -2030,6 +2202,37 @@ type PlaceManyResult struct {
 	Failed   int             `json:"failed"`
 	Errors   []*BatchError   `json:"errors"`
 	Entities []*PlacedEntity `json:"entities"`
+}
+
+type PlaceNextToInput struct {
+	Actor   *ActorInput `json:"actor"`
+	Surface string      `json:"surface"`
+	Item    string      `json:"item"`
+	// Existing entity used as the anchor. Pass entity with unitNumber when the prototype does not support lookup by unit number alone.
+	RelativeTo *EntityRefInput `json:"relativeTo"`
+	Side       RelativeSide    `json:"side"`
+	// Whole tiles between the two bounding boxes; 0 means touching.
+	Gap int `json:"gap"`
+	// Engine direction of the new entity, 0 through 15.
+	Direction int `json:"direction"`
+	// Item quality prototype name; defaults to normal.
+	Quality *string `json:"quality,omitempty"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type PlaceNextToResult struct {
+	Tick       float64        `json:"tick"`
+	Surface    string         `json:"surface"`
+	Force      string         `json:"force"`
+	Actor      *ActorIdentity `json:"actor"`
+	Item       string         `json:"item"`
+	Name       string         `json:"name"`
+	UnitNumber *string        `json:"unitNumber,omitempty"`
+	Position   *Position      `json:"position"`
+	RelativeTo *string        `json:"relativeTo,omitempty"`
+	Side       RelativeSide   `json:"side"`
+	Gap        int            `json:"gap"`
 }
 
 // Place one tile item at a finite whole-tile position.
@@ -2256,6 +2459,17 @@ type ProductionItem struct {
 type ProductionStatistics struct {
 	Produced []*ProductionCount `json:"produced"`
 	Consumed []*ProductionCount `json:"consumed"`
+}
+
+type Prototype struct {
+	Name   string           `json:"name"`
+	Item   *ItemPrototype   `json:"item,omitempty"`
+	Entity *EntityPrototype `json:"entity,omitempty"`
+}
+
+type PrototypeBox struct {
+	LeftTop     *Position `json:"leftTop"`
+	RightBottom *Position `json:"rightBottom"`
 }
 
 type Query struct {
@@ -2999,6 +3213,93 @@ type UnlockTechnologiesInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// One condition selected per call. Exactly one field must be set.
+type WaitConditionInput struct {
+	// Wait until the game tick is at least this value.
+	Tick *float64 `json:"tick,omitempty"`
+	// Wait until the actor's main inventory holds at least count of item.
+	Inventory *WaitInventoryInput `json:"inventory,omitempty"`
+	// Wait until the actor's crafting queue is empty.
+	CraftQueueEmpty *ActorInput `json:"craftQueueEmpty,omitempty"`
+	// Wait until an entity reports one of the given engine status names.
+	MachineStatus *WaitMachineStatusInput `json:"machineStatus,omitempty"`
+	// Wait until a technology is researched on the force.
+	Research *WaitResearchInput `json:"research,omitempty"`
+	// Wait until an entity holds at least the given amount of a fluid.
+	Fluid *WaitFluidInput `json:"fluid,omitempty"`
+	// Wait until a force produced at least count of item in the production window.
+	Production *WaitProductionInput `json:"production,omitempty"`
+}
+
+type WaitFluidInput struct {
+	Target *EntityRefInput `json:"target"`
+	// Fluid prototype name; empty or omitted sums every fluid in the entity.
+	Fluid   *string `json:"fluid,omitempty"`
+	AtLeast float64 `json:"atLeast"`
+}
+
+type WaitInventoryInput struct {
+	Actor *ActorInput `json:"actor"`
+	Item  string      `json:"item"`
+	// Item quality prototype name; defaults to normal.
+	Quality string  `json:"quality"`
+	Count   float64 `json:"count"`
+}
+
+type WaitMachineStatusInput struct {
+	Target *EntityRefInput `json:"target"`
+	// Engine status names such as no_recipe, no_fuel, no_power, or waiting_for_source_items.
+	Statuses []string `json:"statuses"`
+}
+
+// Facts observed on the last poll. Only the fields relevant to the condition are set.
+type WaitObservation struct {
+	Tick float64 `json:"tick"`
+	// Observed count for inventory, fluid, production and tick conditions.
+	Count *float64 `json:"count,omitempty"`
+	// Engine status name for MACHINE_STATUS.
+	Status *string `json:"status,omitempty"`
+	// Research state for RESEARCH.
+	Researched *bool `json:"researched,omitempty"`
+	// Queued craft count for CRAFT_QUEUE_EMPTY.
+	QueueSize *float64 `json:"queueSize,omitempty"`
+	// Human-readable summary of the last observation.
+	Detail string `json:"detail"`
+}
+
+type WaitProductionInput struct {
+	Surface string           `json:"surface"`
+	Force   string           `json:"force"`
+	Item    string           `json:"item"`
+	Count   float64          `json:"count"`
+	Window  ProductionWindow `json:"window"`
+}
+
+type WaitResearchInput struct {
+	Force      string `json:"force"`
+	Technology string `json:"technology"`
+}
+
+type WaitResult struct {
+	// Tick observed on the last poll.
+	Tick      float64           `json:"tick"`
+	Condition WaitConditionKind `json:"condition"`
+	Satisfied bool              `json:"satisfied"`
+	// True when the timeout expired before the condition held.
+	TimedOut      bool             `json:"timedOut"`
+	WaitedSeconds float64          `json:"waitedSeconds"`
+	Polls         int              `json:"polls"`
+	Last          *WaitObservation `json:"last"`
+}
+
+type WaitUntilInput struct {
+	// Total wall-clock limit in seconds, 1 through 300.
+	TimeoutSeconds float64 `json:"timeoutSeconds"`
+	// Delay between polls in seconds, 0.05 through 5.
+	PollSeconds float64             `json:"pollSeconds"`
+	Condition   *WaitConditionInput `json:"condition"`
+}
+
 // One end of a circuit wire.
 type WireEndpoint struct {
 	Name       string    `json:"name"`
@@ -3109,7 +3410,7 @@ type WorldPlacementInput struct {
 	Direction int            `json:"direction"`
 }
 
-// Engine collision/build check only; does not check player reach, inventory or research.
+// Engine collision/build check only; does not check player reach, inventory or research. When the tile is refused, blockers lists colliding prototype names on that tile, terrain is true when the ground tile itself uses one of the prototype's collision layers, and tile is the ground tile name.
 type WorldPlacementResult struct {
 	Tick      float64   `json:"tick"`
 	Surface   string    `json:"surface"`
@@ -3118,6 +3419,9 @@ type WorldPlacementResult struct {
 	Position  *Position `json:"position"`
 	Direction int       `json:"direction"`
 	CanPlace  bool      `json:"canPlace"`
+	Blockers  []string  `json:"blockers"`
+	Terrain   bool      `json:"terrain"`
+	Tile      string    `json:"tile"`
 }
 
 // Resource entities, trees, cliffs, simple entities and water-collision tiles. Nearby drills are distance matches, not proof of mining coverage.
@@ -3331,6 +3635,201 @@ func (e *BuildGhostsMode) UnmarshalJSON(b []byte) error {
 }
 
 func (e BuildGhostsMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ConnectionBend string
+
+const (
+	// Plans both single-bend orientations and keeps the one with fewer conflicts; a tie keeps horizontal-first. A route that is already straight reports the orientation it lies on.
+	ConnectionBendAuto ConnectionBend = "AUTO"
+	// Walk the horizontal leg first, then the vertical leg.
+	ConnectionBendHorizontalFirst ConnectionBend = "HORIZONTAL_FIRST"
+	// Walk the vertical leg first, then the horizontal leg.
+	ConnectionBendVerticalFirst ConnectionBend = "VERTICAL_FIRST"
+)
+
+var AllConnectionBend = []ConnectionBend{
+	ConnectionBendAuto,
+	ConnectionBendHorizontalFirst,
+	ConnectionBendVerticalFirst,
+}
+
+func (e ConnectionBend) IsValid() bool {
+	switch e {
+	case ConnectionBendAuto, ConnectionBendHorizontalFirst, ConnectionBendVerticalFirst:
+		return true
+	}
+	return false
+}
+
+func (e ConnectionBend) String() string {
+	return string(e)
+}
+
+func (e *ConnectionBend) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConnectionBend(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConnectionBend", str)
+	}
+	return nil
+}
+
+func (e ConnectionBend) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConnectionBend) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConnectionBend) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ConnectionConflictKind string
+
+const (
+	// The tile refuses the entity; blockers lists colliding prototypes.
+	ConnectionConflictKindCollision ConnectionConflictKind = "COLLISION"
+	// A same-name entity sits on the tile but faces another direction.
+	ConnectionConflictKindDirectionMismatch ConnectionConflictKind = "DIRECTION_MISMATCH"
+	// A pipe-like entity outside this run touches the tile, which would merge fluid networks.
+	ConnectionConflictKindFluidAdjacency ConnectionConflictKind = "FLUID_ADJACENCY"
+	// The item does not place an entity of the kind's required type.
+	ConnectionConflictKindPrototype ConnectionConflictKind = "PROTOTYPE"
+	// A supplied prototype does not match the kind (for example a furnace with BELT).
+	ConnectionConflictKindKindMismatch ConnectionConflictKind = "KIND_MISMATCH"
+	// The actor cannot reach the tile; only produced when reach enforcement is enabled.
+	ConnectionConflictKindReach ConnectionConflictKind = "REACH"
+	// The actor lacks the item count reported by needed.
+	ConnectionConflictKindInventory ConnectionConflictKind = "INVENTORY"
+	// The engine rejected creation at this tile.
+	ConnectionConflictKindEngine ConnectionConflictKind = "ENGINE"
+)
+
+var AllConnectionConflictKind = []ConnectionConflictKind{
+	ConnectionConflictKindCollision,
+	ConnectionConflictKindDirectionMismatch,
+	ConnectionConflictKindFluidAdjacency,
+	ConnectionConflictKindPrototype,
+	ConnectionConflictKindKindMismatch,
+	ConnectionConflictKindReach,
+	ConnectionConflictKindInventory,
+	ConnectionConflictKindEngine,
+}
+
+func (e ConnectionConflictKind) IsValid() bool {
+	switch e {
+	case ConnectionConflictKindCollision, ConnectionConflictKindDirectionMismatch, ConnectionConflictKindFluidAdjacency, ConnectionConflictKindPrototype, ConnectionConflictKindKindMismatch, ConnectionConflictKindReach, ConnectionConflictKindInventory, ConnectionConflictKindEngine:
+		return true
+	}
+	return false
+}
+
+func (e ConnectionConflictKind) String() string {
+	return string(e)
+}
+
+func (e *ConnectionConflictKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConnectionConflictKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConnectionConflictKind", str)
+	}
+	return nil
+}
+
+func (e ConnectionConflictKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConnectionConflictKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConnectionConflictKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ConnectionKind string
+
+const (
+	// Transport belts placed along the route, each facing the next tile.
+	ConnectionKindBelt ConnectionKind = "BELT"
+	// Pipes placed along the route; the run may not touch pipe entities outside itself unless allowFluidAdjacency is true.
+	ConnectionKindPipe ConnectionKind = "PIPE"
+	// One electric pole every floor(wire reach) route tiles so consecutive poles stay within wire distance.
+	ConnectionKindPowerPoleChain ConnectionKind = "POWER_POLE_CHAIN"
+)
+
+var AllConnectionKind = []ConnectionKind{
+	ConnectionKindBelt,
+	ConnectionKindPipe,
+	ConnectionKindPowerPoleChain,
+}
+
+func (e ConnectionKind) IsValid() bool {
+	switch e {
+	case ConnectionKindBelt, ConnectionKindPipe, ConnectionKindPowerPoleChain:
+		return true
+	}
+	return false
+}
+
+func (e ConnectionKind) String() string {
+	return string(e)
+}
+
+func (e *ConnectionKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConnectionKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConnectionKind", str)
+	}
+	return nil
+}
+
+func (e ConnectionKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConnectionKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConnectionKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -3760,6 +4259,66 @@ func (e MachineBlockCategory) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type MapLayer string
+
+const (
+	// Built entities, characters, resources, trees, rocks, cliffs and water.
+	MapLayerAll MapLayer = "ALL"
+	// Characters and built factory entities only; natural obstacles and resources are omitted.
+	MapLayerFactory MapLayer = "FACTORY"
+	// Resource entities only, with water as terrain.
+	MapLayerResources MapLayer = "RESOURCES"
+)
+
+var AllMapLayer = []MapLayer{
+	MapLayerAll,
+	MapLayerFactory,
+	MapLayerResources,
+}
+
+func (e MapLayer) IsValid() bool {
+	switch e {
+	case MapLayerAll, MapLayerFactory, MapLayerResources:
+		return true
+	}
+	return false
+}
+
+func (e MapLayer) String() string {
+	return string(e)
+}
+
+func (e *MapLayer) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MapLayer(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MapLayer", str)
+	}
+	return nil
+}
+
+func (e MapLayer) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MapLayer) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MapLayer) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type NearbyOrder string
 
 const (
@@ -3983,6 +4542,65 @@ func (e *RecipeDrainMode) UnmarshalJSON(b []byte) error {
 }
 
 func (e RecipeDrainMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type RelativeSide string
+
+const (
+	RelativeSideEast  RelativeSide = "EAST"
+	RelativeSideWest  RelativeSide = "WEST"
+	RelativeSideNorth RelativeSide = "NORTH"
+	RelativeSideSouth RelativeSide = "SOUTH"
+)
+
+var AllRelativeSide = []RelativeSide{
+	RelativeSideEast,
+	RelativeSideWest,
+	RelativeSideNorth,
+	RelativeSideSouth,
+}
+
+func (e RelativeSide) IsValid() bool {
+	switch e {
+	case RelativeSideEast, RelativeSideWest, RelativeSideNorth, RelativeSideSouth:
+		return true
+	}
+	return false
+}
+
+func (e RelativeSide) String() string {
+	return string(e)
+}
+
+func (e *RelativeSide) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RelativeSide(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RelativeSide", str)
+	}
+	return nil
+}
+
+func (e RelativeSide) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RelativeSide) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RelativeSide) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -4358,6 +4976,71 @@ func (e *TransferDirection) UnmarshalJSON(b []byte) error {
 }
 
 func (e TransferDirection) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type WaitConditionKind string
+
+const (
+	WaitConditionKindTick            WaitConditionKind = "TICK"
+	WaitConditionKindInventory       WaitConditionKind = "INVENTORY"
+	WaitConditionKindCraftQueueEmpty WaitConditionKind = "CRAFT_QUEUE_EMPTY"
+	WaitConditionKindMachineStatus   WaitConditionKind = "MACHINE_STATUS"
+	WaitConditionKindResearch        WaitConditionKind = "RESEARCH"
+	WaitConditionKindFluid           WaitConditionKind = "FLUID"
+	WaitConditionKindProduction      WaitConditionKind = "PRODUCTION"
+)
+
+var AllWaitConditionKind = []WaitConditionKind{
+	WaitConditionKindTick,
+	WaitConditionKindInventory,
+	WaitConditionKindCraftQueueEmpty,
+	WaitConditionKindMachineStatus,
+	WaitConditionKindResearch,
+	WaitConditionKindFluid,
+	WaitConditionKindProduction,
+}
+
+func (e WaitConditionKind) IsValid() bool {
+	switch e {
+	case WaitConditionKindTick, WaitConditionKindInventory, WaitConditionKindCraftQueueEmpty, WaitConditionKindMachineStatus, WaitConditionKindResearch, WaitConditionKindFluid, WaitConditionKindProduction:
+		return true
+	}
+	return false
+}
+
+func (e WaitConditionKind) String() string {
+	return string(e)
+}
+
+func (e *WaitConditionKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = WaitConditionKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid WaitConditionKind", str)
+	}
+	return nil
+}
+
+func (e WaitConditionKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *WaitConditionKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e WaitConditionKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
