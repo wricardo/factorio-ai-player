@@ -124,7 +124,7 @@ for index,g in ipairs(ghosts) do
     -- revive returns (collided items, built entity, proxy); silent_revive returns (built entity).
     local collided,built=nil,nil
     if ok then
-      if silent then built=r1 else collided=r1; built=r2 end
+      collided=r1; built=r2
     end
     if ok and built and built.valid then
       revived=revived+1
@@ -160,7 +160,7 @@ rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,mod
 // paginated by network, not by roboport.
 func logisticNetworks(r *Resolver, input *LogisticNetworksInput) (*LogisticNetworkPage, error) {
 	if input == nil {
-		input = &LogisticNetworksInput{Surface: "nauvis", Force: "player", Limit: 100}
+		input = &LogisticNetworksInput{Surface: "nauvis", Force: "player", Limit: 100, IncludeItemStats: true, ItemsLimit: 1000}
 	}
 	if input.Surface == "" {
 		return nil, errors.New("surface must not be empty")
@@ -173,6 +173,15 @@ func logisticNetworks(r *Resolver, input *LogisticNetworksInput) (*LogisticNetwo
 	}
 	if input.Offset < 0 {
 		return nil, errors.New("offset must be non-negative")
+	}
+	if input.ItemsLimit == 0 {
+		input.ItemsLimit = 1000
+	}
+	if input.ItemsLimit < 1 || input.ItemsLimit > 1000 {
+		return nil, errors.New("itemsLimit must be between 1 and 1000")
+	}
+	if input.ItemsOffset < 0 {
+		return nil, errors.New("itemsOffset must be non-negative")
 	}
 	area := "nil"
 	if input.Area != nil {
@@ -192,15 +201,16 @@ func logisticNetworks(r *Resolver, input *LogisticNetworksInput) (*LogisticNetwo
 			return nil, errors.New("networkId must be a numeric network id")
 		}
 	}
-	response, _, err := executeLua(r.addr, r.password, logisticNetworksLua(input.Surface, input.Force, area, requested, input.Limit, input.Offset))
+	response, _, err := executeLua(r.addr, r.password, logisticNetworksLua(input.Surface, input.Force, area, requested, input.Limit, input.Offset, input.IncludeItemStats, input.ItemsLimit, input.ItemsOffset))
 	if err != nil {
 		return nil, err
 	}
 	return factoryDecode[LogisticNetworkPage](response)
 }
 
-func logisticNetworksLua(surface, force, area, requested string, limit, offset int) string {
+func logisticNetworksLua(surface, force, area, requested string, limit, offset int, includeItems bool, itemsLimit, itemsOffset int) string {
 	return luaFail + fmt.Sprintf(`local surface_name,force_name=%s,%s; local area=%s; local limit,offset=%d,%d; local requested=%s
+local include_items=%s; local items_limit,items_offset=%d,%d
 local s=game.surfaces[surface_name]; if not s then fail("surface not found"); return end
 local f=game.forces[force_name]; if not f then fail("force not found"); return end
 local roboports=s.find_entities_filtered{area=area,force=f,type="roboport"}
@@ -219,10 +229,53 @@ for _,rp in pairs(roboports) do
   end
 end
 table.sort(networks,function(a,b) local na,nb=tonumber(a.id) or 0,tonumber(b.id) or 0; if na~=nb then return na<nb end return a.id<b.id end)
+local function quality_name(quality)
+  if type(quality)=="table" then quality=quality.name end
+  if quality==nil then return nil end
+  return tostring(quality)
+end
+local function row_for(stats,name,quality)
+  local q=quality_name(quality)
+  local key=name.."|"..(q or "*")
+  local row=stats[key]
+  if not row then row={name=name,quality=q}; stats[key]=row end
+  return row
+end
+local function add_list(stats,list,field)
+  if type(list)~="table" then return end
+  for _,it in pairs(list) do
+    if it and it.name and it.count and it.count~=0 then
+      local row=row_for(stats,it.name,it.quality)
+      row[field]=(row[field] or 0)+it.count
+    end
+  end
+end
+local function chest_contents(e)
+  if not e or e.type~="logistic-container" then return nil end
+  local ok,inv=pcall(function() return e.get_inventory(defines.inventory.chest) end)
+  if not ok or not inv then return nil end
+  local okc,c=pcall(function() return inv.get_contents() end)
+  if not okc or type(c)~="table" then return nil end
+  return c
+end
+local function classify_point(p)
+  local e=p.owner
+  if e.type=="roboport" then return "roboports" end
+  if e.type=="character" then return "characterRequestPoints" end
+  local mode=p.mode
+  if mode==defines.logistic_mode.storage then return "storageChests" end
+  if mode==defines.logistic_mode.buffer then return "bufferChests" end
+  if mode==defines.logistic_mode.active_provider then return "activeProviderChests" end
+  if mode==defines.logistic_mode.passive_provider then return "passiveProviderChests" end
+  if mode==defines.logistic_mode.requester then return "requesterChests" end
+  return "other"
+end
 local total=#networks; local list={}
 for i=offset+1,math.min(total,offset+limit) do
   local net=networks[i].network
   local info={id=networks[i].id,force=f.name,surface=s.name,cells=0,contents={},requester_points=0,provider_points=0}
+  if net.custom_name~=nil then info.custom_name=net.custom_name end
+  local oklimit,robot_limit=pcall(function() return net.robot_limit end); if oklimit and type(robot_limit)=="number" then info.robot_limit=robot_limit else info.robot_limit=0 end
   local okcells,cells=pcall(function() return net.cells end); if okcells and cells then info.cells=#cells end
   local function robots(all_key,available_key)
     local all_count,available_count=0,0
@@ -239,9 +292,7 @@ for i=offset+1,math.min(total,offset+limit) do
     local items={}
     if contents[1]~=nil then
       for _,item in pairs(contents) do
-        local quality=item.quality
-        if type(quality)=="table" then quality=quality.name end
-        items[#items+1]={name=item.name,count=item.count,quality=quality}
+        items[#items+1]={name=item.name,count=item.count,quality=quality_name(item.quality)}
       end
     else
       for name,count in pairs(contents) do items[#items+1]={name=name,count=count} end
@@ -251,8 +302,117 @@ for i=offset+1,math.min(total,offset+limit) do
   end
   local okreq,req=pcall(function() return net.requester_points end); if okreq and type(req)=="table" then info.requester_points=#req end
   local okprov,prov=pcall(function() return net.provider_points end); if okprov and type(prov)=="table" then info.provider_points=#prov end
+
+  local points={roboports=0,requesterChests=0,bufferChests=0,passiveProviderChests=0,activeProviderChests=0,storageChests=0,characterRequestPoints=0,other=0}
+  local seen_point={}
+  local stats={}
+  local function walk(list, role)
+    if type(list)~="table" then return end
+    for _,p in pairs(list) do
+      local e=p.owner
+      local key=tostring(e.unit_number or (e.position.x..":"..e.position.y))
+      if not seen_point[key] then
+        seen_point[key]=true
+        local cls=classify_point(p)
+        points[cls]=points[cls]+1
+      end
+      if include_items then
+        if role=="provider" or role=="storage" then
+          if e.type=="logistic-container" then
+            local field=nil
+            if role=="storage" then field="storedStorage"
+            elseif p.mode==defines.logistic_mode.buffer then field="storedBuffers"
+            elseif p.mode==defines.logistic_mode.active_provider then field="storedActiveProviders"
+            elseif p.mode==defines.logistic_mode.passive_provider then field="storedPassiveProviders" end
+            local c=chest_contents(e)
+            if c and field then
+              for _,it in pairs(c) do
+                if it.name and it.count and it.count~=0 then
+                  local row=row_for(stats,it.name,it.quality)
+                  row[field]=(row[field] or 0)+it.count
+                end
+              end
+            end
+            add_list(stats,p.targeted_items_pickup,"targetedPickup")
+          end
+        elseif role=="requester" and e.type=="logistic-container" then
+          if type(p.filters)=="table" then
+            for _,flt in pairs(p.filters) do
+              if flt.name then
+                local row=row_for(stats,flt.name,flt.quality)
+                if flt.max_count==nil then
+                  row.unlimitedRequests=(row.unlimitedRequests or 0)+1
+                else
+                  row.requested=(row.requested or 0)+flt.max_count
+                end
+                row.requestedMinimum=(row.requestedMinimum or 0)+(flt.count or 0)
+              end
+            end
+          end
+          add_list(stats,chest_contents(e),"delivered")
+          add_list(stats,p.targeted_items_deliver,"incoming")
+        end
+      end
+    end
+  end
+  walk(net.provider_points,"provider")
+  walk(net.storage_points,"storage")
+  walk(net.requester_points,"requester")
+  info.points=points
+
+  local deployed,carrying=0,0
+  local okrobots,robot_list=pcall(function() return net.logistic_robots end)
+  if okrobots and type(robot_list)=="table" then
+    deployed=#robot_list
+    for _,r in pairs(robot_list) do
+      local okinv,inv=pcall(function() return r.get_inventory(defines.inventory.chest) end)
+      if okinv and inv then
+        local okc,c=pcall(function() return inv.get_contents() end)
+        if okc and type(c)=="table" then
+          local count=0
+          for _,it in pairs(c) do if it and it.count then count=count+it.count end end
+          if count>0 then
+            carrying=carrying+1
+            if include_items then add_list(stats,c,"inFlight") end
+          end
+        end
+      end
+    end
+  end
+  info.deployed_logistic_robots=deployed
+  info.carrying_logistic_robots=carrying
+
+  if include_items then add_list(stats,contents,"available") end
+  local rows={}; local item_total=0
+  for _,row in pairs(stats) do
+    row.storedPassiveProviders=row.storedPassiveProviders or 0
+    row.storedActiveProviders=row.storedActiveProviders or 0
+    row.storedBuffers=row.storedBuffers or 0
+    row.storedStorage=row.storedStorage or 0
+    row.stored=row.storedPassiveProviders+row.storedActiveProviders+row.storedBuffers+row.storedStorage
+    row.available=row.available or 0
+    row.requested=row.requested or 0
+    row.requestedMinimum=row.requestedMinimum or 0
+    row.unlimitedRequests=row.unlimitedRequests or 0
+    row.delivered=row.delivered or 0
+    row.inFlight=row.inFlight or 0
+    row.incoming=row.incoming or 0
+    row.targetedPickup=row.targetedPickup or 0
+    local missing=row.requested-row.delivered-row.incoming
+    if missing<0 then missing=0 end
+    row.missing=missing
+    rows[#rows+1]=row
+  end
+  table.sort(rows,function(a,b) if a.name~=b.name then return a.name<b.name end return (a.quality or "")<(b.quality or "") end)
+  item_total=#rows
+  local page_items={}
+  if include_items then
+    for j=items_offset+1,math.min(item_total,items_offset+items_limit) do page_items[#page_items+1]=rows[j] end
+  end
+  info.items=page_items
+  info.item_page_info={total=item_total,limit=items_limit,offset=items_offset,has_more=item_total>items_offset+items_limit}
   list[#list+1]=info
 end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,page_info={total=total,limit=limit,offset=offset,has_more=total>offset+limit},networks=list}))`,
-		luaString(surface), luaString(force), area, limit, offset, luaString(requested))
+		luaString(surface), luaString(force), area, limit, offset, luaString(requested), strconv.FormatBool(includeItems), itemsLimit, itemsOffset)
 }

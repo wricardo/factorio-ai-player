@@ -66,7 +66,7 @@ func worldLogisticsQuery(r *Resolver, input *WorldLogisticsInput) (*WorldLogisti
 	if input.Type != nil {
 		requested = *input.Type
 	}
-	lua := luaFail + fmt.Sprintf(`local surface_name,force_name=%s,%s; local area,area_result=%s,%s; local limit,offset=%d,%d; local requested=%s
+	lua := luaFail + transportLineLua + fmt.Sprintf(`local surface_name,force_name=%s,%s; local area,area_result=%s,%s; local limit,offset=%d,%d; local requested=%s
 `, luaString(input.Surface), luaString(input.Force), area, areaResult, input.Limit, input.Offset, luaString(requested)) + worldCommonLua + `
 local types={"transport-belt","underground-belt","splitter","loader","loader-1x1","linked-belt","inserter","pipe","pipe-to-ground","storage-tank","boiler","pump","offshore-pump"}
 local valid_type=false
@@ -88,7 +88,10 @@ for i=offset+1,math.min(#matches,offset+limit) do
   local obj={name=e.name,type=e.type,position=e.position,direction=e.direction,unitNumber=e.unit_number,lanes={},fluids={},worldInventories={}}
   local ok,status=pcall(function() return e.status end); if ok then obj.status=statuses[status] end
   if e.type=="transport-belt" or e.type=="underground-belt" or e.type=="splitter" or e.type=="loader" or e.type=="loader-1x1" or e.type=="linked-belt" then
-    for j=1,e.get_max_transport_line_index() do obj.lanes[#obj.lanes+1]={index=j,items=contents(e.get_transport_line(j))} end
+    for j=1,e.get_max_transport_line_index() do
+      local name=transport_line_name(j)
+      obj.lanes[#obj.lanes+1]={index=j,lineName=name,side=transport_line_side(name),items=contents(e.get_transport_line(j))}
+    end
   elseif e.type=="inserter" then
     obj.pickupPosition=e.pickup_position; obj.dropPosition=e.drop_position
     local stack=e.held_stack; if stack and stack.valid_for_read then obj.heldStack={name=stack.name,count=stack.count,quality=stack.quality.name} end
@@ -153,7 +156,9 @@ for _,e in pairs(surface.find_entities_filtered{area=area,type={"resource","tree
   end
 end
 for _,tile in pairs(surface.find_tiles_filtered{area=area}) do
-  if tile.collides_with("water_tile") then
+  -- Out-of-map tiles share the water_tile layer; only tiles with a pumpable fluid are water.
+  local ok_fluid,fluid=pcall(function() return tile.prototype.fluid end)
+  if ok_fluid and fluid and tile.collides_with("water_tile") then
     water_total=water_total+1
     if keep("water") then entries[#entries+1]={kind="water",name=tile.name,position=tile.position} end
   end

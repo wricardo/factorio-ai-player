@@ -249,13 +249,13 @@ func diagnosticBlocked(status *string, code *int) *MachineBlockedReason {
 		result.Category = MachineBlockCategoryNone
 	case "no_recipe":
 		result.Category, action = MachineBlockCategoryMissingRecipe, "Select a compatible recipe"
-	case "no_ingredients", "item_ingredient_shortage", "fluid_ingredient_shortage", "missing_science_packs", "missing_required_fluid":
+	case "no_ingredients", "item_ingredient_shortage", "fluid_ingredient_shortage", "missing_science_packs", "missing_required_fluid", "no_input_fluid":
 		result.Category, action = MachineBlockCategoryMissingIngredients, "Supply the missing compatible ingredients; inspect one-craft shortfall where a recipe is selected"
 	case "no_research_in_progress":
 		result.Category, action = MachineBlockCategoryMissingResearch, "Start an available research technology"
 	case "no_fuel":
 		result.Category, action = MachineBlockCategoryMissingFuel, "Supply compatible fuel"
-	case "no_power", "low_power", "not_connected_to_electric_network":
+	case "no_power", "low_power", "not_plugged_in_electric_network":
 		result.Category, action = MachineBlockCategoryMissingPower, "Check electric network connection, generation and demand"
 	case "full_output", "full_burnt_result_output", "waiting_for_space_in_destination":
 		result.Category, action = MachineBlockCategoryOutputBlocked, "Clear or transport the blocked output"
@@ -288,7 +288,8 @@ end
 local function inserter_settings(e)
   local result = {tick=game.tick, filterSlotCount=e.filter_slot_count, filterSlots={},
     useFilters=e.use_filters, filterMode=e.inserter_filter_mode,
-    stackSizeOverride=e.inserter_stack_size_override, active=e.active}
+    stackSizeOverride=e.inserter_stack_size_override, active=e.active,
+    pickupFromLeftLane=e.pickup_from_left_lane, pickupFromRightLane=e.pickup_from_right_lane}
   for index=1,e.filter_slot_count do
     local filter = e.get_filter(index)
     local slot = {index=index}
@@ -342,7 +343,8 @@ local function condition(c)
 end
 local result = {tick=game.tick, filterSlotCount=e.filter_slot_count, filterSlots={},
   useFilters=e.use_filters, filterMode=e.inserter_filter_mode,
-  stackSizeOverride=e.inserter_stack_size_override, active=e.active}
+  stackSizeOverride=e.inserter_stack_size_override, active=e.active,
+  pickupFromLeftLane=e.pickup_from_left_lane, pickupFromRightLane=e.pickup_from_right_lane}
 for index=1,e.filter_slot_count do
   local filter = e.get_filter(index)
   local slot = {index=index}

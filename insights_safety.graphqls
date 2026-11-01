@@ -1,5 +1,20 @@
 extend type Query {
-  """Observe enemies, damaged friendly entities, optional point pollution, and optional player alerts on a surface."""
+  """
+  Single-snapshot threat and damage report for a force on a surface, optionally bounded by area: enemies (entities whose
+  force satisfies force.is_enemy), damaged friendly entities (selected force or its friends with health below max),
+  optional point pollution, optional player alerts, and evolution, pollution and kill statistics. Enemies, damaged
+  entities and alerts are paginated independently (each limit 1..1000 and non-negative offset) after deterministic
+  sorting — enemies and damaged by type, name, position, force and unit number; alerts by tick, type, position,
+  prototype, target and icon — and each pageInfo.total counts pre-pagination matches. playerAlerts.available is false
+  with unavailableReason when no player was requested; a requested player must exist and belong to the selected force,
+  alerts outside the area are dropped, and alerts without a position remain with areaMatchUnknown true. pollution is
+  the surface's airborne pollutant in the chunk of pollutionPosition (null when no position is given) and
+  totalPollution is the surface-wide airborne total, neither being a risk prediction; evolution components degrade to
+  0 when the engine refuses a reading, and killCounts reports the force's kill-statistic totals per prototype sorted by
+  name. Invalid surface/force names, non-finite or inverted bounds, a non-finite pollution position, an empty player
+  name, or out-of-range pagination produce a GraphQL error; an empty area scan means nothing matched and no state is
+  changed.
+  """
   safety(input: SafetyInput = {}): SafetySnapshot!
 }
 

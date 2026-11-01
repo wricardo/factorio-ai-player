@@ -17,11 +17,23 @@ func playerInsight(r *Resolver, input *PlayerInsightInput) (*PlayerInsight, erro
 	target := "nil"
 	if input.Target != nil {
 		if input.Target.UnitNumber != nil {
+			if input.Target.Position != nil {
+				return nil, errors.New("target unitNumber and position are mutually exclusive")
+			}
 			n, err := strconv.ParseUint(*input.Target.UnitNumber, 10, 32)
 			if err != nil || n == 0 {
 				return nil, errors.New("target unitNumber must be from 1 to 4294967295")
 			}
-			target = "{unit=" + strconv.FormatUint(n, 10) + "}"
+			// Only a few prototypes resolve by unit number alone; the optional
+			// entity name and surface let Lua scan for the rest.
+			name, surface := "nil", "nil"
+			if input.Target.Entity != nil && *input.Target.Entity != "" {
+				name = luaString(*input.Target.Entity)
+			}
+			if input.Target.Surface != nil && *input.Target.Surface != "" {
+				surface = luaString(*input.Target.Surface)
+			}
+			target = "{unit=" + strconv.FormatUint(n, 10) + ",name=" + name + ",surface=" + surface + "}"
 		} else if input.Target.Position != nil {
 			target = fmt.Sprintf("{position={x=%s,y=%s}}", strconv.FormatFloat(input.Target.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Target.Position.Y, 'g', -1, 64))
 		} else {
@@ -74,7 +86,16 @@ if target then
   local reach={}
   if target.unit then
     local entity=game.get_entity_by_unit_number(target.unit)
-    if not entity or not entity.valid then fail("target entity not found"); return end
+    if not entity and target.name then
+      -- Most prototypes lack the get-by-unit-number flag; scan by prototype name instead.
+      local scan_surface=target.surface and game.surfaces[target.surface] or s
+      if scan_surface then
+        for _,candidate in pairs(scan_surface.find_entities_filtered{name=target.name}) do
+          if candidate.unit_number==target.unit then entity=candidate; break end
+        end
+      end
+    end
+    if not entity or not entity.valid then fail("target entity not found; pass entity (prototype name) for prototypes not resolvable by unit number alone"); return end
     reach.targetName=entity.name
     reach.targetPosition=entity.position
     if not c then reach.unavailableReason="Player has no character"

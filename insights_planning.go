@@ -597,7 +597,7 @@ func billOfMaterialsQuery(r *Resolver, input BillOfMaterialsInput) (*BillOfMater
 	if err != nil {
 		return nil, err
 	}
-	lua := luaFail + fmt.Sprintf(`
+	lua := luaFail + stockBeltLineLua + fmt.Sprintf(`
 local force=game.forces[%s]; if not force then fail("force not found"); return end
 local surface=game.surfaces[%s]; if not surface then fail("surface not found"); return end
 local item,quality,source,player_name,area=%s,%s,%s,%s,%s
@@ -655,7 +655,7 @@ else
   end)
   if #entities>10000 then result.stockTruncated=true end
   local belts={['transport-belt']=true,['underground-belt']=true,splitter=true,loader=true,['loader-1x1']=true,['linked-belt']=true}
-  local lines,comparisons,belt_limit={},0,false
+  local comparisons,belt_limit=0,false
   for i=1,math.min(#entities,10000) do
     local e=entities[i];local seen={}
     local function inventory(inv)
@@ -670,16 +670,12 @@ else
     inventory(e.get_output_inventory())
     if e.type=="inserter" then local s=e.held_stack;if s and s.valid_for_read then record(s.name,"item",s.quality.name,s.count) end end
     if belts[e.type] and not belt_limit then
-      for j=1,e.get_max_transport_line_index() do
-        local line=e.get_transport_line(j);local duplicate=false
-        for _,prior in ipairs(lines) do
-          comparisons=comparisons+1
-          if comparisons>1000000 then belt_limit=true;result.stockTruncated=true;break end
-          if line.line_equals(prior) then duplicate=true;break end
-        end
-        if belt_limit then break end
-        if not duplicate then lines[#lines+1]=line;contents(line) end
-      end
+      local kept=stock_belt_lines(e,function()
+        comparisons=comparisons+1
+        if comparisons>1000000 then belt_limit=true;result.stockTruncated=true;return false end
+        return true
+      end)
+      for _,entry in ipairs(kept) do contents(entry.line) end
     end
     for j=1,#e.fluidbox do local f=e.fluidbox[j];if f then record(f.name,"fluid","normal",f.amount) end end
   end

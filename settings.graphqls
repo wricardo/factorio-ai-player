@@ -168,27 +168,71 @@ extend type EntityInspection {
 }
 
 extend type Mutation {
-  """Replaces or clears a splitter's filter and lane priorities."""
+  """
+  Replaces or clears a splitter's filter and its left/right lane priorities, then returns the post-write snapshot read in the same tick.
+
+  `actor` must name exactly one of `player` or `character` (a character unit number from 1 to 4294967295); the target must be a splitter on that actor's force, addressed either by `unitNumber` alone or by `entity` plus `position` (never both), on `surface` (nauvis by default for a player actor, the character's current surface for a character actor). `inputPriority` and `outputPriority` accept none, left or right; filter quality defaults to normal and an omitted comparator keeps the engine default (=). A filter requires a sorting output: setting `filter` without `outputPriority` defaults the priority to left, while `filter` combined with an explicit `none` is rejected because the filter would be inert. `clear: true` removes the filter and resets both priorities to none and cannot be combined with filter or priorities; at least one of filter, inputPriority, outputPriority or clear is required. Validation failures, unknown targets and non-splitter entities are GraphQL errors; out-of-reach targets are rejected only with FACTORIO_ENFORCE_REACH=1. The result reports the splitter section and an in-game announcement is printed to all players unless `message` overrides it.
+  """
   setSplitterSettings(input: SplitterSettingsInput!): SettingsResult!
-  """Replaces or clears an inserter's filter slots, filter mode and stack size override."""
+  """
+  Replaces an inserter's filter slots, filter mode, stack size override and belt pickup lanes, returning the post-write snapshot from the same tick.
+
+  Exactly one of `actor.player` or `actor.character` is required; the target must be an inserter on the actor's force, addressed by `unitNumber` or by `entity` + `position`, on nauvis or the character's own surface. Supplying `filters` clears every engine filter slot first and then sets the listed slots, enabling filter use, so any slot you want kept must be included; each index must be at least 1 and within the inserter's `filter_slot_count`, names must be non-empty and quality defaults to normal. `filterMode` is whitelist or blacklist; `stackSizeOverride` is 0-12 where 0 restores automatic; `pickupFromLeftLane`/`pickupFromRightLane` toggle belt lane pickup, and disabling both makes a full belt unusable. `clear: true` removes all filters, turns filter use off, resets the mode to whitelist and the override to 0, and cannot be combined with any other field; an otherwise empty request is rejected. An index outside the inserter's filter slot count fails at write time (non-transactionally, after the initial clear), a non-inserter target fails before any write, and success returns the inserter section plus a generated announcement unless `message` overrides it.
+  """
   setInserterSettings(input: InserterSettingsInput!): SettingsResult!
-  """Sets a lamp's color and circuit-driven color state."""
+  """
+  Sets a lamp's fixed color, always-on flag and circuit-driven color mode, returning the post-write snapshot in the same tick.
+
+  The actor is exactly one player or character and the target must be a lamp on that actor's force, addressed by `unitNumber` or by `entity` + `position` with the usual surface default. Color components must be finite and within 0-1 (alpha defaults to 1), and `colorMode` must be 0, 1 or 2, where 0 leaves circuit colors off, 1 takes the color signal and 2 takes separate red/green/blue signals. `useColors` and `colorMode` write through the lamp's control behavior, which is created if absent (a persistent save change) and fails when the prototype has none; a request with none of color, alwaysOn, useColors or colorMode is rejected. Success returns the lamp section and prints a generated announcement unless `message` overrides it; validation and target errors are GraphQL errors with no partial write.
+  """
   setLampSettings(input: LampSettingsInput!): SettingsResult!
-  """Sets a container inventory's bar limit."""
+  """
+  Sets the slot bar limit of one container inventory, returning the post-write snapshot in the same tick.
+
+  `inventory` defaults to chest and must be chest, fuel, input (crafter_input), output, modules or turret-ammo; the target must be an entity on the actor's force whose inventory supports a bar, otherwise the mutation fails. `bar` is 0 or 1-65536: 0 removes the limit (engine nil) and a value above the inventory's slot count fails. The actor is exactly one player or character and the target is addressed by `unitNumber` or by `entity` + `position`, on nauvis or the character's current surface. The returned container section reports the written bar and the inventory capacity, and a generated announcement is printed unless `message` overrides it.
+  """
   setContainerBar(input: ContainerBarInput!): SettingsResult!
-  """Replaces or clears the logistic request sections of a logistic container."""
+  """
+  Replaces or clears the logistic request sections of a logistic container, returning the post-write snapshot in the same tick.
+
+  The target must be on the actor's force and expose a logistic point (`get_logistic_point`), otherwise the call fails; the actor is exactly one player or character and the entity is addressed by `unitNumber` or by `entity` + `position` with the usual surface default. `sections` replaces every existing section: each is removed and re-added, at most 20 sections are supported, and every request needs an index of at least 1, a non-empty name, an existing quality (normal by default) and 0 <= min <= max. All item and quality prototypes are validated before any section is cleared, so a bad name cannot leave the container empty. `clear: true` removes every section and cannot be combined with `sections`; passing neither is rejected. Success returns the resulting logistic sections and announces a summary unless `message` overrides it.
+  """
   setLogisticRequests(input: LogisticRequestsInput!): SettingsResult!
-  """Sets a train stop's name, train limit, priority and color."""
+  """
+  Sets a train stop's name, train limit, priority and color in one write and returns the post-write snapshot from the same tick.
+
+  The actor is exactly one player or character and the target must be a train-stop on that actor's force, addressed by `unitNumber` or by `entity` + `position`, on nauvis or the character's current surface. Omitted fields keep their current values, and at least one of name, trainsLimit, priority or color is required; `name` must be non-empty, `trainsLimit` is 0-1000 where 0 routes no trains, `priority` is 0-255 with higher values preferred, and color components must be finite and within 0-1 (alpha defaults to 1). Validation errors and non-train-stop targets fail the whole mutation before any write. Success returns the trainStop section, including the stop's current name, limit, priority and color, and prints a generated announcement unless `message` overrides it.
+  """
   setTrainStop(input: TrainStopInput!): SettingsResult!
-  """Sets a rocket silo's automatic launch flag."""
+  """
+  Sets whether a rocket silo sends its finished rocket to orbit automatically, returning the post-write snapshot in the same tick.
+
+  The actor is exactly one player or character and the target must be a rocket-silo on that actor's force, addressed by `unitNumber` or by `entity` + `position`, on nauvis or the character's current surface. `sendToOrbitAutomatically` is required and is written straight to `send_to_orbit_automatically`; it neither launches a rocket nor checks payload readiness. Failures (missing actor, non-silo entity, out-of-reach target when FACTORIO_ENFORCE_REACH=1) are GraphQL errors. On success the rocketSilo section reports the assembled rocket part count, the engine silo status and the new flag, and a generated announcement is printed unless `message` overrides it.
+  """
   setRocketSilo(input: RocketSiloInput!): SettingsResult!
-  """Launches a loaded rocket silo, refusing with a precise reason when the silo is not ready."""
+  """
+  Launches a loaded rocket silo and returns the post-write snapshot in the same tick.
+
+  The actor is exactly one player or character and the target must be a rocket-silo on that actor's force, addressed by `unitNumber` or by `entity` + `position`, on nauvis or the character's current surface. The silo must currently be `waiting_to_launch_rocket`; any other engine status fails with the current status, the `waiting_to_launch_rocket` value and the assembled versus required rocket part count (prototype `rocket_parts_required`, 100 when absent). It cannot bypass payload, landing-pad or space-platform requirements, and a false return from the engine's `launch_rocket` fails with the status again. Success announces "launched rocket from <name><position>" unless `message` overrides it, and the result reports the silo section read after the launch.
+  """
   launchRocket(input: RocketLaunchInput!): SettingsResult!
-  """Writes the supported fields of an entity's control behavior."""
+  """
+  Writes the supported fields of an entity's control behavior, trying each Factorio 2.0 engine key candidate per flag, and returns the post-write snapshot in the same tick.
+
+  The actor is exactly one player or character and the target must be an entity on that actor's force that can carry a control behavior, addressed by `unitNumber` or by `entity` + `position` with the usual surface default; the behavior is materialized with `get_or_create_control_behavior` on first write (a persistent save change) and the call fails when the prototype has none. `enabled` is read-only in 2.0 and always rejected; use `circuitEnableDisable` with `circuitCondition` or `logisticCondition` instead. Only fields the behavior actually exposes are written — a flag with no matching engine key fails with "<field> is not supported by this control behavior", and writes already applied in that call stay applied because mutations are not transactional — and at least one field or `clearConditions` is required; conditions require a comparator and any signal given needs a name (type defaults to item, quality optional), while `colorMode` must be 0-2 and the other integer modes (`siloReadMode`, `resourceReadMode`, `readItemsMode`) must be non-negative. `clearConditions: true` sets every boolean false, zeroes the integer modes and nils all conditions, and cannot be combined with any other field. The result's circuit section reports the behavior type and every writable flag, and a generated announcement is printed unless `message` overrides it.
+  """
   setCircuitBehavior(input: CircuitBehaviorInput!): SettingsResult!
-  """Connects a red or green circuit wire between two entities."""
+  """
+  Connects a red or green circuit wire between two entities and reports the engine's own connectivity check.
+
+  `actor` must be exactly one player or character; `from` and `to` each address a target by `unitNumber` or by `entity` + `position` plus an optional engine `connector` id, defaulting to `circuit_<color>`. Both endpoints' `surface` must be equal, each defaulting to nauvis; with a character actor both entities are then resolved on the character's current surface instead. Each target must be on the actor's force and expose the requested connector, which is created on demand. `color` defaults to RED and must be RED or GREEN, case-insensitively; with FACTORIO_ENFORCE_REACH=1 both endpoints must be within the actor's reach. A false engine result, a missing connector or mismatched surfaces fail the mutation; success announces "connected <COLOR> wire between <from> and <to>" unless `message` overrides it. The result reports tick, surface, force, color as uppercase RED/GREEN, `connected` read back after the operation, and both endpoint names, unit numbers and positions.
+  """
   connectWire(input: WireInput!): WireResult!
-  """Disconnects a red or green circuit wire between two entities."""
+  """
+  Disconnects a red or green circuit wire between two entities and reports the engine's own connectivity check.
+
+  `actor` must be exactly one player or character; `from` and `to` each address a target by `unitNumber` or by `entity` + `position` plus an optional engine `connector` id, defaulting to `circuit_<color>`. Both endpoints' `surface` must be equal, each defaulting to nauvis; with a character actor both entities are then resolved on the character's current surface instead. Each target must be on the actor's force and expose the requested connector, which is created on demand. `color` defaults to RED and must be RED or GREEN, case-insensitively; with FACTORIO_ENFORCE_REACH=1 both endpoints must be within the actor's reach. A false engine result — for example nothing to remove between those connectors — or a missing connector or mismatched surface fails the mutation; success announces "disconnected <COLOR> wire between <from> and <to>" unless `message` overrides it. The result reports tick, surface, force, uppercase color, `connected` read back after the removal (false on success) and both endpoint names, unit numbers and positions.
+  """
   disconnectWire(input: WireInput!): WireResult!
 }
 
@@ -253,6 +297,10 @@ input InserterSettingsInput {
   filterMode: String
   """Stack size override; 0 restores automatic."""
   stackSizeOverride: Int
+  """Allow or forbid taking from the left lane of a belt source. Disabling both lane flags makes a full belt unusable for the inserter."""
+  pickupFromLeftLane: Boolean
+  """Allow or forbid taking from the right lane of a belt source."""
+  pickupFromRightLane: Boolean
   """Clear every filter slot and reset the mode and stack size override."""
   clear: Boolean = false
   """Print this text in-game to all connected players instead of the generated notification."""
@@ -339,6 +387,7 @@ input RocketLaunchInput {
 input CircuitBehaviorInput {
   actor: ActorInput!
   target: EntityRefInput!
+  """Read-only in Factorio 2.0; always rejected. Use circuitEnableDisable with circuitCondition or logisticCondition."""
   enabled: Boolean
   circuitEnableDisable: Boolean
   circuitCondition: SignalConditionInput

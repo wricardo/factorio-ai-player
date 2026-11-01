@@ -279,8 +279,10 @@ end
 // deconstructionAreaLua marks, cancels, or instantly removes the entities an
 // area request selects. Filters and the limit are applied by
 // find_entities_filtered before any order is placed. Instant mode mines each
-// reachable target as the actor and destroys the rest, reporting recovered
-// items from the actor inventory delta.
+// reachable target as the actor; targets it cannot mine have their inventories
+// and placement item spilled onto the ground before being destroyed, so instant
+// removal never voids contents. Recovered items report the actor inventory
+// delta plus everything spilled.
 func deconstructionAreaLua(options deconstructionAreaOptions) string {
 	names, types := "nil", "nil"
 	if len(options.Names) > 0 {
@@ -321,6 +323,39 @@ end
 -- LuaControl and can mine. Prefer it; fall back to the player object.
 local control=actor or player_object
 local before=inv and deconstruction_inventory_counts(inv) or {}
+local spilled={}
+local spill_position=nil
+-- Destroying an entity that still holds items voids them. Targets the actor
+-- cannot mine are emptied onto the ground first so instant removal never
+-- destroys containers, modules, fuel, or the entity's own placement item.
+local function spill_stack(name,count,quality)
+  if not name or not count or count<=0 or not spill_position then return end
+  local ok=pcall(function()
+    s.spill_item_stack{position=spill_position,stack={name=name,count=count,quality=quality or "normal"},enable_looted=false,force=f,allow_belts=false}
+  end)
+  if ok then
+    deconstruction_add_item(spilled,name,quality or "normal",count)
+  end
+end
+local function spill_entity(e)
+  spill_position=e.position
+  for _,kind in pairs(defines.inventory) do
+    local okinv,target_inventory=pcall(function() return e.get_inventory(kind) end)
+    if okinv and target_inventory and not target_inventory.is_empty() then
+      for _,item in ipairs(target_inventory.get_contents()) do
+        spill_stack(item.name,item.count,item.quality)
+      end
+      target_inventory.clear()
+    end
+  end
+  local proto=e.prototype
+  if proto and proto.items_to_place_this then
+    for _,item in pairs(proto.items_to_place_this) do
+      spill_stack(item.name,item.count,item.quality)
+    end
+  end
+  spill_position=nil
+end
 local removed,skipped=0,0; local errors={}
 for index,e in ipairs(targets()) do
   if e.valid and e~=actor and e.type~="character" and e.type~="entity-ghost" and e.type~="tile-ghost" then
@@ -333,6 +368,7 @@ for index,e in ipairs(targets()) do
     if mined then
       removed=removed+1
     else
+      spill_entity(e)
       local okd,destroy_error=pcall(function() e.destroy{raise_destroy=true} end)
       if okd then
         removed=removed+1
@@ -344,6 +380,12 @@ for index,e in ipairs(targets()) do
   end
 end
 local items=inv and deconstruction_inventory_difference(before,inv) or {}
+if next(spilled)~=nil then
+  local merged={}
+  for _,item in ipairs(items) do deconstruction_add_item(merged,item.name,item.quality,item.count) end
+  for _,item in pairs(spilled) do deconstruction_add_item(merged,item.name,item.quality,item.count) end
+  items=deconstruction_sorted_items(merged)
+end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,orders=0,skipped=skipped,removed=removed,items=items,errors=errors}))`,
 			options.Character, luaString(options.Player))
 	}
@@ -354,13 +396,13 @@ for index,e in ipairs(targets()) do
   local target={surface=s.name,entity=e.name,position=e.position,unit_number=e.unit_number and tostring(e.unit_number) or nil}
   local ok,message=pcall(function()
     if cancel then
-      if not e.to_be_deconstructed(f) then error("entity is not marked for deconstruction") end
+      if not e.to_be_deconstructed() then error("entity is not marked for deconstruction") end
       e.cancel_deconstruction(f)
-      if e.to_be_deconstructed(f) then error("deconstruction order could not be canceled") end
+      if e.to_be_deconstructed() then error("deconstruction order could not be canceled") end
     else
-      if e.to_be_deconstructed(f) then error("entity is already marked for deconstruction") end
+      if e.to_be_deconstructed() then error("entity is already marked for deconstruction") end
       if not e.order_deconstruction(f) then error("engine refused the deconstruction order") end
-      if not e.to_be_deconstructed(f) then error("engine did not record the deconstruction order") end
+      if not e.to_be_deconstructed() then error("engine did not record the deconstruction order") end
     end
   end)
   if ok then

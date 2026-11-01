@@ -9,6 +9,16 @@ import (
 	"context"
 )
 
+// AddChartTag is the resolver for the addChartTag field.
+func (r *mutationResolver) AddChartTag(ctx context.Context, input AddChartTagInput) (*ChartTagMutationResult, error) {
+	return addChartTag(r.Resolver, input)
+}
+
+// RemoveChartTag is the resolver for the removeChartTag field.
+func (r *mutationResolver) RemoveChartTag(ctx context.Context, input RemoveChartTagInput) (*ChartTagMutationResult, error) {
+	return removeChartTag(r.Resolver, input)
+}
+
 // Surfaces is the resolver for the surfaces field.
 func (r *queryResolver) Surfaces(ctx context.Context, force string) (*SurfacePage, error) {
 	return surfacesQuery(r.Resolver, force)
@@ -17,4 +27,9 @@ func (r *queryResolver) Surfaces(ctx context.Context, force string) (*SurfacePag
 // CircuitNetwork is the resolver for the circuitNetwork field.
 func (r *queryResolver) CircuitNetwork(ctx context.Context, input CircuitNetworkInput) (*CircuitNetworkSignals, error) {
 	return circuitNetworkQuery(r.Resolver, input)
+}
+
+// ChartTags is the resolver for the chartTags field.
+func (r *queryResolver) ChartTags(ctx context.Context, input ChartTagsInput) (*ChartTagPage, error) {
+	return chartTagsQuery(r.Resolver, input)
 }

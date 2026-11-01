@@ -73,4 +73,18 @@ tick()
 check(api.status(third.id).status == 'CANCELLED', 'disconnect must cancel the job')
 check(character.shooting_state.state == defines.shooting.not_shooting, 'disconnect must clear the state')
 
+-- Finished jobs are evicted once newer ones exceed the retention bound.
+character.player.connected = true
+local oldest = api.start_shoot(7, 10, 5, 10)
+check(api.cancel(oldest.id).status == 'CANCELLED', 'oldest job must cancel')
+local newest
+character.player.connected = true
+for _ = 1, 300 do
+  newest = api.start_shoot(7, 10, 5, 10)
+  check(newest.error == nil, 'retention loop job must start: ' .. tostring(newest.error))
+  api.cancel(newest.id)
+end
+check(api.status(oldest.id).error ~= nil, 'old finished job must be evicted')
+check(api.status(newest.id).status == 'CANCELLED', 'newest finished job must stay pollable')
+
 print('actions controller ok')

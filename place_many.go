@@ -44,12 +44,23 @@ func placeMany(r *Resolver, input PlaceManyInput) (*PlaceManyResult, error) {
 		}
 		direction := placement.Direction
 		fastReplace := placement.FastReplace != nil && *placement.FastReplace
+		undergroundType := ""
+		if placement.UndergroundType != nil {
+			switch *placement.UndergroundType {
+			case UndergroundBeltTypeInput:
+				undergroundType = "input"
+			case UndergroundBeltTypeOutput:
+				undergroundType = "output"
+			default:
+				return nil, fmt.Errorf("placement %d undergroundType must be input or output", i+1)
+			}
+		}
 		if i > 0 {
 			placements.WriteString(",")
 		}
-		fmt.Fprintf(&placements, "{x=%s,y=%s,direction=%d,fast_replace=%t}",
+		fmt.Fprintf(&placements, "{x=%s,y=%s,direction=%d,fast_replace=%t,underground_type=%q}",
 			strconv.FormatFloat(placement.Position.X, 'g', -1, 64),
-			strconv.FormatFloat(placement.Position.Y, 'g', -1, 64), direction, fastReplace)
+			strconv.FormatFloat(placement.Position.Y, 'g', -1, 64), direction, fastReplace, undergroundType)
 	}
 	lua := luaFail + fmt.Sprintf(`local player=%s; local unit=%d; local actor; local c
 if unit~=0 then actor=game.get_entity_by_unit_number(unit); if not actor or actor.type~="character" then fail("character not found"); return end; c=actor
@@ -74,6 +85,7 @@ for i,p in ipairs(placements) do
   if ok and inv.remove{name=item,quality=quality,count=1}~=1 then ok=false; fail_at(i,"INVENTORY","could not remove item",p) end
   if ok then
     local params={name=name,position={x=p.x,y=p.y},direction=p.direction,quality=quality,force=c.force,raise_built=true}
+    if p.underground_type~="" then params.type=p.underground_type end
     if p.fast_replace then params.fast_replace=true; params.spill=true end
     local created,e=pcall(function() return s.create_entity(params) end)
     if created and e then
@@ -96,7 +108,9 @@ rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=c.force.na
 	if err != nil {
 		return nil, err
 	}
-	announceMutation(r, input.Message, placeManySummary(result))
+	if result.Placed > 0 {
+		announceMutation(r, input.Message, placeManySummary(result))
+	}
 	return result, nil
 }
 

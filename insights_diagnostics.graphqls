@@ -101,6 +101,10 @@ type InserterSettings {
   stackSizeOverride: Int!
   """Engine active state, including script, circuit, recipe, freezing and deconstruction disabling."""
   active: Boolean!
+  """Whether the inserter may take from the left lane of a belt source. Both flags false is a common reason a full belt still reports waiting_for_source_items."""
+  pickupFromLeftLane: Boolean!
+  """Whether the inserter may take from the right lane of a belt source."""
+  pickupFromRightLane: Boolean!
   """Null when no control behavior exists. Reading never creates one."""
   circuit: InserterCircuitSettings
 }

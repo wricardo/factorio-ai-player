@@ -1,9 +1,9 @@
 extend type Mutation {
-  """Appends a technology to the force research queue. Prerequisites must already be researched and the technology must be enabled and unresearched."""
+  """Appends technology to the named force's research queue (force defaults to player, and both force and technology must be non-empty and exist). The technology must be enabled, not already researched, and not rejected by the engine's prerequisite check; any rejection is a GraphQL error before the queue changes, so a successful call always reports started=true. The returned state holds the technology name, the force's currentResearch (the running technology, or null), and researchQueue in queue order after the append. Emits one in-game notification unless message overrides it."""
   queueResearch(input: QueueResearchInput!): ResearchState!
-  """Clears every queued technology; the current research keeps running."""
+  """Empties the force research queue, leaving the technology that is currently being researched running; the clear is attempted through the engine's research_queue write and reports a GraphQL error if the engine refuses it. force defaults to player and must exist. The returned state reports technology as the still-running research name (empty when idle), started as whether one is running, currentResearch repeated, and an empty researchQueue. Emits one in-game notification unless message overrides it."""
   clearResearchQueue(input: ResearchQueueInput!): ResearchState!
-  """Unlocks every technology. RESEARCH applies the research effects, ENABLE only enables the prototypes. An explicit sandbox shortcut."""
+  """Sandbox shortcut that unlocks every technology on the named force at once: RESEARCH calls the engine's research_all_technologies to apply full research effects, ENABLE only enables the prototypes without those effects. force must exist and mode must be RESEARCH or ENABLE; engine failure is a GraphQL error. Returns the tick, force, mode, and the count of technologies whose researched (RESEARCH) or enabled (ENABLE) flag is true after the call, so the number reflects the whole force rather than this call's delta. Emits one in-game notification unless message overrides it."""
   unlockAllTechnologies(input: UnlockTechnologiesInput!): ResearchUnlockResult!
 }
 

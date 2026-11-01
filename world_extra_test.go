@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
@@ -47,6 +48,75 @@ func TestCircuitSignalSorting(t *testing.T) {
 	}
 	if signals[1].Value != 7 || signals[2].Quality == nil {
 		t.Fatalf("ties must keep the unqualified signal first: %+v", signals[1:3])
+	}
+}
+
+func TestChartTagInputValidation(t *testing.T) {
+	validList := ChartTagsInput{Surface: "nauvis", Force: "player", Limit: 100}
+	for name, mutate := range map[string]func(*ChartTagsInput){
+		"empty surface": func(in *ChartTagsInput) { in.Surface = "" },
+		"empty force":   func(in *ChartTagsInput) { in.Force = "" },
+		"negative offset": func(in *ChartTagsInput) {
+			in.Offset = -1
+		},
+		"zero limit": func(in *ChartTagsInput) { in.Limit = 0 },
+		"excess limit": func(in *ChartTagsInput) {
+			in.Limit = 1001
+		},
+		"inverted area": func(in *ChartTagsInput) {
+			in.Area = &FactoryAreaInput{LeftTopX: 1, LeftTopY: 0, RightBottomX: 0, RightBottomY: 1}
+		},
+		"nonfinite area": func(in *ChartTagsInput) {
+			in.Area = &FactoryAreaInput{LeftTopX: math.NaN(), LeftTopY: 0, RightBottomX: 1, RightBottomY: 1}
+		},
+	} {
+		t.Run("list "+name, func(t *testing.T) {
+			input := validList
+			mutate(&input)
+			if _, err := chartTagsQuery(nil, input); err == nil {
+				t.Fatal("invalid chart tag list input accepted")
+			}
+		})
+	}
+
+	validAdd := AddChartTagInput{
+		Surface: "nauvis", Force: "player",
+		Position: &PositionInput{X: 1, Y: 2}, Text: stringPointer("marker"),
+	}
+	for name, mutate := range map[string]func(*AddChartTagInput){
+		"missing position": func(in *AddChartTagInput) { in.Position = nil },
+		"nonfinite position": func(in *AddChartTagInput) {
+			in.Position.X = math.Inf(1)
+		},
+		"no text or icon": func(in *AddChartTagInput) {
+			in.Text = nil
+		},
+		"blank text": func(in *AddChartTagInput) {
+			in.Text = stringPointer(" \n ")
+		},
+		"empty icon": func(in *AddChartTagInput) {
+			in.Text = nil
+			in.Icon = &SignalInput{}
+		},
+	} {
+		t.Run("add "+name, func(t *testing.T) {
+			input := validAdd
+			position := *validAdd.Position
+			input.Position = &position
+			mutate(&input)
+			if _, err := addChartTag(nil, input); err == nil {
+				t.Fatal("invalid chart tag add input accepted")
+			}
+		})
+	}
+
+	for _, tagNumber := range []string{"", "-1", "abc", "4294967296"} {
+		t.Run("remove "+tagNumber, func(t *testing.T) {
+			input := RemoveChartTagInput{Surface: "nauvis", Force: "player", TagNumber: tagNumber}
+			if _, err := removeChartTag(nil, input); err == nil {
+				t.Fatal("invalid chart tag number accepted")
+			}
+		})
 	}
 }
 

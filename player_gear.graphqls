@@ -6,9 +6,9 @@ extend type Actor {
 }
 
 extend type Mutation {
-  """Moves items between the acting character's main inventory and its armor equipment grid. The character must wear armor that carries a grid."""
+  """Moves up to count normal-quality copies of item between the acting character's main inventory and its armor equipment grid in the selected direction; the character must wear armor that provides a grid and have a main inventory, and the actor must select exactly one player or character. count must be 1..4294967295 and item must be a non-empty prototype name; only normal quality is handled. Factorio 2.0.77 inserts and removes one equipment per call, so the batch is applied one at a time: TO_GRID first checks the main inventory, returns anything the grid rejects, and fails if nothing could be inserted; TO_MAIN stops when the main inventory refuses an item, puts that item back, and fails if nothing was moved. A partial move still succeeds. moved is the net amount transferred in the requested direction and items is the grid's full contents after the write, with the character or player identity and the post-write tick, surface, and force. Emits one in-game notification unless message overrides it."""
   equipGrid(input: EquipGridInput!): EquipmentGridResult!
-  """Replaces or clears the acting player's or character's own logistic request sections."""
+  """Replaces every logistic request section on the acting character's own requester point, up to 20 sections; clear=true empties the requester and cannot be combined with sections, while supplying neither is an error. Each slot needs a one-based index, an existing item prototype name, an existing quality (default normal), and 0 <= min <= max, checked before any section is removed; an engine failure while rebuilding the sections aborts with an error and can leave a partial section list. The actor must select exactly one player or character whose character exposes get_requester_point, otherwise the mutation fails. Returns the requester point read back after the write as sections with their slots, plus tick, surface, force, and actor identity. Emits one in-game notification unless message overrides it."""
   setActorLogisticRequests(input: ActorLogisticRequestsInput!): ActorLogisticResult!
 }
 

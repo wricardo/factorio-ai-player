@@ -44,7 +44,7 @@ func TestMapAreaDecodeAndLua(t *testing.T) {
 		`if t=="character" then return 100 end`,
 		`local function cell_index(x,y)`,
 		`local ALPHABET=`,
-		`mask.layers.water_tile`,
+		`tile.prototype.fluid`,
 		`table.concat(parts)`,
 		`truncated=cell_size>1`,
 	} {

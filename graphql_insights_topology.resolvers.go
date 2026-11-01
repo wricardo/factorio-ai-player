@@ -20,6 +20,12 @@ func (r *queryResolver) BeltRun(ctx context.Context, target EntityRefInput, maxE
 	return beltRunQuery(r.Resolver, stringValueOr(surface, "nauvis"), x, y, unitNumber, maxEntities)
 }
 
+// BeltStretch is the resolver for the beltStretch field.
+func (r *queryResolver) BeltStretch(ctx context.Context, target EntityRefInput, maxEntities int) (*BeltStretch, error) {
+	surface, _, unitNumber, x, y := entityRefFields(&target)
+	return beltStretchQuery(r.Resolver, stringValueOr(surface, "nauvis"), x, y, unitNumber, maxEntities)
+}
+
 // FactoryGraph is the resolver for the factoryGraph field.
 func (r *queryResolver) FactoryGraph(ctx context.Context, area FactoryAreaInput, force string, surface string) (*FactoryGraph, error) {
 	return factoryGraphQuery(r.Resolver, &area, force, surface)
@@ -28,4 +34,9 @@ func (r *queryResolver) FactoryGraph(ctx context.Context, area FactoryAreaInput,
 // Adjacency is the resolver for the adjacency field.
 func (r *queryResolver) Adjacency(ctx context.Context, area FactoryAreaInput, force string, surface string, tolerance float64, limit int) (*AdjacencyGraph, error) {
 	return adjacencyQuery(r.Resolver, &area, force, surface, tolerance, limit)
+}
+
+// BeltComponents is the resolver for the beltComponents field.
+func (r *queryResolver) BeltComponents(ctx context.Context, input BeltComponentsInput) (*BeltComponentPage, error) {
+	return beltComponentsQuery(r.Resolver, input)
 }

@@ -1,10 +1,10 @@
 extend type Mutation {
-  """Start non-invasive per-lane item-crossing measurement on one normal transport-belt tile. Requires the updated factorio_ai_navigation mod exposing factorio_ai_belt_flow protocol 1, and Factorio >= 2.0.76. Splitters, underground belts, and loaders are rejected. Does not change inventories, belt controls, or entities."""
+  """Start non-invasive per-tick item-crossing measurement of exactly one normal transport-belt tile, addressed by unitNumber or the exact center position (a point on the belt tile; surface defaults to nauvis). The target must resolve to a single transport-belt: splitters, underground belts and loaders are rejected, and so is a belt whose belt_speed is at least half a lane per tick, because an item could then pass the midpoint between samples. Requires the factorio_ai_navigation mod exposing factorio_ai_belt_flow protocol 1 and Factorio >= 2.0.76 with the detailed transport-line item API; the returned measurement is a snapshot of the running job (status RUNNING) or its terminal COMPLETE/INVALIDATED state, and the belt's own force, surface, name, direction and position are recorded. At most 32 measurements may be active at once and a new job is rejected above that; durationTicks and waitTimeoutSeconds are validated before the measurement is started. With wait, the job is polled about every 250 ms up to waitTimeoutSeconds, and a timeout returns the latest RUNNING state without cancelling the measurement, which keeps sampling until durationTicks elapse. Does not change inventories, belt controls, or entities, and emits no chat notification."""
   beltThroughputStart(input: BeltThroughputStartInput!): BeltThroughputMeasurement!
 }
 
 extend type Query {
-  """Observe a persistent belt measurement. Finished measurements remain available until evicted by the 128-record retention bound."""
+  """Read the current state of one retained belt measurement by its decimal ID (1 to 32 digits). RUNNING is live sampling, COMPLETE means durationTicks were sampled, and INVALIDATED means the belt was removed, replaced, rotated, relocated or changed force/surface, or its lane geometry changed, with the cause in reason. Finished records stay readable until the 128-record retention bound evicts the oldest finished job; an unknown or evicted ID returns no measurement, the mod reporting it as not found or evicted. Reading never cancels or advances a job, and elapsedTicks freezes at the last observed sample tick."""
   beltThroughput(id: ID!): BeltThroughputMeasurement!
 }
 
@@ -58,4 +58,30 @@ type BeltThroughputItem {
   quality: String!
   itemsCrossed: Float!
   itemsPerMinute: Float
+}
+
+extend type Mutation {
+  """Walk one linear belt stretch from a seed belt (unitNumber or exact center position) and start non-invasive per-lane item-crossing measurement on one of its transport-belt tiles, so a snapshot mixture is checked over time: the stretch snapshot shows what sits on the lanes, the measurement shows what actually crosses them. sample picks the first, middle (default) or last transport-belt tile in travel order; stretches containing no normal transport-belt tile are rejected because splitters, underground belts and loaders cannot be measured. The stretch walk uses the same 1000-entity bound and stop rules as beltStretch, and the stretch snapshot and the measurement come from different RCON calls, so they can differ by a few ticks. Duration, wait, active-measurement and invalidation semantics are identical to beltThroughputStart, including the 250 ms poll and the no-cancel timeout."""
+  beltStretchMeasure(input: BeltStretchMeasureInput!): BeltStretchMeasurement!
+}
+
+input BeltStretchMeasureInput {
+  """Seed belt by unit number or exact center position."""
+  target: EntityRefInput!
+  """Sampling duration in game ticks, from 1 to 36000. Pausing simulation pauses measurement."""
+  durationTicks: Int! = 600
+  """Wait for completion or invalidation, bounded by waitTimeoutSeconds. Timeout returns latest state without cancelling measurement."""
+  wait: Boolean! = false
+  """Wall-clock wait limit from 1 to 600 seconds."""
+  waitTimeoutSeconds: Int! = 30
+  """Which transport-belt tile of the stretch to measure: first, middle or last in travel order."""
+  sample: BeltStretchSample! = MIDDLE
+}
+
+enum BeltStretchSample { FIRST MIDDLE LAST }
+
+"""The stretch snapshot and the measurement started on one of its tiles. The measurement tile is the tile matching sample among the stretch's transport belts."""
+type BeltStretchMeasurement {
+  stretch: BeltStretch!
+  measurement: BeltThroughputMeasurement!
 }

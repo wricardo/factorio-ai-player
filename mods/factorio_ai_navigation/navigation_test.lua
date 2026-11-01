@@ -12,9 +12,11 @@ script = {
 }
 remote = {add_interface = function(_, functions) api = functions end}
 local request_id = 0
+local requested_goals = {}
 local surface = {name = 'nauvis', index = 1}
-surface.request_path = function()
+surface.request_path = function(request)
   request_id = request_id + 1
+  requested_goals[request_id] = request.goal
   return request_id
 end
 local character = {
@@ -142,6 +144,42 @@ assert(api.start(1, nil, nil, 1, 600, 99).error, 'unknown target must be rejecte
 assert(api.start(1).error, 'missing destination must be rejected')
 print('navigation chase transitions passed')
 
+-- A chase goal that the pathfinder cannot reach must fall back to another ring
+-- point instead of failing the job.
+character.position = {x = 0, y = 0}
+other.position = {x = 5, y = 0}
+local fallback = api.start(1, nil, nil, 1, 600, 2)
+assert(not fallback.error, 'fallback chase should start: ' .. tostring(fallback.error))
+local blocked = request_id
+local blocked_goal = requested_goals[blocked]
+assert(math.abs(blocked_goal.x - 4) < 1e-6 and math.abs(blocked_goal.y) < 1e-6,
+  'first chase goal should be the nearest tolerance ring point, got ' .. blocked_goal.x .. ',' .. blocked_goal.y)
+handlers[defines.events.on_script_path_request_finished]({id = blocked, path = nil})
+assert(api.status(fallback.id).status == 'PATHFINDING', 'blocked chase goal should retry before giving up')
+assert(request_id == blocked + 1, 'blocked chase goal should request the next candidate')
+local retry_goal = requested_goals[request_id]
+assert(retry_goal.x ~= blocked_goal.x or retry_goal.y ~= blocked_goal.y,
+  'fallback candidate must differ from the blocked goal')
+handlers[defines.events.on_script_path_request_finished]({id = request_id, path = {{position = {x = 4, y = 0}}}})
+tick()
+assert(api.status(fallback.id).status == 'MOVING', 'fallback candidate should move the walker')
+api.cancel(fallback.id)
+
+-- Exhausting every candidate is the only case that reports NO_PATH.
+character.position = {x = 0, y = 0}
+other.position = {x = 5, y = 0}
+local doomed = api.start(1, nil, nil, 1, 600, 2)
+assert(not doomed.error, 'doomed chase should start: ' .. tostring(doomed.error))
+local attempts = 0
+while api.status(doomed.id).status == 'PATHFINDING' and attempts < 200 do
+  handlers[defines.events.on_script_path_request_finished]({id = request_id, path = nil})
+  attempts = attempts + 1
+end
+assert(attempts == 24, 'every chase candidate should be tried once, got ' .. attempts)
+local exhausted = api.status(doomed.id)
+assert(exhausted.status == 'NO_PATH', 'exhausted candidates should report NO_PATH, got ' .. exhausted.status)
+assert(not character.walking_state.walking, 'failed chase should stop the walker')
+
 -- Approach a static entity by unit number; most buildings need a surface scan.
 local chest = {
   valid = true, type = 'container', name = 'wooden-chest', unit_number = 3, surface = surface,
@@ -177,6 +215,7 @@ for _ = 1, 120 do
   if api.status(stale.id).status ~= 'MOVING' then break end
 end
 assert(api.status(stale.id).status == 'TARGET_MISSING', 'destroyed target should end the job, got ' .. api.status(stale.id).status)
+assert(api.status(stale.id).reason == 'target entity no longer exists', 'destroyed target must report its reason, got ' .. tostring(api.status(stale.id).reason))
 assert(not character.walking_state.walking, 'destroyed target should stop the walker')
 chest.valid = true
 assert(api.start(1, nil, nil, 1, 600, nil, 99).error, 'unknown entity target must be rejected')
@@ -188,3 +227,17 @@ assert(api.start(1, nil, nil, 1, 600, nil, 1).error, 'targeting itself must be r
 assert(api.start(1, nil, nil, 1, 600, nil, 2).error, 'a character entity target must be rejected')
 assert(api.start(1, nil, nil, 1, 600, nil, 'chest').error, 'non-numeric entity target must be rejected')
 print('navigation entity-target transitions passed')
+
+-- Finished jobs are evicted once newer ones exceed the retention bound.
+character.position = {x = 0, y = 0}
+local first = api.start(1, 3, 0, 0.2, 600)
+assert(api.cancel(first.id).status == 'CANCELLED')
+local last
+for _ = 1, 300 do
+  last = api.start(1, 3, 0, 0.2, 600)
+  assert(not last.error, 'retention loop start failed: ' .. tostring(last.error))
+  api.cancel(last.id)
+end
+assert(api.status(first.id).error, 'old finished navigation job must be evicted')
+assert(api.status(last.id).status == 'CANCELLED', 'newest finished navigation job must stay pollable')
+print('navigation job retention passed')

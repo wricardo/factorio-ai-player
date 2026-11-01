@@ -9,6 +9,7 @@
 -- action jobs (currently shooting).
 
 local MAX_TICKS = 3600
+local RETAINED_JOBS = 256
 
 local function initialize()
   storage.action_jobs = storage.action_jobs or {}
@@ -52,6 +53,17 @@ local function finish(job, status, reason)
   job.updatedTick = game.tick
 end
 
+-- Finished jobs stay pollable, but only the newest few hundred are kept so
+-- storage does not grow with every shooting request.
+local function prune_jobs()
+  local cutoff = storage.next_action_id - RETAINED_JOBS
+  for id, job in pairs(storage.action_jobs) do
+    if storage.action_active[job.unit] ~= id and tonumber(id) < cutoff then
+      storage.action_jobs[id] = nil
+    end
+  end
+end
+
 local function start_shoot(unit, x, y, ticks)
   if not finite(unit) or unit < 1 or unit > 4294967295 or unit % 1 ~= 0 then
     return {error = "character must be a positive uint32"}
@@ -75,6 +87,7 @@ local function start_shoot(unit, x, y, ticks)
   end
   local id = tostring(storage.next_action_id)
   storage.next_action_id = storage.next_action_id + 1
+  prune_jobs()
   local job = {
     id = id, kind = "shoot", unit = unit, position = {x = x, y = y},
     startedTick = game.tick, updatedTick = game.tick, ticks = ticks,

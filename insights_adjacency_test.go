@@ -151,7 +151,7 @@ assert(fluid and fluid.connection=="fluid","touching pipe and boiler must report
 local drop=by_key["40-41"]
 assert(drop and drop.connection=="drop","chest below an inserter drop target must report drop")
 `
-	body := strings.NewReader(fixture + topologyCommonLua + adjacencyLua + assertions)
+	body := strings.NewReader(fixture + transportLineLua + topologyCommonLua + adjacencyLua + assertions)
 	cmd := exec.Command(lua, "-")
 	cmd.Stdin = body
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -202,7 +202,7 @@ assert(#captured.nodes==2)
 assert(#captured.pairs==0,"a one tile gap must not pair at tolerance 0.5, got "..#captured.pairs)
 `
 	cmd := exec.Command(lua, "-")
-	cmd.Stdin = strings.NewReader(fixture + topologyCommonLua + adjacencyLua + assertions)
+	cmd.Stdin = strings.NewReader(fixture + transportLineLua + topologyCommonLua + adjacencyLua + assertions)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("adjacency tolerance regression: %v\n%s", err, output)
 	}
@@ -253,7 +253,7 @@ assert(captured.truncated,"more pairs than the limit must set truncated")
 assert(#captured.nodes==3,"nodes are not pair-limited")
 `
 	cmd := exec.Command(lua, "-")
-	cmd.Stdin = strings.NewReader(fixture + topologyCommonLua + adjacencyLua + assertions)
+	cmd.Stdin = strings.NewReader(fixture + transportLineLua + topologyCommonLua + adjacencyLua + assertions)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("adjacency truncation regression: %v\n%s", err, output)
 	}

@@ -29,9 +29,11 @@ func actionLua(command string, args []string, out io.Writer) (string, error) {
 	var fastReplace *bool
 	var entity *string
 	var count *int
+	var undergroundType *string
 	if command == "place" {
 		direction = fs.Int("direction", 0, "Engine direction 0 through 15")
 		fastReplace = fs.Bool("fastReplace", false, "Fast-replace a colliding entity, spilling its contents")
+		undergroundType = fs.String("undergroundType", "", "Underground belt half: input or output")
 	} else {
 		entity = fs.String("entity", "", "Target entity name (required unless a unit number is given)")
 		count = fs.Int("count", 1, "Number of fuel items to transfer")
@@ -48,6 +50,13 @@ func actionLua(command string, args []string, out io.Writer) (string, error) {
 	if direction != nil && (*direction < 0 || *direction > 15) {
 		return "", errors.New("direction must be between 0 and 15")
 	}
+	forcedType := ""
+	if undergroundType != nil {
+		forcedType = *undergroundType
+	}
+	if forcedType != "" && forcedType != "input" && forcedType != "output" {
+		return "", errors.New("undergroundType must be input or output")
+	}
 	if command == "place" && (math.IsNaN(*x) || math.IsInf(*x, 0) || math.IsNaN(*y) || math.IsInf(*y, 0)) {
 		return "", errors.New("place requires finite x and y")
 	}
@@ -63,7 +72,24 @@ func actionLua(command string, args []string, out io.Writer) (string, error) {
 			check = ""
 			replace = ",fast_replace=true,spill=true"
 		}
-		return prefix + fmt.Sprintf(`local proto=prototypes.item[item]; if not proto or not proto.place_result then fail("item does not place an entity"); return end; local name=proto.place_result.name; local stack={name=item,quality=quality}; if inv.get_item_count(stack)<1 then fail("player lacks item"); return end; %sif inv.remove{name=item,quality=quality,count=1}~=1 then fail("could not remove item"); return end; local ok,e=pcall(function() return s.create_entity{name=name,position=position,direction=%d,quality=quality,force=p.force,raise_built=true%s} end); if not ok then inv.insert{name=item,quality=quality,count=1}; fail("entity creation failed: "..tostring(e)); return end; if not e then inv.insert{name=item,quality=quality,count=1}; fail("entity creation failed; item returned"); return end; rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,direction=e.direction,unit_number=e.unit_number,item=item}))`, check, dir, replace), nil
+		underground := fmt.Sprintf(`local underground_output=false
+if prototypes.entity[name] and prototypes.entity[name].type=="underground-belt" then
+  local ux,uy=0,0
+  local d=%d
+  if d==0 then uy=-1 elseif d==4 then ux=1 elseif d==8 then uy=1 elseif d==12 then ux=-1 end
+  local px=math.floor(position.x)+0.5
+  local py=math.floor(position.y)+0.5
+  if ux~=0 or uy~=0 then
+    local limit=prototypes.entity[name].max_underground_distance or 4
+    for k=1,limit do
+      local candidates=s.find_entities_filtered{position={x=px-ux*k,y=py-uy*k},type="underground-belt",force=p.force,limit=2}
+      local other=candidates[1]
+      if other and other.direction==d and other.neighbours==nil and tostring(other.belt_to_ground_type)=="input" then underground_output=true; break end
+    end
+  end
+end
+`, dir)
+		return prefix + fmt.Sprintf(`local proto=prototypes.item[item]; if not proto or not proto.place_result then fail("item does not place an entity"); return end; local name=proto.place_result.name; `+underground+`local stack={name=item,quality=quality}; if inv.get_item_count(stack)<1 then fail("player lacks item"); return end; %sif inv.remove{name=item,quality=quality,count=1}~=1 then fail("could not remove item"); return end; local spec={name=name,position=position,direction=%d,quality=quality,force=p.force,raise_built=true%s}; local forced_type=%s; if forced_type~="" then spec.type=forced_type elseif underground_output then spec.type="output" end; local ok,e=pcall(function() return s.create_entity(spec) end); if not ok then inv.insert{name=item,quality=quality,count=1}; fail("entity creation failed: "..tostring(e)); return end; if not e then inv.insert{name=item,quality=quality,count=1}; fail("entity creation failed; item returned"); return end; rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,direction=e.direction,unit_number=e.unit_number,item=item}))`, check, dir, replace, luaString(forcedType)), nil
 	}
 	if *count < 1 {
 		return "", errors.New("positive count is required")

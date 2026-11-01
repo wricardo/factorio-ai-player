@@ -112,6 +112,17 @@ type ActorLogisticResult struct {
 	Sections  []*LogisticSection `json:"sections"`
 }
 
+// Add a custom chart tag. At least one of nonblank text or icon is required.
+type AddChartTagInput struct {
+	Surface  string         `json:"surface"`
+	Force    string         `json:"force"`
+	Position *PositionInput `json:"position"`
+	Text     *string        `json:"text,omitempty"`
+	Icon     *SignalInput   `json:"icon,omitempty"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
 // Geometric adjacency inside an area, with engine verification. Nodes are all selected-force entities intersecting the area except characters, units, robots, corpses, items and ghosts. Pairs are unordered, each listed once, and only cover returned nodes; duplicate or self pairs never appear. Tracing item or fluid flow still needs factoryGraph edges, beltRun or fluidNetwork.
 type AdjacencyGraph struct {
 	Tick      float64    `json:"tick"`
@@ -159,6 +170,23 @@ type ArithmeticCombinatorParametersInput struct {
 	SecondConstant       *int                          `json:"secondConstant,omitempty"`
 	Operation            string                        `json:"operation"`
 	OutputSignal         *SignalInput                  `json:"outputSignal"`
+}
+
+// Number of underlying occurrences per kind across the whole scan, independent of attentionLimit.
+type AttentionCount struct {
+	Kind  AttentionKind `json:"kind"`
+	Count int           `json:"count"`
+}
+
+// One observation. Per-entity kinds carry the entity name and position; aggregate kinds (GHOST_BACKLOG, DECONSTRUCTION, NO_RESEARCH, LOW_STOCK) carry no position. count is the number of underlying entities, 1 for single entities.
+type AttentionItem struct {
+	Kind       AttentionKind     `json:"kind"`
+	Severity   AttentionSeverity `json:"severity"`
+	Entity     *string           `json:"entity,omitempty"`
+	Position   *Position         `json:"position,omitempty"`
+	UnitNumber *string           `json:"unitNumber,omitempty"`
+	Count      int               `json:"count"`
+	Message    string            `json:"message"`
 }
 
 type BOMMaterial struct {
@@ -223,6 +251,61 @@ type BatchTarget struct {
 	Position   *Position `json:"position,omitempty"`
 }
 
+// One weakly connected belt component inside the requested area. Sources have no incoming engine belt connection and sinks no outgoing one, both restricted to belts found in the area, so a component cut by the area border reports border belts as sources or sinks and its outside edges as boundary edges. dead means nothing feeds or drains the component: no inserter has a pickup or drop target on any of its belts and no machine drops onto them. That is a structural signal, not a stall measurement.
+type BeltComponent struct {
+	// Position of this component in the sorted, filtered result list. Stable only within one response.
+	ID   string `json:"id"`
+	Dead bool   `json:"dead"`
+	// Belts in this component, including underground belts, splitters and loaders.
+	Belts int `json:"belts"`
+	// True when the traversal hit maxEntities and stopped before covering the component.
+	Truncated bool `json:"truncated"`
+	// In-transit items on this component's transport lines, summed by prototype and quality.
+	Items     []*InventoryStack    `json:"items"`
+	ItemCount int                  `json:"itemCount"`
+	Nodes     []*LogisticsEndpoint `json:"nodes"`
+	Edges     []*TopologyEdge      `json:"edges"`
+	Sources   []*LogisticsEndpoint `json:"sources"`
+	Sinks     []*LogisticsEndpoint `json:"sinks"`
+	Inserters []*ConnectedInserter `json:"inserters"`
+	// Sink belts that no inserter picks from, so items stop there.
+	StallEnds []*LogisticsEndpoint `json:"stallEnds"`
+	// Source belts that no inserter drops onto and no machine drops onto, so nothing feeds the run there.
+	StarveHeads []*LogisticsEndpoint `json:"starveHeads"`
+}
+
+// One snapshot of every belt component in an area, with contents aggregated per component. Contents are in-transit stock, not measured flow.
+type BeltComponentPage struct {
+	Tick    float64    `json:"tick"`
+	Surface string     `json:"surface"`
+	Force   string     `json:"force"`
+	Area    *WorldArea `json:"area"`
+	// Belt entities found in the area before grouping, including underground belts, splitters and loaders.
+	BeltTotal int `json:"beltTotal"`
+	// True when any component hit maxEntities, so that component's belts are incomplete.
+	Truncated bool `json:"truncated"`
+	// Components matching the filter before pagination.
+	PageInfo   *PageInfo        `json:"pageInfo"`
+	Components []*BeltComponent `json:"components"`
+}
+
+type BeltComponentsInput struct {
+	// Surface name; the area is read on this surface only.
+	Surface string `json:"surface"`
+	// Force whose belts are grouped; other forces' belts are ignored.
+	Force string `json:"force"`
+	// Area bounds; each side may be up to 1024 tiles for this read-only analysis.
+	Area *FactoryAreaInput `json:"area"`
+	// Per-component traversal bound, 1 through 5000. A component that hits it is truncated and its unfound belts stay out of that component.
+	MaxEntities int `json:"maxEntities"`
+	// Keep only dead components: no inserter pickup or drop target and no machine drop target touches any belt in the component.
+	DeadOnly bool `json:"deadOnly"`
+	// Components returned after sorting, 1 through 100.
+	Limit int `json:"limit"`
+	// Zero-based offset into the sorted component list.
+	Offset int `json:"offset"`
+}
+
 type BeltInfo struct {
 	Position   *Position `json:"position"`
 	Direction  *int      `json:"direction,omitempty"`
@@ -231,6 +314,7 @@ type BeltInfo struct {
 	Line2      *BeltLine `json:"line2"`
 }
 
+// Lane contents of one transport belt. line1 is the engine's left_line and line2 its right_line, both relative to the belt's own direction; belts returns transport belts only, so both lanes always exist.
 type BeltLine struct {
 	Items []*InventoryStack `json:"items"`
 }
@@ -255,6 +339,81 @@ type BeltRun struct {
 	Sources       []*LogisticsEndpoint `json:"sources"`
 	Sinks         []*LogisticsEndpoint `json:"sinks"`
 	Inserters     []*ConnectedInserter `json:"inserters"`
+}
+
+// One linear belt stretch read in a single snapshot. nodes run in travel direction from the first belt reached to the last; ends explain why the walk stopped at each side. Totals cover the whole stretch and are not per-tile. Contents are in-transit stock, so a stalled stretch can hold a large total with no flow.
+type BeltStretch struct {
+	Tick        float64            `json:"tick"`
+	Surface     string             `json:"surface"`
+	Seed        *LogisticsEndpoint `json:"seed"`
+	MaxEntities int                `json:"maxEntities"`
+	Truncated   bool               `json:"truncated"`
+	Nodes       []*BeltStretchNode `json:"nodes"`
+	Ends        []*BeltStretchEnd  `json:"ends"`
+	Left        *BeltStretchTotal  `json:"left"`
+	Right       *BeltStretchTotal  `json:"right"`
+	// Items on transport lines the engine reports without a left/right name. Empty for ordinary belts, underground belts and splitters.
+	Unknown *BeltStretchTotal `json:"unknown"`
+}
+
+// Where the walk stopped and why. kind is boundary (no connected belt), merge (two or more predecessors), split (two or more successors, including every splitter), loop (the connected belt was already walked), or truncated (maxEntities was reached). targets are the connected belts beyond the stop, empty for boundary. A merge or split is a structural stop, not a diagnosis of a jam.
+type BeltStretchEnd struct {
+	Position   *Position            `json:"position"`
+	UnitNumber *string              `json:"unitNumber,omitempty"`
+	Kind       string               `json:"kind"`
+	Targets    []*LogisticsEndpoint `json:"targets"`
+	// Tile center the last belt outputs toward, set only for a forward boundary of a transport belt or an underground belt exit; null for every other end.
+	ExpectedTarget *Position `json:"expectedTarget,omitempty"`
+	// Name of the first non-belt entity that occupies the expected tile or a tile between it and the next aligned belt, or of a belt that faces the stretch head-on; null when nothing occupies them. Reported even for a natural end.
+	Blocker *string `json:"blocker,omitempty"`
+	// True when reason is MISSING_BELT, BLOCKED, HEAD_ON or UNPAIRED_UNDERGROUND: the line evidently should continue but does not connect.
+	Gap    bool          `json:"gap"`
+	Reason BeltEndReason `json:"reason"`
+}
+
+// One transport line of one belt entity. lineName is the engine defines.transport_line name, for example left_line, right_line, secondary_left_line, left_split_line. In Factorio 2.0.77 an underground belt reports its surface lanes as left_line/right_line and its tunnel contents as secondary_left_line/secondary_right_line, and a splitter reports eight lines. side is left, right, or unknown when the name is unrecognised, so tunnel contents stay on the side of the lane they carry.
+type BeltStretchLane struct {
+	Index    int               `json:"index"`
+	LineName string            `json:"lineName"`
+	Side     string            `json:"side"`
+	Items    []*InventoryStack `json:"items"`
+}
+
+type BeltStretchMeasureInput struct {
+	// Seed belt by unit number or exact center position.
+	Target *EntityRefInput `json:"target"`
+	// Sampling duration in game ticks, from 1 to 36000. Pausing simulation pauses measurement.
+	DurationTicks int `json:"durationTicks"`
+	// Wait for completion or invalidation, bounded by waitTimeoutSeconds. Timeout returns latest state without cancelling measurement.
+	Wait bool `json:"wait"`
+	// Wall-clock wait limit from 1 to 600 seconds.
+	WaitTimeoutSeconds int `json:"waitTimeoutSeconds"`
+	// Which transport-belt tile of the stretch to measure: first, middle or last in travel order.
+	Sample BeltStretchSample `json:"sample"`
+}
+
+// The stretch snapshot and the measurement started on one of its tiles. The measurement tile is the tile matching sample among the stretch's transport belts.
+type BeltStretchMeasurement struct {
+	Stretch     *BeltStretch               `json:"stretch"`
+	Measurement *BeltThroughputMeasurement `json:"measurement"`
+}
+
+// One belt entity in a stretch, with the engine transport lines it exposes. direction is the engine direction code; lanes are 1-indexed as returned by LuaEntity.get_transport_line.
+type BeltStretchNode struct {
+	Name       string             `json:"name"`
+	Type       string             `json:"type"`
+	Position   *Position          `json:"position"`
+	UnitNumber *string            `json:"unitNumber,omitempty"`
+	Direction  int                `json:"direction"`
+	Lanes      []*BeltStretchLane `json:"lanes"`
+}
+
+// Total in-transit items on one side of a stretch, summed over every belt in it with duplicate line objects of a single entity counted once. mixed is true when at least one belt in the stretch carries more than one prototype or quality combination on that side, which is the lane-contamination signal; different belts carrying different single items do not set it.
+type BeltStretchTotal struct {
+	Side      string            `json:"side"`
+	Items     []*InventoryStack `json:"items"`
+	ItemCount int               `json:"itemCount"`
+	Mixed     bool              `json:"mixed"`
 }
 
 // Take items from one transport belt.
@@ -321,6 +480,7 @@ type BeltThroughputStartInput struct {
 	WaitTimeoutSeconds int `json:"waitTimeoutSeconds"`
 }
 
+// Area bounds match FactoryAreaInput. limit is 1 through 1000 and offset is zero-based. Only type=transport-belt entities are returned; line1 is the left line and line2 the right line relative to each belt's direction.
 type BeltsInput struct {
 	Surface string            `json:"surface"`
 	Area    *FactoryAreaInput `json:"area"`
@@ -418,6 +578,35 @@ type BlueprintTileInput struct {
 	Name string `json:"name"`
 	X    int    `json:"x"`
 	Y    int    `json:"y"`
+}
+
+// Ghost counts are null when no area was given. ghostsBuildable counts ghosts whose placement material is in observed stock in the area, over the first 1000 ghosts.
+type BriefingConstruction struct {
+	Ghosts               *int `json:"ghosts,omitempty"`
+	GhostsBuildable      *int `json:"ghostsBuildable,omitempty"`
+	DeconstructionOrders int  `json:"deconstructionOrders"`
+	UpgradeOrders        int  `json:"upgradeOrders"`
+}
+
+// Sums over every electric network represented by a pole in the scope. productionWatts and consumptionWatts are the engine's one-minute averages.
+type BriefingPower struct {
+	Networks         int     `json:"networks"`
+	ProductionWatts  float64 `json:"productionWatts"`
+	ConsumptionWatts float64 `json:"consumptionWatts"`
+}
+
+type BriefingResearch struct {
+	Enabled           bool     `json:"enabled"`
+	CurrentTechnology *string  `json:"currentTechnology,omitempty"`
+	Progress          *float64 `json:"progress,omitempty"`
+	Queue             []string `json:"queue"`
+}
+
+// One item whose factory-wide stock must stay at or above a minimum.
+type BriefingWatchItemInput struct {
+	Item string `json:"item"`
+	// Stock below this count is a stockout. Defaults to 1, so a missing item is flagged.
+	Minimum float64 `json:"minimum"`
 }
 
 // Area limits are positive and at most 256 tiles per side. limit is 1 through 1000.
@@ -531,9 +720,50 @@ type CharactersInput struct {
 	Offset       int    `json:"offset"`
 }
 
+// One force-visible custom marker in map view.
+type ChartTag struct {
+	TagNumber string        `json:"tagNumber"`
+	Position  *Position     `json:"position"`
+	Text      string        `json:"text"`
+	Icon      *ChartTagIcon `json:"icon,omitempty"`
+}
+
+// Signal icon shown beside a custom chart tag.
+type ChartTagIcon struct {
+	Type    string  `json:"type"`
+	Name    string  `json:"name"`
+	Quality *string `json:"quality,omitempty"`
+}
+
+// Snapshot returned after adding or removing one chart tag.
+type ChartTagMutationResult struct {
+	Tick    float64   `json:"tick"`
+	Surface string    `json:"surface"`
+	Force   string    `json:"force"`
+	Tag     *ChartTag `json:"tag"`
+}
+
+type ChartTagPage struct {
+	Tick     float64     `json:"tick"`
+	Surface  string      `json:"surface"`
+	Force    string      `json:"force"`
+	PageInfo *PageInfo   `json:"pageInfo"`
+	Tags     []*ChartTag `json:"tags"`
+}
+
+// List custom chart tags, optionally restricted to an area. limit is 1 through 1000 and offset is zero-based.
+type ChartTagsInput struct {
+	Surface string            `json:"surface"`
+	Force   string            `json:"force"`
+	Area    *FactoryAreaInput `json:"area,omitempty"`
+	Offset  int               `json:"offset"`
+	Limit   int               `json:"limit"`
+}
+
 type CircuitBehaviorInput struct {
-	Actor                *ActorInput           `json:"actor"`
-	Target               *EntityRefInput       `json:"target"`
+	Actor  *ActorInput     `json:"actor"`
+	Target *EntityRefInput `json:"target"`
+	// Read-only in Factorio 2.0; always rejected. Use circuitEnableDisable with circuitCondition or logisticCondition.
 	Enabled              *bool                 `json:"enabled,omitempty"`
 	CircuitEnableDisable *bool                 `json:"circuitEnableDisable,omitempty"`
 	CircuitCondition     *SignalConditionInput `json:"circuitCondition,omitempty"`
@@ -721,6 +951,22 @@ type ConnectEntitiesInput struct {
 	Item                *string        `json:"item,omitempty"`
 	Bend                ConnectionBend `json:"bend"`
 	AllowFluidAdjacency bool           `json:"allowFluidAdjacency"`
+	// DIRECT (default) or ASTAR; ASTAR supports BELT and PIPE only.
+	Routing ConnectionRouting `json:"routing"`
+	// ASTAR only: allow underground belt or pipe-to-ground spans.
+	AllowUnderground bool `json:"allowUnderground"`
+	// ASTAR only: item for underground halves; defaults to underground-belt for BELT and pipe-to-ground for PIPE and must place an underground-belt or pipe-to-ground entity. Requires allowUnderground.
+	UndergroundItem *string `json:"undergroundItem,omitempty"`
+	// ASTAR only: cap on the offset between underground halves, 2 or more; the effective offset is the smaller of this and the prototype's max underground distance. Requires allowUnderground.
+	MaxUndergroundDistance *int `json:"maxUndergroundDistance,omitempty"`
+	// ASTAR only: areas, each at most 256 tiles per side and at most 20 in total, where no entity may be placed. Underground spans may pass beneath them.
+	AvoidAreas []*FactoryAreaInput `json:"avoidAreas,omitempty"`
+	// ASTAR only: let the route reuse existing same-name entities, cheaper than new tiles. A belt tile is reused only when it already faces the route's direction; reusing a pipe merges fluid networks, so it also needs allowFluidAdjacency. Existing entities at the two endpoints are always usable.
+	PreferExisting bool `json:"preferExisting"`
+	// ASTAR only: search at most this many states, 1 through 50000; default 5000.
+	MaxExpandedTiles *int `json:"maxExpandedTiles,omitempty"`
+	// ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 64; default 12. The padded region may cover at most 16384 tiles.
+	SearchMargin *int `json:"searchMargin,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
@@ -736,8 +982,10 @@ type ConnectEntitiesResult struct {
 	To      *Position      `json:"to"`
 	Bend    ConnectionBend `json:"bend"`
 	// False when the mutation refused to place anything because the plan had conflicts.
-	Possible bool `json:"possible"`
-	Placed   int  `json:"placed"`
+	Possible   bool                 `json:"possible"`
+	Routing    ConnectionRouting    `json:"routing"`
+	StopReason ConnectionStopReason `json:"stopReason"`
+	Placed     int                  `json:"placed"`
 	// Existing tiles that already held the requested entity.
 	Skipped   int                   `json:"skipped"`
 	Failed    int                   `json:"failed"`
@@ -746,6 +994,7 @@ type ConnectEntitiesResult struct {
 	Errors    []*BatchError         `json:"errors"`
 }
 
+// inserter plus the entities it takes from and drops into. pickup/drop are null only when the arm position touches nothing insertable; a wired inserter reports them even while unpowered or idle.
 type ConnectedInserter struct {
 	Inserter *LogisticsEndpoint `json:"inserter"`
 	Pickup   *LogisticsEndpoint `json:"pickup,omitempty"`
@@ -782,8 +1031,18 @@ type ConnectionPlan struct {
 	Bend    ConnectionBend `json:"bend"`
 	// True when no conflict was found and needed entities can be placed.
 	Possible bool `json:"possible"`
-	// Entities that would be placed; excludes existing tiles.
-	Needed    int                   `json:"needed"`
+	// Entities of item that would be placed; excludes existing tiles and underground halves.
+	Needed     int                  `json:"needed"`
+	Routing    ConnectionRouting    `json:"routing"`
+	StopReason ConnectionStopReason `json:"stopReason"`
+	// Item for underground halves; null unless the plan allows underground spans.
+	UndergroundItem *string `json:"undergroundItem,omitempty"`
+	// Underground halves that would be placed.
+	UndergroundNeeded int `json:"undergroundNeeded"`
+	// Total cost of the planned steps; for DIRECT it equals needed.
+	Cost float64 `json:"cost"`
+	// States the search expanded; 0 for DIRECT.
+	Expanded  int                   `json:"expanded"`
 	Steps     []*ConnectionStep     `json:"steps"`
 	Conflicts []*ConnectionConflict `json:"conflicts"`
 }
@@ -801,6 +1060,22 @@ type ConnectionPlanInput struct {
 	Bend ConnectionBend `json:"bend"`
 	// Allow a PIPE run to touch pipes outside the run, which merges their fluid networks and can contaminate either side.
 	AllowFluidAdjacency bool `json:"allowFluidAdjacency"`
+	// DIRECT (default) or ASTAR; ASTAR supports BELT and PIPE only.
+	Routing ConnectionRouting `json:"routing"`
+	// ASTAR only: allow underground belt or pipe-to-ground spans.
+	AllowUnderground bool `json:"allowUnderground"`
+	// ASTAR only: item for underground halves; defaults to underground-belt for BELT and pipe-to-ground for PIPE and must place an underground-belt or pipe-to-ground entity. Requires allowUnderground.
+	UndergroundItem *string `json:"undergroundItem,omitempty"`
+	// ASTAR only: cap on the offset between underground halves, 2 or more; the effective offset is the smaller of this and the prototype's max underground distance. Requires allowUnderground.
+	MaxUndergroundDistance *int `json:"maxUndergroundDistance,omitempty"`
+	// ASTAR only: areas, each at most 256 tiles per side and at most 20 in total, where no entity may be placed. Underground spans may pass beneath them.
+	AvoidAreas []*FactoryAreaInput `json:"avoidAreas,omitempty"`
+	// ASTAR only: let the route reuse existing same-name entities, cheaper than new tiles. A belt tile is reused only when it already faces the route's direction; reusing a pipe merges fluid networks, so it also needs allowFluidAdjacency. Existing entities at the two endpoints are always usable.
+	PreferExisting bool `json:"preferExisting"`
+	// ASTAR only: search at most this many states, 1 through 50000; default 5000.
+	MaxExpandedTiles *int `json:"maxExpandedTiles,omitempty"`
+	// ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 64; default 12. The padded region may cover at most 16384 tiles.
+	SearchMargin *int `json:"searchMargin,omitempty"`
 }
 
 type ConnectionStep struct {
@@ -810,6 +1085,10 @@ type ConnectionStep struct {
 	Direction int `json:"direction"`
 	// The tile already holds the requested entity with the required direction, so nothing is placed or consumed.
 	Existing bool `json:"existing"`
+	// INPUT for the entrance and OUTPUT for the exit of an underground span, which skips the tiles between them; null for ordinary tiles. Underground steps use the plan's undergroundItem.
+	UndergroundType *UndergroundBeltType `json:"undergroundType,omitempty"`
+	// Cost units of this step; see ConnectionRouting.ASTAR.
+	Cost float64 `json:"cost"`
 }
 
 type ConstructionOrder struct {
@@ -955,7 +1234,7 @@ type DeciderCombinatorParametersInput struct {
 
 // Place or cancel deconstruction orders in a bounded area.
 type DeconstructAreaInput struct {
-	// Optional actor; instant mode mines targets as this actor instead of destroying them. With reach enforcement enabled, unreachable targets are destroyed instead.
+	// Optional actor; instant mode mines targets as this actor. Targets it cannot mine (no actor, or reach enforcement rejects them) have their inventories and placement item spilled on the ground first, then the entity is destroyed, so instant removal never voids contents.
 	Actor   *ActorInput       `json:"actor,omitempty"`
 	Surface string            `json:"surface"`
 	Force   *string           `json:"force,omitempty"`
@@ -990,11 +1269,12 @@ type DeconstructionResult struct {
 
 // Drop items from one selected actor at a finite position.
 type DropItemInput struct {
-	Actor    *ActorInput    `json:"actor"`
-	Surface  *string        `json:"surface,omitempty"`
-	Item     string         `json:"item"`
-	Quality  *string        `json:"quality,omitempty"`
-	Count    float64        `json:"count"`
+	Actor   *ActorInput `json:"actor"`
+	Surface *string     `json:"surface,omitempty"`
+	Item    string      `json:"item"`
+	Quality *string     `json:"quality,omitempty"`
+	Count   float64     `json:"count"`
+	// Snapped to the containing tile's center before the drop.
 	Position *PositionInput `json:"position"`
 	Target   DropTarget     `json:"target"`
 	// Print this text in-game to all connected players instead of the generated notification.
@@ -1095,6 +1375,8 @@ type EntityInspection struct {
 	Logistics           *InspectionLogistics  `json:"logistics"`
 	// Engine unit number of the inspected entity, when it has one.
 	UnitNumber *string `json:"unitNumber,omitempty"`
+	// Engine direction code, when the entity exposes one. 0 north, 4 east, 8 south, 12 west; inserts and machinery may use the full 0-15 range.
+	Direction *int `json:"direction,omitempty"`
 	// Typed arithmetic or decider combinator parameters; null for other entities.
 	CombinatorParameters *CombinatorParameters `json:"combinatorParameters,omitempty"`
 	// Unmodified JSON encoding of engine parameters for unsupported parameter-bearing entities.
@@ -1241,6 +1523,45 @@ type FactoryAreaInput struct {
 	LeftTopY     float64 `json:"leftTopY"`
 	RightBottomX float64 `json:"rightBottomX"`
 	RightBottomY float64 `json:"rightBottomY"`
+}
+
+type FactoryBriefing struct {
+	Surface          string           `json:"surface"`
+	Force            string           `json:"force"`
+	Window           ProductionWindow `json:"window"`
+	ProductionTick   float64          `json:"productionTick"`
+	MachineTick      float64          `json:"machineTick"`
+	PowerTick        float64          `json:"powerTick"`
+	ResearchTick     float64          `json:"researchTick"`
+	ConstructionTick float64          `json:"constructionTick"`
+	SafetyTick       float64          `json:"safetyTick"`
+	// Null when no watchItems were supplied.
+	StockTick  *float64          `json:"stockTick,omitempty"`
+	Production []*ProductionItem `json:"production"`
+	Machines   []*MachineSummary `json:"machines"`
+	// Highest severity first, then by kind, position and name; cut to attentionLimit.
+	Attention []*AttentionItem `json:"attention"`
+	// Attention items found before the attentionLimit cut.
+	AttentionTotal  int                   `json:"attentionTotal"`
+	AttentionCounts []*AttentionCount     `json:"attentionCounts"`
+	Research        *BriefingResearch     `json:"research"`
+	Power           *BriefingPower        `json:"power"`
+	Construction    *BriefingConstruction `json:"construction"`
+	Stockouts       []*Stockout           `json:"stockouts"`
+	// Skipped sections and bounded scans that may hide data; empty when the briefing is complete.
+	Warnings []string `json:"warnings"`
+}
+
+// Surface and force must name existing objects. area, when given, must have positive dimensions of at most 256 tiles per side and bounds machines, power networks, safety, ghosts, construction orders and stock; omit it to scan the whole surface (ghosts are then skipped). attentionLimit is 1 through 100. watchItems holds at most 20 distinct items.
+type FactoryBriefingInput struct {
+	Surface        string                    `json:"surface"`
+	Force          string                    `json:"force"`
+	Area           *FactoryAreaInput         `json:"area,omitempty"`
+	Window         ProductionWindow          `json:"window"`
+	WatchItems     []*BriefingWatchItemInput `json:"watchItems,omitempty"`
+	AttentionLimit int                       `json:"attentionLimit"`
+	// Optional actor whose main inventory count is reported beside each stockout.
+	Actor *ActorInput `json:"actor,omitempty"`
 }
 
 // All supported selected-force nodes intersecting area, without pagination or silent omission. Supported machines: assembling machines, furnaces, drills, labs, rocket silos. Chests include logistic, linked, and infinity containers. Inserters also include outside-area and other-force inserters whose actual target is a returned node. Edges include physical belt, loader/container, and inserter pickup/drop connections. boundaryEdges are the subset crossing the returned node set, including force boundaries; endpoints remain fully identified. No adjacency guessing or rate estimates.
@@ -1452,6 +1773,45 @@ type FuelInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
+type FuelManyInput struct {
+	Actor *ActorInput `json:"actor"`
+	// 1 through 200 distinct entity references.
+	Targets []*EntityRefInput `json:"targets"`
+	Item    string            `json:"item"`
+	// Item quality prototype name; defaults to normal.
+	Quality *string `json:"quality,omitempty"`
+	// Whole items per target, at least 1.
+	CountPerTarget int `json:"countPerTarget"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type FuelManyResult struct {
+	Tick    float64        `json:"tick"`
+	Actor   *ActorIdentity `json:"actor"`
+	Item    string         `json:"item"`
+	Quality string         `json:"quality"`
+	// Targets that received fuel.
+	Fueled int `json:"fueled"`
+	// Targets that failed; every failure appears in errors up to its cap.
+	Failed int `json:"failed"`
+	// Items removed from the actor and inserted into targets.
+	Moved   int                 `json:"moved"`
+	Results []*FuelTargetResult `json:"results"`
+	// Typed failures with one-based index and target identity; at most the first 20 are listed.
+	Errors []*BatchError `json:"errors"`
+}
+
+// Outcome for one target that was reached. index is one-based in input order.
+type FuelTargetResult struct {
+	Index      int       `json:"index"`
+	Entity     string    `json:"entity"`
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Position   *Position `json:"position"`
+	Requested  int       `json:"requested"`
+	Moved      int       `json:"moved"`
+}
+
 // speed must be between 0.1 and 1000. paused omitted keeps the current pause state.
 type GameSpeedInput struct {
 	Speed  float64 `json:"speed"`
@@ -1579,6 +1939,10 @@ type InserterSettings struct {
 	StackSizeOverride int `json:"stackSizeOverride"`
 	// Engine active state, including script, circuit, recipe, freezing and deconstruction disabling.
 	Active bool `json:"active"`
+	// Whether the inserter may take from the left lane of a belt source. Both flags false is a common reason a full belt still reports waiting_for_source_items.
+	PickupFromLeftLane bool `json:"pickupFromLeftLane"`
+	// Whether the inserter may take from the right lane of a belt source.
+	PickupFromRightLane bool `json:"pickupFromRightLane"`
 	// Null when no control behavior exists. Reading never creates one.
 	Circuit *InserterCircuitSettings `json:"circuit,omitempty"`
 }
@@ -1592,6 +1956,10 @@ type InserterSettingsInput struct {
 	FilterMode *string `json:"filterMode,omitempty"`
 	// Stack size override; 0 restores automatic.
 	StackSizeOverride *int `json:"stackSizeOverride,omitempty"`
+	// Allow or forbid taking from the left lane of a belt source. Disabling both lane flags makes a full belt unusable for the inserter.
+	PickupFromLeftLane *bool `json:"pickupFromLeftLane,omitempty"`
+	// Allow or forbid taking from the right lane of a belt source.
+	PickupFromRightLane *bool `json:"pickupFromRightLane,omitempty"`
 	// Clear every filter slot and reset the mode and stack size override.
 	Clear *bool `json:"clear,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
@@ -1610,7 +1978,7 @@ type InspectInput struct {
 	Target *EntityRefInput `json:"target"`
 }
 
-// Inserters whose actual pickup or drop target is the inspected entity, read in a separate game snapshot.
+// Inserters whose actual pickup or drop target is the inspected entity, read in a separate game snapshot. Targets fall back to the entity under the arm's geometric pickup/drop position when the engine target is null, so wiring stays visible for inserters that have not run since placement or power loss.
 type InspectionLogistics struct {
 	Tick      float64              `json:"tick"`
 	Inserters []*ConnectedInserter `json:"inserters"`
@@ -1785,6 +2153,37 @@ type LampSettingsInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// One item prototype and quality in a network. Physical stock is read from chest inventories; request numbers come from compiled requester-chest filters; robot cargo is read from deployed logistic robots.
+type LogisticItemStat struct {
+	Name string `json:"name"`
+	// Null when the row aggregates a quality-any filter (for example "greater than normal").
+	Quality *string `json:"quality,omitempty"`
+	// Physical stock in provider, buffer and storage chests, summed from chest inventories. Robot hands and requester chests are excluded.
+	Stored                 float64 `json:"stored"`
+	StoredPassiveProviders float64 `json:"storedPassiveProviders"`
+	StoredActiveProviders  float64 `json:"storedActiveProviders"`
+	StoredBuffers          float64 `json:"storedBuffers"`
+	StoredStorage          float64 `json:"storedStorage"`
+	// Engine network contents for this item. Provider contents subtract items committed to robot pickup, so an over-committed row can be negative; physical stock is `stored`.
+	Available float64 `json:"available"`
+	// Sum of requester-chest request maximums. Slots with no maximum contribute only to `unlimitedRequests`.
+	Requested float64 `json:"requested"`
+	// Sum of requester-chest request minimums (the threshold that triggers replenishment).
+	RequestedMinimum float64 `json:"requestedMinimum"`
+	// Requester-chest slots with no maximum request.
+	UnlimitedRequests int `json:"unlimitedRequests"`
+	// Items already inside requester chests toward their targets.
+	Delivered float64 `json:"delivered"`
+	// Items carried by deployed logistic robots of this network.
+	InFlight float64 `json:"inFlight"`
+	// Items robots are committed to drop into requester chests but are not carrying yet.
+	Incoming float64 `json:"incoming"`
+	// Items robots are committed to pick up from providers or storage but are not carrying yet.
+	TargetedPickup float64 `json:"targetedPickup"`
+	// max(0, requested - delivered - inFlight - incoming). Non-zero means chest demand is not covered by delivered, carried, or committed deliveries; compare with `stored` and `targetedPickup` to separate supply shortage from robot backlog.
+	Missing float64 `json:"missing"`
+}
+
 type LogisticNetworkInfo struct {
 	ID                 string            `json:"id"`
 	Force              string            `json:"force"`
@@ -1795,6 +2194,19 @@ type LogisticNetworkInfo struct {
 	Contents           []*InventoryStack `json:"contents"`
 	RequesterPoints    int               `json:"requesterPoints"`
 	ProviderPoints     int               `json:"providerPoints"`
+	// Engine custom network name, null when unnamed.
+	CustomName *string `json:"customName,omitempty"`
+	// Engine maximum number of robots for this network; sandbox maps report 4294967295 for unlimited.
+	RobotLimit float64 `json:"robotLimit"`
+	// Logistic robots currently deployed outside roboports (flying or charging).
+	DeployedLogisticRobots int `json:"deployedLogisticRobots"`
+	// Deployed logistic robots currently carrying an item.
+	CarryingLogisticRobots int `json:"carryingLogisticRobots"`
+	// Point counts by role. Roboport provider points are counted once as roboports; character personal-logistics requester points are counted separately because item stats exclude them.
+	Points *LogisticPointBreakdown `json:"points"`
+	// Per-item network stats, one row per item prototype and quality. Scope is logistic chests: requester, buffer, passive/active provider and storage chests. Character personal logistics and roboport robot inventories are excluded.
+	Items        []*LogisticItemStat `json:"items"`
+	ItemPageInfo *PageInfo           `json:"itemPageInfo"`
 }
 
 type LogisticNetworkPage struct {
@@ -1813,6 +2225,22 @@ type LogisticNetworksInput struct {
 	NetworkID *string `json:"networkId,omitempty"`
 	Limit     int     `json:"limit"`
 	Offset    int     `json:"offset"`
+	// Include per-item stock, request, robot-cargo and shortfall stats. Set false for a cheaper robots-and-points read.
+	IncludeItemStats bool `json:"includeItemStats"`
+	// Maximum item rows per network, 1 through 1000. Rows are ordered by item name, then quality.
+	ItemsLimit  int `json:"itemsLimit"`
+	ItemsOffset int `json:"itemsOffset"`
+}
+
+type LogisticPointBreakdown struct {
+	Roboports              int `json:"roboports"`
+	RequesterChests        int `json:"requesterChests"`
+	BufferChests           int `json:"bufferChests"`
+	PassiveProviderChests  int `json:"passiveProviderChests"`
+	ActiveProviderChests   int `json:"activeProviderChests"`
+	StorageChests          int `json:"storageChests"`
+	CharacterRequestPoints int `json:"characterRequestPoints"`
+	Other                  int `json:"other"`
 }
 
 type LogisticRequestInput struct {
@@ -1859,13 +2287,14 @@ type LogisticSettings struct {
 	Sections []*LogisticSection `json:"sections"`
 }
 
-// An inserter or its actual target; lanes are populated for transport belts.
+// One inserter, machine, container or belt endpoint. direction is the engine direction code for entities that expose one; lanes carry transport-line names and sides for belt-like entities.
 type LogisticsEndpoint struct {
 	Name           string          `json:"name"`
 	Type           string          `json:"type"`
 	Position       *Position       `json:"position"`
 	UnitNumber     *string         `json:"unitNumber,omitempty"`
 	Status         *string         `json:"status,omitempty"`
+	Direction      *int            `json:"direction,omitempty"`
 	PickupPosition *Position       `json:"pickupPosition,omitempty"`
 	DropPosition   *Position       `json:"dropPosition,omitempty"`
 	HeldStack      *InventoryStack `json:"heldStack,omitempty"`
@@ -2045,7 +2474,7 @@ type MissingSciencePack struct {
 type Mutation struct {
 }
 
-// Destination and limits for navigation of a detached character or connected player's current character. Provide exactly one of finite x and y, targetCharacter, or targetEntity. With targetCharacter the destination follows that character's current position, so the walker chases it; tolerance must then be at least 1 because characters collide. With targetEntity the character walks to the nearest point on the entity's bounding box expanded by tolerance, which suits chests, assembling machines, inserters, and other static entities.
+// Destination and limits for navigation of a detached character or connected player's current character. Provide exactly one of finite x and y, targetCharacter, or targetEntity. With targetCharacter the destination follows that character's current position, so the walker chases it; tolerance must then be at least 1 because characters collide. Chase goals are probed on rings of eight points starting at the tolerance radius, so a target standing inside a chest or inserter row is still reachable; only exhausting every candidate reports NO_PATH. With targetEntity the character walks to the nearest point on the entity's bounding box expanded by tolerance, which suits chests, assembling machines, inserters, and other static entities.
 type NavigateStartInput struct {
 	// Actor whose character moves. Player selectors resolve current character before starting.
 	Actor *ActorInput `json:"actor"`
@@ -2117,6 +2546,25 @@ type NearbyInput struct {
 	Limit    *int           `json:"limit,omitempty"`
 }
 
+// Surface, force and prototype must exist. direction is 0 through 15. maxRadius is greater than 0 and at most 64 tiles, measured from origin to the candidate center. minDistanceFromEntities is 0 through 16 tiles of clear space between the footprint and any built entity or ghost of any force; natural entities (resources, trees, rocks, cliffs), characters, corpses and items never count.
+type NearestPlacementInput struct {
+	Surface   string         `json:"surface"`
+	Force     string         `json:"force"`
+	Prototype string         `json:"prototype"`
+	Direction int            `json:"direction"`
+	Origin    *PositionInput `json:"origin"`
+	MaxRadius float64        `json:"maxRadius"`
+	// Reject footprints that overlap a resource entity.
+	AvoidResources bool `json:"avoidResources"`
+	// Reject footprints that overlap a water tile.
+	AvoidWater              bool     `json:"avoidWater"`
+	MinDistanceFromEntities *float64 `json:"minDistanceFromEntities,omitempty"`
+	// Require the footprint to touch the supply area of an electric pole of the force.
+	RequirePowerCoverage bool `json:"requirePowerCoverage"`
+	// Require a water tile within one tile of the footprint.
+	RequireWaterAdjacency bool `json:"requireWaterAdjacency"`
+}
+
 // Stable pagination metadata. offset is zero-based; hasMore means another item exists after this page.
 type PageInfo struct {
 	Total   int  `json:"total"`
@@ -2171,6 +2619,8 @@ type PlaceInput struct {
 	Position  *PositionInput `json:"position"`
 	Item      string         `json:"item"`
 	Direction int            `json:"direction"`
+	// Underground belt half to create. An underground-belt item needs one INPUT and one OUTPUT half placed in the same call or script tick to pair; without it both halves are created as inputs and never connect.
+	UndergroundType *UndergroundBeltType `json:"undergroundType,omitempty"`
 	// Item quality prototype name; defaults to normal.
 	Quality *string `json:"quality,omitempty"`
 	// Replace a fast-replaceable entity at the target instead of failing on the collision.
@@ -2273,11 +2723,34 @@ type PlacementBlockedTile struct {
 	Tile     string    `json:"tile"`
 }
 
+type PlacementCandidate struct {
+	Tick      float64 `json:"tick"`
+	Surface   string  `json:"surface"`
+	Force     string  `json:"force"`
+	Prototype string  `json:"prototype"`
+	Direction int     `json:"direction"`
+	Found     bool    `json:"found"`
+	// Center of the nearest legal placement; null when none was found.
+	Position *Position `json:"position,omitempty"`
+	// Euclidean distance from origin to position; null when none was found.
+	Distance *float64 `json:"distance,omitempty"`
+	// Prototype names colliding with the snapped origin, sorted; empty when the engine accepts the origin.
+	Blockers []string `json:"blockers"`
+	// True when the ground tile under the snapped origin itself blocks the prototype.
+	Terrain bool `json:"terrain"`
+	// Ground tile name under the snapped origin.
+	Tile string `json:"tile"`
+	// Candidates evaluated, including the winner.
+	Expanded int `json:"expanded"`
+}
+
 // One placement position with canonical engine direction from 0 through 15.
 type PlacementInput struct {
 	Position    *PositionInput `json:"position"`
 	Direction   int            `json:"direction"`
 	FastReplace *bool          `json:"fastReplace,omitempty"`
+	// Underground belt half to create. An underground-belt pair must be placed with one INPUT and one OUTPUT half in the same call, otherwise both default to INPUT and never connect.
+	UndergroundType *UndergroundBeltType `json:"undergroundType,omitempty"`
 }
 
 // Surface, force and prototype must be non-empty and exist; direction must be between 0 and 15. Area bounds match WorldResourcesInput, but the sampled tile count may not exceed 16384. mode selects which result list is filled (BLOCKED_TILES -> blockedTiles, GRID -> rows, SITES -> sites); siteWidth/siteHeight/maxSites only affect SITES and are tile counts from 1 to the area dimensions, maxSites 1 through 200.
@@ -2441,6 +2914,14 @@ type PowerInsightsInput struct {
 	Limit int `json:"limit"`
 	// Zero-based, non-negative page offset.
 	Offset int `json:"offset"`
+	// powerConsumers only: exact Factorio entity status name such as no_power; unknown names are an error. electricNetworks rejects it.
+	Status *string `json:"status,omitempty"`
+	// powerConsumers only: keep entities whose connectedToProducingNetwork equals this value. Entities where the predicate does not apply (null) never match. electricNetworks rejects it.
+	ConnectedToProducingNetwork *bool `json:"connectedToProducingNetwork,omitempty"`
+	// Keep one electric network by its positive engine id. For powerConsumers it matches the entity's networkId; entities without a network never match. For electricNetworks it keeps that single network.
+	NetworkID *string `json:"networkId,omitempty"`
+	// powerConsumers only: keep entities that report no_power, low_power, not_plugged_in_electric_network or not_connected_to_electric_network, or whose connectedToProducingNetwork is false. Default false leaves behavior unchanged. electricNetworks rejects true.
+	OnlyIssues bool `json:"onlyIssues"`
 }
 
 type ProductionCount struct {
@@ -2530,6 +3011,15 @@ type RecipeProduct struct {
 	AmountMax   *float64 `json:"amountMax,omitempty"`
 	Temperature *float64 `json:"temperature,omitempty"`
 	Quality     *string  `json:"quality,omitempty"`
+}
+
+// Remove a custom chart tag by its force-unique tag number.
+type RemoveChartTagInput struct {
+	Surface   string `json:"surface"`
+	Force     string `json:"force"`
+	TagNumber string `json:"tagNumber"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
 }
 
 // Mine one entity and recover its contents.
@@ -2856,6 +3346,37 @@ type SciencePackBudget struct {
 	UnsupportedLabCount int     `json:"unsupportedLabCount"`
 }
 
+// Native screenshot settings. Output path is generated by server and cannot be supplied by caller.
+type ScreenshotInput struct {
+	// Connected graphical player used for both screenshot viewpoint and client-side rendering delegation.
+	Player         string         `json:"player"`
+	Surface        string         `json:"surface"`
+	Position       *PositionInput `json:"position"`
+	Width          int            `json:"width"`
+	Height         int            `json:"height"`
+	Zoom           float64        `json:"zoom"`
+	ShowGui        bool           `json:"showGui"`
+	ShowEntityInfo bool           `json:"showEntityInfo"`
+	AntiAlias      bool           `json:"antiAlias"`
+	HideClouds     bool           `json:"hideClouds"`
+	HideFog        bool           `json:"hideFog"`
+	Daytime        *float64       `json:"daytime,omitempty"`
+	WaterTick      *int           `json:"waterTick,omitempty"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type ScreenshotResult struct {
+	Tick    float64 `json:"tick"`
+	Surface string  `json:"surface"`
+	Player  string  `json:"player"`
+	// Path relative to the graphical client's script-output directory.
+	Path   string `json:"path"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+	Bytes  int    `json:"bytes"`
+}
+
 type ServerResult struct {
 	Response string `json:"response"`
 }
@@ -3014,6 +3535,8 @@ type StockInput struct {
 	Area *FactoryAreaInput `json:"area,omitempty"`
 	// Exact non-empty item name, if supplied.
 	Item *string `json:"item,omitempty"`
+	// Exact stock category; omit to include every category.
+	Category *StockCategory `json:"category,omitempty"`
 	// Location page size from 1 through 1000.
 	Limit int `json:"limit"`
 	// Zero-based, non-negative location offset.
@@ -3022,10 +3545,21 @@ type StockInput struct {
 	TotalsLimit int `json:"totalsLimit"`
 	// Zero-based, non-negative totals offset.
 	TotalsOffset int `json:"totalsOffset"`
+	// Items page size from 1 through 1000, independent of the other pages.
+	ItemsLimit int `json:"itemsLimit"`
+	// Zero-based, non-negative items offset.
+	ItemsOffset int `json:"itemsOffset"`
+}
+
+// Item and quality quantity summed across every stock category. Not a global factory total: the inventory scope is the one in the stock description.
+type StockItemTotal struct {
+	Item    string  `json:"item"`
+	Quality string  `json:"quality"`
+	Count   float64 `json:"count"`
 }
 
 type StockLocation struct {
-	// stored, in-transit, or player.
+	// stored, in-transit, ground, or player.
 	Category   string    `json:"category"`
 	EntityName string    `json:"entityName"`
 	EntityType string    `json:"entityType"`
@@ -3044,6 +3578,9 @@ type StockPage struct {
 	Locations        []*StockLocation `json:"locations"`
 	TotalPageInfo    *PageInfo        `json:"totalPageInfo"`
 	Totals           []*StockTotal    `json:"totals"`
+	ItemPageInfo     *PageInfo        `json:"itemPageInfo"`
+	// One row per item and quality, summed across every category in the active filter.
+	Items []*StockItemTotal `json:"items"`
 }
 
 type StockStack struct {
@@ -3057,6 +3594,15 @@ type StockTotal struct {
 	Quality  string  `json:"quality"`
 	Category string  `json:"category"`
 	Count    float64 `json:"count"`
+}
+
+// A watched item whose observed factory stock is below its minimum. actorHas is null unless an actor was given.
+type Stockout struct {
+	Item      string   `json:"item"`
+	Minimum   float64  `json:"minimum"`
+	Have      float64  `json:"have"`
+	Shortfall float64  `json:"shortfall"`
+	ActorHas  *float64 `json:"actorHas,omitempty"`
 }
 
 type SurfaceInfo struct {
@@ -3200,6 +3746,49 @@ type TransferInput struct {
 	Count   float64 `json:"count"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
+}
+
+type TransferManyInput struct {
+	Actor *ActorInput `json:"actor"`
+	// 1 through 200 distinct entity references.
+	Targets   []*EntityRefInput `json:"targets"`
+	Inventory InventoryKind     `json:"inventory"`
+	Direction TransferDirection `json:"direction"`
+	Item      string            `json:"item"`
+	// Item quality prototype name; defaults to normal.
+	Quality *string `json:"quality,omitempty"`
+	// Whole items requested per target, from 1 through 4294967295.
+	CountPerTarget float64 `json:"countPerTarget"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type TransferManyResult struct {
+	Tick      float64           `json:"tick"`
+	Actor     *ActorIdentity    `json:"actor"`
+	Inventory InventoryKind     `json:"inventory"`
+	Direction TransferDirection `json:"direction"`
+	Item      string            `json:"item"`
+	Quality   string            `json:"quality"`
+	// Items moved across every target.
+	Moved float64 `json:"moved"`
+	// Source stack moves that transferred at least one item.
+	TransferredStacks int                     `json:"transferredStacks"`
+	Failed            int                     `json:"failed"`
+	Results           []*TransferTargetResult `json:"results"`
+	Errors            []*BatchError           `json:"errors"`
+}
+
+// Outcome for one target that was reached. moved can be below requested without an error.
+type TransferTargetResult struct {
+	Index      int       `json:"index"`
+	Entity     string    `json:"entity"`
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Position   *Position `json:"position"`
+	Requested  float64   `json:"requested"`
+	Available  float64   `json:"available"`
+	Capacity   float64   `json:"capacity"`
+	Moved      float64   `json:"moved"`
 }
 
 type TransportLine struct {
@@ -3361,9 +3950,12 @@ type WorldInventory struct {
 	Items []*InventoryStack `json:"items"`
 }
 
+// One transport line of a belt-like entity. lineName is the engine defines.transport_line name (for example left_line, right_line, secondary_left_line on an underground belt, or a splitter line) and side is left, right, or unknown when the name is unrecognised. Indexes are 1-based and per entity type: 2 for a transport belt, 4 for an underground belt (surface plus tunnel lines), 8 for a splitter.
 type WorldLane struct {
-	Index int               `json:"index"`
-	Items []*InventoryStack `json:"items"`
+	Index    int               `json:"index"`
+	LineName string            `json:"lineName"`
+	Side     string            `json:"side"`
+	Items    []*InventoryStack `json:"items"`
 }
 
 type WorldLogisticsEntity struct {
@@ -3461,6 +4053,139 @@ type WorldResourcesPage struct {
 	WaterTotal    int                   `json:"waterTotal"`
 	WorldEntries  []*WorldResourceEntry `json:"worldEntries"`
 	Patches       []*ResourcePatch      `json:"patches"`
+}
+
+type AttentionKind string
+
+const (
+	AttentionKindNoFuel         AttentionKind = "NO_FUEL"
+	AttentionKindNoPower        AttentionKind = "NO_POWER"
+	AttentionKindNoIngredients  AttentionKind = "NO_INGREDIENTS"
+	AttentionKindOutputFull     AttentionKind = "OUTPUT_FULL"
+	AttentionKindNoRecipe       AttentionKind = "NO_RECIPE"
+	AttentionKindNoResearch     AttentionKind = "NO_RESEARCH"
+	AttentionKindEnemy          AttentionKind = "ENEMY"
+	AttentionKindDamaged        AttentionKind = "DAMAGED"
+	AttentionKindGhostBacklog   AttentionKind = "GHOST_BACKLOG"
+	AttentionKindDeconstruction AttentionKind = "DECONSTRUCTION"
+	AttentionKindLowStock       AttentionKind = "LOW_STOCK"
+	AttentionKindFluidShortage  AttentionKind = "FLUID_SHORTAGE"
+)
+
+var AllAttentionKind = []AttentionKind{
+	AttentionKindNoFuel,
+	AttentionKindNoPower,
+	AttentionKindNoIngredients,
+	AttentionKindOutputFull,
+	AttentionKindNoRecipe,
+	AttentionKindNoResearch,
+	AttentionKindEnemy,
+	AttentionKindDamaged,
+	AttentionKindGhostBacklog,
+	AttentionKindDeconstruction,
+	AttentionKindLowStock,
+	AttentionKindFluidShortage,
+}
+
+func (e AttentionKind) IsValid() bool {
+	switch e {
+	case AttentionKindNoFuel, AttentionKindNoPower, AttentionKindNoIngredients, AttentionKindOutputFull, AttentionKindNoRecipe, AttentionKindNoResearch, AttentionKindEnemy, AttentionKindDamaged, AttentionKindGhostBacklog, AttentionKindDeconstruction, AttentionKindLowStock, AttentionKindFluidShortage:
+		return true
+	}
+	return false
+}
+
+func (e AttentionKind) String() string {
+	return string(e)
+}
+
+func (e *AttentionKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AttentionKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AttentionKind", str)
+	}
+	return nil
+}
+
+func (e AttentionKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AttentionKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AttentionKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Classification of an attention kind, not a recommended action: CRITICAL stops output or threatens loss, WARNING degrades it, INFO is queued work.
+type AttentionSeverity string
+
+const (
+	AttentionSeverityCritical AttentionSeverity = "CRITICAL"
+	AttentionSeverityWarning  AttentionSeverity = "WARNING"
+	AttentionSeverityInfo     AttentionSeverity = "INFO"
+)
+
+var AllAttentionSeverity = []AttentionSeverity{
+	AttentionSeverityCritical,
+	AttentionSeverityWarning,
+	AttentionSeverityInfo,
+}
+
+func (e AttentionSeverity) IsValid() bool {
+	switch e {
+	case AttentionSeverityCritical, AttentionSeverityWarning, AttentionSeverityInfo:
+		return true
+	}
+	return false
+}
+
+func (e AttentionSeverity) String() string {
+	return string(e)
+}
+
+func (e *AttentionSeverity) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AttentionSeverity(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AttentionSeverity", str)
+	}
+	return nil
+}
+
+func (e AttentionSeverity) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AttentionSeverity) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AttentionSeverity) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type BOMStockSource string
@@ -3578,6 +4303,133 @@ func (e *BatchErrorCode) UnmarshalJSON(b []byte) error {
 }
 
 func (e BatchErrorCode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Why a boundary end is or is not a gap. Only forward boundaries are classified; the lookahead is 8 tiles.
+type BeltEndReason string
+
+const (
+	// Merge, split, loop, truncation, a backward boundary (where a line naturally begins), or a last entity this classification does not model (splitter, loader, linked belt).
+	BeltEndReasonNotApplicable BeltEndReason = "NOT_APPLICABLE"
+	// Forward boundary with no aligned belt within the lookahead, such as a run that ends beside its last inserter or in front of a machine.
+	BeltEndReasonNaturalEnd BeltEndReason = "NATURAL_END"
+	// The expected tile is empty and an aligned belt continues within the lookahead, so a belt tile is missing.
+	BeltEndReasonMissingBelt BeltEndReason = "MISSING_BELT"
+	// A non-belt entity occupies a tile between the stretch and an aligned belt that continues within the lookahead.
+	BeltEndReasonBlocked BeltEndReason = "BLOCKED"
+	// The next tile holds a belt facing the stretch, which can never connect.
+	BeltEndReasonHeadOn BeltEndReason = "HEAD_ON"
+	// The stretch ends in an underground entrance that has no exit partner.
+	BeltEndReasonUnpairedUnderground BeltEndReason = "UNPAIRED_UNDERGROUND"
+)
+
+var AllBeltEndReason = []BeltEndReason{
+	BeltEndReasonNotApplicable,
+	BeltEndReasonNaturalEnd,
+	BeltEndReasonMissingBelt,
+	BeltEndReasonBlocked,
+	BeltEndReasonHeadOn,
+	BeltEndReasonUnpairedUnderground,
+}
+
+func (e BeltEndReason) IsValid() bool {
+	switch e {
+	case BeltEndReasonNotApplicable, BeltEndReasonNaturalEnd, BeltEndReasonMissingBelt, BeltEndReasonBlocked, BeltEndReasonHeadOn, BeltEndReasonUnpairedUnderground:
+		return true
+	}
+	return false
+}
+
+func (e BeltEndReason) String() string {
+	return string(e)
+}
+
+func (e *BeltEndReason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BeltEndReason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BeltEndReason", str)
+	}
+	return nil
+}
+
+func (e BeltEndReason) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BeltEndReason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BeltEndReason) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BeltStretchSample string
+
+const (
+	BeltStretchSampleFirst  BeltStretchSample = "FIRST"
+	BeltStretchSampleMiddle BeltStretchSample = "MIDDLE"
+	BeltStretchSampleLast   BeltStretchSample = "LAST"
+)
+
+var AllBeltStretchSample = []BeltStretchSample{
+	BeltStretchSampleFirst,
+	BeltStretchSampleMiddle,
+	BeltStretchSampleLast,
+}
+
+func (e BeltStretchSample) IsValid() bool {
+	switch e {
+	case BeltStretchSampleFirst, BeltStretchSampleMiddle, BeltStretchSampleLast:
+		return true
+	}
+	return false
+}
+
+func (e BeltStretchSample) String() string {
+	return string(e)
+}
+
+func (e *BeltStretchSample) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BeltStretchSample(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BeltStretchSample", str)
+	}
+	return nil
+}
+
+func (e BeltStretchSample) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BeltStretchSample) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BeltStretchSample) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -3703,6 +4555,10 @@ func (e ConnectionBend) MarshalJSON() ([]byte, error) {
 type ConnectionConflictKind string
 
 const (
+	// ASTAR exhausted the search region without reaching the goal.
+	ConnectionConflictKindNoPath ConnectionConflictKind = "NO_PATH"
+	// ASTAR hit maxExpandedTiles before reaching the goal.
+	ConnectionConflictKindExpansionLimit ConnectionConflictKind = "EXPANSION_LIMIT"
 	// The tile refuses the entity; blockers lists colliding prototypes.
 	ConnectionConflictKindCollision ConnectionConflictKind = "COLLISION"
 	// A same-name entity sits on the tile but faces another direction.
@@ -3722,6 +4578,8 @@ const (
 )
 
 var AllConnectionConflictKind = []ConnectionConflictKind{
+	ConnectionConflictKindNoPath,
+	ConnectionConflictKindExpansionLimit,
 	ConnectionConflictKindCollision,
 	ConnectionConflictKindDirectionMismatch,
 	ConnectionConflictKindFluidAdjacency,
@@ -3734,7 +4592,7 @@ var AllConnectionConflictKind = []ConnectionConflictKind{
 
 func (e ConnectionConflictKind) IsValid() bool {
 	switch e {
-	case ConnectionConflictKindCollision, ConnectionConflictKindDirectionMismatch, ConnectionConflictKindFluidAdjacency, ConnectionConflictKindPrototype, ConnectionConflictKindKindMismatch, ConnectionConflictKindReach, ConnectionConflictKindInventory, ConnectionConflictKindEngine:
+	case ConnectionConflictKindNoPath, ConnectionConflictKindExpansionLimit, ConnectionConflictKindCollision, ConnectionConflictKindDirectionMismatch, ConnectionConflictKindFluidAdjacency, ConnectionConflictKindPrototype, ConnectionConflictKindKindMismatch, ConnectionConflictKindReach, ConnectionConflictKindInventory, ConnectionConflictKindEngine:
 		return true
 	}
 	return false
@@ -3830,6 +4688,131 @@ func (e *ConnectionKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e ConnectionKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// How the route between the endpoints is chosen.
+type ConnectionRouting string
+
+const (
+	// One straight or single-bend run; supports BELT, PIPE and POWER_POLE_CHAIN.
+	ConnectionRoutingDirect ConnectionRouting = "DIRECT"
+	// Bounded A* search for BELT and PIPE. Step costs: 1 per new tile, 0.25 per reused existing tile, 0.25 per bend, 2 per underground half. Underground belts pair at an offset of at most the prototype's max underground distance; spans may pass under any entity except another underground belt, linked belt or pipe-to-ground.
+	ConnectionRoutingAstar ConnectionRouting = "ASTAR"
+)
+
+var AllConnectionRouting = []ConnectionRouting{
+	ConnectionRoutingDirect,
+	ConnectionRoutingAstar,
+}
+
+func (e ConnectionRouting) IsValid() bool {
+	switch e {
+	case ConnectionRoutingDirect, ConnectionRoutingAstar:
+		return true
+	}
+	return false
+}
+
+func (e ConnectionRouting) String() string {
+	return string(e)
+}
+
+func (e *ConnectionRouting) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConnectionRouting(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConnectionRouting", str)
+	}
+	return nil
+}
+
+func (e ConnectionRouting) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConnectionRouting) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConnectionRouting) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Why planning stopped.
+type ConnectionStopReason string
+
+const (
+	// DIRECT routing planned its fixed route.
+	ConnectionStopReasonDirect ConnectionStopReason = "DIRECT"
+	// ASTAR found a route.
+	ConnectionStopReasonFound ConnectionStopReason = "FOUND"
+	// ASTAR exhausted every reachable state inside the search region.
+	ConnectionStopReasonNoPath ConnectionStopReason = "NO_PATH"
+	// ASTAR hit maxExpandedTiles before reaching the goal; a larger limit or margin may succeed.
+	ConnectionStopReasonExpansionLimit ConnectionStopReason = "EXPANSION_LIMIT"
+	// An endpoint tile cannot hold the entity, so no route was searched.
+	ConnectionStopReasonEndpointBlocked ConnectionStopReason = "ENDPOINT_BLOCKED"
+)
+
+var AllConnectionStopReason = []ConnectionStopReason{
+	ConnectionStopReasonDirect,
+	ConnectionStopReasonFound,
+	ConnectionStopReasonNoPath,
+	ConnectionStopReasonExpansionLimit,
+	ConnectionStopReasonEndpointBlocked,
+}
+
+func (e ConnectionStopReason) IsValid() bool {
+	switch e {
+	case ConnectionStopReasonDirect, ConnectionStopReasonFound, ConnectionStopReasonNoPath, ConnectionStopReasonExpansionLimit, ConnectionStopReasonEndpointBlocked:
+		return true
+	}
+	return false
+}
+
+func (e ConnectionStopReason) String() string {
+	return string(e)
+}
+
+func (e *ConnectionStopReason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConnectionStopReason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConnectionStopReason", str)
+	}
+	return nil
+}
+
+func (e ConnectionStopReason) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConnectionStopReason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConnectionStopReason) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -4740,6 +5723,66 @@ func (e StatusCategory) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// Stock location category. STORED is an entity inventory, IN_TRANSIT is a belt or inserter hand, GROUND is a dropped stack, PLAYER is a connected player's inventory.
+type StockCategory string
+
+const (
+	StockCategoryStored    StockCategory = "STORED"
+	StockCategoryInTransit StockCategory = "IN_TRANSIT"
+	StockCategoryGround    StockCategory = "GROUND"
+	StockCategoryPlayer    StockCategory = "PLAYER"
+)
+
+var AllStockCategory = []StockCategory{
+	StockCategoryStored,
+	StockCategoryInTransit,
+	StockCategoryGround,
+	StockCategoryPlayer,
+}
+
+func (e StockCategory) IsValid() bool {
+	switch e {
+	case StockCategoryStored, StockCategoryInTransit, StockCategoryGround, StockCategoryPlayer:
+		return true
+	}
+	return false
+}
+
+func (e StockCategory) String() string {
+	return string(e)
+}
+
+func (e *StockCategory) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = StockCategory(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid StockCategory", str)
+	}
+	return nil
+}
+
+func (e StockCategory) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *StockCategory) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e StockCategory) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type TechnologyUnlockMode string
 
 const (
@@ -4976,6 +6019,62 @@ func (e *TransferDirection) UnmarshalJSON(b []byte) error {
 }
 
 func (e TransferDirection) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Type of an underground belt half. Place the entrance as INPUT and the exit as OUTPUT in one call so the engine links them.
+type UndergroundBeltType string
+
+const (
+	UndergroundBeltTypeInput  UndergroundBeltType = "INPUT"
+	UndergroundBeltTypeOutput UndergroundBeltType = "OUTPUT"
+)
+
+var AllUndergroundBeltType = []UndergroundBeltType{
+	UndergroundBeltTypeInput,
+	UndergroundBeltTypeOutput,
+}
+
+func (e UndergroundBeltType) IsValid() bool {
+	switch e {
+	case UndergroundBeltTypeInput, UndergroundBeltTypeOutput:
+		return true
+	}
+	return false
+}
+
+func (e UndergroundBeltType) String() string {
+	return string(e)
+}
+
+func (e *UndergroundBeltType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = UndergroundBeltType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid UndergroundBeltType", str)
+	}
+	return nil
+}
+
+func (e UndergroundBeltType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *UndergroundBeltType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e UndergroundBeltType) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

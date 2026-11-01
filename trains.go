@@ -550,7 +550,7 @@ if not applied then
   fail("the engine ignored the scripted direction change for this prototype; it does not allow scripted direction changes here; place it with the requested direction instead")
   return
 end
-rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,before=before,direction=e.direction,unit_number=tostring(e.unit_number)}))`, input.Direction), nil
+rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,before=before,direction=e.direction,unit_number=e.unit_number and tostring(e.unit_number) or nil}))`, input.Direction), nil
 }
 
 func setDirection(r *Resolver, input SetDirectionInput) (*ActionResult, error) {

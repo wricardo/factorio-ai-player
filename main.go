@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -275,9 +276,10 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 			command = "/quit"
 		}
 		response, err := execute(addr, password, command, true)
-		if err != nil {
+		if err != nil && !(args[0] == "shutdown" && rconClosedAfterQuit(err)) {
 			return err
 		}
+		err = nil
 		if response != "" {
 			_, err = fmt.Fprint(out, response)
 		}
@@ -417,6 +419,12 @@ func execute(addr, password, command string, single bool) (string, error) {
 	return executeContext(context.Background(), addr, password, command, single)
 }
 
+// rconClosedAfterQuit reports whether err is the server closing the connection
+// without a reply, which is how a successful /quit looks.
+func rconClosedAfterQuit(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.ECONNRESET)
+}
+
 func executeContext(ctx context.Context, addr, password, command string, single bool) (string, error) {
 	conn, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp", addr)
 	if err != nil {
@@ -425,7 +433,8 @@ func executeContext(ctx context.Context, addr, password, command string, single 
 	defer conn.Close()
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stop()
-	if err := conn.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+	deadline := time.Now().Add(10 * time.Second)
+	if err := conn.SetDeadline(deadline); err != nil {
 		return "", err
 	}
 	if err := writePacket(conn, 1, 3, password); err != nil {
@@ -464,9 +473,14 @@ func executeContext(ctx context.Context, addr, password, command string, single 
 	if err := writePacket(conn, 3, 2, `/silent-command rcon.print("`+marker+`")`); err != nil {
 		return "", err
 	}
+	// Factorio answers every command with exactly one response packet, which
+	// carries no body when the command printed nothing. It also answers the
+	// completion marker out of order: a slow command's packet can arrive after
+	// the marker. So the marker never proves the command printed nothing, and
+	// the first command packet - empty or not - proves the reply started.
 	var response strings.Builder
-	markerFirst := false
-	secondMarkerSent := false
+	commandReplied := false
+	markerSeen := false
 	for {
 		id, kind, body, err := readPacket(conn)
 		if err != nil {
@@ -479,11 +493,12 @@ func executeContext(ctx context.Context, addr, password, command string, single 
 			if strings.TrimSpace(body) != marker {
 				return "", fmt.Errorf("unexpected RCON completion response: %q", body)
 			}
-			if id == 3 && response.Len() == 0 {
-				markerFirst = true
-				continue
+			if id == 4 || commandReplied {
+				return response.String(), nil
 			}
-			return response.String(), nil
+			// Keep the full command deadline: the reply is still in flight.
+			markerSeen = true
+			continue
 		}
 		if id != 2 {
 			return "", errors.New("unexpected RCON response ID")
@@ -492,11 +507,15 @@ func executeContext(ctx context.Context, addr, password, command string, single 
 			return "", errors.New("RCON response exceeds 4 MiB")
 		}
 		response.WriteString(body)
-		if markerFirst && !secondMarkerSent {
-			if err := writePacket(conn, 4, 2, `/silent-command rcon.print("`+marker+`")`); err != nil {
-				return "", err
+		if !commandReplied {
+			commandReplied = true
+			if markerSeen {
+				// The marker overtook the reply, so terminate the late
+				// response with a second marker instead of returning early.
+				if err := writePacket(conn, 4, 2, `/silent-command rcon.print("`+marker+`")`); err != nil {
+					return "", err
+				}
 			}
-			secondMarkerSent = true
 		}
 	}
 }

@@ -1,6 +1,8 @@
 extend type EntityInspection {
   """Engine unit number of the inspected entity, when it has one."""
   unitNumber: UnitNumber
+  """Engine direction code, when the entity exposes one. 0 north, 4 east, 8 south, 12 west; inserts and machinery may use the full 0-15 range."""
+  direction: Int
   """Typed arithmetic or decider combinator parameters; null for other entities."""
   combinatorParameters: CombinatorParameters
   """Unmodified JSON encoding of engine parameters for unsupported parameter-bearing entities."""
@@ -18,11 +20,11 @@ extend type EntityInspection {
 }
 
 extend type Mutation {
-  """Replaces an entity's tags. An explicit administrative write; tags are visible to blueprints and other API reads."""
+  """Replaces one entity's tags with a single JSON object; the payload is parsed and shape-checked before any game command runs. Address the entity by unitNumber on the actor's surface, or by prototype name plus exact centre position on the actor's force; the actor must select exactly one player or character, and out-of-reach targets are rejected only when FACTORIO_ENFORCE_REACH is enabled. Factorio 2.0.77 persists tags only for some prototypes, so the write is read back and compared: a prototype that drops them fails with guidance toward blueprint/ghost tags instead of silently discarding the payload. Returns the post-write entity snapshot (name, unit number, position, tagsJSON, and parameters when the entity has any). Emits one in-game notification unless message overrides it."""
   setEntityTags(input: EntityTagsInput!): EntityMetaResult!
-  """Sets or clears an entity's map name tag."""
+  """Sets one entity's map name tag, or clears it when nameTag is the empty string; the entity must accept name_tag. Address the entity by unitNumber on the actor's surface, or by prototype name plus exact centre position on the actor's force, with an actor naming exactly one player or character, and out-of-reach targets rejected only when FACTORIO_ENFORCE_REACH is enabled. Returns the post-write snapshot including nameTag, and emits an in-game notification that says set or cleared unless message overrides it."""
   setNameTag(input: EntityNameTagInput!): EntityMetaResult!
-  """Replaces typed arithmetic or decider combinator parameters."""
+  """Replaces the control behavior parameters of one arithmetic or decider combinator. parameters must fill exactly one family matching the target's engine type, otherwise the write is rejected; arithmetic needs a whitelisted operation (*, /, +, -, %, ^, <<, >>, AND, OR, XOR) and an output signal with firstSignal/firstConstant and secondSignal/secondConstant mutually exclusive, while decider needs 1..100 conditions and 1..100 outputs with optional comparator (including <=, >=, !=), and/or compareType, and mutually exclusive secondSignal and constant per condition. The target is addressed by unitNumber or by prototype name plus exact centre position on the actor's force, and the result is the post-write snapshot with the stored combinatorParameters. Emits one in-game notification unless message overrides it."""
   setCombinatorParameters(input: SetCombinatorParametersInput!): EntityMetaResult!
 }
 

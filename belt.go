@@ -15,11 +15,13 @@ func beltTakeLua(args []string, out io.Writer) (string, error) {
 	fs.SetOutput(out)
 	player := fs.String("player", "", "Player name (alternative to --character)")
 	character := fs.Uint64("character", 0, "Character unit number (alternative to --player)")
+	entity := fs.String("entity", "", "Belt prototype name; only transport-belt is supported")
 	var unitNumber string
 	fs.StringVar(&unitNumber, "unit-number", "", "Belt unit number, alternative to x and y")
 	fs.StringVar(&unitNumber, "unitNumber", "", "Belt unit number, alternative to x and y")
 	x := fs.Float64("x", math.NaN(), "Belt center X (required unless a unit number is given)")
 	y := fs.Float64("y", math.NaN(), "Belt center Y (required unless a unit number is given)")
+	surface := fs.String("surface", "", "Target surface name (defaults to the actor's surface)")
 	item := fs.String("item", "", "Normal-quality item to pick up")
 	quality := fs.String("quality", "normal", "Item quality prototype name (default normal)")
 	count := fs.Uint64("count", 1, "Maximum items to pick up")
@@ -31,6 +33,9 @@ func beltTakeLua(args []string, out io.Writer) (string, error) {
 	}
 	if *quality == "" {
 		return "", errors.New("quality must not be empty")
+	}
+	if *entity != "" && *entity != "transport-belt" {
+		return "", errors.New("beltTake only accepts transport-belt targets")
 	}
 	// beltTake only accepts transport belts, so unit-number lookups scan for that prototype.
 	targetUnit, err := entityTarget("transport-belt", unitNumber, *x, *y)
@@ -46,7 +51,9 @@ else
 end
 local p=c
 `, luaString(*player), *character)
-	prefix += targetLocals(targetUnit, "transport-belt", *x, *y, "") + "surface_name=c.surface.name\n" + luaEntityResolve + resolveTargetLua()
+	prefix += targetLocals(targetUnit, "transport-belt", *x, *y, *surface) + "if surface_name==\"\" then surface_name=c.surface.name end\n" + luaEntityResolve + resolveTargetLua()
+	prefix += `if e.surface~=c.surface then fail("belt is on another surface than the actor"); return end
+`
 	return prefix + fmt.Sprintf(`if e.type~="transport-belt" then fail("entity is not a transport belt"); return end
 if %s then fail("belt is out of reach"); return end
 local inv=c.get_main_inventory(); if not inv then fail("character has no main inventory"); return end

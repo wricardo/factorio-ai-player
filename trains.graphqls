@@ -1,5 +1,5 @@
 extend type Query {
-  """Lists trains on one surface with schedule, mode, cargo and fluid contents. One snapshot; all trains of the filtered surface are considered before pagination."""
+  """Lists trains on one surface and force as a single-tick snapshot, sorted by numeric train id, and paginates only after all filters are applied, so pageInfo.total is the filtered match count rather than a page size. surface defaults to nauvis and force to player, both must name existing objects, and a missing one is a GraphQL error. area matches a train when its front position or any carriage lies inside the box; station matches a scheduled station name exactly, so a train with an empty schedule never matches it. limit is 1 through 1000 and offset is zero-based and non-negative, both validated in Go before the RCON call. Each train reports the engine state as a category (RUNNING, BLOCKED, IDLE or OTHER) alongside the raw code, manual mode, speed, locomotive and wagon counts, cargo and fluids aggregated across every carriage, and schedule records whose waitCondition is the first engine condition with fields this API cannot model left in waitConditionRawJSON. Values are a point-in-time measurement, never a flow, and actor is not populated by this snapshot."""
   trains(input: TrainsInput = {}): TrainPage!
 }
 
@@ -78,9 +78,9 @@ input TrainWaitConditionInput {
 }
 
 extend type Mutation {
-  """Replaces a train's schedule with time-based records or clears it. The train must be addressable by unitNumber (or by prototype name and coordinates) and, when reach enforcement is enabled, reachable."""
+  """Replaces the whole schedule of the target train, or clears it, in one RCON call and returns the train's post-write snapshot read in the same tick. Pass exactly one of clear (true) or a non-empty records list: giving both or neither is rejected before any RCON interaction, and at most 100 records are accepted. Each record needs a non-empty station name and a wait condition; type OTHER is read-only because that engine condition cannot be constructed, ticks must be finite and non-negative, and compareType defaults to OR while optional signal fields come from the shared SignalConditionInput. Clearing assigns a nil schedule; a non-clear write installs records with the first one current, so the train restarts its route from the new list. The target may be a locomotive or any carriage addressed by unitNumber or by entity name plus position, and an entity that does not belong to a train is an error; reach is enforced only when FACTORIO_ENFORCE_REACH is on. Success announces a generated summary unless message overrides it."""
   setTrainSchedule(input: SetTrainScheduleInput!): TrainInfo!
-  """Sets a train's manual mode and optionally sends it to a named station."""
+  """Sets a train's manual mode and/or sends it to a station already present in its schedule, returning the post-write snapshot from the same tick. At least one of manualMode or goToStation is required; goToStation must be a non-empty name that appears in the train's current schedule, otherwise the call fails without changing anything. When both are given the manual-mode write runs first, then the engine's go_to_station(index) is called on the first matching record and a false return or engine error fails the call. The target may be a locomotive or any carriage addressed by unitNumber or entity name plus position, and an entity that is not part of a train is an error; reach is enforced only when FACTORIO_ENFORCE_REACH is on. This only steers within existing records, it never rewrites them, so use setTrainSchedule first when the station is missing. Success announces a generated summary unless message overrides it."""
   trainControl(input: TrainControlInput!): TrainInfo!
 }
 
@@ -110,7 +110,7 @@ input TrainControlInput {
 }
 
 extend type Mutation {
-  """Sets an entity's engine direction 0 through 15 without rotating in quarter turns. Use it for 8-way and 16-way prototypes such as rails and splitters."""
+  """Assigns one entity's canonical engine direction from 0 through 15, which is finer than the four quarter turns rotate exposes, for prototypes such as rails, splitters and loaders. Values outside 0-15 are rejected in Go before any RCON interaction. The write is always verified by reading e.direction back, because Factorio 2.0 silently ignores scripted direction assignment for prototypes placed with a direction code (transport belts, straight rails); when the request differs from the current value by exactly one quarter turn the call falls back to a single rotate and re-checks. If neither the assignment nor the rotation reaches the requested value the call fails instead of reporting a change that did not happen, so re-place the entity with the wanted direction. The target is addressed by unitNumber or by entity name plus position, with reach enforced only when FACTORIO_ENFORCE_REACH is on, and the result echoes name, position, surface, before and final direction so the applied value can be confirmed. Success announces a generated summary unless message overrides it."""
   setDirection(input: SetDirectionInput!): ActionResult!
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -16,12 +17,10 @@ func surfaceQueryLua(force string) (string, error) {
 		return "", errors.New("force is required")
 	}
 	return luaFail + fmt.Sprintf(`local force=game.forces[%s]; if not force then fail("force not found"); return end
--- LuaForce.evolution_factor(surface) is a method in Factorio 2.0; the bare
--- field form is the fallback, and an unreadable value degrades to 0.
+-- LuaForce.get_evolution_factor(surface) is the 2.0 API; there is no
+-- evolution_factor member. An unreadable value degrades to 0.
 local function evolution_for(f,target_surface)
-  local ok,value=pcall(function() return f.evolution_factor(target_surface) end)
-  if ok and type(value)=="number" then return value end
-  ok,value=pcall(function() return f.evolution_factor end)
+  local ok,value=pcall(function() return f.get_evolution_factor(target_surface) end)
   if ok and type(value)=="number" then return value end
   return 0
 end
@@ -119,8 +118,8 @@ local function connection_count(net)
   if ok and type(count)=="number" then return count end
   return 0
 end
-local red_network=network_for(defines.wire_type.red)
-local green_network=network_for(defines.wire_type.green)
+local red_network=network_for(defines.wire_connector_id.circuit_red)
+local green_network=network_for(defines.wire_connector_id.circuit_green)
 local network=color_name=="red" and red_network or green_network
 local signals={}
 if network then
@@ -134,7 +133,9 @@ if network then
     for _,entry in pairs(list) do
       local signal=entry and entry.signal
       if signal and type(entry.count)=="number" then
-        signals[#signals+1]={type=signal.type,name=signal.name,quality=signal.quality and signal.quality.name or nil,value=entry.count}
+        local signal_quality=signal.quality
+        if type(signal_quality)~="string" then signal_quality=signal_quality and signal_quality.name or nil end
+        signals[#signals+1]={type=signal.type or "item",name=signal.name,quality=signal_quality,value=entry.count}
       end
     end
   end
@@ -184,4 +185,159 @@ func sortCircuitSignals(signals []*CircuitSignal) {
 		}
 		return a.Value < b.Value
 	})
+}
+
+func validateChartTagScope(surface, force string) error {
+	if strings.TrimSpace(surface) == "" {
+		return errors.New("surface must not be empty")
+	}
+	if strings.TrimSpace(force) == "" {
+		return errors.New("force must not be empty")
+	}
+	return nil
+}
+
+func chartTagAreaLua(area *FactoryAreaInput) (string, error) {
+	if area == nil {
+		return "nil", nil
+	}
+	values := []float64{area.LeftTopX, area.LeftTopY, area.RightBottomX, area.RightBottomY}
+	for _, value := range values {
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return "", errors.New("area coordinates must be finite")
+		}
+	}
+	if area.LeftTopX >= area.RightBottomX || area.LeftTopY >= area.RightBottomY {
+		return "", errors.New("area must have positive dimensions")
+	}
+	return fmt.Sprintf("{{x=%s,y=%s},{x=%s,y=%s}}",
+		formatFloat(area.LeftTopX), formatFloat(area.LeftTopY),
+		formatFloat(area.RightBottomX), formatFloat(area.RightBottomY)), nil
+}
+
+func chartTagSerializationLua() string {
+	return `local function serialize_tag(tag)
+  local icon
+  if tag.icon then
+    local icon_type=tag.icon.type
+    if not icon_type or icon_type=="" then icon_type="item" end
+    icon={type=icon_type,name=tag.icon.name}
+    local quality=tag.icon.quality
+    if quality then icon.quality=type(quality)=="string" and quality or quality.name end
+  end
+  return {tagNumber=tostring(tag.tag_number),position=tag.position,text=tag.text or "",icon=icon}
+end
+`
+}
+
+// chartTagsQuery lists one stable page of force-owned custom map markers.
+func chartTagsQuery(r *Resolver, input ChartTagsInput) (*ChartTagPage, error) {
+	if err := validateChartTagScope(input.Surface, input.Force); err != nil {
+		return nil, err
+	}
+	if input.Offset < 0 {
+		return nil, errors.New("offset must be zero or greater")
+	}
+	if input.Limit < 1 || input.Limit > 1000 {
+		return nil, errors.New("limit must be between 1 and 1000")
+	}
+	area, err := chartTagAreaLua(input.Area)
+	if err != nil {
+		return nil, err
+	}
+	lua := luaFail + fmt.Sprintf(`local surface=game.surfaces[%s]; if not surface then fail("surface not found"); return end
+local force=game.forces[%s]; if not force then fail("force not found"); return end
+local area=%s
+local found=force.find_chart_tags(surface,area)
+table.sort(found,function(a,b) return a.tag_number<b.tag_number end)
+%slocal offset=%d
+local limit=%d
+local tags={}
+local last=math.min(#found,offset+limit)
+for i=offset+1,last do tags[#tags+1]=serialize_tag(found[i]) end
+rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,
+  pageInfo={total=#found,limit=limit,offset=offset,hasMore=#found>last},tags=tags}))
+`, luaString(input.Surface), luaString(input.Force), area, chartTagSerializationLua(), input.Offset, input.Limit)
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
+		return nil, err
+	}
+	return factoryDecode[ChartTagPage](response)
+}
+
+// addChartTag adds a force-visible marker at an arbitrary map position.
+func addChartTag(r *Resolver, input AddChartTagInput) (*ChartTagMutationResult, error) {
+	if err := validateChartTagScope(input.Surface, input.Force); err != nil {
+		return nil, err
+	}
+	if input.Position == nil {
+		return nil, errors.New("position is required")
+	}
+	if err := validateAgentCoordinates("chart tag position", input.Position.X, input.Position.Y); err != nil {
+		return nil, err
+	}
+	var fields []string
+	if input.Text != nil && strings.TrimSpace(*input.Text) != "" {
+		fields = append(fields, "text="+luaString(*input.Text))
+	}
+	if input.Icon != nil {
+		icon, err := signalLua(*input.Icon)
+		if err != nil {
+			return nil, fmt.Errorf("icon: %w", err)
+		}
+		fields = append(fields, "icon="+icon)
+	}
+	if len(fields) == 0 {
+		return nil, errors.New("nonblank text or icon is required")
+	}
+	fields = append([]string{fmt.Sprintf("position={x=%s,y=%s}", formatFloat(input.Position.X), formatFloat(input.Position.Y))}, fields...)
+	lua := luaFail + fmt.Sprintf(`local surface=game.surfaces[%s]; if not surface then fail("surface not found"); return end
+local force=game.forces[%s]; if not force then fail("force not found"); return end
+local tag=force.add_chart_tag(surface,{%s})
+if not tag then fail("chart tag was not added"); return end
+%srcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,tag=serialize_tag(tag)}))
+`, luaString(input.Surface), luaString(input.Force), strings.Join(fields, ","), chartTagSerializationLua())
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
+		return nil, err
+	}
+	result, err := factoryDecode[ChartTagMutationResult](response)
+	if err != nil {
+		return nil, err
+	}
+	announceMutation(r, input.Message, "marked "+result.Surface+positionText(result.Tag.Position)+": "+result.Tag.Text)
+	return result, nil
+}
+
+// removeChartTag removes a force-owned marker and returns its final snapshot.
+func removeChartTag(r *Resolver, input RemoveChartTagInput) (*ChartTagMutationResult, error) {
+	if err := validateChartTagScope(input.Surface, input.Force); err != nil {
+		return nil, err
+	}
+	number, err := strconv.ParseUint(input.TagNumber, 10, 32)
+	if err != nil {
+		return nil, errors.New("tagNumber must be an unsigned 32-bit integer")
+	}
+	lua := luaFail + fmt.Sprintf(`local surface=game.surfaces[%s]; if not surface then fail("surface not found"); return end
+local force=game.forces[%s]; if not force then fail("force not found"); return end
+local wanted=%d
+local found
+for _,tag in pairs(force.find_chart_tags(surface)) do
+  if tag.tag_number==wanted then found=tag; break end
+end
+if not found then fail("chart tag not found on surface for force"); return end
+%slocal snapshot=serialize_tag(found)
+found.destroy()
+rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,tag=snapshot}))
+`, luaString(input.Surface), luaString(input.Force), number, chartTagSerializationLua())
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
+		return nil, err
+	}
+	result, err := factoryDecode[ChartTagMutationResult](response)
+	if err != nil {
+		return nil, err
+	}
+	announceMutation(r, input.Message, "removed map marker "+result.Tag.TagNumber+" from "+result.Surface)
+	return result, nil
 }

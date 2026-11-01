@@ -37,8 +37,8 @@ func TestCircuitApplyLua(t *testing.T) {
 }
 
 func TestCircuitFieldKeys(t *testing.T) {
-	if keys := circuitFieldKeys["enabled"]; len(keys) != 1 || keys[0] != "disabled" {
-		t.Fatalf("enabled must invert the engine disabled flag, got %v", keys)
+	if _, ok := circuitFieldKeys["enabled"]; ok {
+		t.Fatal("enabled maps to the read-only disabled flag and must not be writable")
 	}
 	seen := map[string]bool{}
 	for _, field := range append(append([]circuitField{}, circuitBooleanFields...), circuitConditionFields...) {
@@ -146,3 +146,55 @@ func TestSetSplitterFilterRejectsInertPriority(t *testing.T) {
 		t.Fatalf("filter with outputPriority none must fail, got %v", err)
 	}
 }
+
+func TestSetInserterSettingsPickupLanes(t *testing.T) {
+	r := &Resolver{}
+	actor := ActorInput{Player: strPtr("wricardo")}
+	target := EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("1")}
+	no := false
+	clear := true
+
+	if _, err := setInserterSettings(r, InserterSettingsInput{Actor: &actor, Target: &target, Clear: &clear, PickupFromLeftLane: &no}); err == nil {
+		t.Fatal("clear must not combine with pickup lane flags")
+	}
+	if _, err := setInserterSettings(r, InserterSettingsInput{Actor: &actor, Target: &target}); err == nil {
+		t.Fatal("an empty settings request must be rejected")
+	}
+	// A lane-only request passes validation and reaches RCON; the fake address
+	// fails before any game state is touched.
+	if _, err := setInserterSettings(r, InserterSettingsInput{Actor: &actor, Target: &target, PickupFromLeftLane: &no}); err == nil {
+		t.Fatal("expected a transport error after validation")
+	}
+}
+
+func TestSetCircuitBehaviorRejectsReadOnlyEnabled(t *testing.T) {
+	yes := true
+	_, err := setCircuitBehavior(&Resolver{}, CircuitBehaviorInput{
+		Actor:   &ActorInput{Player: strPtr("wricardo")},
+		Target:  &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("1")},
+		Enabled: &yes,
+	})
+	if err == nil || !strings.Contains(err.Error(), "read-only") {
+		t.Fatalf("enabled must be rejected as read-only, got %v", err)
+	}
+}
+
+func TestLogisticSectionStatementsLimitAndOrder(t *testing.T) {
+	slot := []*LogisticSectionInput{{Slots: []*LogisticRequestInput{{Index: 1, Name: "iron-plate", Max: 5}}}}
+	var sections []*LogisticSectionInput
+	for range maxLogisticSections {
+		sections = append(sections, slot[0])
+	}
+	check, writes, err := logisticSectionStatements(sections, "p", "s")
+	if err != nil {
+		t.Fatalf("%d sections must be accepted: %v", maxLogisticSections, err)
+	}
+	if strings.Count(writes, "do local s=") != maxLogisticSections || strings.Count(check, "prototypes.item[") != maxLogisticSections {
+		t.Fatal("each section needs its own do-block and prototype check")
+	}
+	if _, _, err := logisticSectionStatements(append(sections, slot[0]), "p", "s"); err == nil {
+		t.Fatal("more than the supported section count must be rejected")
+	}
+}
+
+func strPtr(value string) *string { return &value }

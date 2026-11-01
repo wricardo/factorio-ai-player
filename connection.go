@@ -40,10 +40,11 @@ func connectionRouteSteps(from, to *PositionInput) (int, error) {
 	}
 	dx := math.Abs(math.Floor(to.X) - math.Floor(from.X))
 	dy := math.Abs(math.Floor(to.Y) - math.Floor(from.Y))
-	steps := int(dx+dy) + 1
-	if steps > maxConnectionSteps {
-		return 0, fmt.Errorf("route covers %d tiles, above the %d tile limit; split it into shorter runs", steps, maxConnectionSteps)
+	tiles := dx + dy + 1
+	if tiles > maxConnectionSteps {
+		return 0, fmt.Errorf("route covers %g tiles, above the %d tile limit; split it into shorter runs", tiles, maxConnectionSteps)
 	}
+	steps := int(tiles)
 	return steps, nil
 }
 
@@ -69,6 +70,10 @@ local allow_adjacency=%t
 `, luaString(surface), luaString(force), luaString(item), luaString(string(kind)),
 		n(from.X), n(from.Y), n(to.X), n(to.Y), luaString(string(bend)), allowFluidAdjacency)
 }
+
+// pipeLikeTypesLua lists the entity types that join a fluid network; DIRECT and
+// ASTAR connection planning both use it to detect foreign pipe-like neighbours.
+const pipeLikeTypesLua = `{"pipe","pipe-to-ground","pump","storage-tank","boiler","offshore-pump","heat-exchanger","generator","steam-engine","steam-turbine"}`
 
 // connectionLuaHelpers defines the route model shared by plan and apply. It
 // expects the preamble variables and binds surface, force, proto, entity_name,
@@ -155,7 +160,7 @@ local function tile_blocks_terrain(x,y)
   return false
 end
 local pipe_like={}
-for _,name in ipairs({"pipe","pipe-to-ground","pump","storage-tank","boiler","offshore-pump","heat-exchanger","generator","steam-engine","steam-turbine"}) do pipe_like[name]=true end
+for _,t in ipairs(` + pipeLikeTypesLua + `) do pipe_like[t]=true end
 local function evaluate(mode)
   local steps=build(mode)
   if kind=="POWER_POLE_CHAIN" then steps=spaced(steps) end
@@ -172,8 +177,11 @@ local function evaluate(mode)
     local existing=false
     local mismatched=false
     for _,e in pairs(found) do
-      if e.valid and e.name==entity_name and e.position.x==s.x and e.position.y==s.y then
+      if e.valid and e.name==entity_name then
+      local box=e.bounding_box
+      if s.x>=box.left_top.x and s.x<=box.right_bottom.x and s.y>=box.left_top.y and s.y<=box.right_bottom.y then
         if kind~="BELT" or e.direction==s.direction then existing=true else mismatched=true end
+      end
       end
     end
     s.existing=existing
@@ -200,7 +208,7 @@ local function evaluate(mode)
         local nx,ny=s.x+d[1],s.y+d[2]
         if not route_set[nx..":"..ny] then
           for _,e in pairs(tile_entities(nx,ny)) do
-            if e.valid and pipe_like[e.name] then
+            if e.valid and pipe_like[e.type] then
               local key=nx..":"..ny
               if not seen[key] then
                 seen[key]=true
@@ -243,6 +251,19 @@ func connectionPlanQuery(r *Resolver, input *ConnectionPlanInput) (*ConnectionPl
 	if err != nil {
 		return nil, err
 	}
+	astar, err := validateRouteOptions(input.Kind, planRouteOptions(input))
+	if err != nil {
+		return nil, err
+	}
+	if astar {
+		if err := routeEndpoints(input.From, input.To); err != nil {
+			return nil, err
+		}
+		return connectionPlanAStar(r, connectionRequest{
+			surface: input.Surface, force: input.Force, from: input.From, to: input.To, kind: input.Kind, item: item,
+			allowAdjacency: input.AllowFluidAdjacency, options: planRouteOptions(input),
+		})
+	}
 	if _, err := connectionRouteSteps(input.From, input.To); err != nil {
 		return nil, err
 	}
@@ -254,7 +275,19 @@ rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force
 	if err != nil {
 		return nil, err
 	}
-	return factoryDecode[ConnectionPlan](response)
+	plan, err := factoryDecode[ConnectionPlan](response)
+	if err != nil {
+		return nil, err
+	}
+	plan.Routing = ConnectionRoutingDirect
+	plan.StopReason = ConnectionStopReasonDirect
+	plan.Cost = float64(plan.Needed)
+	for _, step := range plan.Steps {
+		if !step.Existing {
+			step.Cost = routeCostTile
+		}
+	}
+	return plan, nil
 }
 
 // connectEntities plans and applies one run. It refuses to place anything when
@@ -275,6 +308,13 @@ func connectEntities(r *Resolver, input ConnectEntitiesInput) (*ConnectEntitiesR
 	bend, err := connectionBend(input.Bend)
 	if err != nil {
 		return nil, err
+	}
+	astar, err := validateRouteOptions(input.Kind, applyRouteOptions(&input))
+	if err != nil {
+		return nil, err
+	}
+	if astar {
+		return connectEntitiesAStar(r, input, item)
 	}
 	if _, err := connectionRouteSteps(input.From, input.To); err != nil {
 		return nil, err
@@ -300,7 +340,7 @@ if #chosen.conflicts>0 then
   return
 end
 local have=inv.get_item_count{name=item,quality="normal"}
-if have<chosen.needed then fail("actor has "..have.." "..item.." but the run needs "..chosen.needed) end
+if have<chosen.needed then fail("actor has "..have.." "..item.." but the run needs "..chosen.needed); return end
 for i,s in ipairs(chosen.steps) do
   if s.existing then
     skipped=skipped+1
@@ -330,6 +370,40 @@ rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force
 		return nil, err
 	}
 	result, err := factoryDecode[ConnectEntitiesResult](response)
+	if err != nil {
+		return nil, err
+	}
+	result.Routing = ConnectionRoutingDirect
+	result.StopReason = ConnectionStopReasonDirect
+	if result.Placed > 0 {
+		announceMutation(r, input.Message, connectEntitiesSummary(result))
+	}
+	return result, nil
+}
+
+// connectEntitiesAStar plans an A* route, refuses on any conflict, and places the
+// planned steps. Both phases are separate reads; the placement phase re-checks
+// every tile.
+func connectEntitiesAStar(r *Resolver, input ConnectEntitiesInput, item string) (*ConnectEntitiesResult, error) {
+	if err := routeEndpoints(input.From, input.To); err != nil {
+		return nil, err
+	}
+	plan, err := connectionPlanAStar(r, connectionRequest{
+		surface: input.Surface, force: input.Force, from: input.From, to: input.To, kind: input.Kind, item: item,
+		allowAdjacency: input.AllowFluidAdjacency, options: applyRouteOptions(&input),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !plan.Possible {
+		return &ConnectEntitiesResult{
+			Tick: plan.Tick, Surface: plan.Surface, Force: plan.Force, Kind: plan.Kind, Item: plan.Item,
+			From: plan.From, To: plan.To, Bend: plan.Bend, Possible: false,
+			Routing: ConnectionRoutingAstar, StopReason: plan.StopReason,
+			Entities: []*PlacedEntity{}, Conflicts: plan.Conflicts, Errors: []*BatchError{},
+		}, nil
+	}
+	result, err := applyRoutePlan(r, input, plan)
 	if err != nil {
 		return nil, err
 	}

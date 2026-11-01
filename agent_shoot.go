@@ -43,7 +43,7 @@ const shootAmmoLua = `local function shoot_ammo_count(c)
   local inv=c.get_inventory(defines.inventory.character_ammo)
   if not inv then return 0 end
   local total=0
-  for _,count in pairs(inv.get_contents()) do total=total+count end
+  for _,item in pairs(inv.get_contents()) do total=total+item.count end
   return total
 end
 `
@@ -133,13 +133,39 @@ local target_position={x=%s,y=%s}
 local surface_name=%s
 `, luaString(*in.Actor.Player), unit, luaString(name),
 		strconv.FormatFloat(x, 'g', -1, 64), strconv.FormatFloat(y, 'g', -1, 64), luaString(surface)) +
-		luaEntityResolve + shootAmmoLua + fmt.Sprintf(`local e=resolve_entity(target_unit,target_name,target_position,surface_name,p); if not e then return end
-if e.surface~=c.surface then fail("target is on another surface"); return end
+		shootAmmoLua + fmt.Sprintf(`local e=nil
+if target_unit~=0 then
+  e=game.get_entity_by_unit_number(target_unit)
+  if not e then
+    if target_name=="" then fail("prototype is not resolvable by unit number alone; pass entity too"); return end
+    local ts=game.surfaces[surface_name]; if not ts then fail("surface not found"); return end
+    for _,candidate in pairs(ts.find_entities_filtered{name=target_name}) do
+      if candidate.unit_number==target_unit then e=candidate; break end
+    end
+    if not e then fail("entity not found by unit number on that surface"); return end
+  end
+  if target_name~="" and e.name~=target_name then fail("entity name does not match unit number"); return end
+elseif target_name~="" then
+  local ts=game.surfaces[surface_name]; if not ts then fail("surface not found"); return end
+  for _,candidate in pairs(ts.find_entities_filtered{name=target_name,position=target_position,radius=0.01}) do
+    if math.abs(candidate.position.x-target_position.x)<0.001 and math.abs(candidate.position.y-target_position.y)<0.001 then
+      if e then fail("multiple matching entities at center"); return end
+      e=candidate
+    end
+  end
+  if not e then fail("entity not found at center"); return end
+elseif surface_name~=c.surface.name then
+  fail("target surface differs from the character's surface"); return
+end
+if e and e.surface~=c.surface then fail("target is on another surface"); return end
+local aim=e and e.position or target_position
 local before=shoot_ammo_count(c)
-local ok,job=pcall(function() return remote.call("factorio_ai_actions","start_shoot",c.unit_number,e.position.x,e.position.y,%d) end)
+local ok,job=pcall(function() return remote.call("factorio_ai_actions","start_shoot",c.unit_number,aim.x,aim.y,%d) end)
 if not ok then fail(tostring(job)); return end
 if type(job)~="table" or job.error then fail(type(job)=="table" and tostring(job.error) or "shooting interface returned no job"); return end
-rcon.print(helpers.table_to_json({tick=game.tick,player=p.name,character=c.unit_number,surface=c.surface.name,force=c.force.name,position=e.position,ammo=before,job=job,target={name=e.name,type=e.type,position=e.position,unit_number=e.unit_number}}))`, in.Count), nil
+local target=nil
+if e then target={name=e.name,type=e.type,position=e.position,unit_number=e.unit_number} end
+rcon.print(helpers.table_to_json({tick=game.tick,player=p.name,character=c.unit_number,surface=c.surface.name,force=c.force.name,position={x=aim.x,y=aim.y},ammo=before,job=job,target=target}))`, in.Count), nil
 }
 
 func waitForActionJob(ctx context.Context, r *Resolver, id string, timeout time.Duration) (*actionJobStatus, error) {

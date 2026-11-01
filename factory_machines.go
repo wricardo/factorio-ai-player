@@ -62,8 +62,8 @@ for _, entity in pairs(surface.find_entities_filtered(filter)) do
     if name == "working" then bucket = "working"
     elseif name == "normal" or name == "no_recipe" or name == "no_research_in_progress" then bucket = "idle"
     elseif name == "no_fuel" then bucket = "noFuel"
-    elseif name == "no_power" or name == "low_power" or name == "not_connected_to_electric_network" then bucket = "noPower"
-    elseif name == "no_ingredients" or name == "item_ingredient_shortage" or name == "fluid_ingredient_shortage" or name == "missing_science_packs" or name == "missing_required_fluid" then bucket = "noIngredients"
+    elseif name == "no_power" or name == "low_power" or name == "not_plugged_in_electric_network" then bucket = "noPower"
+    elseif name == "no_ingredients" or name == "item_ingredient_shortage" or name == "fluid_ingredient_shortage" or name == "missing_science_packs" or name == "missing_required_fluid" or name == "no_input_fluid" then bucket = "noIngredients"
     elseif name == "full_output" or name == "full_burnt_result_output" or name == "waiting_for_space_in_destination" then bucket = "outputFull" end
     summary[bucket] = summary[bucket] + 1
     if requested_status == "" or name == requested_status then

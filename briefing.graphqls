@@ -1,0 +1,120 @@
+extend type Query {
+  """One bounded, read-only attention snapshot for one surface and force. It composes the existing production, machine, power, research (force-wide), safety, construction-order/ghost, and stock reads, each in its own RCON call, so every section reports the tick it was read at and sections can differ by a few ticks; nothing is stored and no strategy is recommended. Validation runs before any read: surface and force must be non-empty and name existing objects, area when given must have positive dimensions of at most 256 tiles per side and bounds every spatial section, window must be a valid ProductionWindow, attentionLimit is 1..100, and watchItems holds at most 20 distinct items with finite positive minima. Sections needing omitted inputs are skipped and named in warnings (ghosts need an area, stock needs watchItems), as are bounded scans: machine attention covers the first 3000 machines, power sums the first 1000 networks, and ghostsBuildable the first 1000 ghosts, with null ghost counts when no area was given. Any section error aborts the whole query instead of returning a partial briefing. attention is sorted by severity, then kind, position, and entity name, and cut to attentionLimit, while attentionTotal and attentionCounts report the full scan; per-entity kinds carry entity, position, and unit number while aggregate kinds carry only a count, stockouts list watched items below their minimum with actorHas filled only when an actor was given, and a null stockTick marks the skipped stock section."""
+  factoryBriefing(input: FactoryBriefingInput!): FactoryBriefing!
+}
+
+"""One item whose factory-wide stock must stay at or above a minimum."""
+input BriefingWatchItemInput {
+  item: String!
+  """Stock below this count is a stockout. Defaults to 1, so a missing item is flagged."""
+  minimum: FiniteFloat! = 1
+}
+
+"""Surface and force must name existing objects. area, when given, must have positive dimensions of at most 256 tiles per side and bounds machines, power networks, safety, ghosts, construction orders and stock; omit it to scan the whole surface (ghosts are then skipped). attentionLimit is 1 through 100. watchItems holds at most 20 distinct items."""
+input FactoryBriefingInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  area: FactoryAreaInput
+  window: ProductionWindow! = ONE_MINUTE
+  watchItems: [BriefingWatchItemInput!] = []
+  attentionLimit: Int! = 20
+  """Optional actor whose main inventory count is reported beside each stockout."""
+  actor: ActorInput
+}
+
+enum AttentionKind {
+  NO_FUEL
+  NO_POWER
+  NO_INGREDIENTS
+  OUTPUT_FULL
+  NO_RECIPE
+  NO_RESEARCH
+  ENEMY
+  DAMAGED
+  GHOST_BACKLOG
+  DECONSTRUCTION
+  LOW_STOCK
+  FLUID_SHORTAGE
+}
+
+"""Classification of an attention kind, not a recommended action: CRITICAL stops output or threatens loss, WARNING degrades it, INFO is queued work."""
+enum AttentionSeverity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+"""One observation. Per-entity kinds carry the entity name and position; aggregate kinds (GHOST_BACKLOG, DECONSTRUCTION, NO_RESEARCH, LOW_STOCK) carry no position. count is the number of underlying entities, 1 for single entities."""
+type AttentionItem {
+  kind: AttentionKind!
+  severity: AttentionSeverity!
+  entity: String
+  position: Position
+  unitNumber: UnitNumber
+  count: Int!
+  message: String!
+}
+
+"""Number of underlying occurrences per kind across the whole scan, independent of attentionLimit."""
+type AttentionCount {
+  kind: AttentionKind!
+  count: Int!
+}
+
+type BriefingResearch {
+  enabled: Boolean!
+  currentTechnology: String
+  progress: Float
+  queue: [String!]!
+}
+
+"""Sums over every electric network represented by a pole in the scope. productionWatts and consumptionWatts are the engine's one-minute averages."""
+type BriefingPower {
+  networks: Int!
+  productionWatts: Float!
+  consumptionWatts: Float!
+}
+
+"""Ghost counts are null when no area was given. ghostsBuildable counts ghosts whose placement material is in observed stock in the area, over the first 1000 ghosts."""
+type BriefingConstruction {
+  ghosts: Int
+  ghostsBuildable: Int
+  deconstructionOrders: Int!
+  upgradeOrders: Int!
+}
+
+"""A watched item whose observed factory stock is below its minimum. actorHas is null unless an actor was given."""
+type Stockout {
+  item: String!
+  minimum: Float!
+  have: Float!
+  shortfall: Float!
+  actorHas: Float
+}
+
+type FactoryBriefing {
+  surface: String!
+  force: String!
+  window: ProductionWindow!
+  productionTick: Float!
+  machineTick: Float!
+  powerTick: Float!
+  researchTick: Float!
+  constructionTick: Float!
+  safetyTick: Float!
+  """Null when no watchItems were supplied."""
+  stockTick: Float
+  production: [ProductionItem!]!
+  machines: [MachineSummary!]!
+  """Highest severity first, then by kind, position and name; cut to attentionLimit."""
+  attention: [AttentionItem!]!
+  """Attention items found before the attentionLimit cut."""
+  attentionTotal: Int!
+  attentionCounts: [AttentionCount!]!
+  research: BriefingResearch!
+  power: BriefingPower!
+  construction: BriefingConstruction!
+  stockouts: [Stockout!]!
+  """Skipped sections and bounded scans that may hide data; empty when the briefing is complete."""
+  warnings: [String!]!
+}

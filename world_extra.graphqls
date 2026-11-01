@@ -1,8 +1,77 @@
 extend type Query {
-  """Lists every surface with observation tick and selected force."""
+  """Lists every surface in the running game with its name, index, planet name, total pollution, and the named force's evolution factor on that surface. force is required and must exist; an unreadable evolution value degrades to 0 and a surface that does not expose a planet reports null. Results are sorted by surface index on the Go side, so repeated calls compare positionally, and the page carries the observation tick. This is surface metadata only, not per-surface production or entity counts."""
   surfaces(force: String! = "player"): SurfacePage!
-  """Reads the signals visible on one entity's red or green circuit network."""
+  """Reads the signals currently visible on one entity's red (the default) or green circuit network, together with that entity's red and green connection counts. The target is located by unitNumber, or by prototype name plus an exact centre-position match (within 0.001 tiles), on its own surface field (default nauvis); no actor or reach check is involved, and an entity resolvable only by unit-number scan needs its prototype name supplied. connected is false when the entity exposes no network of the requested colour, in which case signals is empty while both connection counts are still reported; ambiguous centre matches and unknown entities are GraphQL errors. Signals are sorted by type, name, quality (unqualified first), and value, and quality is null for virtual and fluid signals. One unpaginated snapshot at the reported tick, so a large network returns every signal in a single response."""
   circuitNetwork(input: CircuitNetworkInput!): CircuitNetworkSignals!
+  """Lists the named force's custom map chart tags on one surface, ordered by tag number, optionally restricted to an area that must have finite coordinates and positive dimensions. surface and force must be non-empty and exist; limit is 1..1000 and offset is zero-based, with pageInfo reporting the total and hasMore for the filtered set. Each tag carries its force-unique tagNumber, position, text (empty when unset), and icon when one was set. One snapshot at the reported tick, with no actor or reach check."""
+  chartTags(input: ChartTagsInput!): ChartTagPage!
+}
+
+extend type Mutation {
+  """Adds one force-visible custom map marker at a finite map position on a surface. surface and force default to nauvis and player and must exist; at least one of nonblank text or icon (a signal reference) is required, and the engine assigns the force-unique tag number. Returns the created tag snapshot with its assigned tagNumber, position, text, and icon, at the post-write tick. Emits one in-game notification unless message overrides it. This writes the map marker itself, not entity or blueprint tags."""
+  addChartTag(input: AddChartTagInput!): ChartTagMutationResult!
+  """Removes one custom chart tag from a surface for a force, addressed by its force-unique tagNumber, which must parse as an unsigned 32-bit integer and must exist on that surface or the call fails. surface and force default to nauvis and player. Returns the final snapshot of the removed tag rather than the remaining page. Emits one in-game notification unless message overrides it."""
+  removeChartTag(input: RemoveChartTagInput!): ChartTagMutationResult!
+}
+
+"""List custom chart tags, optionally restricted to an area. limit is 1 through 1000 and offset is zero-based."""
+input ChartTagsInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  area: FactoryAreaInput
+  offset: Int! = 0
+  limit: Int! = 100
+}
+
+"""Add a custom chart tag. At least one of nonblank text or icon is required."""
+input AddChartTagInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  position: PositionInput!
+  text: String
+  icon: SignalInput
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Remove a custom chart tag by its force-unique tag number."""
+input RemoveChartTagInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  tagNumber: ID!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Signal icon shown beside a custom chart tag."""
+type ChartTagIcon {
+  type: String!
+  name: String!
+  quality: String
+}
+
+"""One force-visible custom marker in map view."""
+type ChartTag {
+  tagNumber: ID!
+  position: Position!
+  text: String!
+  icon: ChartTagIcon
+}
+
+type ChartTagPage {
+  tick: Float!
+  surface: String!
+  force: String!
+  pageInfo: PageInfo!
+  tags: [ChartTag!]!
+}
+
+"""Snapshot returned after adding or removing one chart tag."""
+type ChartTagMutationResult {
+  tick: Float!
+  surface: String!
+  force: String!
+  tag: ChartTag!
 }
 
 type SurfaceInfo {

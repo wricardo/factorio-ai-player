@@ -61,12 +61,14 @@ local function belt_pair(a,b)
 end
 local function inserter_pair(a,b)
   if a.type=="inserter" then
-    if a.pickup_target==b then return "pickup" end
-    if a.drop_target==b then return "drop" end
+    local pickup,drop=inserter_targets(a)
+    if pickup==b then return "pickup" end
+    if drop==b then return "drop" end
   end
   if b.type=="inserter" then
-    if b.pickup_target==a then return "pickup" end
-    if b.drop_target==a then return "drop" end
+    local pickup,drop=inserter_targets(b)
+    if pickup==a then return "pickup" end
+    if drop==a then return "drop" end
   end
   return nil
 end
@@ -133,7 +135,7 @@ func adjacencyQuery(r *Resolver, area *FactoryAreaInput, force, surface string, 
 	if err != nil {
 		return nil, err
 	}
-	lua := luaFail + topologyCommonLua + fmt.Sprintf(`
+	lua := luaFail + transportLineLua + topologyCommonLua + fmt.Sprintf(`
 local surface=game.surfaces[%s]
 if not surface then fail("surface not found"); return end
 local force=game.forces[%s]

@@ -66,8 +66,10 @@ local function machine_drain(machine,target,actor,position,insert_items)
     for _,item in pairs(inventory.get_contents()) do
       local quality=machine_quality_name(item.quality)
       local count=item.count
-      pcall(function() inventory.remove{name=item.name,quality=quality,count=count} end)
-      machine_store(target,actor,position,insert_items,item.name,quality,count)
+      local ok,removed=pcall(function() return inventory.remove{name=item.name,quality=quality,count=count} end)
+      if ok and type(removed)=="number" and removed>0 then
+        machine_store(target,actor,position,insert_items,item.name,quality,removed)
+      end
     end
   end
 end
@@ -113,6 +115,7 @@ func machineRecipeLua(args []string, out io.Writer) (string, error) {
 	fs.SetOutput(out)
 	character := fs.Uint64("character", 0, "Character unit number (required)")
 	entity := fs.String("entity", "", "Crafting machine entity name (required unless a unit number is given)")
+	surface := fs.String("surface", "", "Target surface name (defaults to the actor's surface)")
 	var unitNumber string
 	fs.StringVar(&unitNumber, "unit-number", "", "Crafting machine unit number, alternative to entity and x/y")
 	fs.StringVar(&unitNumber, "unitNumber", "", "Crafting machine unit number, alternative to entity and x/y")
@@ -140,7 +143,8 @@ func machineRecipeLua(args []string, out io.Writer) (string, error) {
 	}
 	prefix := luaFail + fmt.Sprintf(`local c=game.get_entity_by_unit_number(%d); if not c or c.type~="character" then fail("character not found"); return end
 local p=c
-`, *character) + targetLocals(targetUnit, *entity, *x, *y, "") + "surface_name=c.surface.name\n" + luaEntityResolve + resolveTargetLua() + `if e.type~="assembling-machine" then fail("assembling machine not found"); return end
+`, *character) + targetLocals(targetUnit, *entity, *x, *y, *surface) + "if surface_name==\"\" then surface_name=c.surface.name end\n" + luaEntityResolve + resolveTargetLua() + `if e.surface~=c.surface then fail("machine is on another surface than the actor"); return end
+if e.type~="assembling-machine" then fail("assembling machine not found"); return end
 if ` + reachViolation("c", "e") + ` then fail("machine out of reach"); return end
 ` + machineDrainLua
 	return prefix + fmt.Sprintf(`local recipe=c.force.recipes[%s]; if not recipe or not recipe.enabled then fail("recipe not found or not enabled"); return end

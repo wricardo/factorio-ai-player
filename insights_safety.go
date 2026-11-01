@@ -155,16 +155,9 @@ local function number_or_zero(read)
   if ok and type(value)=="number" then return value end
   return 0
 end
-local function number_or_nil(read)
-  local ok,value=pcall(read)
-  if ok and type(value)=="number" then return value end
-  return nil
-end
--- Factorio 2.0 exposes LuaForce.evolution_factor(surface) as a method; the bare
--- field read is accepted as a fallback when the method is unavailable.
-local evolution_factor=number_or_nil(function() return force.evolution_factor(surface) end)
-if evolution_factor==nil then evolution_factor=number_or_nil(function() return force.evolution_factor end) end
-if evolution_factor==nil then evolution_factor=0 end
+-- Factorio 2.0 exposes LuaForce.get_evolution_factor(surface); there is no
+-- evolution_factor member. An unreadable value degrades to 0.
+local evolution_factor=number_or_zero(function() return force.get_evolution_factor(surface) end)
 local evolution_by_time=number_or_zero(function() return force.get_evolution_factor_by_time(surface) end)
 local evolution_by_pollution=number_or_zero(function() return force.get_evolution_factor_by_pollution(surface) end)
 local evolution_by_kills=number_or_zero(function() return force.get_evolution_factor_by_killing_spawners(surface) end)

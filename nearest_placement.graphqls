@@ -1,0 +1,44 @@
+extend type Query {
+  """Find the legal placement of one prototype nearest to an origin, without building anything. Candidates are tile-aligned centers for the prototype's footprint (odd sizes on half tiles, even sizes on whole tiles, width and height swapped for east and west directions) inside maxRadius (greater than 0, at most 64 tiles), evaluated in order of distance from origin with ties broken by x then y, and the first candidate that passes every check wins. Checks run cheapest first and short-circuit: engine placement, resources, water, nearby entities, power coverage, water adjacency. blockers, terrain and tile only describe why the snapped origin itself is refused by the engine and stay empty when the engine accepts it, so a candidate rejected by a caller constraint reports no blockers. expanded counts every candidate evaluated including the winner, and found false with null position and distance means the search was exhausted. This is an engine placement check only: it ignores reach, inventory and research, so a found placement still needs a real placement call. Invalid surface, force, prototype, direction, maxRadius, minDistanceFromEntities or a missing origin fails the query."""
+  nearestPlacement(input: NearestPlacementInput!): PlacementCandidate!
+}
+
+"""Surface, force and prototype must exist. direction is 0 through 15. maxRadius is greater than 0 and at most 64 tiles, measured from origin to the candidate center. minDistanceFromEntities is 0 through 16 tiles of clear space between the footprint and any built entity or ghost of any force; natural entities (resources, trees, rocks, cliffs), characters, corpses and items never count."""
+input NearestPlacementInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  prototype: String!
+  direction: Int! = 0
+  origin: PositionInput!
+  maxRadius: FiniteFloat! = 16
+  """Reject footprints that overlap a resource entity."""
+  avoidResources: Boolean! = false
+  """Reject footprints that overlap a water tile."""
+  avoidWater: Boolean! = false
+  minDistanceFromEntities: FiniteFloat
+  """Require the footprint to touch the supply area of an electric pole of the force."""
+  requirePowerCoverage: Boolean! = false
+  """Require a water tile within one tile of the footprint."""
+  requireWaterAdjacency: Boolean! = false
+}
+
+type PlacementCandidate {
+  tick: Float!
+  surface: String!
+  force: String!
+  prototype: String!
+  direction: Int!
+  found: Boolean!
+  """Center of the nearest legal placement; null when none was found."""
+  position: Position
+  """Euclidean distance from origin to position; null when none was found."""
+  distance: Float
+  """Prototype names colliding with the snapped origin, sorted; empty when the engine accepts the origin."""
+  blockers: [String!]!
+  """True when the ground tile under the snapped origin itself blocks the prototype."""
+  terrain: Boolean!
+  """Ground tile name under the snapped origin."""
+  tile: String!
+  """Candidates evaluated, including the winner."""
+  expanded: Int!
+}

@@ -6,19 +6,58 @@ import (
 	"strconv"
 )
 
+// stockBeltLineLua reads one entity's transport lines for the stock snapshots.
+// get_contents reports only the items carried by that entity's tile, while
+// line_equals spans one internal line across tiles, so deduplication has to stay
+// inside a single entity: an entity exposing the same line twice counts once,
+// but every tile keeps its own items.
+const stockBeltLineLua = `
+local function stock_belt_lines(entity, budget)
+  local kept = {}
+  for index = 1, entity.get_max_transport_line_index() do
+    local line = entity.get_transport_line(index)
+    local duplicate = false
+    for _, prior in ipairs(kept) do
+      if not budget() then return kept end
+      if line.line_equals(prior.line) then duplicate = true; break end
+    end
+    if not duplicate then kept[#kept+1] = {index=index, line=line} end
+  end
+  return kept
+end
+`
+
+func stockCategoryName(category *StockCategory) (string, error) {
+	if category == nil {
+		return "", nil
+	}
+	switch *category {
+	case StockCategoryStored:
+		return "stored", nil
+	case StockCategoryInTransit:
+		return "in-transit", nil
+	case StockCategoryGround:
+		return "ground", nil
+	case StockCategoryPlayer:
+		return "player", nil
+	default:
+		return "", fmt.Errorf("unknown stock category %q", *category)
+	}
+}
+
 // stockQuery observes supported inventories and belt lines without moving items.
 func stockQuery(r *Resolver, input *StockInput) (*StockPage, error) {
 	if input == nil {
-		input = &StockInput{Surface: "nauvis", Force: "player", Limit: 100, TotalsLimit: 100}
+		input = &StockInput{Surface: "nauvis", Force: "player", Limit: 100, TotalsLimit: 100, ItemsLimit: 100}
 	}
 	if input.Surface == "" || input.Force == "" {
 		return nil, fmt.Errorf("surface and force are required")
 	}
-	if input.Limit < 1 || input.Limit > 1000 || input.TotalsLimit < 1 || input.TotalsLimit > 1000 {
-		return nil, fmt.Errorf("limit and totalsLimit must be between 1 and 1000")
+	if input.Limit < 1 || input.Limit > 1000 || input.TotalsLimit < 1 || input.TotalsLimit > 1000 || input.ItemsLimit < 1 || input.ItemsLimit > 1000 {
+		return nil, fmt.Errorf("limit, totalsLimit and itemsLimit must be between 1 and 1000")
 	}
-	if input.Offset < 0 || input.TotalsOffset < 0 {
-		return nil, fmt.Errorf("offset and totalsOffset must be non-negative")
+	if input.Offset < 0 || input.TotalsOffset < 0 || input.ItemsOffset < 0 {
+		return nil, fmt.Errorf("offset, totalsOffset and itemsOffset must be non-negative")
 	}
 	item := ""
 	if input.Item != nil {
@@ -26,6 +65,10 @@ func stockQuery(r *Resolver, input *StockInput) (*StockPage, error) {
 		if item == "" {
 			return nil, fmt.Errorf("item must not be empty")
 		}
+	}
+	category, err := stockCategoryName(input.Category)
+	if err != nil {
+		return nil, err
 	}
 	area := "nil"
 	if input.Area != nil {
@@ -41,9 +84,9 @@ func stockQuery(r *Resolver, input *StockInput) (*StockPage, error) {
 		}
 		area = fmt.Sprintf("{{%s,%s},{%s,%s}}", strconv.FormatFloat(values[0], 'g', -1, 64), strconv.FormatFloat(values[1], 'g', -1, 64), strconv.FormatFloat(values[2], 'g', -1, 64), strconv.FormatFloat(values[3], 'g', -1, 64))
 	}
-	lua := luaFail + fmt.Sprintf(`
-local surface_name, force_name, item = %s, %s, %s
-local area, limit, offset, totals_limit, totals_offset = %s, %d, %d, %d, %d
+	lua := luaFail + stockBeltLineLua + fmt.Sprintf(`
+local surface_name, force_name, item, category_filter = %s, %s, %s, %s
+local area, limit, offset, totals_limit, totals_offset, items_limit, items_offset = %s, %d, %d, %d, %d, %d, %d
 local surface = game.surfaces[surface_name]
 if not surface then fail("surface not found: "..surface_name); return end
 local force = game.forces[force_name]
@@ -51,8 +94,9 @@ if not force then fail("force not found: "..force_name); return end
 local function in_area(p)
   return not area or (p.x >= area[1][1] and p.y >= area[1][2] and p.x <= area[2][1] and p.y <= area[2][2])
 end
-local entries, totals_by_key = {}, {}
+local entries, totals_by_key, items_by_key = {}, {}, {}
 local function record(category, name, kind, player, pos, inventory, contents)
+  if category_filter ~= "" and category ~= category_filter then return end
   for _, stack in pairs(contents) do
     if item == "" or stack.name == item then
       local quality = stack.quality
@@ -63,6 +107,13 @@ local function record(category, name, kind, player, pos, inventory, contents)
         totals_by_key[key] = total
       end
       total.count = total.count + stack.count
+      local item_key = stack.name.."\0"..quality
+      local item_total = items_by_key[item_key]
+      if not item_total then
+        item_total = {item=stack.name, quality=quality, count=0}
+        items_by_key[item_key] = item_total
+      end
+      item_total.count = item_total.count + stack.count
       entries[#entries+1] = {category=category, entityName=name, entityType=kind, player=player,
         position={x=pos.x,y=pos.y}, inventoryKind=inventory,
         stack={name=stack.name, quality=quality, count=stack.count}}
@@ -90,7 +141,7 @@ table.sort(entities, function(a,b)
   if a.name ~= b.name then return a.name < b.name end
   return (a.unit_number or 0) < (b.unit_number or 0)
 end)
-local lines, line_comparisons = {}, 0
+local line_comparisons = 0
 for _, entity in ipairs(entities) do
   if in_area(entity.position) then
     local list = specs[entity.type]
@@ -116,21 +167,15 @@ for _, entity in ipairs(entities) do
     inventory(entity.get_fuel_inventory(), "fuel")
     inventory(entity.get_burnt_result_inventory(), "burnt-result")
     if belt_types[entity.type] then
-      for i=1,entity.get_max_transport_line_index() do
-        local line = entity.get_transport_line(i)
-        local duplicate = false
-        for _, prior in ipairs(lines) do
-          line_comparisons = line_comparisons + 1
-          if line_comparisons > 1000000 then
-            fail("stock belt scan exceeds 1000000 line comparisons; restrict area")
-            return
-          end
-          if line.line_equals(prior) then duplicate = true; break end
-        end
-        if not duplicate then
-          lines[#lines+1] = line
-          record("in-transit", entity.name, entity.type, nil, entity.position, "line-"..i, line.get_contents())
-        end
+      local overflow = false
+      local kept = stock_belt_lines(entity, function()
+        line_comparisons = line_comparisons + 1
+        if line_comparisons > 1000000 then overflow = true; return false end
+        return true
+      end)
+      if overflow then fail("stock belt scan exceeds 1000000 line comparisons; restrict area"); return end
+      for _, entry in ipairs(kept) do
+        record("in-transit", entity.name, entity.type, nil, entity.position, "line-"..entry.index, entry.line.get_contents())
       end
     end
   end
@@ -168,10 +213,17 @@ table.sort(totals, function(a,b)
   if a.quality ~= b.quality then return a.quality < b.quality end
   return a.category < b.category
 end)
-local page, totals_page = {}, {}
+local items = {}
+for _, item_total in pairs(items_by_key) do items[#items+1] = item_total end
+table.sort(items, function(a,b)
+  if a.item ~= b.item then return a.item < b.item end
+  return a.quality < b.quality
+end)
+local page, totals_page, items_page = {}, {}, {}
 for i=offset+1,math.min(#entries,offset+limit) do page[#page+1] = entries[i] end
 for i=totals_offset+1,math.min(#totals,totals_offset+totals_limit) do totals_page[#totals_page+1] = totals[i] end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,location_page_info={total=#entries,limit=limit,offset=offset,has_more=#entries>offset+limit},locations=page,total_page_info={total=#totals,limit=totals_limit,offset=totals_offset,has_more=#totals>totals_offset+totals_limit},totals=totals_page}))`, luaString(input.Surface), luaString(input.Force), luaString(item), area, input.Limit, input.Offset, input.TotalsLimit, input.TotalsOffset)
+for i=items_offset+1,math.min(#items,items_offset+items_limit) do items_page[#items_page+1] = items[i] end
+rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,location_page_info={total=#entries,limit=limit,offset=offset,has_more=#entries>offset+limit},locations=page,total_page_info={total=#totals,limit=totals_limit,offset=totals_offset,has_more=#totals>totals_offset+totals_limit},totals=totals_page,item_page_info={total=#items,limit=items_limit,offset=items_offset,has_more=#items>items_offset+items_limit},items=items_page}))`, luaString(input.Surface), luaString(input.Force), luaString(item), luaString(category), area, input.Limit, input.Offset, input.TotalsLimit, input.TotalsOffset, input.ItemsLimit, input.ItemsOffset)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

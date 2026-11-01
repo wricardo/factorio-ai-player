@@ -158,9 +158,10 @@ for i=1,requested do
   local ok,result=pcall(function() return stack.use_capsule(c,{x=position.x,y=position.y}) end)
   if not ok then fail("capsule use failed: "..tostring(result)); return end
   local after=0; if stack.valid_for_read then after=stack.count end
-  if result==nil and after>=before then fail("capsule action had no effect at that position"); return end
+  local made=type(result)=="table" and result or {}
+  if #made==0 and after>=before then fail("capsule action had no effect at that position"); return end
   used=used+1
-  if result then created[#created+1]={name=result.name,type=result.type,position=result.position,unit_number=result.unit_number} end
+  for _,ent in ipairs(made) do created[#created+1]={name=ent.name,type=ent.type,position=ent.position,unit_number=ent.unit_number} end
 end
 if used==0 then fail("capsule was not used"); return end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=c.force.name,item=item,used=used,position=position,created=created}))`,

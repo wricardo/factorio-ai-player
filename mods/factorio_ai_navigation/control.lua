@@ -30,16 +30,45 @@ end
 
 -- Only characters, vehicles, trains, and a few other prototypes resolve through
 -- get_entity_by_unit_number; most buildings need a surface scan.
-local function entity_by_unit(unit, surface)
+local function entity_by_unit(unit, surface, filter)
   local entity = game.get_entity_by_unit_number(unit)
   if entity and entity.valid then
     return entity
   end
   if surface then
-    for _, candidate in pairs(surface.find_entities_filtered{}) do
+    for _, candidate in pairs(surface.find_entities_filtered(filter or {})) do
       if candidate.valid and candidate.unit_number == unit then
         return candidate
       end
+    end
+  end
+end
+
+-- Buildings do not move, so rescanning for a missing static target only needs
+-- entities of its prototype near its recorded box instead of the whole surface.
+local SCAN_PADDING = 2
+local function target_scan_filter(job)
+  local box = job.target_box
+  if not job.target_name or not box then
+    return nil
+  end
+  return {
+    name = job.target_name,
+    area = {
+      left_top = {x = box.left_top.x - SCAN_PADDING, y = box.left_top.y - SCAN_PADDING},
+      right_bottom = {x = box.right_bottom.x + SCAN_PADDING, y = box.right_bottom.y + SCAN_PADDING}
+    }
+  }
+end
+
+-- Finished jobs stay queryable for polling clients, but only the newest few
+-- hundred are kept so storage does not grow with every navigation request.
+local RETAINED_JOBS = 256
+local function prune_jobs()
+  local cutoff = storage.next_id - RETAINED_JOBS
+  for id, job in pairs(storage.jobs) do
+    if storage.active[job.unit] ~= id and tonumber(id) < cutoff then
+      storage.jobs[id] = nil
     end
   end
 end
@@ -102,7 +131,7 @@ local function target_loss_reason(job, character)
     -- Scanning a surface costs more than a direct lookup, so re-check a static
     -- entity at most once a second while the job is otherwise healthy.
     job.target_scan_tick = game.tick + 60
-    target = entity_by_unit(job.target_unit, character.surface)
+    target = entity_by_unit(job.target_unit, character.surface, target_scan_filter(job))
     if not target then
       return "target entity no longer exists"
     end
@@ -147,32 +176,72 @@ local function finish(job, status, reason, character)
   job.updatedTick = game.tick
 end
 
+local CHASE_GOAL_RINGS = 3
+local CHASE_GOAL_STEP = 0.75
+local CHASE_GOAL_DIRECTIONS = 8
+
 -- A chase goal sits on the target, which the pathfinder cannot reach while the
--- target occupies it, so request a path to a point one tolerance short of it.
+-- target occupies it, so probe a ring of points one tolerance out. A ring point
+-- can land inside a neighbouring entity's collision box, so candidates are
+-- ordered by distance from the walker and tried in turn.
+local function chase_goals(job, character)
+  local origin = job.destination
+  local x, y = character.position.x, character.position.y
+  local candidates = {}
+  for ring = 0, CHASE_GOAL_RINGS - 1 do
+    local radius = job.tolerance + ring * CHASE_GOAL_STEP
+    for step = 0, CHASE_GOAL_DIRECTIONS - 1 do
+      local angle = step * math.pi / 4
+      local goal = {x = origin.x + math.cos(angle) * radius, y = origin.y + math.sin(angle) * radius}
+      candidates[#candidates + 1] = {
+        goal = goal,
+        ring = ring,
+        order = #candidates + 1,
+        distance = distance_squared(goal, {x = x, y = y})
+      }
+    end
+  end
+  table.sort(candidates, function(a, b)
+    if a.ring ~= b.ring then
+      return a.ring < b.ring
+    end
+    if a.distance ~= b.distance then
+      return a.distance < b.distance
+    end
+    return a.order < b.order
+  end)
+  local goals = {}
+  for index, candidate in ipairs(candidates) do
+    goals[index] = candidate.goal
+  end
+  return goals
+end
+
 local function path_goal(job, character)
   if job.target_box then
     return target_goal(character.position, job.target_box, job.tolerance)
   end
-  local goal = job.destination
-  if not job.target_unit then
-    return goal
+  if job.target_unit then
+    local goals = job.goal_candidates
+    local index = job.goal_index or 1
+    if goals and goals[index] then
+      return goals[index]
+    end
   end
-  local dx, dy = character.position.x - goal.x, character.position.y - goal.y
-  local distance = math.sqrt(dx * dx + dy * dy)
-  if distance <= job.tolerance then
-    return goal
-  end
-  local scale = (distance - job.tolerance) / distance
-  return {x = goal.x + dx * scale, y = goal.y + dy * scale}
+  return job.destination
 end
 
-local function request_path(job, character)
+local function request_path(job, character, keep_goals)
   stop(character)
   job.status = "PATHFINDING"
   job.updatedTick = game.tick
   job.path = nil
   job.path_goal = copy_position(job.destination)
   job.retry_tick = nil
+  if job.target_unit and not job.target_entity and not keep_goals then
+    job.goal_candidates = chase_goals(job, character)
+    job.goal_index = 1
+  end
   local id = character.surface.request_path{
     bounding_box = character.prototype.collision_box,
     collision_mask = character.prototype.collision_mask,
@@ -186,6 +255,27 @@ local function request_path(job, character)
   }
   job.request = id
   storage.requests[id] = job.id
+end
+
+-- Try the next chase candidate goal before declaring the chase unreachable.
+local function advance_goal(job, character)
+  local goals = job.goal_candidates
+  local index = job.goal_index or 1
+  if goals and index < #goals then
+    job.goal_index = index + 1
+    request_path(job, character, true)
+    return true
+  end
+  return false
+end
+
+local function needs_destroy(path)
+  for _, waypoint in ipairs(path) do
+    if waypoint.needs_destroy_to_reach then
+      return true
+    end
+  end
+  return false
 end
 
 local function replan(job, character, exhausted_status, reason)
@@ -220,7 +310,7 @@ remote.add_interface("factorio_ai_navigation", {
     if player and (not player.connected or player.character ~= character) then
       return {error = "associated player must be connected and controlling this character"}
     end
-    local destination, target_box
+    local destination, target_box, target_name
     if target_character ~= nil then
       if x ~= nil or y ~= nil or target_entity ~= nil then return {error = "provide either destination coordinates, target_character, or target_entity"} end
       if not finite(target_character) or target_character < 1 or target_character > 4294967295 or target_character % 1 ~= 0 then
@@ -254,6 +344,7 @@ remote.add_interface("factorio_ai_navigation", {
       if target.surface ~= character.surface then return {error = "target entity is on another surface"} end
       target_box = target.bounding_box and {left_top = target.bounding_box.left_top, right_bottom = target.bounding_box.right_bottom} or nil
       destination = copy_position(target.position)
+      target_name = target.name
     else
       if not finite(x) or not finite(y) or math.abs(x) > 1000000 or math.abs(y) > 1000000 then
         return {error = "destination must contain finite map coordinates"}
@@ -263,6 +354,7 @@ remote.add_interface("factorio_ai_navigation", {
     if storage.active[character_number] then return {error = "character already has an active navigation job"} end
     local id = tostring(storage.next_id)
     storage.next_id = storage.next_id + 1
+    prune_jobs()
     local job = {
       id = id, unit = character_number, surface = character.surface.name,
       surface_index = character.surface.index, destination = destination,
@@ -272,7 +364,8 @@ remote.add_interface("factorio_ai_navigation", {
       position = copy_position(character.position), tolerance = tolerance,
       player_index = player and player.index or nil,
       timeout = timeout_ticks, replans = 0, status = "PATHFINDING",
-      startedTick = game.tick, updatedTick = game.tick
+      startedTick = game.tick, updatedTick = game.tick,
+      target_name = target_name
     }
     storage.jobs[id] = job
     storage.active[character_number] = id
@@ -327,14 +420,14 @@ script.on_event(defines.events.on_script_path_request_finished, function(event)
       job.updatedTick = game.tick
     end
   elseif not event.path or #event.path == 0 then
-    finish(job, "NO_PATH", "pathfinder found no path", character)
-  else
-    for _, waypoint in ipairs(event.path) do
-      if waypoint.needs_destroy_to_reach then
-        finish(job, "NO_PATH", "path requires destroying an obstacle", character)
-        return
-      end
+    if not advance_goal(job, character) then
+      finish(job, "NO_PATH", "pathfinder found no path", character)
     end
+  elseif needs_destroy(event.path) then
+    if not advance_goal(job, character) then
+      finish(job, "NO_PATH", "path requires destroying an obstacle", character)
+    end
+  else
     job.path = event.path
     job.waypoint = 1
     job.status = "MOVING"
@@ -350,12 +443,16 @@ script.on_event(defines.events.on_tick, function(event)
   for unit, id in pairs(storage.active) do
     local job = storage.jobs[id]
     local character = character_for(job)
+    local controller_reason = character and controller_loss_reason(job, character)
+    -- Evaluated once: a static-target scan is throttled, so a second call in the
+    -- same tick would return nil and drop the reason.
+    local target_reason = character and not controller_reason and target_loss_reason(job, character)
     if not character then
       finish(job, "CHARACTER_MISSING", "character no longer exists")
-    elseif controller_loss_reason(job, character) then
-      finish(job, "CANCELLED", controller_loss_reason(job, character), character)
-    elseif target_loss_reason(job, character) then
-      finish(job, "TARGET_MISSING", target_loss_reason(job, character), character)
+    elseif controller_reason then
+      finish(job, "CANCELLED", controller_reason, character)
+    elseif target_reason then
+      finish(job, "TARGET_MISSING", target_reason, character)
     else
       if job.target_unit and not job.target_entity then
         job.destination = copy_position(game.get_entity_by_unit_number(job.target_unit).position)
@@ -370,7 +467,7 @@ script.on_event(defines.events.on_tick, function(event)
       elseif arrived(job, character) then
         finish(job, "ARRIVED", nil, character)
       elseif job.retry_tick and event.tick >= job.retry_tick then
-        request_path(job, character)
+        request_path(job, character, job.goal_candidates ~= nil)
       elseif job.status == "MOVING" then
         if job.target_unit and not job.target_entity and distance_squared(job.destination, job.path_goal) > 9 then
           request_path(job, character)

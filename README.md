@@ -22,7 +22,7 @@ Both game and RCON bind to localhost. `just save` and `just stop` use the GraphQ
 
 `just observe` launches Factorio with a separate client data directory at `~/factorio-client`, avoiding the server's data-directory lock. In the client, select Multiplayer → Connect to address and enter `127.0.0.1:34197` (or the configured game port). The client has separate settings, login data, and mods; sign in and sync mods if needed. Existing `~/factorio-client/config.ini` is preserved.
 
-Startup overrides: `FACTORIO_BIN` (absolute executable path), `FACTORIO_SAVE` (absolute existing save path), `FACTORIO_GAME_PORT` (default 34197), `FACTORIO_RCON_PORT` (default 27015), `FACTORIO_STATE_DIR` (default `.factorio`), and `FACTORIO_MOD_DIR` (optional Factorio mod directory). Use the same state directory to manage an instance. A non-default RCON port also requires `--addr 127.0.0.1:PORT` before CLI subcommands.
+Startup overrides: `FACTORIO_BIN` (absolute executable path), `FACTORIO_SAVE` (absolute existing save path), `FACTORIO_GAME_PORT` (default 34197), `FACTORIO_RCON_PORT` (default 27015), `FACTORIO_STATE_DIR` (default `.factorio`), `FACTORIO_MOD_DIR` (optional Factorio mod directory), and `FACTORIO_SCREENSHOT_DIR` (graphical client `script-output`, default `~/factorio-client/script-output`). Use the same state directory to manage an instance. A non-default RCON port also requires `--addr 127.0.0.1:PORT` before CLI subcommands.
 
 ## Integration tests
 
@@ -71,9 +71,17 @@ Set `wait: true` to poll until actor's entire crafting queue is empty, including
 
 `cancelCraft` cancels up to `count` crafts starting at the one-based queue `index` and returns the remaining queue. Canceling a craft can also cancel later crafts whose ingredients depended on it. `cancelResearch` stops the force's current research and returns the resulting state; the engine removes dependent technologies from the research queue.
 
-`placeMany` places one selected-quality item at each of up to 1000 explicit positions in one RCON call. `placements` entries use entity-center coordinates and optional engine `direction` 0–15 (default 0/north). `errors` contains typed one-based index, stable code, message, and target for first 20 failures; batch continues. Operation is not transactional, so inspect world before retrying. Player placement uses player's current character; both actor variants require character on selected surface and within build reach.
+`dropItem` seeds a line or the ground from an actor's main inventory. The
+position snaps to its tile center. `target: GROUND` refuses a tile that holds a
+belt, splitter, loader or linked belt: the engine would otherwise create the
+stack under the belt and it would be lost while the mutation reported success.
+Use `target: BELT` for belt tiles; a rejected drop leaves the inventory intact.
 
-`connectionPlan` plans one axis-aligned straight or single-bend run for `kind` `BELT`, `PIPE`, or `POWER_POLE_CHAIN` and returns the snapped tile centers, per-tile engine `direction`, whether each tile already holds the requested entity, the item count `needed`, and typed `conflicts`. Positions snap to the center of the containing tile; the default items are `transport-belt`, `pipe`, and `medium-electric-pole`. `bend` `AUTO` plans both orientations and keeps the fewer-conflict route, tie to `HORIZONTAL_FIRST`; a straight route reports the orientation it lies on. A tile holding the same entity name with the needed direction is `existing` and costs nothing; a same-name belt facing elsewhere reports `DIRECTION_MISMATCH`. Surface tiles only: no tunnels are planned, so an obstruction is a `COLLISION` with blocker prototype names, terrain flag, and ground tile. `PIPE` runs also report `FLUID_ADJACENCY` when a pipe-like entity outside the run touches a route tile, because pipes join orthogonally and would merge fluid networks; pass `allowFluidAdjacency: true` to merge deliberately. `POWER_POLE_CHAIN` places one pole every `floor(wire reach)` route tiles, so consecutive poles stay within wire distance and the engine wires them on build.
+`placeMany` places one selected-quality item at each of up to 1000 explicit positions in one RCON call. `placements` entries use entity-center coordinates and optional engine `direction` 0–15 (default 0/north). Underground belt halves need `undergroundType` `INPUT` on the entrance and `OUTPUT` on the exit in the same call; without it both halves are created as inputs and never connect. `place` accepts the same `undergroundType` and otherwise, for an underground belt, creates the output half when an unpaired input half sits within underground distance behind the target in the same direction. `errors` contains typed one-based index, stable code, message, and target for first 20 failures; batch continues. Operation is not transactional, so inspect world before retrying. Player placement uses player's current character; both actor variants require character on selected surface and within build reach.
+
+`connectionPlan` plans one axis-aligned straight or single-bend run for `kind` `BELT`, `PIPE`, or `POWER_POLE_CHAIN` and returns the snapped tile centers, per-tile engine `direction`, whether each tile already holds the requested entity, the item count `needed`, and typed `conflicts`. Positions snap to the center of the containing tile; the default items are `transport-belt`, `pipe`, and `medium-electric-pole`. `bend` `AUTO` plans both orientations and keeps the fewer-conflict route, tie to `HORIZONTAL_FIRST`; a straight route reports the orientation it lies on. A tile holding the same entity name with the needed direction is `existing` and costs nothing; a same-name belt facing elsewhere reports `DIRECTION_MISMATCH`. `DIRECT` plans surface tiles only, so an obstruction is a `COLLISION` with blocker prototype names, terrain flag, and ground tile. `PIPE` runs also report `FLUID_ADJACENCY` when a pipe-like entity outside the run touches a route tile, because pipes join orthogonally and would merge fluid networks; pass `allowFluidAdjacency: true` to merge deliberately. `POWER_POLE_CHAIN` places one pole every `floor(wire reach)` route tiles, so consecutive poles stay within wire distance and the engine wires them on build.
+
+`routing: ASTAR` (default `DIRECT`) replaces the fixed route with a bounded shortest-path search for `BELT` and `PIPE`; `POWER_POLE_CHAIN` stays direct. One RCON read samples the endpoint bounding box padded by `searchMargin` (0–64, default 12, at most 16384 tiles): placeability of the route entity, existing same-name entities, underground entities and pipe-like entities. The search itself runs in Go and is deterministic, so a plan and its apply agree. Step costs are 1 per new tile, 0.25 per reused existing tile, 0.25 per bend and 2 per underground half; the plan reports `cost`, `expanded` states, `stopReason` (`FOUND`, `NO_PATH`, `EXPANSION_LIMIT` when `maxExpandedTiles` (1–50000, default 5000) runs out, `ENDPOINT_BLOCKED`) and a matching typed conflict instead of an error. `allowUnderground` lets the route tunnel with `undergroundItem` (default `underground-belt` for belts, `pipe-to-ground` for pipes) at an offset of at most the smaller of `maxUndergroundDistance` and the prototype's max underground distance; underground steps carry `undergroundType` `INPUT` for the entrance and `OUTPUT` for the exit, and `undergroundNeeded` counts the halves. A span may pass beneath any entity except another underground belt, linked belt or pipe-to-ground, and beneath `avoidAreas` (at most 20), where no surface entity is placed. Underground belt halves face the travel direction; a pipe-to-ground faces its surface connection, so an eastbound pair is `12` then `4`. A pipe-to-ground connects only on that side, so unlike regular pipes it may sit beside a foreign pipe. A belt feeds an existing belt at the goal from behind or the side but never head-on; `preferExisting` lets a belt route reuse existing belts that already face its direction, and reusing a pipe also needs `allowFluidAdjacency` because it joins networks. ASTAR-only fields are rejected on `DIRECT`, never silently ignored. Placement re-checks every tile, so a world that changed between plan and apply yields per-step errors; items are checked before any removal.
 
 `connectEntities` plans the same run and then places it. It refuses to change the world when the plan has conflicts (`possible: false`, `placed: 0`) or when the actor lacks the planned item count, so a refused call is net-zero; each placed tile consumes one normal-quality item from the actor's main inventory, existing tiles are skipped, and reach applies per tile when `FACTORIO_ENFORCE_REACH=1`. Engine failures are reported per step with one-based index, stable code, message, and target. It prints the usual notification only when at least one entity was placed.
 
@@ -83,8 +91,9 @@ Set `wait: true` to poll until actor's entire crafting queue is empty, including
 
 `placeNextTo` places one item beside an anchor entity using both prototype bounding boxes, so callers do not compute footprints. `side` is `EAST`, `WEST`, `NORTH`, or `SOUTH`, `gap` is whole tiles between bounding boxes, and `direction` must be cardinal (0, 4, 8, or 12); rotated footprints swap width and height. The mutation snaps the preferred center to the tile grid, tries deterministic half-tile nudges, and keeps only positions that leave at least `gap` tiles on the requested side. It requires the anchor on the actor's force and surface, consumes one selected-quality item, reserves nothing on refusal, and refunds the item if engine creation fails. The result reports the placed entity, its position, the anchor unit number, side, and gap.
 
+`fuelMany` fuels 1–200 explicit entities and `transferMany` moves one item between the actor and a typed inventory of 1–200 explicit entities, each in one RCON call. Targets use the shared entity reference (a unit number with the prototype name, or the name with its center position) and carry their own surface. Duplicate targets are rejected before any call. Per-target semantics match the single operations: `fuelMany` inserts exactly `countPerTarget` fuel or the target fails with a typed error (`LOOKUP`, `VALIDATION` for an entity without a fuel inventory, `REACH` under `FACTORIO_ENFORCE_REACH=1`, `INVENTORY` when the actor lacks fuel or the fuel inventory cannot take the full count, `ENGINE`), so a full burner is never partially filled; `transferMany` moves `min(countPerTarget, available, capacity)` honouring stack limits and bar slots, and a short move is reported in `results` without an error. Both continue past failures and report `failed`, at most 20 typed `errors` with one-based index and target identity, and per-target `results` for the targets reached. `moved` totals the batch and `transferredStacks` counts source stack moves that moved at least one item. They are not transactional: nothing is rolled back, so inspect state before retrying a batch whose response was lost. There is no area scan; pass entities from `machines`, `nearby` or `entities`.
 
-`placeTile` places one tile item such as landfill, concrete, or foundation after checking the item's prototype placement rule against the current tile and rejecting tiles blocked by entities. It consumes one normal-quality item and returns the placed tile name. Tile items whose condition spans more than one tile are rejected. The acting character, or the selected player's current character, must be on the surface and within build reach.
+`placeTile` places one tile item such as landfill, concrete, or foundation after checking the item's prototype placement rule against the current tile and rejecting tiles where an entity (other than characters and resources) has a collision layer shared with the tile. It consumes one normal-quality item and returns the placed tile name. Tile items whose condition spans more than one tile are rejected. The acting character, or the selected player's current character, must be on the surface and within build reach.
 
 `createBlueprint` exports a blueprint string from blueprintable entities inside an area; `includeModules`/`includeFuel` default on, tiles/trains/station names default off. `createBlueprintFromEntities` builds the same string from explicit blueprint-relative entities and tiles instead of copying the world; supports entity `name`, position, direction, quality, recipe, and mirror flag. `placeBlueprint` imports that string and places **entity ghosts** at finite coordinates, rotated by `direction`; it does not consume items and does not build real entities. Real construction needs construction bots or manual building. Blueprint strings are limited to 2,000,000 characters.
 
@@ -116,7 +125,7 @@ Destination navigation requires the included Factorio mod. Back up the save, the
 
 `navigateStart` also accepts `targetEntity` instead of coordinates to walk next to a static entity such as a chest, assembling machine, or inserter. Pass its unit number; the goal is the closest point on the entity's bounding box inflated by `tolerance`, so the character stops beside the entity instead of trying to stand inside it, and the job ends as `TARGET_MISSING` when the entity is removed or moves to another surface. The target is resolved once at start: buildings without a unit-number lookup flag are found by scanning the character's surface, and the box is cached, so re-checking a still-valid target costs one surface scan per second at most. Characters are rejected here — use `targetCharacter` to chase them.
 
-`navigateStart` also accepts `targetCharacter` instead of coordinates, which keeps the destination on that character's current position so the walker follows it. The target must be another character on the same surface, and `tolerance` must then be at least 1 because characters collide. The job re-requests a path when the target drifts more than 3 tiles from the planned goal, ignores the target entity while pathfinding, reports its unit number as `targetCharacter`, and ends as `TARGET_MISSING` when the target disappears or changes surface.
+`navigateStart` also accepts `targetCharacter` instead of coordinates, which keeps the destination on that character's current position so the walker follows it. The target must be another character on the same surface, and `tolerance` must then be at least 1 because characters collide. The goal is not a single point: the mod builds a ring of eight candidate points at `tolerance` around the target, three rings wide in 0.75-tile steps, ordered nearest-ring-first and then by distance to the walker, so a point inside a chest or inserter cannot fail the chase. Each unreachable candidate (no path, or a path requiring a destroyed obstacle) advances to the next one, and only exhausting all 24 candidates reports `NO_PATH`; a pathfinder-busy reply retries the current candidate. The job re-requests a path when the target drifts more than 3 tiles from the planned goal, ignores the target entity while pathfinding, reports its unit number as `targetCharacter`, and ends as `TARGET_MISSING` when the target disappears or changes surface.
 
 The mod requests a Factorio path and follows waypoints on game ticks, without an RCON call per step. It retries pathfinding when stalled, stops on arrival, cancellation, timeout or failure, and retains job state in saves. Only one navigation job per character is allowed. For a connected player, navigation controls walking until it ends; manual movement input may compete with scripted direction, so cancel the job to stop navigation. Disconnecting or changing the controlled character cancels its job and stops scripted walking. A paused server cannot advance a job or its tick-based timeout. Paths can become blocked as the world changes, and a path does not guarantee interaction reach. Inspect job status and character position before retrying after an uncertain RCON response. The mod is not installed into or activated on an already-running server automatically.
 
@@ -204,6 +213,36 @@ curl -s -X POST http://127.0.0.1:8080/query \
 
 `FACTORIO_RCON_PASSWORD` is required to start the server. Each request runs resolvers independently over RCON; the endpoint is not a snapshot and is not transactional. Stop it with Ctrl-C or SIGTERM, which drains in-flight requests for up to 5 seconds. The server has no authentication or authorization, so bind it to localhost unless you deliberately trust every client that can reach it.
 
+### Native screenshots
+
+The managed Factorio server is headless and cannot render screenshots itself. `screenshot` requires a connected graphical player and delegates Factorio's native `game.take_screenshot` call to that same player as both `player` and `by_player`; it never uses operating-system screen capture. Start `just observe`, connect its client to the server, and pass that connected player name.
+
+```graphql
+mutation {
+  screenshot(input: {
+    player: "viewer"
+    surface: "nauvis"
+    position: {x: 32.5, y: -18.5}
+    width: 1280
+    height: 720
+    zoom: 1
+    showEntityInfo: true
+  }) {
+    tick
+    surface
+    player
+    path
+    width
+    height
+    bytes
+  }
+}
+```
+
+Factorio writes the PNG beneath the graphical client's `script-output` directory at a server-generated unique path under `factorio-ai-player/`; callers cannot select the path. The GraphQL process reads `FACTORIO_SCREENSHOT_DIR` as its trusted view of that directory, defaulting to `~/factorio-client/script-output` to match `just observe`. Set it when the graphical client output is mounted elsewhere, for example `FACTORIO_SCREENSHOT_DIR=/mnt/factorio-client/script-output go run . serve`.
+
+The mutation waits up to 10 seconds for a new regular PNG, checks its PNG header, requested dimensions, and complete end marker without decoding the full image, and reports byte size only after verification. Missing, stale, invalid, incomplete, or wrong-sized output returns a GraphQL error and sends no in-game notification. Successful verification sends the standard generated notification or the optional custom `message`.
+
 ### In-game notifications
 
 Every mutation prints an in-game notification after it succeeds. `BeltThroughputStartInput` has no notification field, and `save`/`shutdown` take no input. `navigateCancel` exposes the option as a field argument.
@@ -277,16 +316,29 @@ that labs, science packs or trigger conditions are satisfied.
 It covers the inventory types listed in its schema description, not every
 inventory in the game. Ground items have no force ownership. Belt-line
 deduplication fails explicitly after one million comparisons; narrow the area
-rather than relying on partial totals. Both locations and totals are paginated.
+rather than relying on partial totals. Each belt contributes its own tile's
+lines, so in-transit totals match the sum of per-belt lane contents. Locations,
+totals and items are paginated independently: `totals` breaks down per item,
+quality and category, while `items` gives one row per item and quality summed
+across every category.
 
 `electricNetworks` reports one-minute network-wide production and consumption
 averages in watts; selected area restricts poles, not the network's statistics.
 `powerConsumers` reports observed energy, network and status. Current network
 satisfaction and per-entity instantaneous production are not exposed.
+`powerConsumers` filters server-side before pagination, so `pageInfo.total`
+counts matches: `status` (exact engine status name, unknown names are an error),
+`connectedToProducingNetwork` (entities where the predicate does not apply never
+match), `networkId` (positive engine network id), and `onlyIssues`, which keeps
+entities reporting `no_power`, `low_power`, `not_plugged_in_electric_network` or
+`not_connected_to_electric_network`, or with `connectedToProducingNetwork: false`.
+Filters combine with AND and the default leaves behavior unchanged.
+`electricNetworks` accepts `networkId` to keep one network and rejects the entity
+filters rather than ignoring them.
 `worldLogistics` inspects belts, inserters and fluid boxes; `worldResources`
 returns resource tiles, obstacles, water and nearby drills. Both require an area
 of at most 256 tiles per dimension. Nearby drills do not imply mining coverage.
-`worldPlacement` performs the engine placement check, not inventory or reach.
+`worldPlacement` performs the engine placement check, not inventory or reach; a refused tile reports the colliding prototype names, whether the ground tile itself blocks the prototype, and the ground tile name, so a single check explains why without a follow-up probe.
 `probePlacement` repeats that check on every tile center of an area of at most
 16384 tiles in one round trip. `mode: BLOCKED_TILES` (the default) returns every
 refused tile with the colliding entity names, the ground tile name, and whether
@@ -308,8 +360,18 @@ rows per call. `worldResources` accepts `kinds` (`resource`, `tree`, `cliff`,
 partition totals stay unfiltered, and `groupPatches: true` to cluster matching
 resource entities into connected patches with bounds, centroid, total amount and
 nearby drills, sorted by amount descending.
+`mapArea` renders one bounded area as a compact character grid for headless clients, so an agent gets spatial context without screenshots or paged entity lists. The area is downsampled to at most `maxRows` by `maxColumns` cells (1–64 each) using one square `cellSize`; `truncated` is true whenever `cellSize` exceeds 1. Each cell reports the highest-priority entity whose center falls in it — character, machine, inserter, belt, pipe or fluid entity, pole, chest, resource, tree, rock, cliff — otherwise water (`~`) or empty (`.`). Natural entities appear regardless of force; built entities are limited to the selected force. `layer` narrows the scan to `ALL`, `FACTORY` (characters and built entities; natural obstacles and resources omitted), or `RESOURCES` (resources only, water as terrain). The legend maps every character to its prototype name, type, first unit number and cell count, so a caller can follow a glyph with `entities` or `inspect`. One cell shows one entity and cells are sampled at their top-left tile for water, so the grid is a spatial overview, not a completeness claim.
+
+`factoryBriefing` is one bounded read-only attention snapshot. It composes the existing production, machine, power-network, research, safety, construction-order, ghost and stock reads, each in its own RCON call, so every section reports its own tick (`productionTick`, `machineTick`, `powerTick`, `researchTick`, `safetyTick`, `constructionTick`, and `stockTick` when `watchItems` were given) and sections can differ by a few ticks. `attention` lists observations by severity (`CRITICAL` stops output or threatens loss, `WARNING` degrades it, `INFO` is queued work), then kind, position and name, cut to `attentionLimit` (1–100, default 20); `attentionTotal` and `attentionCounts` keep the exact pre-cut totals per kind. Kinds are `NO_FUEL`, `NO_POWER`, `NO_INGREDIENTS`, `OUTPUT_FULL`, `NO_RECIPE`, `FLUID_SHORTAGE` (from engine machine statuses), `ENEMY` and `DAMAGED` (safety), `NO_RESEARCH` (research enabled, nothing active or queued), `GHOST_BACKLOG`, `DECONSTRUCTION`, and `LOW_STOCK`. Per-entity items carry name, position and unit number when the source exposes one; aggregate kinds carry a `count` instead. `watchItems` (at most 20, each with a `minimum`, default 1) report `stockouts` against observed factory stock, with `actorHas` from the optional `actor`'s main inventory. Ghost counts need `area` (positive dimensions, at most 256 tiles per side) and are skipped with a warning otherwise; `ghostsBuildable` counts ghosts whose placement material is in observed stock, over the first 1000. Per-machine attention covers the first 3000 machines while summaries cover all, and a truncated scan is named in `warnings`. A failing section fails the whole query, so a returned briefing is never silently partial. It recommends nothing and stores nothing.
+
+`nearestPlacement` answers "where is the nearest legal spot for this prototype near this origin" in one round trip. Candidates are tile-aligned footprint centers (odd sizes on half tiles, even sizes on whole tiles, width and height swapped for east and west directions) within `maxRadius` (greater than 0, at most 64) of `origin`, ordered by distance then x then y; the first that passes every check wins, so the answer is the nearest legal position, not a nearby one. Checks run cheapest first: the engine placement check, `avoidResources`, `avoidWater`, `minDistanceFromEntities` (0–16 tiles of clear space around the footprint, counting built entities and ghosts of any force but never resources, trees, rocks, cliffs, characters, corpses or items), `requirePowerCoverage` (footprint touches an electric pole's supply area of the selected force) and `requireWaterAdjacency` (a water tile within one tile of the footprint). `expanded` counts candidates evaluated. `blockers`, `terrain` and `tile` describe why the snapped origin itself is refused by the engine and are empty when the engine accepts it, so a not-found answer still explains the origin; a candidate rejected only by a caller constraint reports no blockers. Like `worldPlacement` it ignores reach, inventory and research. Water means a tile with a pumpable fluid: out-of-map tiles share the `water_tile` collision layer but are not water, here and in `mapArea`.
+
 `entities` pages every entity in an area with optional prototype-name and type
-filters; `belts` pages transport belts and both lane contents. Both expose
+filters; `belts` pages transport belts and both lane contents. `belts` is
+transport-only by contract: underground belts, splitters, loaders and linked
+belts have different line counts and are read with `worldLogistics` or
+`factoryGraph` (whose belt nodes already carry `direction` and `lanes`), or as
+a linear run with `beltStretch`. Both expose
 `total` with `limit`/`offset`. `removeMany` mines up to 200 explicit,
 reachable targets and reports per-target failures without aborting the batch.
 `safety` observes enemy and damaged entities, optional position pollution, and
@@ -323,13 +385,69 @@ belts. It returns a directed edge list, `sources`/`sinks`, and `boundaryEdges`
 for connections that leave the returned node set. `sources`/`sinks` are
 structural terminals, not stall or dead-end diagnoses, and `maxEntities`
 (1–1000) bounds traversal with `truncated` set when belts were omitted.
+`beltStretch` walks one linear stretch instead of a whole component: it starts
+at the belt covering the target, follows tile-adjacent engine connections, and
+collapses underground and linked-belt pairs into one hop, so a tunnel never
+breaks the sequence. The walk stops at a merge (two predecessors), a split (two
+successors, including any splitter), a surface boundary, a revisited belt, or
+`maxEntities`; `ends` reports where and why, with the connected belts beyond the
+stop. A forward `boundary` of a transport belt or underground exit is also
+classified from the last belt's direction and the tiles ahead: `expectedTarget`
+is the tile it outputs toward, `blocker` names the first non-belt entity on the
+expected tile or between it and the next aligned belt (or a belt facing the run
+head-on), and `reason` separates `NATURAL_END` (no aligned belt within 8 tiles,
+as when a run ends beside its last inserter or in front of a machine) from the
+gaps `MISSING_BELT`, `BLOCKED`, `HEAD_ON` and `UNPAIRED_UNDERGROUND`; `gap` is
+true for the gaps. Merge, split, loop, truncated and backward ends are
+`NOT_APPLICABLE`, and a splitter, loader or linked belt as the last entity is
+not classified. A gap needs evidence that the line continues, so a belt that
+points into an empty field is a natural end, not a gap. Every lane carries the engine transport-line name and its side
+(`left_line`/`right_line`, splitter lines, and an underground belt's
+`secondary_*` tunnel lines), and `left`/`right`/`unknown` totals
+sum every belt's transport lines once, so a multi-tile stretch reports the items
+actually sitting on it; a line object that one entity exposes twice is
+deduplicated. `mixed` is set
+when at least one belt in the stretch carries more than one prototype/quality
+on that side, which is the lane-contamination signal. The totals are one
+snapshot of in-transit stock, not flow: a stalled or backed-up stretch reports
+items that are not moving; `beltStretchMeasure` walks the same stretch and
+starts a `beltThroughputStart` measurement on its first, middle (default) or
+last transport-belt tile, returning both the snapshot and the per-lane crossings
+that prove whether the mixture actually moves. One tile is sampled per call, and
+stretches of only splitters, underground belts or loaders have no measurable
+tile.
 `factoryGraph` returns machines, belts, chests, inserters and fluid-network
 entities intersecting an area in one snapshot, including inserters outside the
 area whose actual target is inside it; `boundaryEdges` identify every endpoint
 that leaves the set. Fluid entities include offshore pumps, pipes,
 pipe-to-ground, pumps, boilers, generators, heat exchangers and storage tanks,
-with directed `fluid` edges from the engine's pipe connections. Neither query
-measures throughput.
+with directed `fluid` edges from the engine's pipe connections. Belt nodes carry
+`direction` and per-line `lanes` contents, so topology and what each lane holds
+come back in one call. Neither query measures throughput.
+
+`beltComponents` groups every belt in an area into weakly connected components
+in one snapshot and classifies each one, replacing a seed-per-component audit:
+`belts` counts the component's belts, `nodes`/`edges` follow the same engine
+connections as `factoryGraph`, `sources`/`sinks` are structural terminals
+inside the area, `inserters` lists every arm whose pickup or drop target is one
+of the belts (once per component, so an arm linking two components appears in
+both), and `items`/`itemCount` aggregate the in-transit stock on its lanes.
+`dead` is true when nothing feeds or drains the component: no inserter target
+and no machine drop target touches it. `stallEnds` are sinks no inserter picks
+from, so items stop there, and `starveHeads` are sources nothing drops onto.
+Components are sorted dead first, then by belt count, and paged with
+`limit`/`offset`; `deadOnly` keeps just the dead ones. Because this is a
+read-only single-snapshot analysis, its area may be up to 1024 tiles per side
+instead of the 256-tile paging cap, so a whole base is one call. `maxEntities`
+(1–5000) bounds each traversal and sets that component's `truncated`;
+`beltTotal` counts belts found before grouping.
+
+Lane reads in `worldLogistics`, `factoryGraph` and `beltStretch` carry the
+engine transport-line name and its side (`left_line`/`right_line`, splitter
+lines, an underground belt's surface and `secondary_*` tunnel lines).
+`LogisticsEndpoint` also exposes `direction`, so a directed walk does not have to
+reconstruct it from edges. `belts` only returns transport belts, where `line1`
+is the left line and `line2` the right line.
 
 `adjacency` answers "are these actually connected": it lists every entity in an
 area (at most 64×64 tiles) whose axis-aligned bounding box lies within
@@ -495,8 +613,11 @@ does not. `missing` reports items displaced by collisions, not shortages;
 
 `deconstructArea` now accepts optional `names` and `types` prototype filters, a
 `limit` cap, and `instant: true`, which mines reachable targets as the actor
-(detached characters included) and destroys the rest, reporting recovered
-`items` from the actor inventory delta. `cancelDeconstructArea`,
+(detached characters included). Targets the actor cannot mine are emptied
+first: container contents, modules, fuel, and the entity's own placement item
+are spilled on the ground, then the entity is destroyed, so instant removal
+never voids items. Recovered `items` report the actor inventory delta plus
+everything spilled. `cancelDeconstructArea`,
 `deconstructEntities` and `cancelDeconstructEntities` are unchanged.
 `EntityInspection.toBeDeconstructed` reports planner state.
 
@@ -509,11 +630,41 @@ filter, so the cost does not grow with the base size the way an `entities` scan
 plus per-entity `inspect` would. `inspect.statusName` reports
 `marked_for_deconstruction` for the same entities.
 
-`logisticNetworks(input: {surface, force, area?, networkId?})` reports each
-network served by roboports in scope: id, cell count, logistic and construction
-robot totals/availability, contents, and requester/provider point counts.
-Roboports created by scripts only join a network when built with the built
-event, so use API placement rather than raw Lua when testing.
+`logisticNetworks(input: {surface, force, area?, networkId?, includeItemStats,
+itemsLimit, itemsOffset})` reports each network served by roboports in scope:
+id, custom name, cell count, robot limit, logistic and construction robot
+totals/availability, deployed and item-carrying logistic robots, engine
+contents, point counts and a point breakdown (roboports, requester/buffer/
+provider/storage chests, character request points). Roboports created by scripts
+only join a network when built with the built event, so use API placement rather
+than raw Lua when testing.
+
+With `includeItemStats` (default true) each network also returns `items`, one
+row per item prototype and quality, ordered by name then quality and paginated
+per network by `itemsLimit`/`itemsOffset` with `itemPageInfo`:
+
+- `stored` is physical stock summed from provider, buffer and storage chest
+  inventories, split into `storedPassiveProviders`, `storedActiveProviders`,
+  `storedBuffers` and `storedStorage`. Robot hands and requester chests are not
+  part of it.
+- `available` is the engine's `get_contents()` number. Provider contents
+  subtract items committed to robot pickup, so an over-committed row can be
+  negative even while `stored` is positive (verified live:
+  `stored 3 - targetedPickup 4 = available -1`).
+- `requested`/`requestedMinimum` sum the compiled requester-chest maximums and
+  minimums; `unlimitedRequests` counts slots with no maximum. `delivered` is
+  stock already inside requester chests, `incoming` is items committed for
+  delivery, `targetedPickup` is items committed for pickup, and `inFlight` is
+  cargo currently held by deployed logistic robots.
+- `missing = max(0, requested - delivered - incoming)`. A row with
+  `missing > 0` plus `stored > 0` and `targetedPickup = 0` points at a robot
+  throughput/power problem rather than a production shortage; `stored = 0`
+  points at supply.
+
+Scope is logistic chests. Character personal-logistics requester points are
+counted in `points.characterRequestPoints` but excluded from item demand and
+stock, as are roboport robot inventories. Construction logistics and ghosts are
+separate (`ghosts`, `constructionOrders`).
 
 ### Fluids
 
@@ -609,6 +760,13 @@ Factorio 2.0.77 exposes no underground-neighbour API, so
 available. `setNameTag` writes or clears map label. `setEntityTags` exists but
 fails loudly on normal entities: Factorio 2.0.77 stores tags only as
 blueprint/ghost metadata.
+`addChartTag` creates a force-visible marker at any finite map position with
+nonblank text, a signal icon, or both. `chartTags` lists markers for one force
+and surface, optionally inside an area, with stable tag-number ordering and
+pagination. `removeChartTag` deletes one marker by its force-unique tag number
+and surface. These operations use Factorio custom chart tags and do not require
+an entity or actor; they are distinct from entity `nameTag` and blueprint
+metadata `tagsJSON`.
 Snapshot invariants: every game read/write payload has observation `tick`;
 spatial payloads have `surface`; force-scoped payloads have `force`; actor
 mutations have `actor` preserving selected player or character selector. These

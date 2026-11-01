@@ -401,8 +401,11 @@ func setInserterSettings(r *Resolver, in InserterSettingsInput) (*SettingsResult
 	if in.StackSizeOverride != nil && (*in.StackSizeOverride < 0 || *in.StackSizeOverride > 12) {
 		return nil, errors.New("stackSizeOverride must be between 0 and 12")
 	}
-	if len(in.Filters) == 0 && in.FilterMode == nil && in.StackSizeOverride == nil && !clear {
-		return nil, errors.New("set at least one of filters, filterMode, stackSizeOverride, or clear")
+	if clear && (in.PickupFromLeftLane != nil || in.PickupFromRightLane != nil) {
+		return nil, errors.New("clear cannot be combined with pickupFromLeftLane or pickupFromRightLane")
+	}
+	if len(in.Filters) == 0 && in.FilterMode == nil && in.StackSizeOverride == nil && in.PickupFromLeftLane == nil && in.PickupFromRightLane == nil && !clear {
+		return nil, errors.New("set at least one of filters, filterMode, stackSizeOverride, pickupFromLeftLane, pickupFromRightLane, or clear")
 	}
 	prefix, err := target.lua()
 	if err != nil {
@@ -454,6 +457,12 @@ e.inserter_stack_size_override=0
 	}
 	if in.StackSizeOverride != nil {
 		fmt.Fprintf(&body, "e.inserter_stack_size_override=%d\n", *in.StackSizeOverride)
+	}
+	if in.PickupFromLeftLane != nil {
+		fmt.Fprintf(&body, "e.pickup_from_left_lane=%t\n", *in.PickupFromLeftLane)
+	}
+	if in.PickupFromRightLane != nil {
+		fmt.Fprintf(&body, "e.pickup_from_right_lane=%t\n", *in.PickupFromRightLane)
 	}
 	result, err := executeSettings(r, settingsMutationLua(body.String(), "chest"))
 	if err != nil {
@@ -578,38 +587,18 @@ func setLogisticRequests(r *Resolver, in LogisticRequestsInput) (*SettingsResult
 	body.WriteString(`local member_index=settings_logistic_member(e)
 local ok,point=pcall(function() return e.get_logistic_point(member_index) end)
 if not ok or not point then fail("entity has no logistic container behavior"); return end
-for index=20,1,-1 do point.remove_section(index) end
 `)
 	if in.Sections != nil {
-		for _, section := range in.Sections {
-			body.WriteString(`local section=point.add_section()
-if not section then fail("could not add a logistic section"); return end
-`)
-			if section == nil {
-				continue
-			}
-			for _, slot := range section.Slots {
-				if slot == nil {
-					continue
-				}
-				if slot.Index < 1 || slot.Name == "" {
-					return nil, errors.New("each request needs a positive index and a name")
-				}
-				min := 0
-				if slot.Min != nil {
-					min = *slot.Min
-				}
-				if slot.Max < 0 || min < 0 || slot.Max < min {
-					return nil, errors.New("each request needs 0 <= min <= max")
-				}
-				quality := "normal"
-				if slot.Quality != nil && *slot.Quality != "" {
-					quality = *slot.Quality
-				}
-				fmt.Fprintf(&body, "section.set_slot(%d,{value={name=%s,quality=%s},min=%d,max=%d})\n",
-					slot.Index, luaString(slot.Name), luaString(quality), min, slot.Max)
-			}
+		check, writes, err := logisticSectionStatements(in.Sections, "point", "section")
+		if err != nil {
+			return nil, err
 		}
+		// Prototype checks run before the clear so a bad name cannot leave the container emptied.
+		body.WriteString(check)
+		body.WriteString("for index=20,1,-1 do point.remove_section(index) end\n")
+		body.WriteString(writes)
+	} else {
+		body.WriteString("for index=20,1,-1 do point.remove_section(index) end\n")
 	}
 	result, err := executeSettings(r, settingsMutationLua(body.String(), "chest"))
 	if err != nil {
@@ -717,7 +706,7 @@ if not e.launch_rocket() then fail("rocket silo refused the launch at status "..
 	if err != nil {
 		return nil, err
 	}
-	announceMutation(r, in.Message, fmt.Sprintf("launched rocket from %s at %s", result.Name, positionText(result.Position)))
+	announceMutation(r, in.Message, "launched rocket from "+result.Name+positionText(result.Position))
 	return result, nil
 }
 
@@ -764,9 +753,6 @@ func setCircuitBehavior(r *Resolver, in CircuitBehaviorInput) (*SettingsResult, 
 		"outputRightCondition": in.OutputRightCondition,
 	}
 	if clear {
-		for _, values := range []map[string]any{} {
-			_ = values
-		}
 		for name, value := range booleanValues {
 			if value != nil {
 				return nil, fmt.Errorf("clearConditions cannot be combined with %s", name)
@@ -788,7 +774,7 @@ func setCircuitBehavior(r *Resolver, in CircuitBehaviorInput) (*SettingsResult, 
 	}
 	var assignments []string
 	if in.Enabled != nil {
-		assignments = append(assignments, circuitApplyLua("enabled", circuitFieldKeys["enabled"], fmt.Sprintf("%t", !*in.Enabled)))
+		return nil, errors.New("enabled is read-only in Factorio 2.0 (LuaGenericOnOffControlBehavior.disabled reports the current state); set circuitEnableDisable with circuitCondition or logisticCondition instead")
 	}
 	for _, field := range circuitBooleanFields {
 		if value := booleanValues[field.name]; value != nil {
@@ -832,7 +818,6 @@ local function reset(keys,value)
 end
 `)
 	if clear {
-		body.WriteString("pcall(function() control.disabled=false end)\n")
 		for _, field := range circuitBooleanFields {
 			fmt.Fprintf(&body, "reset(%s,false)\n", luaKeys(field.keys))
 		}
@@ -902,7 +887,7 @@ var circuitConditionFields = []circuitField{
 }
 
 var circuitFieldKeys = func() map[string][]string {
-	keys := map[string][]string{"enabled": {"disabled"}}
+	keys := map[string][]string{}
 	for _, field := range circuitBooleanFields {
 		keys[field.name] = field.keys
 	}
@@ -939,6 +924,54 @@ func validateCircuitInts(values map[string]*int) error {
 		}
 	}
 	return nil
+}
+
+// maxLogisticSections is the section count the read-back and clear loops
+// cover; more sections would be silently ignored or left behind.
+const maxLogisticSections = 20
+
+// logisticSectionStatements validates sections and builds Lua that first checks
+// every item and quality prototype (check) and then adds the sections (writes).
+// Each section lives in its own do-block so many sections cannot exhaust the
+// Lua 200-active-locals limit.
+func logisticSectionStatements(sections []*LogisticSectionInput, point, section string) (check, writes string, err error) {
+	var checkBody, writeBody strings.Builder
+	count := 0
+	for _, input := range sections {
+		if input == nil {
+			continue
+		}
+		count++
+		if count > maxLogisticSections {
+			return "", "", fmt.Errorf("at most %d sections are supported", maxLogisticSections)
+		}
+		fmt.Fprintf(&writeBody, "do local %s=%s.add_section()\nif not %s then fail(\"could not add a logistic section\"); return end\n", section, point, section)
+		for _, slot := range input.Slots {
+			if slot == nil {
+				continue
+			}
+			if slot.Index < 1 || slot.Name == "" {
+				return "", "", errors.New("each request needs a positive index and a name")
+			}
+			min := 0
+			if slot.Min != nil {
+				min = *slot.Min
+			}
+			if slot.Max < 0 || min < 0 || slot.Max < min {
+				return "", "", errors.New("each request needs 0 <= min <= max")
+			}
+			quality := "normal"
+			if slot.Quality != nil && *slot.Quality != "" {
+				quality = *slot.Quality
+			}
+			fmt.Fprintf(&checkBody, "if not prototypes.item[%s] then fail(\"item prototype not found: \"..%s); return end\nif not prototypes.quality[%s] then fail(\"quality not found: \"..%s); return end\n",
+				luaString(slot.Name), luaString(slot.Name), luaString(quality), luaString(quality))
+			fmt.Fprintf(&writeBody, "%s.set_slot(%d,{value={name=%s,quality=%s},min=%d,max=%d})\n",
+				section, slot.Index, luaString(slot.Name), luaString(quality), min, slot.Max)
+		}
+		writeBody.WriteString("end\n")
+	}
+	return checkBody.String(), writeBody.String(), nil
 }
 
 // conditionLua renders a circuit condition as a Lua constructor.
@@ -1149,7 +1182,7 @@ func splitterSettingsSummary(result *SettingsResult) string {
 	if result.Splitter.Filter != nil {
 		filter = result.Splitter.Filter.Name
 	}
-	return fmt.Sprintf("splitter at %s: filter %s, input %s, output %s", positionText(result.Position), filter,
+	return fmt.Sprintf("splitter%s: filter %s, input %s, output %s", positionText(result.Position), filter,
 		result.Splitter.InputPriority, result.Splitter.OutputPriority)
 }
 
@@ -1163,7 +1196,7 @@ func inserterSettingsSummary(result *SettingsResult) string {
 			filled++
 		}
 	}
-	return fmt.Sprintf("inserter at %s: %d filter slot(s) set, mode %s, stack override %d", positionText(result.Position), filled,
+	return fmt.Sprintf("inserter%s: %d filter slot(s) set, mode %s, stack override %d", positionText(result.Position), filled,
 		stringValue(result.Inserter.FilterMode), result.Inserter.StackSizeOverride)
 }
 
@@ -1171,7 +1204,7 @@ func lampSettingsSummary(result *SettingsResult) string {
 	if result.Lamp == nil {
 		return "updated lamp settings"
 	}
-	return fmt.Sprintf("lamp at %s: color %.2f/%.2f/%.2f, always on %t", positionText(result.Position),
+	return fmt.Sprintf("lamp%s: color %.2f/%.2f/%.2f, always on %t", positionText(result.Position),
 		result.Lamp.Color.R, result.Lamp.Color.G, result.Lamp.Color.B, result.Lamp.AlwaysOn)
 }
 
@@ -1179,7 +1212,7 @@ func containerSettingsSummary(result *SettingsResult) string {
 	if result.Container == nil {
 		return "updated container bar"
 	}
-	return fmt.Sprintf("container at %s: %s bar %d of %d", positionText(result.Position), result.Container.Inventory,
+	return fmt.Sprintf("container%s: %s bar %d of %d", positionText(result.Position), result.Container.Inventory,
 		result.Container.Bar, result.Container.Capacity)
 }
 
@@ -1191,7 +1224,7 @@ func logisticSettingsSummary(result *SettingsResult) string {
 	for _, section := range result.Logistic.Sections {
 		slots += len(section.Slots)
 	}
-	return fmt.Sprintf("container at %s: %d logistic section(s), %d slot(s)", positionText(result.Position),
+	return fmt.Sprintf("container%s: %d logistic section(s), %d slot(s)", positionText(result.Position),
 		len(result.Logistic.Sections), slots)
 }
 
@@ -1199,7 +1232,7 @@ func trainStopSettingsSummary(result *SettingsResult) string {
 	if result.TrainStop == nil {
 		return "updated train stop"
 	}
-	return fmt.Sprintf("train stop %q at %s: limit %d, priority %d", result.TrainStop.BackerName,
+	return fmt.Sprintf("train stop %q%s: limit %d, priority %d", result.TrainStop.BackerName,
 		positionText(result.Position), result.TrainStop.TrainsLimit, result.TrainStop.Priority)
 }
 
@@ -1207,7 +1240,7 @@ func siloSettingsSummary(result *SettingsResult) string {
 	if result.RocketSilo == nil {
 		return "updated rocket silo"
 	}
-	return fmt.Sprintf("rocket silo at %s: %d rocket parts, auto launch %t", positionText(result.Position),
+	return fmt.Sprintf("rocket silo%s: %d rocket parts, auto launch %t", positionText(result.Position),
 		result.RocketSilo.RocketParts, result.RocketSilo.SendToOrbitAutomatically)
 }
 
@@ -1215,5 +1248,5 @@ func circuitSettingsSummary(result *SettingsResult) string {
 	if result.Circuit == nil {
 		return "updated control behavior"
 	}
-	return fmt.Sprintf("control behavior %d at %s updated", result.Circuit.BehaviorType, positionText(result.Position))
+	return fmt.Sprintf("control behavior %d%s updated", result.Circuit.BehaviorType, positionText(result.Position))
 }

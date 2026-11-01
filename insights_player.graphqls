@@ -26,7 +26,21 @@ type MachineInsightFluid { index: Int! name: String! amount: Float! temperature:
 type MachineInsightMiningTarget { name: String! position: Position! amount: Float }
 
 extend type Query {
-  """Observe a named player, optionally inspecting a force recipe and a reach target."""
+  """
+  Single-tick observation of one existing named player: controller type, surface, force, position and, when a character
+  exists, its main inventory, crafting queue and queue progress. Supplying recipe reports that force recipe's enabled,
+  category, energy and hidden flags plus products and per-ingredient required counts, with available summed across
+  qualities from the main inventory and null with unavailableReason for fluids or a missing inventory; the engine
+  craftableCount may include intermediate crafts and is null without a character. Supplying target restricts reach
+  reporting to exactly one of unitNumber (positive, optionally with entity prototype name and surface to scan when the
+  prototype is not resolvable by unit number alone) or position, which are mutually exclusive; distance is the
+  straight-line gap between player/character position and target on the same surface, not a reachability test, while
+  canReachEntity is the engine can_reach_entity result independent of FACTORIO_ENFORCE_REACH and is false for a target
+  on another surface. Unknown player names, an unknown recipe, an empty player/recipe name, an unresolvable target, or
+  a target with neither unitNumber nor position produce a GraphQL error. The query is read-only and emits no
+  notification; recipe, items, queue-derived fields and reach are absent without a character or main inventory, and
+  targetName/canReachEntity are null for position-only targets with unavailableReason explaining why.
+  """
   playerInsight(input: PlayerInsightInput!): PlayerInsight!
 }
 input PlayerInsightInput {

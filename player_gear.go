@@ -104,8 +104,7 @@ if not main then fail("character has no main inventory"); return end
 	if in.Direction == EquipmentDirectionToGrid {
 		body.WriteString(`local gear_available=main.get_item_count{name=gear_item,quality=gear_quality}
 if gear_available<gear_requested then fail("main inventory has only "..gear_available.." "..gear_item); return end
-local gear_fit_ok,gear_fit=pcall(function() return grid.get_insertable_count{name=gear_item,quality=gear_quality} end)
-if gear_fit_ok and type(gear_fit)=="number" and gear_fit<gear_requested then fail("equipment grid fits only "..gear_fit.." "..gear_item); return end
+-- LuaEquipmentGrid has no capacity query; a full grid is detected when put returns nil below.
 local gear_before=gear_count()
 local gear_removed=main.remove{name=gear_item,quality=gear_quality,count=gear_requested}
 if not gear_removed or gear_removed<gear_requested then
@@ -175,38 +174,8 @@ func equipGrid(r *Resolver, in EquipGridInput) (*EquipmentGridResult, error) {
 
 // actorLogisticSectionWrites emits the section replacement statements for the
 // actor requester point, using the same slot shape as the container path.
-func actorLogisticSectionWrites(sections []*LogisticSectionInput) (string, error) {
-	var body strings.Builder
-	for _, section := range sections {
-		if section == nil {
-			continue
-		}
-		body.WriteString(`local gear_section=gear_point.add_section()
-if not gear_section then fail("could not add a logistic section"); return end
-`)
-		for _, slot := range section.Slots {
-			if slot == nil {
-				continue
-			}
-			if slot.Index < 1 || slot.Name == "" {
-				return "", errors.New("each request needs a positive index and a name")
-			}
-			min := 0
-			if slot.Min != nil {
-				min = *slot.Min
-			}
-			if slot.Max < 0 || min < 0 || slot.Max < min {
-				return "", errors.New("each request needs 0 <= min <= max")
-			}
-			quality := "normal"
-			if slot.Quality != nil && *slot.Quality != "" {
-				quality = *slot.Quality
-			}
-			fmt.Fprintf(&body, "gear_section.set_slot(%d,{value={name=%s,quality=%s},min=%d,max=%d})\n",
-				slot.Index, luaString(slot.Name), luaString(quality), min, slot.Max)
-		}
-	}
-	return body.String(), nil
+func actorLogisticSectionWrites(sections []*LogisticSectionInput) (check, writes string, err error) {
+	return logisticSectionStatements(sections, "gear_point", "gear_section")
 }
 
 // actorLogisticRequestsLua validates the input and builds the mutation Lua.
@@ -221,7 +190,7 @@ func actorLogisticRequestsLua(in ActorLogisticRequestsInput) (string, error) {
 	if !in.Clear && in.Sections == nil {
 		return "", errors.New("set sections or clear")
 	}
-	writes, err := actorLogisticSectionWrites(in.Sections)
+	check, writes, err := actorLogisticSectionWrites(in.Sections)
 	if err != nil {
 		return "", err
 	}
@@ -231,8 +200,9 @@ func actorLogisticRequestsLua(in ActorLogisticRequestsInput) (string, error) {
 	body.WriteString(settingsActorPrefix(unit, player))
 	body.WriteString(`local gear_point_ok,gear_point=pcall(function() return c.get_requester_point() end)
 if not gear_point_ok or not gear_point then fail("actor has no logistic requester point"); return end
-for gear_index=20,1,-1 do gear_point.remove_section(gear_index) end
 `)
+	body.WriteString(check)
+	body.WriteString("for gear_index=20,1,-1 do gear_point.remove_section(gear_index) end\n")
 	body.WriteString(writes)
 	body.WriteString(`local gear_logistic=settings_logistic_point(gear_point)
 local gear_out={tick=game.tick,surface=c.surface.name,force=c.force.name,sections=(gear_logistic and gear_logistic.sections) or {}}

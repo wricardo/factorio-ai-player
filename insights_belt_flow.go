@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -98,4 +99,62 @@ rcon.print(helpers.table_to_json(result))`, luaString(method), luaString(method)
 		return nil, err
 	}
 	return factoryDecode[BeltThroughputMeasurement](response)
+}
+
+// beltStretchMeasure pairs a stretch snapshot with a measurement started on one
+// of its transport-belt tiles, so a snapshot mixture can be checked over time.
+func beltStretchMeasure(ctx context.Context, r *Resolver, input BeltStretchMeasureInput) (*BeltStretchMeasurement, error) {
+	if input.DurationTicks < 1 || input.DurationTicks > 36000 {
+		return nil, fmt.Errorf("durationTicks must be from 1 to 36000")
+	}
+	if input.WaitTimeoutSeconds < 1 || input.WaitTimeoutSeconds > 600 {
+		return nil, fmt.Errorf("waitTimeoutSeconds must be from 1 to 600")
+	}
+	surfaceField, _, unitNumber, inputX, inputY := entityRefFields(input.Target)
+	stretch, err := beltStretchQuery(r, stringValueOr(surfaceField, "nauvis"), inputX, inputY, unitNumber, 1000)
+	if err != nil {
+		return nil, err
+	}
+	node, err := selectStretchSample(stretch.Nodes, input.Sample)
+	if err != nil {
+		return nil, err
+	}
+	surface := stretch.Surface
+	measurement, err := beltThroughputStart(ctx, r, BeltThroughputStartInput{
+		Target: &EntityRefInput{
+			Surface:  &surface,
+			Position: &PositionInput{X: node.Position.X, Y: node.Position.Y},
+		},
+		DurationTicks:      input.DurationTicks,
+		Wait:               input.Wait,
+		WaitTimeoutSeconds: input.WaitTimeoutSeconds,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &BeltStretchMeasurement{Stretch: stretch, Measurement: measurement}, nil
+}
+
+// selectStretchSample picks one measurable tile of a stretch. Only normal
+// transport belts carry the two-line geometry beltThroughputStart samples.
+func selectStretchSample(nodes []*BeltStretchNode, sample BeltStretchSample) (*BeltStretchNode, error) {
+	measurable := make([]*BeltStretchNode, 0, len(nodes))
+	for _, node := range nodes {
+		if node != nil && node.Type == "transport-belt" && node.Position != nil {
+			measurable = append(measurable, node)
+		}
+	}
+	if len(measurable) == 0 {
+		return nil, errors.New("stretch has no transport-belt tile to measure; splitters, underground belts and loaders cannot be measured")
+	}
+	switch sample {
+	case BeltStretchSampleFirst:
+		return measurable[0], nil
+	case BeltStretchSampleLast:
+		return measurable[len(measurable)-1], nil
+	case BeltStretchSampleMiddle:
+		return measurable[len(measurable)/2], nil
+	default:
+		return nil, fmt.Errorf("unknown stretch sample %q", sample)
+	}
 }

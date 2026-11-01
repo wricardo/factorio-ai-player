@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -30,13 +31,13 @@ func removeMany(r *Resolver, input RemoveManyInput) (*RemoveManyResult, error) {
 		if i > 0 {
 			removals.WriteString(",")
 		}
-		fmt.Fprintf(&removals, "{unit=%d,name=%s,x=%s,y=%s,surface=%s}", unit, luaString(name), luaCoordinate(x), luaCoordinate(y), luaString(stringValueOr(removal.Surface, "nauvis")))
+		fmt.Fprintf(&removals, "{unit=%d,name=%s,x=%s,y=%s,has_position=%t,surface=%s}", unit, luaString(name), luaCoordinate(x), luaCoordinate(y), !math.IsNaN(x) && !math.IsNaN(y), luaString(stringValueOr(removal.Surface, "nauvis")))
 	}
 	lua := luaFail + luaEntityResolve + fmt.Sprintf(`local unit=%d; local p; if unit~=0 then p=game.get_entity_by_unit_number(unit); if not p or p.type~="character" then fail("character not found"); return end else p=game.get_player(%s); if not p then fail("player not found"); return end; if p.controller_type~=defines.controllers.character or not p.character then fail("player must control a character"); return end end
 local removals={%s}; local surface=p.surface; local removed,failed=0,0; local errors={}
 local function fail_at(i,code,message,target)
   failed=failed+1
-  if #errors<20 then errors[#errors+1]={index=i,code=code,message=message,target={surface=target.surface,entity=target.name~="" and target.name or nil,unit_number=target.unit~=0 and target.unit or nil,position=(target.x==target.x and {x=target.x,y=target.y} or nil)}} end
+  if #errors<20 then errors[#errors+1]={index=i,code=code,message=message,target={surface=target.surface,entity=target.name~="" and target.name or nil,unit_number=target.unit~=0 and target.unit or nil,position=(target.has_position and {x=target.x,y=target.y} or nil)}} end
 end
 for i,target in ipairs(removals) do
   local e,err=locate_entity(target.unit,target.name,{x=target.x,y=target.y},target.surface,p)

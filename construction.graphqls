@@ -1,7 +1,7 @@
 extend type Query {
-  """Reports logistic networks whose roboports lie on the surface or area: robot counts, contents and point counts. Separate snapshot per network."""
+  """Reads the logistic networks served by roboports of one force on a surface, optionally restricted to an area of at most 256 tiles per side. Networks are deduplicated by engine network id, sorted by ascending id and paginated by network: limit is 1 through 1000 (default 100), offset must be non-negative, and pageInfo.total counts every matching network, so a page may cover fewer roboports than exist. networkId selects one engine network id and must be a numeric id; area and networkId combine, and a network appears when any roboport of the force inside the area belongs to it. Each network is one snapshot per call: cells counts roboport cells, robot counts are split into total and available per kind, contents is the network inventory, deployed and carrying logistic robots are counted from the deployed robot list, and points classifies every point by owner (roboports counted once, character personal-logistics requester points separately). With includeItemStats (default true) each network also carries per-item rows, paged inside each network by itemsLimit 1 through 1000 (default 1000) and itemsOffset and ordered by item name then quality, with its own itemPageInfo; set it false for the cheaper robots-and-points read, which returns no item rows. Invalid surface, force, networkId, area or pagination values fail the whole query instead of returning an empty page."""
   logisticNetworks(input: LogisticNetworksInput = {}): LogisticNetworkPage!
-  """Lists entities currently registered with the force construction manager for deconstruction or upgrade. Omit area to scan the whole surface; the engine filter is cheap because only marked entities are matched."""
+  """Lists entities registered with the engine construction manager for deconstruction or upgrade, using the to_be_deconstructed or to_be_upgraded filter selected by state. The engine filter matches entities of any force, so force is reported per order rather than filtered on, and omitting area scans the whole surface cheaply because only marked entities match; a supplied area is limited to 256 tiles per side. Orders are sorted by position y, then x, then unit number ascending, and paginated by limit 1 through 1000 (default 100) and non-negative offset with pageInfo.total counting every match. UPGRADE orders add the target prototype and quality from get_upgrade_target; both are null for deconstruction orders and when the engine reports no target. Empty surface, unknown state, out-of-range limit or offset, or invalid area bounds fail the query as a GraphQL error rather than a per-order entry."""
   constructionOrders(input: ConstructionOrdersInput = {}): ConstructionOrderPage!
 }
 
@@ -50,6 +50,11 @@ input LogisticNetworksInput {
   networkId: ID
   limit: Int! = 100
   offset: Int! = 0
+  """Include per-item stock, request, robot-cargo and shortfall stats. Set false for a cheaper robots-and-points read."""
+  includeItemStats: Boolean! = true
+  """Maximum item rows per network, 1 through 1000. Rows are ordered by item name, then quality."""
+  itemsLimit: Int! = 1000
+  itemsOffset: Int! = 0
 }
 
 type LogisticNetworkPage {
@@ -70,6 +75,61 @@ type LogisticNetworkInfo {
   contents: [InventoryStack!]!
   requesterPoints: Int!
   providerPoints: Int!
+  """Engine custom network name, null when unnamed."""
+  customName: String
+  """Engine maximum number of robots for this network; sandbox maps report 4294967295 for unlimited."""
+  robotLimit: Float!
+  """Logistic robots currently deployed outside roboports (flying or charging)."""
+  deployedLogisticRobots: Int!
+  """Deployed logistic robots currently carrying an item."""
+  carryingLogisticRobots: Int!
+  """Point counts by role. Roboport provider points are counted once as roboports; character personal-logistics requester points are counted separately because item stats exclude them."""
+  points: LogisticPointBreakdown!
+  """Per-item network stats, one row per item prototype and quality. Scope is logistic chests: requester, buffer, passive/active provider and storage chests. Character personal logistics and roboport robot inventories are excluded."""
+  items: [LogisticItemStat!]!
+  itemPageInfo: PageInfo!
+}
+
+type LogisticPointBreakdown {
+  roboports: Int!
+  requesterChests: Int!
+  bufferChests: Int!
+  passiveProviderChests: Int!
+  activeProviderChests: Int!
+  storageChests: Int!
+  characterRequestPoints: Int!
+  other: Int!
+}
+
+"""One item prototype and quality in a network. Physical stock is read from chest inventories; request numbers come from compiled requester-chest filters; robot cargo is read from deployed logistic robots."""
+type LogisticItemStat {
+  name: String!
+  """Null when the row aggregates a quality-any filter (for example "greater than normal")."""
+  quality: String
+  """Physical stock in provider, buffer and storage chests, summed from chest inventories. Robot hands and requester chests are excluded."""
+  stored: Float!
+  storedPassiveProviders: Float!
+  storedActiveProviders: Float!
+  storedBuffers: Float!
+  storedStorage: Float!
+  """Engine network contents for this item. Provider contents subtract items committed to robot pickup, so an over-committed row can be negative; physical stock is `stored`."""
+  available: Float!
+  """Sum of requester-chest request maximums. Slots with no maximum contribute only to `unlimitedRequests`."""
+  requested: Float!
+  """Sum of requester-chest request minimums (the threshold that triggers replenishment)."""
+  requestedMinimum: Float!
+  """Requester-chest slots with no maximum request."""
+  unlimitedRequests: Int!
+  """Items already inside requester chests toward their targets."""
+  delivered: Float!
+  """Items carried by deployed logistic robots of this network."""
+  inFlight: Float!
+  """Items robots are committed to drop into requester chests but are not carrying yet."""
+  incoming: Float!
+  """Items robots are committed to pick up from providers or storage but are not carrying yet."""
+  targetedPickup: Float!
+  """max(0, requested - delivered - inFlight - incoming). Non-zero means chest demand is not covered by delivered, carried, or committed deliveries; compare with `stored` and `targetedPickup` to separate supply shortage from robot backlog."""
+  missing: Float!
 }
 
 type RobotCount {
@@ -78,7 +138,7 @@ type RobotCount {
 }
 
 extend type Mutation {
-  """Turns entity ghosts inside an area into real entities. Script revival bypasses items and construction robots, so this is an explicit sandbox shortcut; missing materials are reported, never consumed."""
+  """Revives entity ghosts of one force inside a required area of at most 256 tiles per side, taking at most limit ghosts (1 through 1000, default 100) in engine scan order. REVIVE (default) uses the normal revive path and raises built events; SILENT uses the silent variant, which raises no built events and creates no smoke. Script revival bypasses construction robots and item consumption, so a ghost is built whether or not the force owns its materials and stock is never withdrawn; a ghost that fails is reported in missing by its prototype cost, which in practice means its tile was blocked rather than that items were absent. revived and failed count attempts, entities lists each created entity, and errors carries at most 20 entries with COLLISION when the engine declined to place and ENGINE when the call raised. actor is validated when supplied but does not gate or reach-check the work, and the mutation prints the generated notification unless message overrides the text."""
   buildGhosts(input: BuildGhostsInput!): BuildGhostsResult!
 }
 

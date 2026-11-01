@@ -102,11 +102,12 @@ for _,candidate in ipairs(candidates) do
     cells[index]={name=candidate.entity.name,type=candidate.entity.type,unitNumber=candidate.unitNumber}
   end
 end
+-- Water tiles carry a pumpable fluid; out-of-map tiles share the water_tile
+-- collision layer but are not water.
 local function is_water(tile)
   if not tile or not tile.valid then return false end
-  local mask=tile.prototype.collision_mask
-  if mask and mask.layers and mask.layers.water_tile then return true end
-  return string.find(tile.name,"water")~=nil
+  local ok,fluid=pcall(function() return tile.prototype.fluid end)
+  return ok and fluid~=nil
 end
 local ALPHABET="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,-/:;<=>@[]^_{|}~"
 local char_by_name={}; local next_char=1; local legend={}; local char_counts={}; local other_entry=nil

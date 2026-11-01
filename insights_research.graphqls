@@ -1,5 +1,18 @@
 extend type Query {
-  """Read force research state and technologies, filtered before pagination. Unknown force, technology, or recipe names produce an error."""
+  """
+  Read-only single-snapshot view of a force's research state: researchEnabled, currentTechnology, progress, the engine
+  research queue and one page of technologies. Filters are applied before pagination and may overlap: exact technology
+  name, unlocksRecipe (technologies with an unlock-recipe effect for that recipe), and status ALL, RESEARCHED,
+  AVAILABLE (enabled, unresearched and all prerequisites researched), LOCKED (unresearched but not available,
+  including disabled) or IN_PROGRESS; available does not assert that labs, science packs or trigger conditions are
+  satisfied. Technologies are sorted by name and paginated with limit 1..1000 and a zero-based offset, while
+  pageInfo.total counts every match; progress and currentTechnology are null without an active research, and
+  researchQueue may include the current research in engine order. Each technology carries level, savedProgress, sorted
+  prerequisites and science ingredients, researchUnitCount already multiplied by the technology cost multiplier,
+  researchUnitEnergy in ticks (60 per second), raw researchTrigger JSON for trigger technologies, and its effects with
+  the complete modifier JSON. Unknown force, technology or recipe names, empty technology/unlocksRecipe strings, an
+  invalid status or out-of-range limit/offset produce a GraphQL error; no state changes and no notification are made.
+  """
   researchInsights(input: ResearchInsightsInput): ResearchInsights!
 }
 

@@ -4,28 +4,52 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 )
 
-type Resolver struct{ addr, password string }
+type Resolver struct {
+	addr              string
+	password          string
+	screenshotDir     string
+	screenshotTimeout time.Duration
+	screenshotPath    func() (string, error)
+}
 
 // mutationFields holds schema mutation field names as camelCase so backend
 // command names, which are kebab-case, can be told apart from query commands.
 var mutationFields = map[string]bool{}
 
 func newGraphQLSchema(addr, password string) graphql.ExecutableSchema {
-	schema := NewExecutableSchema(Config{Resolvers: &Resolver{addr: addr, password: password}})
+	schema := NewExecutableSchema(Config{Resolvers: &Resolver{
+		addr:          addr,
+		password:      password,
+		screenshotDir: configuredScreenshotDir(),
+	}})
 	if mutation := schema.Schema().Mutation; mutation != nil {
 		for _, field := range mutation.Fields {
 			mutationFields[field.Name] = true
 		}
 	}
 	return schema
+}
+
+func configuredScreenshotDir() string {
+	if dir := os.Getenv("FACTORIO_SCREENSHOT_DIR"); dir != "" {
+		return dir
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join("factorio-client", "script-output")
+	}
+	return filepath.Join(home, "factorio-client", "script-output")
 }
 
 func isMutationCommand(name string) bool {
@@ -262,6 +286,8 @@ func attachActorIdentity(result any, actor *ActorIdentity) {
 		value.Actor = actor
 	case *FluidWriteResult:
 		value.Actor = actor
+	case *FuelManyResult:
+		value.Actor = actor
 	case *HarvestAreaResult:
 		value.Actor = actor
 	case *PickupAreaResult:
@@ -283,6 +309,8 @@ func attachActorIdentity(result any, actor *ActorIdentity) {
 	case *ShootResult:
 		value.Actor = actor
 	case *TrainInfo:
+		value.Actor = actor
+	case *TransferManyResult:
 		value.Actor = actor
 	case *WireResult:
 		value.Actor = actor
@@ -344,6 +372,8 @@ func appendCommandArgument(args []string, key string, value reflect.Value) ([]st
 		default:
 			text = typed.String()
 		}
+	case UndergroundBeltType:
+		text = strings.ToLower(typed.String())
 	default:
 		switch value.Kind() {
 		case reflect.String:
@@ -361,15 +391,58 @@ func appendCommandArgument(args []string, key string, value reflect.Value) ([]st
 	return append(args, "--"+key+"="+text), nil
 }
 
+var directionNames = map[string]int{
+	"north": 0, "north_north_east": 1, "north_east": 2, "east_north_east": 3,
+	"east": 4, "east_south_east": 5, "south_east": 6, "south_south_east": 7,
+	"south": 8, "south_south_west": 9, "south_west": 10, "west_south_west": 11,
+	"west": 12, "west_north_west": 13, "north_west": 14, "north_north_west": 15,
+}
+
+// directionValue accepts the engine's numeric direction or a DirectionString
+// name. table_to_json may return either representation.
+func directionValue(text string) (int, bool) {
+	if value, err := strconv.Atoi(text); err == nil && value >= 0 && value <= 15 {
+		return value, true
+	}
+	value, ok := directionNames[strings.ToLower(strings.ReplaceAll(text, "-", "_"))]
+	return value, ok
+}
+
 // Factorio JSON uses snake_case, numeric unit IDs, and empty Lua tables for lists.
 func normalizeGraphQL(value any, key, command string) any {
 	switch v := value.(type) {
 	case json.Number:
-		if key == "character" || key == "unitNumber" || (key == "direction" && (command == "place" || command == "rotate")) || key == "relativeTo" {
+		if key == "character" || key == "unitNumber" || key == "relativeTo" {
 			return v.String()
 		}
 		return v
+	case string:
+		// Factorio's table_to_json can encode defines.direction as a
+		// DirectionString (for example "north") while the GraphQL schema
+		// exposes direction fields as Int. Normalize those names back to the
+		// engine's 0..15 values so ActionResult and Entity decode.
+		if key == "direction" {
+			if direction, ok := directionValue(v); ok {
+				return json.Number(strconv.Itoa(direction))
+			}
+		}
+		// WireColor is an uppercase GraphQL enum, but Lua reports the
+		// defines.wire_color name in lowercase.
+		if key == "color" {
+			switch strings.ToLower(v) {
+			case "red":
+				return "RED"
+			case "green":
+				return "GREEN"
+			}
+		}
+		return v
 	case []any:
+		// Factorio Vector is a two-element array; the schema exposes
+		// inserterPickup/inserterDrop as Position objects.
+		if (key == "inserterPickup" || key == "inserterDrop") && len(v) == 2 {
+			return map[string]any{"x": v[0], "y": v[1]}
+		}
 		if key == "inventories" && len(v) == 0 {
 			return map[string]any{}
 		}
@@ -426,12 +499,13 @@ func isListField(key string) bool {
 		"rawRequirements", "unresolved", "warnings", "alternatives", "bomRecipes", "bomStock",
 		"bomMined", "bomIngredients", "bomProducts", "sciencePacks", "missingSciencePacks",
 		"ghostEntries", "placementAlternatives", "requestedMaterials", "rootBoxIds",
-		"fluidEntities", "fluidBoxes", "fluidConnections", "fluidSegments", "segmentFluids", "crossedItems", "characters", "blockedTiles", "blockers", "rows", "sites", "patches",
-		"sections", "slots", "trains", "schedule", "contents", "grid", "signals",
-		"conditions", "outputs", "killCounts", "missing", "created", "cargo", "equipmentGrid", "packs",
+		"fluidEntities", "fluidBoxes", "fluidConnections", "fluidSegments", "segmentFluids", "crossedItems", "characters", "blockedTiles", "blockers", "rows", "sites", "patches", "conflicts",
+		"sections", "slots", "trains", "schedule", "contents", "grid", "signals", "craftingCategories",
+		"conditions", "outputs", "killCounts", "missing", "created", "cargo", "equipmentGrid", "packs", "legend", "attention", "attentionCounts", "stockouts", "existing", "openTunnel", "results",
 		"roboportRobot", "roboportMaterial", "cargoWagon", "carTrunk", "spiderTrunk", "artilleryWagonAmmo", "orders",
 		"beltNeighbours", "fluidboxNeighbours", "produced", "consumed", "production", "seedRequirements",
-		"shortfall", "surfaces", "theoreticalBaseProducts", "conflicts", "legend", "craftingCategories":
+		"shortfall", "surfaces", "tags", "theoreticalBaseProducts", "ends", "targets",
+		"components", "stallEnds", "starveHeads":
 		return true
 	}
 	return false

@@ -89,6 +89,7 @@ func TestMachineDiagnosticBlockingPreservesUnknownStatus(t *testing.T) {
 		{"fluid_ingredient_shortage", MachineBlockCategoryMissingIngredients, true},
 		{"no_fuel", MachineBlockCategoryMissingFuel, true},
 		{"low_power", MachineBlockCategoryMissingPower, true},
+		{"not_plugged_in_electric_network", MachineBlockCategoryMissingPower, true},
 		{"full_output", MachineBlockCategoryOutputBlocked, true},
 		{"disabled_by_control_behavior", MachineBlockCategoryDisabled, true},
 		{"future_engine_status", MachineBlockCategoryOther, false},

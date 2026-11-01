@@ -1,5 +1,15 @@
 extend type Query {
-  """Find force recipes whose products match the given name, optionally filtered by enabled state. Results are sorted by recipe name before pagination."""
+  """
+  Force recipes whose products contain the given item, optionally restricted to enabled or disabled recipes, read from
+  the force recipe catalogue in one snapshot, sorted by recipe name and paginated with limit 1..1000 and a zero-based
+  offset. The enabled argument is a tri-state filter: omitting it returns enabled and disabled recipes alike, and only
+  products are matched by prototype name — ingredients are never searched. Each recipe exposes its category, energy,
+  raw ingredient and product lists plus craftingMachines: every assembling machine, furnace or rocket-silo prototype
+  with a matching crafting category, which does not assert that such a machine is built, researched or otherwise
+  available to the force. pageInfo.total counts all matching recipes before pagination, and an empty recipes list means
+  no recipe produces the item. Empty force or item names, an unknown force name, or out-of-range limit/offset produce a
+  GraphQL error; the query changes no state and emits no notification.
+  """
   itemRecipes(input: ItemRecipesInput!): ItemRecipePage!
 }
 """Force and item must be non-empty. Limit is 1 through 1000; offset is zero-based and non-negative."""

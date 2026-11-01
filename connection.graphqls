@@ -1,10 +1,10 @@
 extend type Query {
-  """Plan one axis-aligned straight or single-bend connection run without changing the world. The route snaps both endpoints to tile centers and reports every step with the direction needed for that tile. A tile that already holds the requested entity with the required direction is marked existing and is not counted in needed. Conflicts are typed and explain why a step cannot be built, so a caller can move an endpoint instead of spending items on a partial run. Pipes are additionally checked for orthogonal neighbours that are not part of this run; joining a foreign fluid network is rejected unless allowFluidAdjacency is true. Surface tiles only: tunnels are not planned, and an obstruction is reported as a collision."""
+  """Plan one connection run without changing the world. DIRECT routing (default) is one axis-aligned straight or single-bend run; ASTAR searches a bounded region for a shortest legal BELT or PIPE route around obstacles and, when allowed, under them with underground belts or pipe-to-ground. The route snaps both endpoints to tile centers and reports every step with the direction needed for that tile. A tile that already holds the requested entity with the required direction is marked existing and is not counted in needed. Conflicts are typed and explain why a step cannot be built, so a caller can move an endpoint instead of spending items on a partial run. Pipes are additionally checked for orthogonal neighbours that are not part of this run; joining a foreign fluid network is rejected unless allowFluidAdjacency is true. DIRECT plans surface tiles only: an obstruction is reported as a collision. ASTAR reports NO_PATH, EXPANSION_LIMIT or an endpoint collision with stopReason instead. Both endpoints must be finite; DIRECT rejects a route longer than 512 tiles (|dx| + |dy| + 1) before running and reports at most 200 conflicts, while ASTAR rejects a padded search region above 16384 tiles. Nothing is placed and no item is consumed, so a plan can be re-run after moving an endpoint or raising the search limits."""
   connectionPlan(input: ConnectionPlanInput!): ConnectionPlan!
 }
 
 extend type Mutation {
-  """Plan and then place one belt, pipe or power-pole run. The mutation refuses to place anything when the plan has conflicts or the actor lacks the needed items, so a failed call leaves the world unchanged. Each existing tile is skipped and each placed tile consumes one normal-quality item from the actor's main inventory. Reach applies to every placed tile when reach enforcement is enabled."""
+  """Plan and then place one belt, pipe or power-pole run. The mutation requires the actor's character to be on the requested surface and force, and refuses to place anything when the plan has conflicts or the actor lacks the needed items, so a refusal leaves the world unchanged: a conflicted plan returns possible false with the typed conflicts and no placed tiles, while a missing-item shortfall fails the call as a GraphQL error before any tile is touched. Each existing tile is skipped and each placed tile consumes one normal-quality item from the actor's main inventory and raises a built event. Reach applies to every placed tile when reach enforcement is enabled; other per-tile failures (collision, inventory, engine rejection) are recorded in errors, capped at 20 entries, and the run continues so a call can end partially applied. The generated notification is printed only when at least one entity was placed, unless message overrides it. ASTAR plans first and then re-checks every tile while applying, so the applied run can still differ from the plan if the world changed between the two RCON reads."""
   connectEntities(input: ConnectEntitiesInput!): ConnectEntitiesResult!
 }
 
@@ -26,7 +26,33 @@ enum ConnectionBend {
   VERTICAL_FIRST
 }
 
+"""How the route between the endpoints is chosen."""
+enum ConnectionRouting {
+  """One straight or single-bend run; supports BELT, PIPE and POWER_POLE_CHAIN."""
+  DIRECT
+  """Bounded A* search for BELT and PIPE. Step costs: 1 per new tile, 0.25 per reused existing tile, 0.25 per bend, 2 per underground half. Underground belts pair at an offset of at most the prototype's max underground distance; spans may pass under any entity except another underground belt, linked belt or pipe-to-ground."""
+  ASTAR
+}
+
+"""Why planning stopped."""
+enum ConnectionStopReason {
+  """DIRECT routing planned its fixed route."""
+  DIRECT
+  """ASTAR found a route."""
+  FOUND
+  """ASTAR exhausted every reachable state inside the search region."""
+  NO_PATH
+  """ASTAR hit maxExpandedTiles before reaching the goal; a larger limit or margin may succeed."""
+  EXPANSION_LIMIT
+  """An endpoint tile cannot hold the entity, so no route was searched."""
+  ENDPOINT_BLOCKED
+}
+
 enum ConnectionConflictKind {
+  """ASTAR exhausted the search region without reaching the goal."""
+  NO_PATH
+  """ASTAR hit maxExpandedTiles before reaching the goal."""
+  EXPANSION_LIMIT
   """The tile refuses the entity; blockers lists colliding prototypes."""
   COLLISION
   """A same-name entity sits on the tile but faces another direction."""
@@ -58,6 +84,22 @@ input ConnectionPlanInput {
   bend: ConnectionBend! = AUTO
   """Allow a PIPE run to touch pipes outside the run, which merges their fluid networks and can contaminate either side."""
   allowFluidAdjacency: Boolean! = false
+  """DIRECT (default) or ASTAR; ASTAR supports BELT and PIPE only."""
+  routing: ConnectionRouting! = DIRECT
+  """ASTAR only: allow underground belt or pipe-to-ground spans."""
+  allowUnderground: Boolean! = false
+  """ASTAR only: item for underground halves; defaults to underground-belt for BELT and pipe-to-ground for PIPE and must place an underground-belt or pipe-to-ground entity. Requires allowUnderground."""
+  undergroundItem: String
+  """ASTAR only: cap on the offset between underground halves, 2 or more; the effective offset is the smaller of this and the prototype's max underground distance. Requires allowUnderground."""
+  maxUndergroundDistance: Int
+  """ASTAR only: areas, each at most 256 tiles per side and at most 20 in total, where no entity may be placed. Underground spans may pass beneath them."""
+  avoidAreas: [FactoryAreaInput!] = []
+  """ASTAR only: let the route reuse existing same-name entities, cheaper than new tiles. A belt tile is reused only when it already faces the route's direction; reusing a pipe merges fluid networks, so it also needs allowFluidAdjacency. Existing entities at the two endpoints are always usable."""
+  preferExisting: Boolean! = false
+  """ASTAR only: search at most this many states, 1 through 50000; default 5000."""
+  maxExpandedTiles: Int
+  """ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 64; default 12. The padded region may cover at most 16384 tiles."""
+  searchMargin: Int
 }
 
 input ConnectEntitiesInput {
@@ -71,6 +113,22 @@ input ConnectEntitiesInput {
   item: String
   bend: ConnectionBend! = AUTO
   allowFluidAdjacency: Boolean! = false
+  """DIRECT (default) or ASTAR; ASTAR supports BELT and PIPE only."""
+  routing: ConnectionRouting! = DIRECT
+  """ASTAR only: allow underground belt or pipe-to-ground spans."""
+  allowUnderground: Boolean! = false
+  """ASTAR only: item for underground halves; defaults to underground-belt for BELT and pipe-to-ground for PIPE and must place an underground-belt or pipe-to-ground entity. Requires allowUnderground."""
+  undergroundItem: String
+  """ASTAR only: cap on the offset between underground halves, 2 or more; the effective offset is the smaller of this and the prototype's max underground distance. Requires allowUnderground."""
+  maxUndergroundDistance: Int
+  """ASTAR only: areas, each at most 256 tiles per side and at most 20 in total, where no entity may be placed. Underground spans may pass beneath them."""
+  avoidAreas: [FactoryAreaInput!] = []
+  """ASTAR only: let the route reuse existing same-name entities, cheaper than new tiles. A belt tile is reused only when it already faces the route's direction; reusing a pipe merges fluid networks, so it also needs allowFluidAdjacency. Existing entities at the two endpoints are always usable."""
+  preferExisting: Boolean! = false
+  """ASTAR only: search at most this many states, 1 through 50000; default 5000."""
+  maxExpandedTiles: Int
+  """ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 64; default 12. The padded region may cover at most 16384 tiles."""
+  searchMargin: Int
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
@@ -82,6 +140,10 @@ type ConnectionStep {
   direction: Int!
   """The tile already holds the requested entity with the required direction, so nothing is placed or consumed."""
   existing: Boolean!
+  """INPUT for the entrance and OUTPUT for the exit of an underground span, which skips the tiles between them; null for ordinary tiles. Underground steps use the plan's undergroundItem."""
+  undergroundType: UndergroundBeltType
+  """Cost units of this step; see ConnectionRouting.ASTAR."""
+  cost: Float!
 }
 
 type ConnectionConflict {
@@ -107,8 +169,18 @@ type ConnectionPlan {
   bend: ConnectionBend!
   """True when no conflict was found and needed entities can be placed."""
   possible: Boolean!
-  """Entities that would be placed; excludes existing tiles."""
+  """Entities of item that would be placed; excludes existing tiles and underground halves."""
   needed: Int!
+  routing: ConnectionRouting!
+  stopReason: ConnectionStopReason!
+  """Item for underground halves; null unless the plan allows underground spans."""
+  undergroundItem: String
+  """Underground halves that would be placed."""
+  undergroundNeeded: Int!
+  """Total cost of the planned steps; for DIRECT it equals needed."""
+  cost: Float!
+  """States the search expanded; 0 for DIRECT."""
+  expanded: Int!
   steps: [ConnectionStep!]!
   conflicts: [ConnectionConflict!]!
 }
@@ -125,6 +197,8 @@ type ConnectEntitiesResult {
   bend: ConnectionBend!
   """False when the mutation refused to place anything because the plan had conflicts."""
   possible: Boolean!
+  routing: ConnectionRouting!
+  stopReason: ConnectionStopReason!
   placed: Int!
   """Existing tiles that already held the requested entity."""
   skipped: Int!

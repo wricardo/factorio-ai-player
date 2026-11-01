@@ -1,20 +1,20 @@
 extend type Query {
   """
-  Observed item quantities, grouped by inventory or belt line and item quality.
-  Totals cover the complete filtered supported scope, independently of location
-  pagination; totals have their own pagination. Area selects entity/player
-  positions, not individual items along a belt; shared internal lines count once
-  at the first matching entity.
-  Belt deduplication fails explicitly after one million comparisons; restrict
-  the area if this limit is exceeded. No partial totals are returned.
-
-  Supports player main inventories, ordinary/logistic/infinity chests, crafting
-  machines, furnaces, silos, labs, drills, agricultural towers, asteroid
-  collectors, fuel and burnt-result inventories, belt/loader lines, inserter
-  hands, and ground stacks. Ground stacks have no force ownership and are included
-  regardless of selected force. Other inventories (including linked containers,
-  vehicles, wagons, robots, roboports, turrets, cargo hubs and player
-  equipment/trash) and fluids are excluded; totals are not global factory stock.
+  Observed item quantities in a single-tick snapshot, grouped by inventory or belt line, item and quality, with three
+  independent pages: locations (one row per inventory/belt line and item), totals (per item, quality and category) and
+  items (per item and quality summed across every category), each with its own limit 1..1000 and zero-based offset.
+  Totals and items cover the complete filtered scope regardless of the location page, while locations are sorted by
+  category, position, entity type and name, player, inventory kind and item. Scope covers selected-force player main
+  inventories, ordinary/logistic/infinity chest contents, crafting machine, furnace, silo, lab, drill, agricultural
+  tower and asteroid collector inventories, fuel and burnt-result inventories, inserter hands, belt and loader
+  transport lines and ground item stacks; linked containers, vehicles, wagons, robots, roboports, turrets, cargo hubs,
+  player equipment and trash, and all fluids are excluded, so totals are not global factory stock. Ground stacks have
+  no force ownership and are included regardless of the selected force, while every other source must match the
+  selected force and surface; area filters entity and player positions, not individual items along a belt. All
+  transport lines of each belt are counted, a line object one entity exposes twice is deduplicated by line_equals, and
+  contents are read per entity tile, so a long belt contributes every item actually sitting on it. Exceeding one
+  million line comparisons fails the whole query instead of returning partial totals, and an empty item value, invalid
+  category, unknown surface/force, non-finite or inverted area, or out-of-range pagination are GraphQL errors.
   """
   stock(input: StockInput = {}): StockPage!
 }
@@ -27,6 +27,8 @@ input StockInput {
   area: FactoryAreaInput
   """Exact non-empty item name, if supplied."""
   item: String
+  """Exact stock category; omit to include every category."""
+  category: StockCategory
   """Location page size from 1 through 1000."""
   limit: Int! = 100
   """Zero-based, non-negative location offset."""
@@ -35,6 +37,18 @@ input StockInput {
   totalsLimit: Int! = 100
   """Zero-based, non-negative totals offset."""
   totalsOffset: Int! = 0
+  """Items page size from 1 through 1000, independent of the other pages."""
+  itemsLimit: Int! = 100
+  """Zero-based, non-negative items offset."""
+  itemsOffset: Int! = 0
+}
+
+"""Stock location category. STORED is an entity inventory, IN_TRANSIT is a belt or inserter hand, GROUND is a dropped stack, PLAYER is a connected player's inventory."""
+enum StockCategory {
+  STORED
+  IN_TRANSIT
+  GROUND
+  PLAYER
 }
 
 type StockPage {
@@ -45,10 +59,13 @@ type StockPage {
   locations: [StockLocation!]!
   totalPageInfo: PageInfo!
   totals: [StockTotal!]!
+  itemPageInfo: PageInfo!
+  """One row per item and quality, summed across every category in the active filter."""
+  items: [StockItemTotal!]!
 }
 
 type StockLocation {
-  """stored, in-transit, or player."""
+  """stored, in-transit, ground, or player."""
   category: String!
   entityName: String!
   entityType: String!
@@ -61,3 +78,5 @@ type StockLocation {
 
 type StockStack { name: String! quality: String! count: Float! }
 type StockTotal { item: String! quality: String! category: String! count: Float! }
+"""Item and quality quantity summed across every stock category. Not a global factory total: the inventory scope is the one in the stock description."""
+type StockItemTotal { item: String! quality: String! count: Float! }

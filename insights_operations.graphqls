@@ -1,7 +1,30 @@
 extend type Query {
-  """Current research's nominal remaining science demand and observed stock on one surface. No production-rate estimate."""
+  """
+  Current-research nominal science demand and observed stock for one force on one surface, read as a single-tick snapshot.
+  progress and researchUnits come from the engine, while nominalPacksLeft is the ceiling of remaining research units
+  times the per-unit ingredient amount, ignoring productivity, lab drain and quality or durability bonuses, so it is a
+  baseline rather than predicted consumption or a production-rate estimate. Stock counts container, logistic-container
+  and infinity-container contents plus lab inputs and character main inventories of that force on that surface across
+  all qualities; belts, ground items, cargo, inaccessible inventories and transit are excluded, so availableItems is
+  not factory-wide supply. missingPackLabCount and the per-pack lab counts scan every lab of the force on the whole
+  surface and flag labs missing a required pack or whose prototype cannot accept it; for trigger research sciencePacks
+  is empty and the science-unit fields are zero. With no active research technology and progress are null and
+  sciencePacks is empty. Empty or unknown force/surface names produce a GraphQL error.
+  """
   scienceBudget(force: String! = "player", surface: String! = "nauvis"): ScienceBudget!
-  """Entity/tile ghosts and item-request proxies in a bounded area. Material availability is observed container and character main-inventory stock in that area, not construction logistics or reach."""
+  """
+  Ghosts of the selected force (entity-ghost, tile-ghost and item-request-proxy) inside a required finite area of at
+  most 256 tiles per side, sorted by entity id and paginated with limit 1..1000 and a zero-based offset; pageInfo.total
+  counts all matches in the area. Material availability is a separate scan of container, logistic-container and
+  infinity-container chest contents plus character main inventories of that force in the same area — belts, ground
+  items, logistic networks and reach are not consulted, so buildable only means observed local stock covers one
+  placement alternative plus every item_request. Entity and tile ghosts list each items_to_place_this entry as an
+  alternative, not an additive requirement, while requestedMaterials (including modules and qualities) is additive;
+  item-request proxies are buildable purely from their requests and take name/quality from a valid proxy_target.
+  Availability is computed per entry with no reservation or sharing, so the same stock may satisfy several entries and
+  a buildable backlog for the area as a whole is not implied. A missing area, out-of-range dimensions, invalid
+  limit/offset or unknown surface/force name produce a GraphQL error; an empty ghostEntries list means no ghosts matched.
+  """
   ghosts(input: GhostsInput!): GhostsPage!
 }
 

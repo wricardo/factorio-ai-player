@@ -54,6 +54,9 @@ func TestLogisticNetworksValidation(t *testing.T) {
 		{"limit zero", &LogisticNetworksInput{Surface: "nauvis", Force: "player"}, "limit"},
 		{"limit too high", &LogisticNetworksInput{Surface: "nauvis", Force: "player", Limit: 1001}, "limit"},
 		{"negative offset", &LogisticNetworksInput{Surface: "nauvis", Force: "player", Limit: 10, Offset: -1}, "offset"},
+		{"items limit too low", &LogisticNetworksInput{Surface: "nauvis", Force: "player", Limit: 10, ItemsLimit: -1}, "itemsLimit"},
+		{"items limit too high", &LogisticNetworksInput{Surface: "nauvis", Force: "player", Limit: 10, ItemsLimit: 1001}, "itemsLimit"},
+		{"negative items offset", &LogisticNetworksInput{Surface: "nauvis", Force: "player", Limit: 10, ItemsOffset: -1}, "itemsOffset"},
 		{"bad area", &LogisticNetworksInput{Surface: "nauvis", Force: "player", Limit: 10, Area: constructionArea(300, 10)}, "area"},
 		{"empty network id", &LogisticNetworksInput{Surface: "nauvis", Force: "player", Limit: 10, NetworkID: new("")}, "networkId"},
 		{"non numeric network id", &LogisticNetworksInput{Surface: "nauvis", Force: "player", Limit: 10, NetworkID: new("cell-7")}, "networkId"},
@@ -67,7 +70,7 @@ func TestLogisticNetworksValidation(t *testing.T) {
 }
 
 func TestLogisticNetworkDecode(t *testing.T) {
-	response := `{"tick":42,"surface":"nauvis","force":"player","pageInfo":{"total":1,"limit":100,"offset":0,"hasMore":false},"networks":[{"id":"7","force":"player","surface":"nauvis","cells":3,"logistic_robots":{"total":5,"available":2},"construction_robots":{"total":1,"available":1},"contents":[{"name":"iron-plate","count":12,"quality":"normal"}],"requester_points":2,"provider_points":4}]}`
+	response := `{"tick":42,"surface":"nauvis","force":"player","pageInfo":{"total":1,"limit":100,"offset":0,"hasMore":false},"networks":[{"id":"7","force":"player","surface":"nauvis","cells":3,"custom_name":"main bus","robot_limit":4294967295,"logistic_robots":{"total":5,"available":2},"construction_robots":{"total":1,"available":1},"contents":[{"name":"iron-plate","count":12,"quality":"normal"}],"requester_points":2,"provider_points":4,"deployed_logistic_robots":3,"carrying_logistic_robots":2,"points":{"roboports":1,"requesterChests":2,"bufferChests":0,"passiveProviderChests":3,"activeProviderChests":0,"storageChests":1,"characterRequestPoints":1,"other":0},"items":[{"name":"electronic-circuit","quality":"normal","stored":7,"storedPassiveProviders":7,"storedActiveProviders":0,"storedBuffers":0,"storedStorage":0,"available":-3,"requested":50,"requestedMinimum":50,"unlimitedRequests":0,"delivered":44,"inFlight":2,"incoming":4,"targetedPickup":4,"missing":2},{"name":"iron-plate","quality":null,"stored":0,"available":-2,"requested":20,"requestedMinimum":0,"unlimitedRequests":1,"delivered":0,"inFlight":0,"incoming":0,"targetedPickup":0,"missing":20}],"item_page_info":{"total":2,"limit":1000,"offset":0,"hasMore":false}}]}`
 	page, err := factoryDecode[LogisticNetworkPage](response)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
@@ -78,6 +81,9 @@ func TestLogisticNetworkDecode(t *testing.T) {
 	network := page.Networks[0]
 	if network.ID != "7" || network.Cells != 3 {
 		t.Fatalf("network = %+v", network)
+	}
+	if network.CustomName == nil || *network.CustomName != "main bus" || network.RobotLimit != 4294967295 {
+		t.Fatalf("network identity = %+v", network)
 	}
 	if network.LogisticRobots == nil || network.LogisticRobots.Total != 5 || network.LogisticRobots.Available != 2 {
 		t.Fatalf("logistic robots = %+v", network.LogisticRobots)
@@ -90,6 +96,29 @@ func TestLogisticNetworkDecode(t *testing.T) {
 	}
 	if network.RequesterPoints != 2 || network.ProviderPoints != 4 {
 		t.Fatalf("points = %d/%d", network.RequesterPoints, network.ProviderPoints)
+	}
+	if network.DeployedLogisticRobots != 3 || network.CarryingLogisticRobots != 2 {
+		t.Fatalf("deployed/carrying = %d/%d", network.DeployedLogisticRobots, network.CarryingLogisticRobots)
+	}
+	if network.Points == nil || network.Points.Roboports != 1 || network.Points.RequesterChests != 2 || network.Points.CharacterRequestPoints != 1 {
+		t.Fatalf("point breakdown = %+v", network.Points)
+	}
+	if network.ItemPageInfo == nil || network.ItemPageInfo.Total != 2 || network.ItemPageInfo.Limit != 1000 {
+		t.Fatalf("item page = %+v", network.ItemPageInfo)
+	}
+	if len(network.Items) != 2 {
+		t.Fatalf("items = %+v", network.Items)
+	}
+	circuit := network.Items[0]
+	if circuit.Name != "electronic-circuit" || circuit.Quality == nil || *circuit.Quality != "normal" {
+		t.Fatalf("circuit = %+v", circuit)
+	}
+	if circuit.Stored != 7 || circuit.Available != -3 || circuit.Requested != 50 || circuit.Delivered != 44 || circuit.InFlight != 2 || circuit.Incoming != 4 || circuit.TargetedPickup != 4 || circuit.Missing != 2 {
+		t.Fatalf("circuit stats = %+v", circuit)
+	}
+	plate := network.Items[1]
+	if plate.Quality != nil || plate.UnlimitedRequests != 1 || plate.Stored != 0 || plate.Missing != 20 {
+		t.Fatalf("plate stats = %+v", plate)
 	}
 }
 

@@ -21,6 +21,23 @@ func topologyBeltParams(surface string, x, y float64, maxEntities int) error {
 	return nil
 }
 
+// transportLineLua names function-local transport lines. It must be
+// concatenated before any chunk that reads lanes, because Lua locals are only
+// visible to text that follows them in the same chunk.
+const transportLineLua = `local transport_line_names={}
+if defines.transport_line then
+  for name,index in pairs(defines.transport_line) do transport_line_names[index]=name end
+end
+local function transport_line_name(index)
+  return transport_line_names[index] or ("line_"..tostring(index))
+end
+local function transport_line_side(name)
+  if string.find(name,"left",1,true) then return "left" end
+  if string.find(name,"right",1,true) then return "right" end
+  return "unknown"
+end
+`
+
 // topologyCommonLua only follows engine connection objects. Entity-level edges
 // deliberately do not claim lane routing, measured flow, or stalled machinery.
 const topologyCommonLua = `
@@ -45,12 +62,14 @@ local function endpoint(e)
   if not valid(e) then return nil end
   local k=key(e); if endpoint_cache[k] then return endpoint_cache[k] end
   local obj={name=e.name,type=e.type,surface=e.surface.name,position=e.position,unitNumber=e.unit_number,lanes={}}
-  local ok,status=pcall(function() return e.status end); if ok then obj.status=statuses[status] end
+  local ok_status,status=pcall(function() return e.status end); if ok_status then obj.status=statuses[status] end
+  local ok_direction,direction=pcall(function() return e.direction end); if ok_direction then obj.direction=direction end
   if is_belt(e) then
     for i=1,e.get_max_transport_line_index() do
       local items=e.get_transport_line(i).get_contents()
       table.sort(items,function(a,b) if a.name~=b.name then return a.name<b.name end return (a.quality or "")<(b.quality or "") end)
-      obj.lanes[#obj.lanes+1]={index=i,items=items}
+      local name=transport_line_name(i)
+      obj.lanes[#obj.lanes+1]={index=i,lineName=name,side=transport_line_side(name),items=items}
     end
   elseif e.type=="inserter" then
     obj.pickupPosition=e.pickup_position; obj.dropPosition=e.drop_position
@@ -60,8 +79,45 @@ local function endpoint(e)
   endpoint_cache[k]=obj
   return obj
 end
+-- The engine leaves pickup_target/drop_target nil on inserters that have not
+-- run since placement or since losing power, so an idle-but-wired inserter
+-- reads as dead. Resolve the entity under the arm's geometric pickup/drop
+-- position as a fallback: wiring is then reported independently of activity.
+local target_types={["assembling-machine"]=true,furnace=true,["mining-drill"]=true,lab=true,["rocket-silo"]=true,container=true,["logistic-container"]=true,["linked-container"]=true,["infinity-container"]=true}
+for _,t in ipairs(belt_types) do target_types[t]=true end
+local function position_target(e,pos)
+  if not valid(e) or type(pos)~="table" then return nil end
+  local ok,found=pcall(function() return e.surface.find_entities_filtered{position=pos,force=e.force,limit=16} end)
+  if not ok or not found then return nil end
+  for _,c in pairs(found) do
+    if valid(c) and c~=e and target_types[c.type] then return c end
+  end
+  return nil
+end
+local engine_targets={}
+local function resolved_target(e,kind,pos_name)
+  local ok,target=pcall(function() return e[kind] end)
+  if ok and valid(target) then return target end
+  local ok_pos,pos=pcall(function() return e[pos_name] end)
+  if not ok_pos then return nil end
+  return position_target(e,pos)
+end
+local function inserter_targets(e)
+  local k=key(e)
+  local cached=engine_targets[k]
+  if not cached then
+    cached={resolved_target(e,"pickup_target","pickup_position"),resolved_target(e,"drop_target","drop_position")}
+    engine_targets[k]=cached
+  end
+  return cached[1],cached[2]
+end
 local function connected_inserter(e)
-  return {inserter=endpoint(e),pickup=endpoint(e.pickup_target),drop=endpoint(e.drop_target)}
+  local p,d=inserter_targets(e)
+  return {inserter=endpoint(e),pickup=endpoint(p),drop=endpoint(d)}
+end
+-- Machines that drop onto an entity (mining drills) have the same staleness.
+local function machine_drop_target(e)
+  return resolved_target(e,"drop_target","drop_position")
 end
 local fluid_types={"offshore-pump","pipe","pipe-to-ground","pump","boiler","generator","fusion-generator","heat-exchanger","storage-tank"}
 local fluid_set={}; for _,t in ipairs(fluid_types) do fluid_set[t]=true end
@@ -170,7 +226,7 @@ local function belt_run(seed,limit)
   local inserter_entities={}
   for _,surface in pairs(surfaces) do
     for _,e in pairs(surface.find_entities_filtered{type="inserter"}) do
-      local p,d=e.pickup_target,e.drop_target
+      local p,d=inserter_targets(e)
       if (valid(p) and members[key(p)]) or (valid(d) and members[key(d)]) then inserter_entities[#inserter_entities+1]=e end
     end
   end
@@ -178,6 +234,198 @@ local function belt_run(seed,limit)
   local inserters={}; for _,e in ipairs(inserter_entities) do inserters[#inserters+1]=connected_inserter(e) end
   local edges,boundary=collect_edges(members,raw)
   return {tick=game.tick,surface=seed.surface.name,seed=endpoint(seed),maxEntities=limit,truncated=truncated,nodes=nodes,edges=edges,boundaryEdges=boundary,sources=sources,sinks=sinks,inserters=inserters},members
+end
+-- A linear walk must only follow tile-adjacent engine connections. Line
+-- connections describe internal transport lines, whose owner can be a belt far
+-- along the same line, so they are valid topology but not sequence steps.
+local function stretch_connections(e)
+  local result,seen={},{}
+  local function add(a,b)
+    if not is_belt(a) or not is_belt(b) or key(a)==key(b) then return end
+    local k=key(a)..">"..key(b)
+    if seen[k] then return end
+    seen[k]=true
+    result[#result+1]={a=a,b=b}
+  end
+  local neighbours=e.belt_neighbours
+  if neighbours then
+    for _,n in pairs(neighbours.inputs) do add(n,e) end
+    for _,n in pairs(neighbours.outputs) do add(e,n) end
+  end
+  if e.type=="underground-belt" then
+    local n=e.neighbours
+    if valid(n) then if e.belt_to_ground_type=="input" then add(e,n) else add(n,e) end end
+  elseif e.type=="linked-belt" then
+    local n=e.linked_belt_neighbour
+    if valid(n) then if e.linked_belt_type=="input" then add(e,n) else add(n,e) end end
+  end
+  return result
+end
+local function stretch_successors(e)
+  local result={}
+  for _,link in ipairs(stretch_connections(e)) do
+    if key(link.a)==key(e) then result[#result+1]=link end
+  end
+  return result
+end
+local function stretch_predecessors(e)
+  local result={}
+  for _,link in ipairs(stretch_connections(e)) do
+    if key(link.b)==key(e) then result[#result+1]=link end
+  end
+  return result
+end
+-- Classify a forward boundary from the last belt's direction and the tiles
+-- ahead. A gap needs evidence that the line continues: an aligned belt within
+-- the lookahead. Without it the end is natural, because runs routinely end
+-- beside their last inserter or in front of a machine.
+local end_lookahead=8
+local end_vectors={[0]={0,-1},[4]={1,0},[8]={0,1},[12]={-1,0}}
+local end_ignored={resource=true,corpse=true,["item-entity"]=true,character=true,["character-corpse"]=true,["particle-source"]=true,["smoke-with-trigger"]=true}
+local function tile_occupants(surface,x,y)
+  local belts,others={},{}
+  for _,e in pairs(surface.find_entities_filtered{area={{x-0.45,y-0.45},{x+0.45,y+0.45}}}) do
+    if e.valid and not end_ignored[e.type] then
+      if belt_set[e.type] then belts[#belts+1]=e else others[#others+1]=e end
+    end
+  end
+  table.sort(belts,function(a,b) return a.name<b.name end)
+  table.sort(others,function(a,b) return a.name<b.name end)
+  return belts,others
+end
+local function classify_forward_end(e,entry)
+  local forward_capable=e.type=="transport-belt" or (e.type=="underground-belt" and e.belt_to_ground_type=="output")
+  if e.type=="underground-belt" and e.belt_to_ground_type=="input" and not valid(e.neighbours) then
+    entry.reason="UNPAIRED_UNDERGROUND"; entry.gap=true
+    local v=end_vectors[e.direction]
+    if v then entry.expectedTarget={x=e.position.x+v[1],y=e.position.y+v[2]} end
+    return
+  end
+  if not forward_capable then return end
+  local v=end_vectors[e.direction]
+  if not v then return end
+  local surface=e.surface
+  entry.expectedTarget={x=e.position.x+v[1],y=e.position.y+v[2]}
+  entry.reason="NATURAL_END"
+  local blocker=nil
+  for i=1,end_lookahead do
+    local x,y=e.position.x+v[1]*i,e.position.y+v[2]*i
+    local belts,others=tile_occupants(surface,x,y)
+    if i==1 then
+      if #belts>0 then
+        blocker=belts[1].name
+        if belts[1].direction==(e.direction+8)%16 then entry.reason="HEAD_ON"; entry.gap=true; entry.blocker=blocker; return end
+      elseif #others>0 then blocker=others[1].name end
+    elseif blocker==nil and #others>0 then
+      blocker=others[1].name
+    end
+    local aligned=false
+    for _,belt in ipairs(belts) do if belt.direction==e.direction then aligned=true end end
+    if aligned then
+      if i>=2 then
+        entry.gap=true
+        entry.reason=blocker~=nil and "BLOCKED" or "MISSING_BELT"
+        entry.blocker=blocker
+      end
+      return
+    end
+  end
+  entry.blocker=blocker
+end
+-- One linear walk, not the whole component: stop wherever the sequence is not
+-- unambiguous, so a returned stretch never silently picks a branch.
+local function belt_stretch(seed,limit)
+  local backward,forward,ends={},{},{}
+  local seen={[key(seed)]=true}
+  local budget=limit-1
+  local truncated=false
+  local function record_end(e,kind,links,is_forward)
+    local targets={}
+    for _,link in ipairs(links) do
+      local other=link.b
+      if key(other)==key(e) then other=link.a end
+      targets[#targets+1]=endpoint(other)
+    end
+    local entry={position=e.position,unitNumber=e.unit_number,kind=kind,targets=targets,gap=false,reason="NOT_APPLICABLE"}
+    if kind=="boundary" and is_forward then classify_forward_end(e,entry) end
+    ends[#ends+1]=entry
+  end
+  local cursor=seed
+  while true do
+    local preds=stretch_predecessors(cursor)
+    if #preds==0 then record_end(cursor,"boundary",preds); break end
+    local next=preds[1].a
+    if #preds>1 or next.type=="splitter" then record_end(cursor,"merge",preds); break end
+    if seen[key(next)] then record_end(cursor,"loop",preds); break end
+    if budget<=0 then truncated=true; record_end(cursor,"truncated",preds); break end
+    seen[key(next)]=true; budget=budget-1
+    backward[#backward+1]=next; cursor=next
+  end
+  cursor=seed
+  while true do
+    local succs=stretch_successors(cursor)
+    if #succs==0 then record_end(cursor,"boundary",succs,true); break end
+    local next=succs[1].b
+    if #succs>1 or next.type=="splitter" then record_end(cursor,"split",succs); break end
+    if seen[key(next)] then record_end(cursor,"loop",succs); break end
+    if budget<=0 then truncated=true; record_end(cursor,"truncated",succs); break end
+    seen[key(next)]=true; budget=budget-1
+    forward[#forward+1]=next; cursor=next
+  end
+  local ordered={}
+  for i=#backward,1,-1 do ordered[#ordered+1]=backward[i] end
+  ordered[#ordered+1]=seed
+  for _,e in ipairs(forward) do ordered[#ordered+1]=e end
+  local nodes,lines,mixed={},{},{left=false,right=false,unknown=false}
+  for _,e in ipairs(ordered) do
+    local node={name=e.name,type=e.type,position=e.position,unitNumber=e.unit_number,direction=e.direction,lanes={}}
+    local max_index=1
+    local ok,value=pcall(function() return e.get_max_transport_line_index() end)
+    if ok and type(value)=="number" and value>=1 then max_index=value end
+    -- get_contents reports only the items carried by this entity's tile line,
+    -- and line_equals spans a whole internal line across tiles, so deduplication
+    -- must stay inside one entity. Summing all tiles is the stretch total.
+    local entity_lines={}
+    for index=1,max_index do
+      local line=e.get_transport_line(index)
+      local name=transport_line_name(index)
+      local items=line.get_contents()
+      table.sort(items,function(a,b) if a.name~=b.name then return a.name<b.name end return (a.quality or "normal")<(b.quality or "normal") end)
+      local side=transport_line_side(name)
+      node.lanes[#node.lanes+1]={index=index,lineName=name,side=side,items=items}
+      if #items>1 then mixed[side]=true end
+      local duplicate=false
+      for _,prior in ipairs(entity_lines) do
+        if line.line_equals(prior.line) then duplicate=true; break end
+      end
+      if not duplicate then entity_lines[#entity_lines+1]={line=line,side=transport_line_side(name)} end
+    end
+    for _,entry in ipairs(entity_lines) do lines[#lines+1]=entry end
+    nodes[#nodes+1]=node
+  end
+  local totals={left={},right={},unknown={}}
+  local counts={left=0,right=0,unknown=0}
+  for _,entry in ipairs(lines) do
+    local side=entry.side
+    if side~="left" and side~="right" then side="unknown" end
+    local bucket=totals[side]
+    for _,item in ipairs(entry.line.get_contents()) do
+      local quality=item.quality or "normal"
+      local found=nil
+      for _,existing in ipairs(bucket) do
+        if existing.name==item.name and existing.quality==quality then found=existing; break end
+      end
+      if found then found.count=found.count+item.count
+      else bucket[#bucket+1]={name=item.name,quality=quality,count=item.count} end
+      counts[side]=counts[side]+item.count
+    end
+  end
+  local function total(side)
+    local items=totals[side]
+    table.sort(items,function(a,b) if a.name~=b.name then return a.name<b.name end return a.quality<b.quality end)
+    return {side=side,items=items,itemCount=counts[side],mixed=mixed[side]}
+  end
+  return {tick=game.tick,surface=seed.surface.name,seed=endpoint(seed),maxEntities=limit,truncated=truncated,nodes=nodes,ends=ends,left=total("left"),right=total("right"),unknown=total("unknown")}
 end
 `
 
@@ -189,7 +437,7 @@ func beltRunQuery(r *Resolver, surface string, inputX, inputY *float64, unitNumb
 	if err := topologyBeltParams(surface, x, y, maxEntities); err != nil {
 		return nil, err
 	}
-	lua := luaFail + topologyCommonLua + fmt.Sprintf(`
+	lua := luaFail + transportLineLua + topologyCommonLua + fmt.Sprintf(`
 local seed,err=belt_at(%s,%s,%s)
 if not seed then fail(err); return end
 local result=belt_run(seed,%d)
@@ -199,6 +447,28 @@ rcon.print(helpers.table_to_json(result))`, luaString(surface), strconv.FormatFl
 		return nil, err
 	}
 	return factoryDecode[BeltRun](response)
+}
+
+// beltStretchQuery walks one linear stretch and totals items per side, using
+// engine transport-line identity so underground tunnel contents count once.
+func beltStretchQuery(r *Resolver, surface string, inputX, inputY *float64, unitNumber *string, maxEntities int) (*BeltStretch, error) {
+	surface, x, y, err := resolveBeltAddress(r, surface, unitNumber, inputX, inputY)
+	if err != nil {
+		return nil, err
+	}
+	if err := topologyBeltParams(surface, x, y, maxEntities); err != nil {
+		return nil, err
+	}
+	lua := luaFail + transportLineLua + topologyCommonLua + fmt.Sprintf(`
+local seed,err=belt_at(%s,%s,%s)
+if not seed then fail(err); return end
+local result=belt_stretch(seed,%d)
+rcon.print(helpers.table_to_json(result))`, luaString(surface), strconv.FormatFloat(x, 'g', -1, 64), strconv.FormatFloat(y, 'g', -1, 64), maxEntities)
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
+		return nil, err
+	}
+	return factoryDecode[BeltStretch](response)
 }
 
 func inspectionBeltRuns(r *Resolver, obj *InspectionLogistics, maxEntities int) ([]*BeltRun, error) {
@@ -233,7 +503,7 @@ func inspectionBeltRuns(r *Resolver, obj *InspectionLogistics, maxEntities int) 
 	if seeds.Len() == 0 {
 		return []*BeltRun{}, nil
 	}
-	lua := luaFail + topologyCommonLua + fmt.Sprintf(`
+	lua := luaFail + transportLineLua + topologyCommonLua + fmt.Sprintf(`
 local seeds={%s}
 local runs,covered={},{}
 for _,request in ipairs(seeds) do
@@ -276,7 +546,7 @@ func factoryGraphQuery(r *Resolver, area *FactoryAreaInput, force, surface strin
 	if err != nil {
 		return nil, err
 	}
-	lua := luaFail + topologyCommonLua + fmt.Sprintf(`
+	lua := luaFail + transportLineLua + topologyCommonLua + fmt.Sprintf(`
 local surface=game.surfaces[%s]
 if not surface then fail("surface not found"); return end
 local force=game.forces[%s]
@@ -296,7 +566,7 @@ for _,e in ipairs(entities) do
   local obj=endpoint(e); nodes[#nodes+1]=obj
   if machine_set[e.type] then
     machines[#machines+1]=obj
-    local target=e.drop_target
+    local target=machine_drop_target(e)
     if valid(target) then raw[#raw+1]={a=e,b=target,kind="drop"} end
   elseif chest_set[e.type] then chests[#chests+1]=obj
   elseif is_fluid(e) then
@@ -314,16 +584,19 @@ for _,e in ipairs(entities) do
     end
   end
 end
+-- Inserters stand at most one tile from every node they touch, so the scan
+-- area covers one expanding tile instead of the whole surface.
+local inserter_scan={{area[1][1]-1.5,area[1][2]-1.5},{area[2][1]+1.5,area[2][2]+1.5}}
 local inserter_entities={}
-for _,e in pairs(surface.find_entities_filtered{type="inserter"}) do
-  local p,d=e.pickup_target,e.drop_target
+for _,e in pairs(surface.find_entities_filtered{area=inserter_scan,type="inserter"}) do
+  local p,d=inserter_targets(e)
   if members[key(e)] or (valid(p) and members[key(p)]) or (valid(d) and members[key(d)]) then inserter_entities[#inserter_entities+1]=e end
 end
 table.sort(inserter_entities,less)
 local inserters={}
 for _,e in ipairs(inserter_entities) do
   inserters[#inserters+1]=connected_inserter(e)
-  local p,d=e.pickup_target,e.drop_target
+  local p,d=inserter_targets(e)
   if valid(p) then raw[#raw+1]={a=p,b=e,kind="pickup"} end
   if valid(d) then raw[#raw+1]={a=e,b=d,kind="drop"} end
 end

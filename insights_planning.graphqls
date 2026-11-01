@@ -1,7 +1,38 @@
 extend type Query {
-  """Configured recipe and current mining-target producers/consumers. Rates are theoretical base yields, not observed throughput. Both lists use the same independent pagination window."""
+  """
+  Configured producers and consumers of one item or fluid for a force on a surface, from a single-tick snapshot of
+  assembling machines, furnaces, rocket silos and mining drills, optionally bounded by area and sorted by name,
+  position and unit number. Producers are machines whose current recipe or mining target yields the item; consumers
+  are machines whose recipe or mining target consumes it. Limit (1..1000) and zero-based offset slice each list
+  independently but with the same window, and producerPageInfo/consumerPageInfo each count their full pre-pagination
+  match set. Rates are theoretical expected base yields at
+  current machine speed — crafting_speed/recipe energy times the expected product amount, or mining_speed times
+  (1+speed_bonus)/mining_time — excluding productivity, quality upgrades, downtime, power or fuel shortages, blocked
+  output and depletion, so they are not observed throughput; infinite resources and uncomputable cases return null
+  theoreticalRatePerSecond with rateUnavailableReason. bufferedItems counts only the matching item in that role's
+  inventory (crafter input for consumers, output inventory for producers), never whole-machine or factory stock;
+  bufferedFluidAmount sums only role-compatible fluidbox contents and is null for items. status is the engine entity
+  status name; empty or unknown force/surface names, an item name that is neither an item nor fluid prototype, or
+  out-of-range limit/offset produce a GraphQL error, and empty lists mean no machine matched in the area.
+  """
   itemFlow(input: ItemFlowInput!): ItemFlow!
-  """One-tick recipe/stock snapshot followed by bounded deterministic recursive planning. Never asserts machine availability or immediate craftability."""
+  """
+  Deterministic recursive material plan for one item, quality and amount, computed in Go from a single snapshot of the
+  force's enabled recipe catalogue and an explicit stock source. FACTORY stock sums inventories of containers,
+  crafting machines (input, output, modules, trash and dump), furnaces, silos, labs, cargo wagons, car and spider
+  trunks, inserter hands, belt and loader lines and all fluidboxes inside the optional area, capped at 10000 entities
+  and 5000 enabled recipes; PLAYER stock is the named player's main inventory only, must exist on the requested force
+  and surface, and forbids area. Truncated stock, a truncated recipe catalogue or an unresolved recipe cycle makes
+  complete false, belt-line deduplication stops after one million comparisons with stockTruncated set, and mined raw
+  resources are not consumed by the plan. Recipes are matched by output item with exact-name recipes preferred over
+  lexicographic order, may be overridden per item (at most 1000, duplicates rejected), and are expanded depth-first
+  with maxDepth 1..128 and maxExpansions 1..10000; an exhausted expansion budget is reported as explicit unresolved
+  demand. availableStock/allocatedStock are one shared pool, so materials, steps, rawRequirements, seedRequirements
+  (catalysts needing initial stock) and unresolved together are an expected-value plan, not a globally optimal
+  schedule or a craftability, machine, energy or transport claim; probabilistic yields become expected values flagged
+  by probabilistic. Invalid amount (non-finite, non-positive or above 1e12), missing or inconsistent stock source,
+  unknown quality, unknown or ambiguous item/fluid prototype, or invalid override produce a GraphQL error.
+  """
   billOfMaterials(input: BillOfMaterialsInput!): BillOfMaterials!
 }
 

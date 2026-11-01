@@ -141,7 +141,7 @@ func navigationCall(r *Resolver, method, args string) (*NavigationJob, error) {
 }
 
 func navigationCallContext(ctx context.Context, r *Resolver, method, args string) (*NavigationJob, error) {
-	lua := luaFail + fmt.Sprintf(`local interface=remote.interfaces["factorio_ai_navigation"]; if not interface or not interface[%s] then fail("factorio_ai_navigation mod or remote function is unavailable"); return end; local result=remote.call("factorio_ai_navigation",%s,%s); result.tick=game.tick; local character=game.get_entity_by_unit_number(tonumber(result.character)); if character and character.valid and character.force then result.force=character.force.name end; rcon.print(helpers.table_to_json(result))`, luaString(method), luaString(method), args)
+	lua := luaFail + fmt.Sprintf(`local interface=remote.interfaces["factorio_ai_navigation"]; if not interface or not interface[%s] then fail("factorio_ai_navigation mod or remote function is unavailable"); return end; local result=remote.call("factorio_ai_navigation",%s,%s); if type(result)~="table" then fail("navigation interface returned no result"); return end; if result.error then fail(tostring(result.error)); return end; result.tick=game.tick; local unit=tonumber(result.character); local character=unit and game.get_entity_by_unit_number(unit) or nil; if character and character.valid and character.force then result.force=character.force.name end; rcon.print(helpers.table_to_json(result))`, luaString(method), luaString(method), args)
 	response, _, err := executeLuaContext(ctx, r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

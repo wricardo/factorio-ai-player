@@ -1,5 +1,5 @@
 extend type Mutation {
-  """Drops items from the acting character's inventory as a ground stack or onto a transport belt tile, so lines can be seeded without an inserter."""
+  """Drops items from the acting character's main inventory either as a ground stack or into a transport belt's line at a position, so belt lines can be seeded without an inserter. The actor must have a main inventory, item and quality (default normal) must exist as prototypes, count must be an integer from 1 through 4294967295 and no larger than the inventory holds, and the actor must be standing on the named surface; the position snaps to the containing tile's centre before any reach or placement decision. A GROUND drop refuses a tile occupied by a belt, splitter, loader or linked belt instead of letting the belt swallow the stack, spills with allow_belts disabled, and treats an empty spill result as a hard failure, so a failed drop leaves the actor inventory untouched. A BELT drop requires a transport-belt or linked-belt on that tile, uses its insert specification and can_insert_at check, inserts into line 1 or 2 and returns that line (0 for ground drops); if the belt rejects the stack the items are returned to the actor. Reach uses build distance and is enforced only when FACTORIO_ENFORCE_REACH is on. The result reports the snapped position, requested and moved counts, and success announces a generated summary unless message overrides it."""
   dropItem(input: DropItemInput!): DropItemResult!
 }
 
@@ -15,6 +15,7 @@ input DropItemInput {
   item: String!
   quality: String
   count: Float! = 1
+  """Snapped to the containing tile's center before the drop."""
   position: PositionInput!
   target: DropTarget! = GROUND
   """Print this text in-game to all connected players instead of the generated notification."""

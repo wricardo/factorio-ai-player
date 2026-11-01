@@ -60,7 +60,18 @@ else
   allowed=(hit==(placement.invert or false))
 end
 if not allowed then fail("tile cannot be placed on current tile"); return end
-if #s.find_entities_filtered{area={{x=position.x-0.5,y=position.y-0.5},{x=position.x+0.5,y=position.y+0.5}},limit=1}>0 then fail("tile position is blocked by an entity"); return end
+local tile_layers=(result_tile.collision_mask and result_tile.collision_mask.layers) or {}
+local blocker
+for _,e in pairs(s.find_entities_filtered{area={{x=position.x-0.5,y=position.y-0.5},{x=position.x+0.5,y=position.y+0.5}}}) do
+  if e.valid and e.type~="character" and e.type~="resource" and e.type~="entity-ghost" and e.type~="tile-ghost" then
+    local mask=e.prototype.collision_mask
+    for layer,enabled in pairs((mask and mask.layers) or {}) do
+      if enabled and tile_layers[layer] then blocker=e.name; break end
+    end
+    if blocker then break end
+  end
+end
+if blocker then fail("tile position is blocked by "..blocker); return end
 local inv=actor.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end
 if inv.get_item_count({name=item,quality=quality})<1 then fail("actor lacks item"); return end
 if inv.remove{name=item,quality=quality,count=1}~=1 then fail("could not remove item"); return end

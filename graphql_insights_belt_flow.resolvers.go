@@ -14,6 +14,11 @@ func (r *mutationResolver) BeltThroughputStart(ctx context.Context, input BeltTh
 	return beltThroughputStart(ctx, r.Resolver, input)
 }
 
+// BeltStretchMeasure is the resolver for the beltStretchMeasure field.
+func (r *mutationResolver) BeltStretchMeasure(ctx context.Context, input BeltStretchMeasureInput) (*BeltStretchMeasurement, error) {
+	return beltStretchMeasure(ctx, r.Resolver, input)
+}
+
 // BeltThroughput is the resolver for the beltThroughput field.
 func (r *queryResolver) BeltThroughput(ctx context.Context, id string) (*BeltThroughputMeasurement, error) {
 	return beltThroughputStatus(ctx, r.Resolver, id)

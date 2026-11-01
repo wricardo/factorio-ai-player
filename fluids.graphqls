@@ -1,5 +1,5 @@
 extend type Mutation {
-  """Adds, sets, or clears fluid in one entity's fluidboxes. SET clamps the amount to capacity; ADD reports the amount actually accepted; CLEAR empties every box."""
+  """Writes one fluid into one entity's fluid boxes: SET empties every box first and then inserts, so the engine clamps the amount to total capacity; ADD inserts into the current contents and reports only what the engine accepted; CLEAR empties the boxes and ignores fluid and amount. SET and ADD require a non-empty fluid prototype name and a finite amount of zero or more, and temperature must be finite when given; these and the actor/target addressing (unitNumber, or prototype name plus exact centre position on the actor's force, reach-checked only when FACTORIO_ENFORCE_REACH is enabled) are validated before RCON. SET clearing first means a SET never mixes fluids, while ADD leaves the boxes' existing fluid in place, so the engine rejects a mismatched fluid or temperature and the call fails. before and after total the named fluid in the entity (all fluids when fluid is omitted), capacity sums every fluid box capacity, boxesAffected is the entity's fluid box count, and the result also carries the entity name, unit number, position, and mode. Emits one in-game notification unless message overrides it."""
   setFluid(input: SetFluidInput!): FluidWriteResult!
 }
 
@@ -38,7 +38,7 @@ type FluidWriteResult {
 }
 
 extend type Query {
-  """Aggregates fluid contents of tanks, pipes, fluid-using machines and fluid wagons on one surface, with paginated locations and independent paginated totals."""
+  """Aggregates the fluid held in every fluid box on one surface for the named force plus the neutral force (unless neutral itself is named), excluding ghosts; every box with a positive amount becomes one location row, and per-fluid totals are summed over the same scan. surface and force must exist, an optional area must be finite with positive dimensions of at most 256 tiles per side, and an optional fluid filter must name a real fluid prototype. limit and totalsLimit are 1..1000 with non-negative offsets; locations are sorted by position then fluid, entity name and type, totals by fluid then category (currently only "stored"), and the two pages report total and hasMore independently. Each location also carries the entity name/type, inventory kind, and the box temperature when known. One snapshot at the reported tick; no actor or reach check is involved, so this read works for any force's entities on the surface."""
   fluidStock(input: FluidStockInput = {}): FluidStockPage!
 }
 

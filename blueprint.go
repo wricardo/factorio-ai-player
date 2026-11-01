@@ -39,7 +39,7 @@ if not stack.set_stack{name="blueprint",count=1} then inv.destroy(); fail("could
 local included=stack.create_blueprint{surface=s,force=f,area=area,always_include_tiles=%t,include_entities=true,include_modules=%t,include_station_names=%t,include_trains=%t,include_fuel=%t}
 local count=stack.get_blueprint_entity_count()
 local ok,str=pcall(function() return stack.export_stack() end)
-if not ok then inv.destroy(); fail("could not export blueprint: "..tostring(str)) end
+if not ok then inv.destroy(); fail("could not export blueprint: "..tostring(str)); return end
 inv.destroy()
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,entity_count=count,blueprint=str}))`,
 		luaString(surface), luaString(force), bounds.lua(),
@@ -171,7 +171,7 @@ end)
 if not ok then inv.destroy(); fail("could not set blueprint: "..tostring(err)); return end
 local count=stack.get_blueprint_entity_count()
 local ok2,str=pcall(function() return stack.export_stack() end)
-if not ok2 then inv.destroy(); fail("could not export blueprint: "..tostring(str)) end
+if not ok2 then inv.destroy(); fail("could not export blueprint: "..tostring(str)); return end
 inv.destroy()
 rcon.print(helpers.table_to_json({tick=game.tick,entity_count=count,tile_count=#tiles,blueprint=str}))`,
 		entities.String(), tiles.String())

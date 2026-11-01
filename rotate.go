@@ -44,6 +44,7 @@ func rotateLua(args []string, out io.Writer) (string, error) {
 	fs.SetOutput(out)
 	character := fs.Uint64("character", 0, "Character unit number (required)")
 	entity := fs.String("entity", "", "Entity prototype name (required unless a unit number is given)")
+	surface := fs.String("surface", "", "Target surface name (defaults to the actor's surface)")
 	var unitNumber string
 	fs.StringVar(&unitNumber, "unit-number", "", "Entity unit number, alternative to entity and x/y")
 	fs.StringVar(&unitNumber, "unitNumber", "", "Entity unit number, alternative to entity and x/y")
@@ -61,8 +62,9 @@ func rotateLua(args []string, out io.Writer) (string, error) {
 		return "", err
 	}
 	return luaFail + fmt.Sprintf(`local p=game.get_entity_by_unit_number(%d); if not p or p.type~="character" then fail("character not found"); return end
-`, *character) + targetLocals(targetUnit, *entity, *x, *y, "") + `surface_name=p.surface.name
-` + luaEntityResolve + resolveTargetLua() + fmt.Sprintf(`if %s then fail("entity is out of reach"); return end
+`, *character) + targetLocals(targetUnit, *entity, *x, *y, *surface) + `if surface_name=="" then surface_name=p.surface.name end
+` + luaEntityResolve + resolveTargetLua() + `if e.surface~=p.surface then fail("entity is on another surface than the actor"); return end
+` + fmt.Sprintf(`if %s then fail("entity is out of reach"); return end
 local before=e.direction; local completed=0; for i=1,%d do if not e.rotate{} then fail("rotation failed after "..completed.." turns"); return end; completed=completed+1 end
 rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,before=before,direction=e.direction,turns=completed,unit_number=e.unit_number}))`, reachViolation("p", "e"), *turns), nil
 }

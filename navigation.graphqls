@@ -1,7 +1,7 @@
 extend type Mutation {
-  """Start navigation for a detached character or a connected player's current character. Only one active job per character is allowed."""
+  """Starts one persistent navigation job that walks a detached character, or a connected player's current character, toward a finite position, a tracked character, or an entity's bounding box; a player-controlled character whose player is disconnected or no longer controls it is rejected, and a character may have only one active job at a time. Supply exactly one of position, targetCharacter, and targetEntity: a chase target must differ from the walker and needs tolerance of at least 1 because characters collide, while a static target is approached to the nearest point on its bounding box expanded by tolerance. Invalid input (bad unit numbers, non-finite or beyond +/-1000000 coordinates, tolerance outside (0, 10], timeoutTicks outside 1..216000, waitTimeoutSeconds outside 1..3600, missing factorio_ai_navigation interface) is a GraphQL error and no job is created. The job runs in the tick loop as PATHFINDING then MOVING with at most three replans and a 120-tick stall detector, and finishes as ARRIVED, NO_PATH, TIMED_OUT, STUCK, CANCELLED, TARGET_MISSING, or CHARACTER_MISSING; chase destinations track the target's live position and finished jobs remain readable until 256 newer jobs evict them. Emits one in-game notification unless message overrides it. wait=false returns the freshly started job; wait=true polls status every 250 ms until the job leaves PATHFINDING/MOVING or waitTimeoutSeconds expires, in which case the latest observation is returned without cancelling anything."""
   navigateStart(input: NavigateStartInput!): NavigationJob!
-  """Cancel a navigation job and stop its character. Returns the job's current state."""
+  """Cancels the navigation job with the given ID: an active job stops its character and finishes as CANCELLED with reason "cancelled by request", while an already finished job is returned unchanged. Unknown or evicted IDs (only the newest 256 finished jobs are retained) and blank IDs are GraphQL errors. The returned job is the post-cancel snapshot. Emits one in-game notification unless message overrides it."""
   navigateCancel(
     id: ID!
     """Print this text in-game to all connected players instead of the generated notification."""
@@ -10,11 +10,11 @@ extend type Mutation {
 }
 
 extend type Query {
-  """Observe a navigation job by its ID."""
+  """Reads one navigation job's latest snapshot by ID without changing it; this is the polling surface used by wait=true and by callers that started a job with wait=false. A blank or unknown ID, including a job evicted after 256 newer completed jobs, is a GraphQL error. tick is when the snapshot was observed, destination is the current goal (updated each tick for a chase), position is the last observed character position, and status carries a normalized category, terminal flag, and raw engine name; surface and character identify the walker, and reason explains terminal or cancelled outcomes. Each call is one RCON read, so concurrent status polls do not block the game thread beyond that read."""
   navigation(id: ID!): NavigationJob!
 }
 
-"""Destination and limits for navigation of a detached character or connected player's current character. Provide exactly one of finite x and y, targetCharacter, or targetEntity. With targetCharacter the destination follows that character's current position, so the walker chases it; tolerance must then be at least 1 because characters collide. With targetEntity the character walks to the nearest point on the entity's bounding box expanded by tolerance, which suits chests, assembling machines, inserters, and other static entities."""
+"""Destination and limits for navigation of a detached character or connected player's current character. Provide exactly one of finite x and y, targetCharacter, or targetEntity. With targetCharacter the destination follows that character's current position, so the walker chases it; tolerance must then be at least 1 because characters collide. Chase goals are probed on rings of eight points starting at the tolerance radius, so a target standing inside a chest or inserter row is still reachable; only exhausting every candidate reports NO_PATH. With targetEntity the character walks to the nearest point on the entity's bounding box expanded by tolerance, which suits chests, assembling machines, inserters, and other static entities."""
 input NavigateStartInput {
   """Actor whose character moves. Player selectors resolve current character before starting."""
   actor: ActorInput!

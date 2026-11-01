@@ -16,10 +16,10 @@ import (
 // metadata an entity exposes. Callers spawn it in the same chunk as the print
 // statement so one RCON round trip returns the whole snapshot.
 //
-// EntityInspection.undergroundNeighbour is deliberately never populated:
-// Factorio 2.0.77 has no underground-neighbour API (LuaEntity.neighbours is nil
-// for underground belts, and underground_belt_neighbour only exists in 2.1+), so
-// the field stays null and says nothing about pairing. Belt neighbours come from
+// EntityInspection.undergroundNeighbour reports the other end of an underground
+// belt: in 2.0.77 LuaEntity.neighbours returns that entity directly for
+// underground belts (and nil when the belt is not paired), while
+// belt_neighbours never contains it. Belt neighbours otherwise come from
 // LuaEntity.belt_neighbours, whose entries are BeltConnectableNeighbour tables
 // that hold the entity in their .entity field rather than exposing it directly.
 const entityMetaFieldsLua = `local function entity_meta_neighbour(value)
@@ -86,6 +86,10 @@ local function entity_meta_fields(entity)
       local ok_json,encoded=pcall(helpers.table_to_json,parameters)
       if ok_json and encoded then meta.parameters_raw_json=encoded end
     end
+  end
+  if entity.type=="underground-belt" then
+    local ok_underground,underground=pcall(function() return entity.neighbours end)
+    if ok_underground and underground~=nil then meta.underground_neighbour=entity_meta_neighbour(underground) end
   end
   local ok_belt,belt=pcall(function() return entity.belt_neighbours end)
   if ok_belt and type(belt)=="table" then
