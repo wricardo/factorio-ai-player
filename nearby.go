@@ -5,13 +5,17 @@ import "fmt"
 // nearbyLua finds entities around a position, orders them deterministically,
 // and returns one page with the true match count. Ordering happens in Lua so the
 // pagination is stable for a single snapshot; limit is capped by the caller.
-func nearbyLua(surface string, x, y, radius float64, name, kind, ordering string, offset, limit int) string {
-	return luaFail + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
+// Every row carries its force and the page tick, and force narrows the engine
+// filter when given, so one scan can separate own, neutral and enemy entities.
+func nearbyLua(surface string, x, y, radius float64, name, kind, force, ordering string, offset, limit int) string {
+	return luaFail + luaValidateEntityType + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
+if not validate_entity_type(%s) then return end
 local cx,cy=%s,%s
 local filter={position={x=cx,y=cy},radius=%s}
-local name=%s; local kind=%s
+local name=%s; local kind=%s; local required_force=%s
 if name~="" then filter.name=name end
 if kind~="" then filter.type=kind end
+if required_force~="" then filter.force=required_force end
 local found=s.find_entities_filtered(filter)
 local items={}
 for _,e in ipairs(found) do
@@ -37,11 +41,11 @@ local entities={}
 local first=offset+1; local last=math.min(#items,offset+limit)
 for i=first,last do
   local e=items[i].e
-  local entry={name=e.name,type=e.type,position=e.position,direction=e.direction,unit_number=e.unit_number,distance=math.sqrt(items[i].d)}
+  local entry={tick=game.tick,name=e.name,type=e.type,position=e.position,force=e.force and e.force.name or nil,direction=e.direction,unit_number=e.unit_number,distance=math.sqrt(items[i].d)}
   if e.type=="resource" then entry.amount=e.amount end
   entities[#entities+1]=entry
 end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,page_info={total=#items,limit=limit,offset=offset,has_more=#items>last},entities=entities}))`,
-		luaString(surface), formatFloat(x), formatFloat(y), formatFloat(radius),
-		luaString(name), luaString(kind), luaString(ordering), offset, limit)
+		luaString(surface), luaString(kind), formatFloat(x), formatFloat(y), formatFloat(radius),
+		luaString(name), luaString(kind), luaString(force), luaString(ordering), offset, limit)
 }

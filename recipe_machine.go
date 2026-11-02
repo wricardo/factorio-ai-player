@@ -57,7 +57,9 @@ local function machine_store(target,actor,position,insert_items,name,quality,cou
   end
   local remaining=count-added
   if remaining>0 then
-    actor.surface.spill_item_stack{position=position,stack={name=name,quality=quality,count=remaining},enable_looted=true,force=actor.force}
+    -- force must stay unset: spill_item_stack reads it as "mark every created item
+    -- for deconstruction by this force", which used to leave unfulfillable orders.
+    actor.surface.spill_item_stack{position=position,stack={name=name,quality=quality,count=remaining},enable_looted=true,allow_belts=false}
   end
   target[#target+1]={name=name,quality=quality,count=count}
 end
@@ -93,6 +95,58 @@ local function machine_aggregate(items)
 end
 `
 
+// machineFurnaceLua selects a recipe on a furnace. LuaEntity::set_recipe is
+// assembling-machine only in Factorio 2.0 (furnace ghosts fail with "Entity is
+// not assembling-machine"), and a furnace chooses its recipe from the item in
+// its input, so a furnace recipe is selected by priming the input with one unit
+// of the recipe's item ingredient. The priming stack stays in the input and is
+// consumed by the smelt.
+const machineFurnaceLua = `local function machine_recipe_item_ingredient(recipe)
+  local item=nil
+  for _,ingredient in pairs(recipe.ingredients or {}) do
+    if ingredient.type=="item" then
+      if item then return nil,"the recipe has more than one item ingredient" end
+      item=ingredient
+    elseif ingredient.type=="fluid" then
+      return nil,"the recipe needs a fluid ingredient"
+    end
+  end
+  if not item then return nil,"the recipe has no item ingredient" end
+  return item
+end
+local function machine_recipe_uses_item(recipe,item_name)
+  for _,ingredient in pairs((recipe and recipe.ingredients) or {}) do
+    if ingredient.type=="item" and ingredient.name==item_name then return true end
+  end
+  return false
+end
+local function machine_furnace_recipe(furnace,recipe,quality,actor)
+  local ingredient,why=machine_recipe_item_ingredient(recipe)
+  if not ingredient then return nil,"cannot select a furnace recipe: "..why end
+  local input=furnace.get_inventory(defines.inventory.crafter_input)
+  if not input then return nil,"cannot select a furnace recipe: the furnace has no input inventory" end
+  local inventory=actor.get_main_inventory()
+  local primed=0
+  if inventory then primed=inventory.remove{name=ingredient.name,quality=quality,count=1} end
+  if primed~=1 then return nil,"cannot select a furnace recipe: the actor inventory has no "..ingredient.name.." to prime the input" end
+  local inserted=input.insert{name=ingredient.name,quality=quality,count=1}
+  if inserted~=1 then
+    if inventory then inventory.insert{name=ingredient.name,quality=quality,count=1} end
+    return nil,"cannot select a furnace recipe: the furnace refused "..ingredient.name
+  end
+  -- A furnace keeps its old recipe until the next update; only a recipe that
+  -- can consume the priming item is a real mismatch. Anything else will be
+  -- replaced by the recipe the engine picks from the input.
+  local selected=furnace.get_recipe()
+  if selected and selected.name~=recipe.name and machine_recipe_uses_item(selected,ingredient.name) then
+    local removed=input.remove{name=ingredient.name,quality=quality,count=1}
+    if removed>0 and inventory then inventory.insert{name=ingredient.name,quality=quality,count=removed} end
+    return nil,"cannot select a furnace recipe: the furnace chose "..selected.name.." for "..ingredient.name
+  end
+  return {name=ingredient.name,quality=quality,count=1}
+end
+`
+
 // machineRecipeLua sets a recipe on a crafting machine. Machines that cannot be
 // crafting machines are refused, the recipe must be enabled and inside the
 // machine's crafting categories, and the caller picks what happens to items and
@@ -110,6 +164,13 @@ end
 // ingredients of the new recipe, so set_recipe's return value is not the
 // machine's drained contents. Whatever the engine still returns is merged into
 // the reported list.
+//
+// Assembling machines (including chemical plants, oil refineries and other
+// prototypes whose engine type is assembling-machine) get the recipe through
+// set_recipe. Furnaces cannot: LuaEntity::set_recipe is assembling-machine only,
+// and a furnace picks its recipe from its input, so the furnace path primes the
+// input with one unit of the recipe's item ingredient and reports that item as
+// item/count in the result. Every other entity type is refused.
 func machineRecipeLua(args []string, out io.Writer) (string, error) {
 	fs := flag.NewFlagSet("set-recipe", flag.ContinueOnError)
 	fs.SetOutput(out)
@@ -144,11 +205,19 @@ func machineRecipeLua(args []string, out io.Writer) (string, error) {
 	prefix := luaFail + fmt.Sprintf(`local c=game.get_entity_by_unit_number(%d); if not c or c.type~="character" then fail("character not found"); return end
 local p=c
 `, *character) + targetLocals(targetUnit, *entity, *x, *y, *surface) + "if surface_name==\"\" then surface_name=c.surface.name end\n" + luaEntityResolve + resolveTargetLua() + `if e.surface~=c.surface then fail("machine is on another surface than the actor"); return end
-if e.type~="assembling-machine" then fail("assembling machine not found"); return end
+if e.type~="assembling-machine" and e.type~="furnace" then fail("target is not an assembling machine or furnace"); return end
 if ` + reachViolation("c", "e") + ` then fail("machine out of reach"); return end
-` + machineDrainLua
+` + machineDrainLua + machineFurnaceLua
 	return prefix + fmt.Sprintf(`local recipe=c.force.recipes[%s]; if not recipe or not recipe.enabled then fail("recipe not found or not enabled"); return end
-if not e.prototype.crafting_categories[recipe.category] then fail("machine cannot use recipe category"); return end
+-- A recipe is compatible when any of its category or additional_categories is a
+-- crafting category of this machine, matching the engine's own resolution.
+local recipe_categories={recipe.category}
+for _,category in pairs(recipe.additional_categories or {}) do recipe_categories[#recipe_categories+1]=category end
+local compatible=false
+for _,category in pairs(recipe_categories) do
+  if e.prototype.crafting_categories[category] then compatible=true; break end
+end
+if not compatible then fail("machine cannot use recipe category"); return end
 if e.is_crafting() then fail("machine has an active craft"); return end
 local quality=%s
 if not prototypes.quality[quality] then fail("recipe quality not found"); return end
@@ -159,15 +228,26 @@ if drain=="abort" then
 elseif drain=="to-actor" then
   if machine_has_fluids(e) then fail("machine holds fluids; use drain spill to clear them"); return end
 else
-  local cleared=pcall(function() e.clear_fluid_inside() end)
-  if not cleared or machine_has_fluids(e) then fail("machine fluids could not be cleared"); return end
+  if machine_has_fluids(e) then
+    local cleared=pcall(function() e.clear_fluid_inside() end)
+    if not cleared or machine_has_fluids(e) then fail("machine fluids could not be cleared"); return end
+  end
 end
 local drained={}
 local spill_position=e.position; local insert_items=drain=="to-actor"
 if insert_items then spill_position=c.position end
 if drain~="abort" then machine_drain(e,drained,c,spill_position,insert_items) end
-local ok,engine_returned=pcall(function() return e.set_recipe(recipe.name,quality) end)
-if not ok then fail("recipe could not be set: "..tostring(engine_returned)); return end
-machine_merge_engine_items(e,drained,c,spill_position,insert_items,engine_returned)
-rcon.print(helpers.table_to_json({entity=e.name,position=e.position,surface=s.name,recipe=recipe.name,quality=quality,drain=drain,returned=machine_aggregate(drained),unit_number=e.unit_number}))`, luaString(*recipe), luaString(*recipeQuality), luaString(mode)), nil
+local prime=nil
+if e.type=="furnace" then
+  local why
+  prime,why=machine_furnace_recipe(e,recipe,quality,c)
+  if not prime then fail(why); return end
+else
+  local ok,engine_returned=pcall(function() return e.set_recipe(recipe.name,quality) end)
+  if not ok then fail("recipe could not be set: "..tostring(engine_returned)); return end
+  machine_merge_engine_items(e,drained,c,spill_position,insert_items,engine_returned)
+end
+local result={entity=e.name,position=e.position,surface=s.name,recipe=recipe.name,quality=quality,drain=drain,returned=machine_aggregate(drained),unit_number=e.unit_number}
+if prime then result.item=prime.name; result.count=prime.count end
+rcon.print(helpers.table_to_json(result))`, luaString(*recipe), luaString(*recipeQuality), luaString(mode)), nil
 }

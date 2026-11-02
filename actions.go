@@ -8,6 +8,128 @@ import (
 	"math"
 )
 
+// luaUndergroundInfoLua reports an underground belt half's ground type and the
+// unit number of the half it is paired with. On 2.0.77 those reads cannot be
+// assumed: LuaEntity.neighbours for a fresh half is not always a plain table
+// usable with pairs (it can be an array-like LuaCustomTable or userdata), and
+// LuaEntity values are userdata rather than tables. Every access is therefore
+// probed, and the neighbour list is walked by length first, then by pairs.
+const luaUndergroundInfoLua = `local function underground_neighbour_unit(nb)
+  local function unit_of(n)
+    local ok_unit,unit=pcall(function() if n and n.valid then return n.unit_number end end)
+    if ok_unit then return unit end
+    return nil
+  end
+  local function at(list,index)
+    local ok_item,item=pcall(function() return list[index] end)
+    if ok_item then return item end
+    return nil
+  end
+  local paired=nil
+  local ok_len,len=pcall(function() return #nb end)
+  if ok_len and len and len>0 then
+    for i=1,len do
+      local unit=unit_of(at(nb,i))
+      if unit then paired=unit; break end
+    end
+    if paired~=nil then return paired end
+  end
+  pcall(function()
+    for _,n in pairs(nb) do
+      local unit=unit_of(n)
+      if unit then paired=unit; return end
+    end
+  end)
+  return paired
+end
+local function underground_info(e)
+  if not e or e.type~="underground-belt" then return nil,nil end
+  local underground_type=nil
+  local ok_type,ground_type=pcall(function() return e.belt_to_ground_type end)
+  if ok_type and ground_type then underground_type=string.upper(tostring(ground_type)) end
+  local ok_neighbours,nb=pcall(function() return e.neighbours end)
+  if not ok_neighbours or nb==nil then return underground_type,nil end
+  return underground_type,underground_neighbour_unit(nb)
+end
+`
+
+// luaTileOccupants finds the entities whose collision mask can obstruct a new
+// build on the tile under a position. create_entity ignores collision boxes, so
+// a plain place must refuse an occupied tile explicitly: without that check the
+// engine stacks a second entity on the same tile (a burner inserter buried
+// under a new electric inserter that can never be fuelled again).
+//
+// The rule is the engine's own: a candidate blocks only when its collision mask
+// intersects the mask of the prototype being placed. Corpses (tree stumps,
+// remnants, biter corpses) use the doodad layer with colliding_with_tiles_only,
+// so they never collide with a belt or a pipe and must not be reported as
+// occupants (factorio-ai-player-sth). Ghosts, tile ghosts, item stacks, item
+// request proxies and resources are not obstacles either.
+//
+// Occupancy is tested against the whole tile under the position, not the point:
+// find_entities_filtered{position=} only returns entities whose own collision
+// box contains the point, so an entity whose box clips the tile from a
+// neighbouring tile is invisible to it but still blocks the footprint.
+const luaTileOccupants = `local function tile_entities(surface,position)
+  local found={}
+  for _,candidate in pairs(surface.find_entities_filtered{position=position,limit=16}) do
+    if candidate.valid then found[#found+1]=candidate end
+  end
+  return found
+end
+local function tile_area_entities(surface,position)
+  local left=math.floor(position.x); local top=math.floor(position.y)
+  local found={}
+  for _,candidate in pairs(surface.find_entities_filtered{area={{left-0.5,top-0.5},{left+1.5,top+1.5}},limit=64}) do
+    if candidate.valid then found[#found+1]=candidate end
+  end
+  return found
+end
+-- A candidate's collision mask decides whether it obstructs the prototype whose
+-- mask is layers. An unknown prototype stays an occupant so a broken mask read
+-- can never stack entities; no layers at all means the caller has no prototype,
+-- and then the type rule below is the best available answer.
+local function tile_blocks_build(candidate,layers)
+  if not layers then return true end
+  local ok_mask,mask=pcall(function() return candidate.prototype.collision_mask end)
+  if not ok_mask or not mask or not mask.layers then return true end
+  for layer in pairs(layers) do
+    if mask.layers[layer] then return true end
+  end
+  return false
+end
+local function tile_occupants(surface,position,layers)
+  local occupants={}
+  local left=math.floor(position.x); local top=math.floor(position.y)
+  local right,bottom=left+1,top+1
+  for _,candidate in ipairs(tile_area_entities(surface,position)) do
+    local kind=candidate.type
+    if kind~="entity-ghost" and kind~="tile-ghost" and kind~="item-entity" and kind~="item-request-proxy" and kind~="resource" then
+      local box=candidate.bounding_box
+      if box.left_top.x<right and box.right_bottom.x>left and box.left_top.y<bottom and box.right_bottom.y>top then
+        if tile_blocks_build(candidate,layers) then occupants[#occupants+1]=candidate.name end
+      end
+    end
+  end
+  return occupants
+end
+local function tile_unit_set(surface,position)
+  local units={}
+  for _,candidate in ipairs(tile_entities(surface,position)) do
+    local unit=candidate.unit_number
+    if unit then units[unit]=true end
+  end
+  return units
+end
+local function new_tile_entity(surface,position,before)
+  for _,candidate in ipairs(tile_entities(surface,position)) do
+    local unit=candidate.unit_number
+    if unit and not before[unit] then return candidate end
+  end
+  return nil
+end
+`
+
 const luaActionActor = `local unit=%d; local p; if unit~=0 then p=game.get_entity_by_unit_number(unit); if not p or p.type~="character" then fail("character not found"); return end else p=game.get_player(%s); if not p then fail("player not found"); return end end; `
 
 // actionLua runs checks and inventory changes in the same game tick.
@@ -32,7 +154,7 @@ func actionLua(command string, args []string, out io.Writer) (string, error) {
 	var undergroundType *string
 	if command == "place" {
 		direction = fs.Int("direction", 0, "Engine direction 0 through 15")
-		fastReplace = fs.Bool("fastReplace", false, "Fast-replace a colliding entity, spilling its contents")
+		fastReplace = fs.Bool("fastReplace", false, "Fast-replace a fast-replaceable entity, returning it and its contents to the actor")
 		undergroundType = fs.String("undergroundType", "", "Underground belt half: input or output")
 	} else {
 		entity = fs.String("entity", "", "Target entity name (required unless a unit number is given)")
@@ -66,30 +188,42 @@ func actionLua(command string, args []string, out io.Writer) (string, error) {
 		prefix := actor + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end; local position={x=%s,y=%s}; local c; if unit~=0 then c=p else c=p.character; if not c then fail("player has no character"); return end end; if c.surface~=s then fail("actor is on another surface"); return end; local dx=c.position.x-position.x; local dy=c.position.y-position.y; if %s then fail("position is out of build reach"); return end; `,
 			luaString(*surface), luaCoordinate(*x), luaCoordinate(*y), distanceViolation("dx", "dy", "c.build_distance"))
 		dir := *direction
-		check := fmt.Sprintf(`if not s.can_place_entity{name=name,position=position,direction=%d,force=p.force} then fail("cannot place entity at position"); return end; `, dir)
+		classify := fmt.Sprintf(`if s.can_place_entity{name=name,position=position,direction=%d,force=p.force,build_check_type=defines.build_check_type.manual} then fail("entity creation failed; item returned"); return end; fail("cannot place entity at position"); return;`, dir)
+		// create_entity ignores collision boxes, so a fast replace must first be
+		// proven replaceable; otherwise the new entity stacks on whatever is
+		// already there. Passing the acting character (and the player when one is
+		// selected) makes the engine return the replaced entity and its contents
+		// to that actor instead of spilling them on the ground.
 		replace := ""
 		if *fastReplace {
-			check = ""
-			replace = ",fast_replace=true,spill=true"
+			replace = fmt.Sprintf(`
+params.fast_replace=true; params.spill=true; params.character=c
+if unit==0 then params.player=p end
+if not (s.can_fast_replace{name=name,position=position,direction=%d,force=p.force} or s.can_place_entity{name=name,position=position,direction=%d,force=p.force,build_check_type=defines.build_check_type.manual}) then fail("cannot fast-replace at position: nothing fast-replaceable there and the tile is blocked"); return end`, dir, dir)
 		}
-		underground := fmt.Sprintf(`local underground_output=false
-if prototypes.entity[name] and prototypes.entity[name].type=="underground-belt" then
-  local ux,uy=0,0
-  local d=%d
-  if d==0 then uy=-1 elseif d==4 then ux=1 elseif d==8 then uy=1 elseif d==12 then ux=-1 end
-  local px=math.floor(position.x)+0.5
-  local py=math.floor(position.y)+0.5
-  if ux~=0 or uy~=0 then
-    local limit=prototypes.entity[name].max_underground_distance or 4
-    for k=1,limit do
-      local candidates=s.find_entities_filtered{position={x=px-ux*k,y=py-uy*k},type="underground-belt",force=p.force,limit=2}
-      local other=candidates[1]
-      if other and other.direction==d and other.neighbours==nil and tostring(other.belt_to_ground_type)=="input" then underground_output=true; break end
-    end
-  end
-end
-`, dir)
-		return prefix + fmt.Sprintf(`local proto=prototypes.item[item]; if not proto or not proto.place_result then fail("item does not place an entity"); return end; local name=proto.place_result.name; `+underground+`local stack={name=item,quality=quality}; if inv.get_item_count(stack)<1 then fail("player lacks item"); return end; %sif inv.remove{name=item,quality=quality,count=1}~=1 then fail("could not remove item"); return end; local spec={name=name,position=position,direction=%d,quality=quality,force=p.force,raise_built=true%s}; local forced_type=%s; if forced_type~="" then spec.type=forced_type elseif underground_output then spec.type="output" end; local ok,e=pcall(function() return s.create_entity(spec) end); if not ok then inv.insert{name=item,quality=quality,count=1}; fail("entity creation failed: "..tostring(e)); return end; if not e then inv.insert{name=item,quality=quality,count=1}; fail("entity creation failed; item returned"); return end; rcon.print(helpers.table_to_json({name=e.name,position=e.position,surface=s.name,direction=e.direction,unit_number=e.unit_number,item=item}))`, check, dir, replace, luaString(forcedType)), nil
+		// A plain place must not stack a second entity on an occupied tile:
+		// create_entity ignores collision boxes. Refuse the spot explicitly so
+		// the caller gets a collision error instead of a silently buried entity.
+		occupied := ""
+		if !*fastReplace {
+			occupied = `local layers=(prototypes.entity[name] and prototypes.entity[name].collision_mask or {}).layers; local blockers=tile_occupants(s,position,layers); if #blockers>0 then fail("cannot place entity at position: tile is occupied by "..table.concat(blockers,", ")); return end`
+		}
+		helpers := luaTileOccupants + luaUndergroundInfoLua
+		return helpers + prefix + fmt.Sprintf(`local proto=prototypes.item[item]; if not proto or not proto.place_result then fail("item does not place an entity"); return end; local name=proto.place_result.name; local forced_type=%s
+%s
+local params={name=name,position=position,direction=%d,quality=quality,force=p.force,raise_built=true}
+if forced_type~="" then params.type=forced_type end%s
+local stack={name=item,quality=quality}
+if inv.get_item_count(stack)<1 then fail("player lacks item"); return end
+if inv.remove{name=item,quality=quality,count=1}~=1 then fail("could not remove item"); return end
+local before=tile_unit_set(s,position)
+local ok,err=pcall(function() return s.create_entity(params) end)
+local e=nil; if ok then e=err end
+-- The engine can raise or return nil after committing the entity; refunding
+-- then would duplicate the item and report a failure that did not happen.
+if not e then e=new_tile_entity(s,position,before) end
+if not e then inv.insert{name=item,quality=quality,count=1}; if not ok then fail("entity creation failed: "..tostring(err)); return end; %s end
+local underground_type,paired_unit_number=underground_info(e); rcon.print(helpers.table_to_json({tick=game.tick,name=e.name,position=e.position,surface=s.name,force=c.force.name,direction=e.direction,unit_number=e.unit_number,item=item,underground_type=underground_type,paired_unit_number=paired_unit_number}))`, luaString(forcedType), occupied, dir, replace, classify), nil
 	}
 	if *count < 1 {
 		return "", errors.New("positive count is required")

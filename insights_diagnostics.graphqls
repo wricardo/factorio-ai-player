@@ -2,8 +2,8 @@ extend type FactoryMachine {
   surface: String!
   force: String!
   unitNumber: UnitNumber
-  """One additional game snapshot for ingredient demand, theoretical throughput, blocking status and electric state together."""
-  diagnostics: MachineDiagnostics! @goField(forceResolver: true)
+  """Computed by the machines page in the same Lua snapshot as the row, so selecting it adds no call per machine. Carries ingredient demand, theoretical throughput or mining rate, blocking status, burner fuel state and electric state together."""
+  diagnostics: MachineDiagnostics!
 }
 
 extend type LogisticsEndpoint {
@@ -14,15 +14,34 @@ extend type LogisticsEndpoint {
 
 type MachineDiagnostics {
   tick: Float!
+  """Current recipe, or for furnaces the remembered previous recipe when no recipe is selected."""
   recipe: String
   recipeQuality: String
+  """CURRENT when the machine holds this recipe now, PREVIOUS when only an idle furnace's previous_recipe matched, null when no recipe applies."""
+  recipeSource: RecipeSource
   """Demand for one NEXT craft from input inventories and compatible input fluid boxes. Excludes ingredients already consumed by an in-progress craft. Null if no crafting recipe is selected."""
   shortfall: [MachineIngredientDemand!]
-  """Null for entities without a crafting recipe. Never a measured production rate."""
+  """Null for entities without a crafting recipe or mining target. Never a measured production rate."""
   throughput: MachineTheoreticalThroughput
+  """Set when no rate could be derived: no current or previous recipe, a furnace that never smelted, a drill without a target, or a non-positive recipe duration."""
   throughputUnavailableReason: String
+  """Mining rate for drilling machines; null for everything else."""
+  mining: MachineMiningRate
+  """Burner fuel state for entities with a burner energy source; null for electric-only and non-energy entities."""
+  burner: MachineBurnerState
   blocked: MachineBlockedReason!
   power: MachinePowerState!
+}
+
+type MachineMiningRate {
+  """Resource prototype name of the current mining target."""
+  target: String!
+  """Remaining resource amount of the current mining target, in engine units; null for infinite resources."""
+  amount: Float
+  """Expected item units per second: mining_speed times (1+speed_bonus) divided by mining_time, multiplied by the summed expected item product yield of the target. Excludes productivity, depletion and fluid byproducts."""
+  theoreticalUnitsPerSecond: Float
+  """Engine mining productivity bonus, observed separately and NOT included in theoreticalUnitsPerSecond."""
+  productivityBonus: Float
 }
 
 type MachineIngredientDemand {
@@ -57,6 +76,17 @@ type MachineTheoreticalProductRate {
   theoreticalBaseUnitsPerSecond: Float!
 }
 
+type MachineBurnerState {
+  """Fuel inventory contents for this burner; each entry is one item stack, sorted by name then quality."""
+  fuelItems: [InventoryStack!]!
+  """Energy left in the item currently burning, in joules."""
+  remainingBurningFuelJoules: Float!
+  """Item name of the currently burning fuel, or null when nothing is burning."""
+  currentlyBurning: String
+  """Seconds until the burner stops for lack of fuel: fuel inventory energy plus remaining burning fuel divided by current max energy usage. Null when the usage is unknown or zero."""
+  estimatedSecondsOfFuel: Float
+}
+
 enum MachineBlockCategory {
   NONE
   MISSING_RECIPE
@@ -66,10 +96,12 @@ enum MachineBlockCategory {
   MISSING_POWER
   OUTPUT_BLOCKED
   DISABLED
+  RESOURCE_DEPLETED
   OTHER
 }
 
 type MachineBlockedReason {
+  """NONE for working/normal; MISSING_RECIPE for no_recipe; MISSING_INGREDIENTS for no_ingredients, item_ingredient_shortage, fluid_ingredient_shortage, missing_science_packs, missing_required_fluid, no_input_fluid and low_input_fluid; MISSING_RESEARCH for no_research_in_progress and recipe_not_researched; MISSING_FUEL for no_fuel; MISSING_POWER for no_power, low_power, not_plugged_in_electric_network and recharging_after_power_outage; OUTPUT_BLOCKED for full_output, full_burnt_result_output, waiting_for_space_in_destination and not_enough_space_in_output; DISABLED for disabled_by_control_behavior, disabled_by_script, disabled, frozen, paused and marked_for_deconstruction; RESOURCE_DEPLETED for no_minable_resources; OTHER for any other or future engine status."""
   category: MachineBlockCategory!
   """Unmodified engine status name; unknown future statuses remain visible with category OTHER."""
   rawStatusName: String
@@ -126,17 +158,10 @@ type InserterCircuitSettings {
   readHandContents: Boolean!
   handReadMode: Int!
   setStackSize: Boolean!
-  stackControlSignal: InserterSignal
+  """Shared SignalID shape: signal type, name and optional quality."""
+  stackControlSignal: SignalID
   connectToLogisticNetwork: Boolean!
-  circuitCondition: InserterCondition
-  logisticCondition: InserterCondition
-}
-
-type InserterSignal { name: String type: String! quality: String }
-type InserterCondition {
-  comparator: String
-  constant: Float
-  firstSignal: InserterSignal
-  secondSignal: InserterSignal
-  fulfilled: Boolean
+  """Shared CircuitCondition shape: comparator, constant and both signals, with the engine's evaluated result."""
+  circuitCondition: CircuitCondition
+  logisticCondition: CircuitCondition
 }

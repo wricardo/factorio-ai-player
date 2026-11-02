@@ -3,7 +3,7 @@
 // gqlcli script --file .agents/skills/factorio-gameplay/scripts/briefing.js \
 //   --arg '{"watch":[{"item":"iron-plate","minimum":100}],"area":{"leftTopX":-128,"leftTopY":-128,"rightBottomX":128,"rightBottomY":128}}'
 // Input (all optional): surface, force, window (ONE_MINUTE|TEN_MINUTES|ONE_HOUR),
-//   area (<=256 tiles/side; omit = whole surface), watch [{item,minimum}], limit.
+//   area (<=1024 tiles/side; omit = whole surface), watch [{item,minimum}], limit.
 async function run(gql, input) {
   input = input || {}
   const vars = {

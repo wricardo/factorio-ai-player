@@ -56,9 +56,17 @@ func surfacesQuery(r *Resolver, force string) (*SurfacePage, error) {
 	return page, nil
 }
 
-// circuitNetworkLua reads the signals of one entity's red or green circuit
-// network. No actor is resolved: the query is purely observational, so the
-// entity is located directly on the requested surface without reach checks.
+// circuitNetworkLua reads the signals of one entity's circuit network through a
+// chosen wire connector. No actor is resolved: the query is purely
+// observational, so the entity is located directly on the requested surface
+// without reach checks.
+//
+// The connector defaults to circuit_<color>, which on a combinator is the input
+// connector, so passing combinator_output_red (or any other connector id) is how
+// the network a combinator drives is read. The reported networkId identifies the
+// shared network, and the circuit count comes from the engine's
+// connected_circuit_count, which counts the circuits attached to the network
+// rather than this entity's own wires.
 func circuitNetworkLua(input CircuitNetworkInput) (string, error) {
 	surfaceField, nameField, unitField, xField, yField := entityRefFields(input.Target)
 	surface := stringValueOr(surfaceField, "nauvis")
@@ -82,7 +90,9 @@ func circuitNetworkLua(input CircuitNetworkInput) (string, error) {
 	if color != "red" && color != "green" {
 		return "", errors.New(`color must be "red" or "green"`)
 	}
-	return luaFail + targetLocals(target, name, x, y, surface) + fmt.Sprintf(`local color_name=%s
+	connector := strings.TrimSpace(stringValueOr(input.Connector, ""))
+	return luaFail + targetLocals(target, name, x, y, surface) + luaSignalTypeName + fmt.Sprintf(`local color_name=%s
+local connector_name=%s
 local surface=game.surfaces[surface_name]; if not surface then fail("surface not found"); return end
 local e
 if target_unit~=0 then
@@ -107,22 +117,18 @@ else
   end
   if not e then fail("entity not found at center on the surface"); return end
 end
-local function network_for(wire)
-  local ok,net=pcall(function() return e.get_circuit_network(wire) end)
-  if ok then return net end
-  return nil
-end
-local function connection_count(net)
-  if not net then return 0 end
-  local ok,count=pcall(function() return net.connected_circuit_count end)
-  if ok and type(count)=="number" then return count end
-  return 0
-end
-local red_network=network_for(defines.wire_connector_id.circuit_red)
-local green_network=network_for(defines.wire_connector_id.circuit_green)
-local network=color_name=="red" and red_network or green_network
+local used_connector=connector_name
+if used_connector=="" then used_connector="circuit_"..color_name end
+local wire_id=defines.wire_connector_id[used_connector]
+if not wire_id then fail("unknown wire connector "..used_connector); return end
+local ok_network,network=pcall(function() return e.get_circuit_network(wire_id) end)
+if not ok_network then fail("entity has no "..used_connector.." connector"); return end
+local network_id,circuit_count
 local signals={}
 if network then
+  network_id=network.network_id
+  local ok_count,count=pcall(function() return network.connected_circuit_count end)
+  if ok_count and type(count)=="number" then circuit_count=count end
   -- Factorio 2.0 exposes the network's signal array as the signals property;
   -- get_signals() only exists in later versions, so it is a guarded fallback.
   local ok,list=pcall(function() return network.signals end)
@@ -135,14 +141,14 @@ if network then
       if signal and type(entry.count)=="number" then
         local signal_quality=signal.quality
         if type(signal_quality)~="string" then signal_quality=signal_quality and signal_quality.name or nil end
-        signals[#signals+1]={type=signal.type or "item",name=signal.name,quality=signal_quality,value=entry.count}
+        signals[#signals+1]={type=signal_type_name(signal.type),name=signal.name,quality=signal_quality,value=entry.count}
       end
     end
   end
 end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,name=e.name,unitNumber=e.unit_number,color=color_name,
- connected=network~=nil,redConnections=connection_count(red_network),greenConnections=connection_count(green_network),signals=signals}))
-`, luaString(color)), nil
+rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,name=e.name,unitNumber=e.unit_number,color=%s,
+ connector=used_connector,connected=network~=nil,networkId=network_id,networkCircuitCount=circuit_count,signals=signals}))
+`, luaString(color), luaString(connector), luaString(strings.ToUpper(color))), nil
 }
 
 // circuitNetworkQuery reads one entity's selected circuit network signals.
@@ -166,6 +172,149 @@ func circuitNetworkQuery(r *Resolver, input CircuitNetworkInput) (*CircuitNetwor
 	sortCircuitSignals(signals)
 	result.Signals = signals
 	return result, nil
+}
+
+// circuitNetworksQuery groups every circuit network reachable from the entities
+// inside an area by the engine's network id, so a circuit setup can be
+// understood without reading entities one by one and diffing signals.
+func circuitNetworksQuery(r *Resolver, input CircuitNetworksInput) (*CircuitNetworkPage, error) {
+	if err := validateChartTagScope(input.Surface, input.Force); err != nil {
+		return nil, err
+	}
+	if input.Area == nil {
+		return nil, errors.New("area is required")
+	}
+	area, err := chartTagAreaLua(input.Area)
+	if err != nil {
+		return nil, err
+	}
+	if input.Limit < 1 || input.Limit > maxCircuitScan {
+		return nil, limitError("limit", maxCircuitScan)
+	}
+	if input.MemberLimit < 1 || input.MemberLimit > maxCircuitMembers {
+		return nil, limitError("memberLimit", maxCircuitMembers)
+	}
+	lua := luaFail + luaSignalTypeName + fmt.Sprintf(`local surface=game.surfaces[%s]; if not surface then fail("surface not found"); return end
+local force=game.forces[%s]; if not force then fail("force not found"); return end
+-- Every wire connector id except the copper power links, which carry no circuit
+-- signals.
+local connector_ids={}
+for name,id in pairs(defines.wire_connector_id) do
+  if not string.find(name,"copper") then connector_ids[#connector_ids+1]={name=name,id=id} end
+end
+table.sort(connector_ids,function(a,b) return a.name<b.name end)
+local found=surface.find_entities_filtered{area=%s,force=force,limit=%d}
+local networks={}
+local order={}
+local function network_signals(network)
+  local signals={}
+  local ok,list=pcall(function() return network.signals end)
+  if not ok or not list then
+    ok,list=pcall(function() return network.get_signals() end)
+  end
+  if ok and list then
+    for _,entry in pairs(list) do
+      local signal=entry and entry.signal
+      if signal and type(entry.count)=="number" then
+        local quality=signal.quality
+        if type(quality)~="string" then quality=quality and quality.name or nil end
+        signals[#signals+1]={type=signal_type_name(signal.type),name=signal.name,quality=quality,value=entry.count}
+      end
+    end
+  end
+  return signals
+end
+for _,e in ipairs(found) do
+  for _,entry in ipairs(connector_ids) do
+    local ok_network,network=pcall(function() return e.get_circuit_network(entry.id) end)
+    if ok_network and network then
+      local key=network.network_id
+      local bucket=networks[key]
+      if not bucket then
+        local color
+        local ok_wire,wire_type=pcall(function() return network.wire_type end)
+        if ok_wire and wire_type~=nil then
+          if wire_type==defines.wire_type.green then color="GREEN"
+          elseif wire_type==defines.wire_type.red then color="RED" end
+        end
+        bucket={networkId=key,color=color,signals=network_signals(network),members={},truncated=false}
+        networks[key]=bucket
+        order[#order+1]=key
+      end
+      if #bucket.members<%d then
+        bucket.members[#bucket.members+1]={name=e.name,entityType=e.type,unitNumber=e.unit_number,
+          position={x=e.position.x,y=e.position.y},connector=entry.name}
+      else
+        bucket.truncated=true
+      end
+    end
+  end
+end
+local out={}
+for _,key in ipairs(order) do
+  local bucket=networks[key]
+  out[#out+1]={networkId=bucket.networkId,color=bucket.color,signals=bucket.signals,
+    members=bucket.members,truncated=bucket.truncated}
+end
+rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,scannedEntities=#found,networks=out}))
+`, luaString(input.Surface), luaString(input.Force), area, input.Limit, input.MemberLimit)
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
+		return nil, err
+	}
+	page, err := factoryDecode[CircuitNetworkPage](response)
+	if err != nil {
+		return nil, err
+	}
+	normalizeCircuitNetworkPage(page)
+	return page, nil
+}
+
+// normalizeCircuitNetworkPage sorts signals, members and networks so repeated
+// calls compare positionally, and replaces absent lists with empty ones.
+func normalizeCircuitNetworkPage(page *CircuitNetworkPage) {
+	networks := page.Networks
+	if networks == nil {
+		networks = []*CircuitNetworkEntry{}
+	}
+	for _, network := range networks {
+		signals := network.Signals
+		if signals == nil {
+			signals = []*CircuitSignal{}
+		}
+		sortCircuitSignals(signals)
+		network.Signals = signals
+		members := network.Members
+		if members == nil {
+			members = []*CircuitNetworkMember{}
+		}
+		sort.Slice(members, func(i, j int) bool {
+			left, right := unitNumberSortKey(members[i].UnitNumber), unitNumberSortKey(members[j].UnitNumber)
+			if left != right {
+				return left < right
+			}
+			if members[i].Connector != members[j].Connector {
+				return members[i].Connector < members[j].Connector
+			}
+			return members[i].Name < members[j].Name
+		})
+		network.Members = members
+	}
+	sort.Slice(networks, func(i, j int) bool { return networks[i].NetworkID < networks[j].NetworkID })
+	page.Networks = networks
+}
+
+// unitNumberSortKey orders members without a unit number after every numbered
+// entity, keeping repeated calls positionally comparable.
+func unitNumberSortKey(value *UnitNumber) uint64 {
+	if value == nil {
+		return math.MaxUint64
+	}
+	parsed, err := strconv.ParseUint(string(*value), 10, 64)
+	if err != nil {
+		return math.MaxUint64
+	}
+	return parsed
 }
 
 // sortCircuitSignals orders signals by type, name, quality (unqualified first)
@@ -216,12 +365,10 @@ func chartTagAreaLua(area *FactoryAreaInput) (string, error) {
 }
 
 func chartTagSerializationLua() string {
-	return `local function serialize_tag(tag)
+	return luaSignalTypeName + `local function serialize_tag(tag)
   local icon
   if tag.icon then
-    local icon_type=tag.icon.type
-    if not icon_type or icon_type=="" then icon_type="item" end
-    icon={type=icon_type,name=tag.icon.name}
+    icon={type=signal_type_name(tag.icon.type),name=tag.icon.name}
     local quality=tag.icon.quality
     if quality then icon.quality=type(quality)=="string" and quality or quality.name end
   end
@@ -238,8 +385,8 @@ func chartTagsQuery(r *Resolver, input ChartTagsInput) (*ChartTagPage, error) {
 	if input.Offset < 0 {
 		return nil, errors.New("offset must be zero or greater")
 	}
-	if input.Limit < 1 || input.Limit > 1000 {
-		return nil, errors.New("limit must be between 1 and 1000")
+	if input.Limit < 1 || input.Limit > maxPageSize {
+		return nil, pageLimitError("limit")
 	}
 	area, err := chartTagAreaLua(input.Area)
 	if err != nil {

@@ -1,11 +1,23 @@
 local belt_flow = require("belt_flow")
 local actions = require("actions")
+require("topology")
 
 -- Jobs and outstanding path requests live in storage so saves retain navigation.
 local MAX_REPLANS = 3
 local STALL_TICKS = 120
 local RETRY_DELAY = 30
 local WAYPOINT_RADIUS = 0.2
+-- Entity references resolve inside one tile-sized window: a caller that rounds
+-- a tile-centred entity centre to a whole number is still 0.71 tiles away.
+local REF_MATCH_RADIUS = 0.75
+-- An occupied destination is detected by scanning a bounded area around it and
+-- checking the entity's bounding box, because position+radius searches compare
+-- entity centres, not boxes.
+local SNAP_PROBE_RADIUS = 8
+
+local function finite(value)
+  return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
+end
 
 local function initialize()
   storage.jobs = storage.jobs or {}
@@ -61,6 +73,42 @@ local function target_scan_filter(job)
   }
 end
 
+-- A target reference carries the prototype name and centre the caller already
+-- read from entities or nearby, so resolution only searches a 1.5-tile window
+-- instead of the whole surface. A unit number is still honoured when the engine
+-- can look it up directly (characters, vehicles, spidertrons), and it wins over
+-- a nearby same-name neighbour. find_entities_filtered{position,radius} matches
+-- entity centres by distance, so the window is an area and the closest centre
+-- inside the window wins.
+local function entity_by_ref(ref, surface)
+  local name = ref.name
+  if name and finite(ref.x) and finite(ref.y) then
+    local center = {x = ref.x, y = ref.y}
+    local area = {
+      left_top = {x = center.x - REF_MATCH_RADIUS, y = center.y - REF_MATCH_RADIUS},
+      right_bottom = {x = center.x + REF_MATCH_RADIUS, y = center.y + REF_MATCH_RADIUS}
+    }
+    local best, best_distance
+    for _, candidate in pairs(surface.find_entities_filtered{name = name, area = area}) do
+      if candidate.valid and (not ref.unit or candidate.unit_number == ref.unit) then
+        local distance = distance_squared(candidate.position, center)
+        if not best_distance or distance < best_distance then
+          best, best_distance = candidate, distance
+        end
+      end
+    end
+    if best then
+      return best
+    end
+  end
+  if ref.unit then
+    local entity = game.get_entity_by_unit_number(ref.unit)
+    if entity and entity.valid then
+      return entity
+    end
+  end
+end
+
 -- Finished jobs stay queryable for polling clients, but only the newest few
 -- hundred are kept so storage does not grow with every navigation request.
 local RETAINED_JOBS = 256
@@ -79,12 +127,6 @@ local function target_gap(position, box)
   local dx = math.max(box.left_top.x - position.x, position.x - box.right_bottom.x, 0)
   local dy = math.max(box.left_top.y - position.y, position.y - box.right_bottom.y, 0)
   return math.sqrt(dx * dx + dy * dy)
-end
-
-local function target_goal(position, box, tolerance)
-  local left, top = box.left_top.x - tolerance, box.left_top.y - tolerance
-  local right, bottom = box.right_bottom.x + tolerance, box.right_bottom.y + tolerance
-  return {x = math.min(math.max(position.x, left), right), y = math.min(math.max(position.y, top), bottom)}
 end
 
 local function arrived(job, character)
@@ -147,6 +189,23 @@ local function stop(character)
   end
 end
 
+local function waypoints_remaining(job)
+  if not job.path then
+    return 0
+  end
+  return math.max(0, #job.path - (job.waypoint or 1) + 1)
+end
+
+-- How far the walker still has to travel before arrival is reported. Box jobs
+-- report the gap to the inflated bounding box, which is what arrival compares.
+local function distance_remaining(job)
+  local position = job.position or job.destination
+  if job.target_box then
+    return target_gap(position, job.target_box)
+  end
+  return math.sqrt(distance_squared(position, job.destination))
+end
+
 local function snapshot(job)
   return {
     id = job.id, character = tostring(job.unit), surface = job.surface,
@@ -155,6 +214,9 @@ local function snapshot(job)
     destination = copy_position(job.destination),
     position = job.position and copy_position(job.position) or nil,
     status = job.status, reason = job.reason,
+    tolerance = job.tolerance, timeoutTicks = job.timeout, replans = job.replans,
+    waypointsRemaining = waypoints_remaining(job),
+    distanceRemaining = distance_remaining(job),
     startedTick = job.startedTick, updatedTick = job.updatedTick
   }
 end
@@ -170,6 +232,7 @@ local function finish(job, status, reason, character)
   end
   storage.active[job.unit] = nil
   job.path = nil
+  job.pending_path_goal = nil
   job.retry_tick = nil
   job.status = status
   job.reason = reason
@@ -217,36 +280,153 @@ local function chase_goals(job, character)
   return goals
 end
 
-local function path_goal(job, character)
-  if job.target_box then
-    return target_goal(character.position, job.target_box, job.tolerance)
+local BOX_GOAL_EDGES = 8
+
+-- An entity goal reaches one point on the inflated bounding box, and that side
+-- can be blocked by an inserter, chest, or belt. Probe the midpoints and corners
+-- of all four inflated edges, nearest first, so a blocked side falls back
+-- instead of reporting NO_PATH.
+local function box_goals(job, character)
+  local box = job.target_box
+  local left = box.left_top.x - job.tolerance
+  local top = box.left_top.y - job.tolerance
+  local right = box.right_bottom.x + job.tolerance
+  local bottom = box.right_bottom.y + job.tolerance
+  local mid_x, mid_y = (left + right) / 2, (top + bottom) / 2
+  local goals = {
+    {x = mid_x, y = top}, {x = mid_x, y = bottom}, {x = left, y = mid_y}, {x = right, y = mid_y},
+    {x = left, y = top}, {x = right, y = top}, {x = left, y = bottom}, {x = right, y = bottom}
+  }
+  local candidates = {}
+  for index = 1, BOX_GOAL_EDGES do
+    local goal = goals[index]
+    candidates[index] = {goal = goal, order = index, distance = distance_squared(goal, character.position)}
   end
-  if job.target_unit then
-    local goals = job.goal_candidates
-    local index = job.goal_index or 1
-    if goals and goals[index] then
-      return goals[index]
+  table.sort(candidates, function(a, b)
+    if a.distance ~= b.distance then
+      return a.distance < b.distance
     end
+    return a.order < b.order
+  end)
+  for index, candidate in ipairs(candidates) do
+    goals[index] = candidate.goal
+  end
+  return goals
+end
+
+local function path_goal(job, character)
+  local goals = job.goal_candidates
+  local index = job.goal_index or 1
+  if goals and goals[index] then
+    return goals[index]
   end
   return job.destination
 end
 
-local function request_path(job, character, keep_goals)
-  stop(character)
-  job.status = "PATHFINDING"
+local SNAP_SEARCH_PADDING = 2
+
+-- 2.0.77 exposes a prototype collision mask as CollisionMask
+-- ({layers={name=true,...}, not_colliding_with_itself?}). request_path takes
+-- that object, while find_entities_filtered takes a plain layer dictionary;
+-- handing the wrapper to the search makes the engine reject the inner table as
+-- a collision layer.
+local function collision_layers(character)
+  local mask = character.prototype.collision_mask
+  if type(mask) == "table" and mask.layers then
+    return mask.layers
+  end
+  return mask
+end
+
+local function box_contains(box, position)
+  return position.x >= box.left_top.x and position.x <= box.right_bottom.x
+    and position.y >= box.left_top.y and position.y <= box.right_bottom.y
+end
+
+-- The entity whose collision box contains the point, ignoring the walker. The
+-- search area is bounded so it never costs a surface scan, and the box test is
+-- what makes a rounded destination inside a big machine detectable.
+local function blocker_at(character, position)
+  local filter = {
+    area = {
+      left_top = {x = position.x - SNAP_PROBE_RADIUS, y = position.y - SNAP_PROBE_RADIUS},
+      right_bottom = {x = position.x + SNAP_PROBE_RADIUS, y = position.y + SNAP_PROBE_RADIUS}
+    }
+  }
+  local layers = collision_layers(character)
+  if layers then
+    filter.collision_mask = layers
+  end
+  for _, candidate in pairs(character.surface.find_entities_filtered(filter)) do
+    if candidate.valid and candidate ~= character and candidate.bounding_box
+      and box_contains(candidate.bounding_box, position) then
+      return candidate
+    end
+  end
+end
+
+-- A requested coordinate can land inside a machine's collision box, where the
+-- pathfinder has no route to any goal at all. Move the goal to the nearest
+-- non-colliding spot and report why when there is none.
+local function snap_destination(job, character)
+  if job.target_box or job.target_unit or job.destination_snapped then
+    return nil
+  end
+  local position = job.destination
+  local blocker = blocker_at(character, position)
+  if not blocker then
+    job.destination_snapped = true
+    return nil
+  end
+  local label = tostring(blocker.name)
+  if blocker.unit_number then
+    label = label .. " " .. tostring(blocker.unit_number)
+  end
+  local snapped = character.surface.find_non_colliding_position("character", position, job.tolerance + SNAP_SEARCH_PADDING, 0.1)
+  if not snapped then
+    return "destination is inside " .. label .. " and no free tile is nearby"
+  end
+  job.snapped_from = copy_position(position)
+  job.destination = copy_position(snapped)
+  job.destination_snapped = true
+  return nil
+end
+
+-- keep_goals keeps the current candidate list; keep_moving leaves the walker on
+-- its old path until the new path arrives, which avoids stopping a chaser every
+-- few tiles.
+local function request_path(job, character, keep_goals, keep_moving)
+  local snap_reason = snap_destination(job, character)
+  if snap_reason then
+    return false, snap_reason
+  end
+  if not keep_moving then
+    stop(character)
+    job.status = "PATHFINDING"
+    job.path = nil
+  end
   job.updatedTick = game.tick
-  job.path = nil
-  job.path_goal = copy_position(job.destination)
   job.retry_tick = nil
-  if job.target_unit and not job.target_entity and not keep_goals then
-    job.goal_candidates = chase_goals(job, character)
+  if not keep_goals then
+    if job.target_box then
+      job.goal_candidates = box_goals(job, character)
+    elseif job.target_unit and not job.target_entity then
+      job.goal_candidates = chase_goals(job, character)
+    end
     job.goal_index = 1
+  end
+  local goal = path_goal(job, character)
+  if keep_moving then
+    job.pending_path_goal = copy_position(goal)
+  else
+    job.pending_path_goal = nil
+    job.path_goal = copy_position(goal)
   end
   local id = character.surface.request_path{
     bounding_box = character.prototype.collision_box,
     collision_mask = character.prototype.collision_mask,
     start = character.position,
-    goal = path_goal(job, character),
+    goal = goal,
     force = character.force,
     radius = math.max(0, job.tolerance - WAYPOINT_RADIUS),
     pathfind_flags = {cache = false},
@@ -255,16 +435,16 @@ local function request_path(job, character, keep_goals)
   }
   job.request = id
   storage.requests[id] = job.id
+  return true
 end
 
--- Try the next chase candidate goal before declaring the chase unreachable.
+-- Try the next candidate goal before declaring the target unreachable.
 local function advance_goal(job, character)
   local goals = job.goal_candidates
   local index = job.goal_index or 1
   if goals and index < #goals then
     job.goal_index = index + 1
-    request_path(job, character, true)
-    return true
+    return request_path(job, character, true)
   end
   return false
 end
@@ -287,12 +467,8 @@ local function replan(job, character, exhausted_status, reason)
   request_path(job, character)
 end
 
-local function finite(value)
-  return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
-end
-
 remote.add_interface("factorio_ai_navigation", {
-  start = function(character_number, x, y, tolerance, timeout_ticks, target_character, target_entity)
+  start = function(character_number, x, y, tolerance, timeout_ticks, target_character, target_ref)
     if not finite(character_number) or character_number < 1 or character_number > 4294967295 or character_number % 1 ~= 0 then
       return {error = "character_number must be a positive uint32"}
     end
@@ -310,9 +486,9 @@ remote.add_interface("factorio_ai_navigation", {
     if player and (not player.connected or player.character ~= character) then
       return {error = "associated player must be connected and controlling this character"}
     end
-    local destination, target_box, target_name
+    local destination, target_box, target_name, entity_unit
     if target_character ~= nil then
-      if x ~= nil or y ~= nil or target_entity ~= nil then return {error = "provide either destination coordinates, target_character, or target_entity"} end
+      if x ~= nil or y ~= nil or target_ref ~= nil then return {error = "provide either destination coordinates, target_character, or target_entity"} end
       if not finite(target_character) or target_character < 1 or target_character > 4294967295 or target_character % 1 ~= 0 then
         return {error = "target_character must be a positive uint32"}
       end
@@ -330,36 +506,58 @@ remote.add_interface("factorio_ai_navigation", {
         return {error = "target character is on another surface"}
       end
       destination = copy_position(target.position)
-    elseif target_entity ~= nil then
+    elseif target_ref ~= nil then
       if x ~= nil or y ~= nil then return {error = "provide either destination coordinates, target_character, or target_entity"} end
-      if not finite(target_entity) or target_entity < 1 or target_entity > 4294967295 or target_entity % 1 ~= 0 then
-        return {error = "target_entity must be a positive uint32"}
+      if target_character ~= nil then return {error = "provide either destination coordinates, target_character, or target_entity"} end
+      if type(target_ref) ~= "table" then return {error = "target_entity must be a table with a unitNumber or a name and position"} end
+      local ref = target_ref
+      if ref.unit ~= nil then
+        if not finite(ref.unit) or ref.unit < 1 or ref.unit > 4294967295 or ref.unit % 1 ~= 0 then
+          return {error = "target_entity unit number must be a positive uint32"}
+        end
+        if ref.unit == character_number then
+          return {error = "target_entity must differ from character_number"}
+        end
       end
-      if target_entity == character_number then
-        return {error = "target_entity must differ from character_number"}
+      local has_name = type(ref.name) == "string" and ref.name ~= ""
+      local has_position = finite(ref.x) and finite(ref.y)
+      if has_name ~= has_position then
+        return {error = "target_entity needs both the entity name and its position"}
       end
-      local target = entity_by_unit(target_entity, character.surface)
-      if not target then return {error = "target entity not found"} end
-      if target.type == "character" then return {error = "use target_character to chase a character"} end
+      if not has_name and ref.unit == nil then
+        return {error = "target_entity needs a unit number or an entity name and position"}
+      end
+      local target = entity_by_ref(ref, character.surface)
+      if not target then
+        if has_name then
+          return {error = "target entity " .. ref.name .. " was not found at " .. tostring(ref.x) .. "," .. tostring(ref.y)}
+        end
+        return {error = "target entity " .. tostring(ref.unit) .. " is not resolvable by unit number; pass the entity name and position"}
+      end
+      if target == character or target.type == "character" then return {error = "use target_character to chase a character"} end
       if target.surface ~= character.surface then return {error = "target entity is on another surface"} end
       target_box = target.bounding_box and {left_top = target.bounding_box.left_top, right_bottom = target.bounding_box.right_bottom} or nil
       destination = copy_position(target.position)
       target_name = target.name
+      entity_unit = target.unit_number
     else
       if not finite(x) or not finite(y) or math.abs(x) > 1000000 or math.abs(y) > 1000000 then
         return {error = "destination must contain finite map coordinates"}
       end
       destination = {x = x, y = y}
     end
-    if storage.active[character_number] then return {error = "character already has an active navigation job"} end
+    if storage.active[character_number] then
+      return {error = "character already has an active navigation job " .. tostring(storage.active[character_number])}
+    end
     local id = tostring(storage.next_id)
     storage.next_id = storage.next_id + 1
     prune_jobs()
+    local target_unit = target_character ~= nil and target_character or entity_unit
     local job = {
       id = id, unit = character_number, surface = character.surface.name,
       surface_index = character.surface.index, destination = destination,
-      target_unit = target_character or target_entity,
-      target_entity = target_entity and true or nil,
+      target_unit = target_unit,
+      target_entity = entity_unit and true or nil,
       target_box = target_box,
       position = copy_position(character.position), tolerance = tolerance,
       player_index = player and player.index or nil,
@@ -372,11 +570,22 @@ remote.add_interface("factorio_ai_navigation", {
     if arrived(job, character) then
       finish(job, "ARRIVED", nil, character)
     else
-      local ok, request_error = pcall(request_path, job, character)
+      local ok, request_error = request_path(job, character)
       if not ok then
-        finish(job, "NO_PATH", tostring(request_error), character)
-        return {error = tostring(request_error)}
+        finish(job, "NO_PATH", request_error, character)
+        return {error = request_error}
       end
+    end
+    return snapshot(job)
+  end,
+  active = function(character_number)
+    if not finite(character_number) or character_number < 1 or character_number % 1 ~= 0 then
+      return {error = "character_number must be a positive uint32"}
+    end
+    local id = storage.active[character_number]
+    local job = id and storage.jobs[id] or nil
+    if not job then
+      return {}
     end
     return snapshot(job)
   end,
@@ -394,6 +603,21 @@ remote.add_interface("factorio_ai_navigation", {
     return snapshot(job)
   end
 })
+
+-- A chase re-path can fail while the walker still has a usable path; keep it
+-- moving and retry instead of failing a job that has real progress behind it.
+local function retry_or_finish(job, character, default_reason, ok, reason)
+  if ok then
+    return
+  end
+  if job.path and job.status == "MOVING" and job.replans < MAX_REPLANS then
+    job.replans = job.replans + 1
+    job.retry_tick = game.tick + RETRY_DELAY
+    job.updatedTick = game.tick
+    return
+  end
+  finish(job, "NO_PATH", reason or default_reason, character)
+end
 
 script.on_event(defines.events.on_script_path_request_finished, function(event)
   local id = storage.requests[event.id]
@@ -420,18 +644,20 @@ script.on_event(defines.events.on_script_path_request_finished, function(event)
       job.updatedTick = game.tick
     end
   elseif not event.path or #event.path == 0 then
-    if not advance_goal(job, character) then
-      finish(job, "NO_PATH", "pathfinder found no path", character)
-    end
+    local ok, reason = advance_goal(job, character)
+    retry_or_finish(job, character, "pathfinder found no path", ok, reason)
   elseif needs_destroy(event.path) then
-    if not advance_goal(job, character) then
-      finish(job, "NO_PATH", "path requires destroying an obstacle", character)
-    end
+    local ok, reason = advance_goal(job, character)
+    retry_or_finish(job, character, "path requires destroying an obstacle", ok, reason)
   else
     job.path = event.path
     job.waypoint = 1
     job.status = "MOVING"
     job.updatedTick = game.tick
+    if job.pending_path_goal then
+      job.path_goal = job.pending_path_goal
+      job.pending_path_goal = nil
+    end
     job.progress_position = copy_position(character.position)
     job.progress_tick = game.tick
   end
@@ -467,21 +693,25 @@ script.on_event(defines.events.on_tick, function(event)
       elseif arrived(job, character) then
         finish(job, "ARRIVED", nil, character)
       elseif job.retry_tick and event.tick >= job.retry_tick then
-        request_path(job, character, job.goal_candidates ~= nil)
+        local ok, reason = request_path(job, character, job.goal_candidates ~= nil)
+        if not ok then
+          finish(job, "NO_PATH", reason, character)
+        end
       elseif job.status == "MOVING" then
-        if job.target_unit and not job.target_entity and distance_squared(job.destination, job.path_goal) > 9 then
-          request_path(job, character)
+        if job.target_unit and not job.target_entity and not job.request and distance_squared(job.destination, job.path_goal) > 9 then
+          request_path(job, character, false, true)
         else
-          while job.waypoint <= #job.path and distance_squared(position, job.path[job.waypoint].position) <= WAYPOINT_RADIUS * WAYPOINT_RADIUS do
+          while job.path and job.waypoint <= #job.path and distance_squared(position, job.path[job.waypoint].position) <= WAYPOINT_RADIUS * WAYPOINT_RADIUS do
             job.waypoint = job.waypoint + 1
           end
-          local target = job.waypoint <= #job.path and job.path[job.waypoint].position or job.destination
+          local target = job.path and job.waypoint <= #job.path and job.path[job.waypoint].position or job.destination
           if event.tick - job.progress_tick >= STALL_TICKS then
             if distance_squared(position, job.progress_position) < 0.01 then
               replan(job, character, "STUCK", "character could not make progress")
             else
               job.progress_position = copy_position(position)
               job.progress_tick = event.tick
+              job.replans = 0
             end
           end
           if job.status == "MOVING" then

@@ -1,5 +1,5 @@
 extend type Query {
-  """Plan one connection run without changing the world. DIRECT routing (default) is one axis-aligned straight or single-bend run; ASTAR searches a bounded region for a shortest legal BELT or PIPE route around obstacles and, when allowed, under them with underground belts or pipe-to-ground. The route snaps both endpoints to tile centers and reports every step with the direction needed for that tile. A tile that already holds the requested entity with the required direction is marked existing and is not counted in needed. Conflicts are typed and explain why a step cannot be built, so a caller can move an endpoint instead of spending items on a partial run. Pipes are additionally checked for orthogonal neighbours that are not part of this run; joining a foreign fluid network is rejected unless allowFluidAdjacency is true. DIRECT plans surface tiles only: an obstruction is reported as a collision. ASTAR reports NO_PATH, EXPANSION_LIMIT or an endpoint collision with stopReason instead. Both endpoints must be finite; DIRECT rejects a route longer than 512 tiles (|dx| + |dy| + 1) before running and reports at most 200 conflicts, while ASTAR rejects a padded search region above 16384 tiles. Nothing is placed and no item is consumed, so a plan can be re-run after moving an endpoint or raising the search limits."""
+  """Plan one connection run without changing the world. DIRECT routing (default) is one axis-aligned straight or single-bend run; ASTAR searches a bounded region for a shortest legal BELT or PIPE route around obstacles and, when allowed, under them with underground belts or pipe-to-ground. The route snaps both endpoints to tile centers and reports every step with the direction needed for that tile. A tile that already holds the requested entity with the required direction is marked existing and is not counted in needed. Conflicts are typed and explain why a step cannot be built, so a caller can move an endpoint instead of spending items on a partial run. Pipes are additionally checked for orthogonal neighbours that are not part of this run; joining a foreign fluid network is rejected unless allowFluidAdjacency is true. DIRECT plans surface tiles only: an obstruction is reported as a collision. ASTAR reports NO_PATH, EXPANSION_LIMIT or an endpoint collision with stopReason instead. Both endpoints must be finite; DIRECT rejects a route longer than 512 tiles (|dx| + |dy| + 1) before running and reports at most 200 conflicts, while ASTAR rejects a padded search region above 65536 tiles. Nothing is placed and no item is consumed, so a plan can be re-run after moving an endpoint or raising the search limits."""
   connectionPlan(input: ConnectionPlanInput!): ConnectionPlan!
 }
 
@@ -30,7 +30,7 @@ enum ConnectionBend {
 enum ConnectionRouting {
   """One straight or single-bend run; supports BELT, PIPE and POWER_POLE_CHAIN."""
   DIRECT
-  """Bounded A* search for BELT and PIPE. Step costs: 1 per new tile, 0.25 per reused existing tile, 0.25 per bend, 2 per underground half. Underground belts pair at an offset of at most the prototype's max underground distance; spans may pass under any entity except another underground belt, linked belt or pipe-to-ground."""
+  """Bounded A* search for BELT and PIPE. Step costs: 1 per new tile, 0.25 per reused existing tile, 0.25 per bend, 2 per underground half. Underground belts pair at an offset of at most the prototype's max underground distance; spans may pass under any entity except another underground belt, linked belt or pipe-to-ground. A new underground half may not be placed inside an existing same-name span on the same axis, because it would re-pair with that span's other half and break the existing line. With BELT routing a new tile also refuses a neighbouring belt that points into it unless allowBeltAdjacency is true; the goal tile may still be an existing belt the run side-loads into."""
   ASTAR
 }
 
@@ -57,8 +57,10 @@ enum ConnectionConflictKind {
   COLLISION
   """A same-name entity sits on the tile but faces another direction."""
   DIRECTION_MISMATCH
-  """A pipe-like entity outside this run touches the tile, which would merge fluid networks."""
+  """A pipe-like entity outside this run touches the tile, which would merge fluid networks. A fluid-port machine (assembler, furnace, refinery, chemical plant, pumpjack, drill, boiler, generator, heat exchanger, tank) counts when its fluidbox pipe connection reaches the tile, or when it exposes fluidboxes but reports no connection yet."""
   FLUID_ADJACENCY
+  """An existing belt outside this run points into a tile the run would create, so it would side-load foreign items into the new line or flatten a planned corner. Pass allowBeltAdjacency to accept the merge."""
+  BELT_ADJACENCY
   """The item does not place an entity of the kind's required type."""
   PROTOTYPE
   """A supplied prototype does not match the kind (for example a furnace with BELT)."""
@@ -92,14 +94,30 @@ input ConnectionPlanInput {
   undergroundItem: String
   """ASTAR only: cap on the offset between underground halves, 2 or more; the effective offset is the smaller of this and the prototype's max underground distance. Requires allowUnderground."""
   maxUndergroundDistance: Int
-  """ASTAR only: areas, each at most 256 tiles per side and at most 20 in total, where no entity may be placed. Underground spans may pass beneath them."""
+  """ASTAR only: areas, each at most 1024 tiles per side and at most 100 in total, where no entity may be placed. Underground spans may pass beneath them."""
   avoidAreas: [FactoryAreaInput!] = []
   """ASTAR only: let the route reuse existing same-name entities, cheaper than new tiles. A belt tile is reused only when it already faces the route's direction; reusing a pipe merges fluid networks, so it also needs allowFluidAdjacency. Existing entities at the two endpoints are always usable."""
   preferExisting: Boolean! = false
-  """ASTAR only: search at most this many states, 1 through 50000; default 5000."""
+  """ASTAR only: search at most this many states, 1 through 200000; default 10000."""
   maxExpandedTiles: Int
-  """ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 64; default 12. The padded region may cover at most 16384 tiles."""
+  """ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 256; default 32. The padded region may cover at most 65536 tiles."""
   searchMargin: Int
+  """Start by entity instead of tile; replaces from. The planner picks the adjacent route tile and its orientation."""
+  fromEntity: ConnectionEndpointInput
+  """End at an entity instead of a tile; replaces to. A goal belt is side-loaded unless it faces the arrival head-on."""
+  toEntity: ConnectionEndpointInput
+  """Accept an existing belt outside the run that points into a new route tile, which side-loads foreign items into the run or turns a planned corner into a straight belt."""
+  allowBeltAdjacency: Boolean! = false
+}
+
+"""An entity endpoint instead of a tile. The planner resolves the tile to use: the entity's own tile when it already holds the route entity, and otherwise the adjacent free tile on the chosen side, oriented away from the entity for a start and into it for a goal. No manual coordinates or directions are needed."""
+input ConnectionEndpointInput {
+  """Entity to connect, by unitNumber or exact center position; surface defaults to the plan surface."""
+  entity: EntityRefInput!
+  """Preferred side of the entity: auto (default), north, east, south or west. Other sides are tried when the preferred side has no free tile."""
+  side: String
+  """Preferred belt lane for a side-loading goal: left, right or auto (default). Reported back as ConnectionPlan.lane when the route ends on an existing belt."""
+  lane: String
 }
 
 input ConnectEntitiesInput {
@@ -121,14 +139,20 @@ input ConnectEntitiesInput {
   undergroundItem: String
   """ASTAR only: cap on the offset between underground halves, 2 or more; the effective offset is the smaller of this and the prototype's max underground distance. Requires allowUnderground."""
   maxUndergroundDistance: Int
-  """ASTAR only: areas, each at most 256 tiles per side and at most 20 in total, where no entity may be placed. Underground spans may pass beneath them."""
+  """ASTAR only: areas, each at most 1024 tiles per side and at most 100 in total, where no entity may be placed. Underground spans may pass beneath them."""
   avoidAreas: [FactoryAreaInput!] = []
   """ASTAR only: let the route reuse existing same-name entities, cheaper than new tiles. A belt tile is reused only when it already faces the route's direction; reusing a pipe merges fluid networks, so it also needs allowFluidAdjacency. Existing entities at the two endpoints are always usable."""
   preferExisting: Boolean! = false
-  """ASTAR only: search at most this many states, 1 through 50000; default 5000."""
+  """ASTAR only: search at most this many states, 1 through 200000; default 10000."""
   maxExpandedTiles: Int
-  """ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 64; default 12. The padded region may cover at most 16384 tiles."""
+  """ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 256; default 32. The padded region may cover at most 65536 tiles."""
   searchMargin: Int
+  """Start by entity instead of tile; replaces from. The planner picks the adjacent route tile and its orientation."""
+  fromEntity: ConnectionEndpointInput
+  """End at an entity instead of a tile; replaces to. A goal belt is side-loaded unless it faces the arrival head-on."""
+  toEntity: ConnectionEndpointInput
+  """Accept an existing belt outside the run that points into a new route tile, which side-loads foreign items into the run or turns a planned corner into a straight belt."""
+  allowBeltAdjacency: Boolean! = false
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
@@ -181,6 +205,8 @@ type ConnectionPlan {
   cost: Float!
   """States the search expanded; 0 for DIRECT."""
   expanded: Int!
+  """Belt lane that receives the run when it ends by side-loading an existing belt: left or right from that belt's travel direction. Null when the goal is a new tile or the arrival is head-on."""
+  lane: String
   steps: [ConnectionStep!]!
   conflicts: [ConnectionConflict!]!
 }

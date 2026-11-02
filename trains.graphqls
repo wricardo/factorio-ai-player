@@ -1,9 +1,9 @@
 extend type Query {
-  """Lists trains on one surface and force as a single-tick snapshot, sorted by numeric train id, and paginates only after all filters are applied, so pageInfo.total is the filtered match count rather than a page size. surface defaults to nauvis and force to player, both must name existing objects, and a missing one is a GraphQL error. area matches a train when its front position or any carriage lies inside the box; station matches a scheduled station name exactly, so a train with an empty schedule never matches it. limit is 1 through 1000 and offset is zero-based and non-negative, both validated in Go before the RCON call. Each train reports the engine state as a category (RUNNING, BLOCKED, IDLE or OTHER) alongside the raw code, manual mode, speed, locomotive and wagon counts, cargo and fluids aggregated across every carriage, and schedule records whose waitCondition is the first engine condition with fields this API cannot model left in waitConditionRawJSON. Values are a point-in-time measurement, never a flow, and actor is not populated by this snapshot."""
+  """Lists trains on one surface and force as a single-tick snapshot, sorted by numeric train id, and paginates only after all filters are applied, so pageInfo.total is the filtered match count rather than a page size. surface defaults to nauvis and force to player, both must name existing objects, and a missing one is a GraphQL error. area matches a train when its front position or any carriage lies inside the box; station matches a scheduled station name exactly, so a train with an empty schedule never matches it. limit is 1 through 10000 and offset is zero-based and non-negative, both validated in Go before the RCON call. Each train reports the engine state as a category (RUNNING, BLOCKED, IDLE or OTHER) alongside the raw code, manual mode, speed, locomotive and wagon counts, cargo and fluids aggregated across every carriage, and schedule records whose waitCondition is the first engine condition with fields this API cannot model left in waitConditionRawJSON. Values are a point-in-time measurement, never a flow, and actor is not populated by this snapshot."""
   trains(input: TrainsInput = {}): TrainPage!
 }
 
-"""Surface and force must be non-empty names of existing objects. Limit is 1 through 1000; offset is zero-based and non-negative. station filters by a station name in the schedule."""
+"""Surface and force must be non-empty names of existing objects. Limit is 1 through 10000; offset is zero-based and non-negative. station filters by a station name in the schedule."""
 input TrainsInput {
   surface: String! = "nauvis"
   force: String! = "player"
@@ -21,42 +21,83 @@ type TrainPage {
   trains: [TrainInfo!]!
 }
 
-"""A stopped or moving train. state is the engine defines.train_state value; schedule records carry the station name and the engine's wait condition where readable."""
+"""A stopped or moving train. state is the engine defines.train_state value; schedule records carry the station name and every engine wait condition."""
 type TrainInfo {
   tick: Float!
   surface: String!
   force: String!
   actor: ActorIdentity
-  id: UnitNumber!
+  """LuaTrain id. This is not a UnitNumber: feed it to trainId on trainControl or setTrainSchedule, or take a carriage unitNumber from carriages."""
+  trainId: ID!
   status: EngineStatus!
   manualMode: Boolean!
   speed: Float!
   locomotives: Int!
+  """Non-locomotive rolling stock: cargo, fluid and artillery wagons."""
   wagons: Int!
+  """Fluid wagon count."""
+  fluidWagons: Int!
   frontPosition: Position
+  """Backer name of the train stop the train is stopped at; null when moving or not at a stop."""
+  station: String
+  """Backer name of the train stop the train is currently pathing to; null when it has no destination."""
+  pathEndStop: String
+  """Index of the current schedule record; null without a schedule."""
+  scheduleIndex: Int
+  """Station name of the current schedule record; null without a schedule."""
+  destination: String
+  """Rolling stock in engine order starting at the front. Any of these unitNumbers can be used as a train mutation target."""
+  carriages: [TrainCarriage!]!
   schedule: [TrainScheduleRecord!]!
   cargo: [InventoryStack!]!
   fluids: [FluidContent!]!
 }
 
+"""One locomotive or wagon of a train."""
+type TrainCarriage {
+  unitNumber: UnitNumber
+  name: String!
+  type: String!
+  position: Position!
+  direction: Int
+}
+
 type TrainScheduleRecord {
   station: String!
-  waitCondition: TrainWaitCondition
+  """Every engine wait condition of this record, in order. A record can combine conditions, for example full OR inactivity."""
+  waitConditions: [TrainWaitCondition!]!
   """Unmodified engine wait-condition JSON for unsupported or modded fields."""
   waitConditionRawJSON: String
 }
 
+"""Engine defines.wait_condition types for Factorio 2.0.77. OTHER is read-only: it carries a type this build cannot construct."""
 enum TrainWaitConditionType {
   TIME
-  INACTIVITY
   FULL
   EMPTY
+  NOT_EMPTY
   ITEM_COUNT
+  CIRCUIT
+  INACTIVITY
+  ROBOTS_INACTIVE
   FLUID_COUNT
   PASSENGER_PRESENT
   PASSENGER_NOT_PRESENT
-  ROBOTS_INACTIVE
-  CIRCUIT
+  FUEL_ITEM_COUNT_ALL
+  FUEL_ITEM_COUNT_ANY
+  FUEL_FULL
+  DESTINATION_FULL_OR_NO_PATH
+  REQUEST_SATISFIED
+  REQUEST_NOT_SATISFIED
+  ALL_REQUESTS_SATISFIED
+  ANY_REQUEST_NOT_SATISFIED
+  ANY_REQUEST_ZERO
+  ANY_PLANET_IMPORT_ZERO
+  SPECIFIC_DESTINATION_FULL
+  SPECIFIC_DESTINATION_NOT_FULL
+  AT_STATION
+  NOT_AT_STATION
+  DAMAGE_TAKEN
   OTHER
 }
 
@@ -67,27 +108,37 @@ type TrainWaitCondition {
   rawType: String!
   compareType: TrainWaitCompareType!
   ticks: Float
-  condition: InserterCondition
+  """Station name for the destination and at_station condition types."""
+  station: String
+  """Damage amount for the damage_taken condition type."""
+  damage: Int
+  """Circuit condition for item_count, circuit, fluid_count and fuel_item_count types, using the shared CircuitCondition shape (signals carry the SignalType enum). Null for other condition types; waitConditionRawJSON always carries the engine payload."""
+  condition: CircuitCondition
 }
 
 input TrainWaitConditionInput {
   type: TrainWaitConditionType!
   compareType: TrainWaitCompareType = OR
   ticks: Float
+  station: String
+  damage: Int
   condition: SignalConditionInput
 }
 
 extend type Mutation {
-  """Replaces the whole schedule of the target train, or clears it, in one RCON call and returns the train's post-write snapshot read in the same tick. Pass exactly one of clear (true) or a non-empty records list: giving both or neither is rejected before any RCON interaction, and at most 100 records are accepted. Each record needs a non-empty station name and a wait condition; type OTHER is read-only because that engine condition cannot be constructed, ticks must be finite and non-negative, and compareType defaults to OR while optional signal fields come from the shared SignalConditionInput. Clearing assigns a nil schedule; a non-clear write installs records with the first one current, so the train restarts its route from the new list. The target may be a locomotive or any carriage addressed by unitNumber or by entity name plus position, and an entity that does not belong to a train is an error; reach is enforced only when FACTORIO_ENFORCE_REACH is on. Success announces a generated summary unless message overrides it."""
+  """Replaces the whole schedule of the target train, or clears it, in one RCON call and returns the train's post-write snapshot read in the same tick. The train is addressed either by target (a locomotive or any carriage by unitNumber, or by entity name plus position) or by trainId from TrainInfo.trainId; exactly one of the two is required, and an entity that is not part of a train or an unknown train id is an error. Reach applies only to the entity target and only when FACTORIO_ENFORCE_REACH is on. Pass exactly one of clear (true) or a non-empty records list: giving both or neither is rejected before any RCON interaction, and at most 100 records are accepted. Each record needs a non-empty station name and at least one wait condition, written in order so multi-condition records such as full OR inactivity round-trip; type OTHER is read-only because that engine condition cannot be constructed, ticks must be finite and non-negative, damage must be non-negative, station must be non-empty when given, and compareType defaults to OR while optional signal fields come from the shared SignalConditionInput. Clearing assigns a nil schedule; a non-clear write installs records with the first one current, so the train restarts its route from the new list. Success announces a generated summary unless message overrides it."""
   setTrainSchedule(input: SetTrainScheduleInput!): TrainInfo!
-  """Sets a train's manual mode and/or sends it to a station already present in its schedule, returning the post-write snapshot from the same tick. At least one of manualMode or goToStation is required; goToStation must be a non-empty name that appears in the train's current schedule, otherwise the call fails without changing anything. When both are given the manual-mode write runs first, then the engine's go_to_station(index) is called on the first matching record and a false return or engine error fails the call. The target may be a locomotive or any carriage addressed by unitNumber or entity name plus position, and an entity that is not part of a train is an error; reach is enforced only when FACTORIO_ENFORCE_REACH is on. This only steers within existing records, it never rewrites them, so use setTrainSchedule first when the station is missing. Success announces a generated summary unless message overrides it."""
+  """Sets a train's manual mode and/or sends it to a station already present in its schedule, returning the post-write snapshot from the same tick. The train is addressed either by target (a locomotive or any carriage by unitNumber, or by entity name plus position) or by trainId from TrainInfo.trainId; exactly one of the two is required, and an entity that is not part of a train or an unknown train id is an error. At least one of manualMode or goToStation is required; goToStation must be a non-empty name that appears in the train's current schedule, otherwise the call fails without changing anything. When both are given the manual-mode write runs first, then the engine's go_to_station(index) is called on the first matching record and a false return or engine error fails the call. Reach applies only to the entity target and only when FACTORIO_ENFORCE_REACH is on. This only steers within existing records, it never rewrites them, so use setTrainSchedule first when the station is missing. Success announces a generated summary unless message overrides it."""
   trainControl(input: TrainControlInput!): TrainInfo!
 }
 
-"""Replace or clear one train schedule."""
+"""Replace or clear one train schedule. Give exactly one of target or trainId."""
 input SetTrainScheduleInput {
   actor: ActorInput!
-  target: EntityRefInput!
+  """Locomotive or carriage of the train to change."""
+  target: EntityRefInput
+  """LuaTrain id from TrainInfo.trainId; no entity scan is needed."""
+  trainId: ID
   records: [TrainScheduleRecordInput!]
   clear: Boolean! = false
   """Print this text in-game to all connected players instead of the generated notification."""
@@ -96,13 +147,17 @@ input SetTrainScheduleInput {
 
 input TrainScheduleRecordInput {
   station: String!
-  waitCondition: TrainWaitConditionInput!
+  """At least one wait condition; every entry is written to the record in order."""
+  waitConditions: [TrainWaitConditionInput!]!
 }
 
-"""Control one train."""
+"""Control one train. Give exactly one of target or trainId."""
 input TrainControlInput {
   actor: ActorInput!
-  target: EntityRefInput!
+  """Locomotive or carriage of the train to control."""
+  target: EntityRefInput
+  """LuaTrain id from TrainInfo.trainId; no entity scan is needed."""
+  trainId: ID
   manualMode: Boolean
   goToStation: String
   """Print this text in-game to all connected players instead of the generated notification."""
@@ -110,15 +165,37 @@ input TrainControlInput {
 }
 
 extend type Mutation {
-  """Assigns one entity's canonical engine direction from 0 through 15, which is finer than the four quarter turns rotate exposes, for prototypes such as rails, splitters and loaders. Values outside 0-15 are rejected in Go before any RCON interaction. The write is always verified by reading e.direction back, because Factorio 2.0 silently ignores scripted direction assignment for prototypes placed with a direction code (transport belts, straight rails); when the request differs from the current value by exactly one quarter turn the call falls back to a single rotate and re-checks. If neither the assignment nor the rotation reaches the requested value the call fails instead of reporting a change that did not happen, so re-place the entity with the wanted direction. The target is addressed by unitNumber or by entity name plus position, with reach enforced only when FACTORIO_ENFORCE_REACH is on, and the result echoes name, position, surface, before and final direction so the applied value can be confirmed. Success announces a generated summary unless message overrides it."""
+  """Assigns one entity's canonical engine direction from 0 through 15, which is finer than the four quarter turns rotate exposes, for prototypes such as rails, splitters and loaders. Values outside 0-15 are rejected in Go before any RCON interaction. The write is always verified by reading e.direction back, because Factorio 2.0 silently ignores scripted direction assignment for prototypes placed with a direction code (transport belts, straight rails); when the direct write is ignored the call walks the shorter way round in one-quarter-turn rotate steps (up to three) and re-checks after each. A target that is not a multiple of 4 is rejected on that fallback path. If neither the write nor the rotations reach the requested value the call fails instead of reporting a change that did not happen, so re-place the entity with the wanted direction. Direction names the side the entity faces, which for an inserter is its pickup side (0=north, 4=east, 8=south, 12=west): an inserter between a machine to the north and a chest to the south drains the machine into the chest with direction 0 and inserts into the machine with direction 8, because the drop is always the tile opposite the direction. The target is addressed by unitNumber or by entity name plus position, with reach enforced only when FACTORIO_ENFORCE_REACH is on, and the result echoes name, position, surface, tick, before, the requested and the final direction, and turns (the quarter rotations rotate had to make, 0 when the direct write worked) so the applied value can be confirmed. Success announces a generated summary unless message overrides it."""
   setDirection(input: SetDirectionInput!): ActionResult!
 }
 
-"""Set one entity's canonical engine direction from 0 through 15."""
+"""Canonical engine direction from 0 through 15: 0=north, 4=east, 8=south, 12=west. Direction is the side the entity faces, which for an inserter is its pickup side, so the drop tile is the opposite side."""
 input SetDirectionInput {
   actor: ActorInput!
   target: EntityRefInput!
   direction: Int!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
+}
+
+extend type Query {
+  """Lists the train stops of one force on one surface as a single-tick snapshot, sorted by unit number, with the engine train limit (null means unlimited), the trains count the engine associates with the stop, the pathfinder priority, and how many trains are scheduled to stop there. surface defaults to nauvis and force to player; both must name existing objects and a missing one is a GraphQL error. This is read-only and needs no actor or reach check."""
+  trainStops(surface: String! = "nauvis", force: String! = "player"): [TrainStop!]!
+}
+
+"""One train stop entity."""
+type TrainStop {
+  """Entity unit number; null for a prototype the engine does not number."""
+  unitNumber: UnitNumber
+  """Backer name, which is the station name trains match in their schedule."""
+  backerName: String!
+  position: Position!
+  """Engine trains limit above which no new trains are sent here. Null means unlimited: the engine stores its maximum value for that case."""
+  trainsLimit: Int
+  """Trains the engine associates with this stop: stopped here, heading here, or using it as a waypoint. A train can be counted more than once when its braking distance covers the stop more than once."""
+  trainsCount: Int!
+  """Engine pathfinder priority; higher values are preferred."""
+  priority: Int!
+  """Trains scheduled to stop at this stop, from the engine's get_train_stop_trains."""
+  assignedTrains: Int!
 }

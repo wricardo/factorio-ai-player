@@ -42,7 +42,10 @@ func TestMapAreaDecodeAndLua(t *testing.T) {
 		`surface.find_entities_filtered{area=area}`,
 		`local function priority(e)`,
 		`if t=="character" then return 100 end`,
-		`local function cell_index(x,y)`,
+		`local function paint(entity)`,
+		`ghost_prototype`,
+		`local x0=math.floor(px-fw/2+0.001)`,
+		`for _,candidate in ipairs(candidates) do paint(candidate.entity) end`,
 		`local ALPHABET=`,
 		`tile.prototype.fluid`,
 		`table.concat(parts)`,
@@ -50,6 +53,50 @@ func TestMapAreaDecodeAndLua(t *testing.T) {
 	} {
 		if !strings.Contains(lua, want) {
 			t.Fatalf("map Lua missing %q\n%s", want, lua)
+		}
+	}
+}
+
+// Types missing from the explicit priority table must keep a default rank,
+// enemy-force entities and ghosts must be drawable, and the alphabet must never
+// reuse the water character.
+func TestMapAreaCoversEveryTypeAndAlphabet(t *testing.T) {
+	r, commands := serveLuaOnce(t, `{"tick":1,"surface":"nauvis","force":"player","area":{"leftTopX":0,"leftTopY":0,"rightBottomX":4,"rightBottomY":4},"cellSize":1,"columns":4,"rows":["....","....","....","...."],"legend":[],"truncated":false}`)
+	if _, err := mapAreaQuery(r, MapAreaInput{
+		Surface: "nauvis", Force: "player",
+		Area:    &FactoryAreaInput{RightBottomX: 4, RightBottomY: 4},
+		MaxRows: 8, MaxColumns: 8,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lua := <-commands
+	for _, want := range []string{
+		`-- Every other type keeps a default rank instead of disappearing`,
+		`return 45`,
+		`if ignored_entities[t] then return 0 end`,
+		`if force.is_enemy(e.force) then return 65 end`,
+		`if layer=="FACTORY" then return not natural[e.type] end`,
+		`if e.type=="entity-ghost" then return true end`,
+		`return force.is_enemy(e.force)`,
+	} {
+		if !strings.Contains(lua, want) {
+			t.Fatalf("map Lua missing %q\n%s", want, lua)
+		}
+	}
+	const prefix = `local ALPHABET="`
+	start := strings.Index(lua, prefix)
+	if start < 0 {
+		t.Fatalf("alphabet missing:\n%s", lua)
+	}
+	rest := lua[start+len(prefix):]
+	end := strings.Index(rest, `"`)
+	alphabet := rest[:end]
+	if len(alphabet) != 87 {
+		t.Fatalf("alphabet length=%d, want 87: %q", len(alphabet), alphabet)
+	}
+	for _, reserved := range []string{"~", ".", "?"} {
+		if strings.Contains(alphabet, reserved) {
+			t.Fatalf("alphabet must not reuse %q: %q", reserved, alphabet)
 		}
 	}
 }
@@ -90,11 +137,11 @@ func TestMapAreaValidation(t *testing.T) {
 		{"empty surface", MapAreaInput{Force: "player", Area: area, MaxRows: 8, MaxColumns: 8}, "surface and force are required"},
 		{"empty force", MapAreaInput{Surface: "nauvis", Area: area, MaxRows: 8, MaxColumns: 8}, "surface and force are required"},
 		{"missing area", MapAreaInput{Surface: "nauvis", Force: "player", MaxRows: 8, MaxColumns: 8}, "area is required"},
-		{"rows low", MapAreaInput{Surface: "nauvis", Force: "player", Area: area, MaxRows: 0, MaxColumns: 8}, "maxRows must be between 1 and 64"},
-		{"rows high", MapAreaInput{Surface: "nauvis", Force: "player", Area: area, MaxRows: 65, MaxColumns: 8}, "maxRows must be between 1 and 64"},
-		{"columns low", MapAreaInput{Surface: "nauvis", Force: "player", Area: area, MaxRows: 8, MaxColumns: 0}, "maxColumns must be between 1 and 64"},
-		{"columns high", MapAreaInput{Surface: "nauvis", Force: "player", Area: area, MaxRows: 8, MaxColumns: 65}, "maxColumns must be between 1 and 64"},
-		{"oversized area", MapAreaInput{Surface: "nauvis", Force: "player", Area: &FactoryAreaInput{RightBottomX: 300, RightBottomY: 8}, MaxRows: 8, MaxColumns: 8}, "no greater than 256"},
+		{"rows low", MapAreaInput{Surface: "nauvis", Force: "player", Area: area, MaxRows: 0, MaxColumns: 8}, "maxRows must be between 1 and 256"},
+		{"rows high", MapAreaInput{Surface: "nauvis", Force: "player", Area: area, MaxRows: maxMapDimension + 1, MaxColumns: 8}, "maxRows must be between 1 and 256"},
+		{"columns low", MapAreaInput{Surface: "nauvis", Force: "player", Area: area, MaxRows: 8, MaxColumns: 0}, "maxColumns must be between 1 and 256"},
+		{"columns high", MapAreaInput{Surface: "nauvis", Force: "player", Area: area, MaxRows: 8, MaxColumns: maxMapDimension + 1}, "maxColumns must be between 1 and 256"},
+		{"oversized area", MapAreaInput{Surface: "nauvis", Force: "player", Area: &FactoryAreaInput{RightBottomX: maxAreaTiles + 1, RightBottomY: 8}, MaxRows: 8, MaxColumns: 8}, "no greater than 1024"},
 		{"unsupported layer", MapAreaInput{Surface: "nauvis", Force: "player", Area: area, MaxRows: 8, MaxColumns: 8, Layer: MapLayer("FLUIDS")}, "unsupported map layer"},
 	}
 	for _, tc := range cases {

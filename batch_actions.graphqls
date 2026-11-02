@@ -1,26 +1,28 @@
 extend type Mutation {
-  """Fuels up to 200 distinct explicit entities from the actor's main inventory in one RCON call and reports per-target outcomes plus totals. Each target is resolved independently by unitNumber or by entity name plus position with its own surface (default nauvis), and the actor is the single batch source, so exactly one of player or character must be selected; item and quality (default normal) must exist as prototypes and countPerTarget is whole items, at least 1. A target succeeds only when the actor holds the full count and its fuel inventory reports insertable space for all of it; otherwise it fails with a typed error (LOOKUP, VALIDATION, REACH, INVENTORY or ENGINE) and is never partially filled, matching fuel. The batch continues past failures and is not transactional: there is no rollback, results list only reached targets with a one-based input index, failed counts every failure while errors lists at most the first 20, and successfully inserted fuel stays inserted even when a later target fails. Duplicate targets are rejected for the whole call before any RCON interaction, surface mismatches are per-target VALIDATION failures, and reach is checked only when FACTORIO_ENFORCE_REACH is on. Success announces a generated summary only when at least one target was fueled, unless message overrides it."""
+  """Fuels up to 1000 distinct explicit entities from the actor's main inventory in one RCON call and reports per-target outcomes plus totals. Each target is resolved independently by unitNumber or by entity name plus position with its own surface (default nauvis), and the actor is the single batch source, so exactly one of player or character must be selected; item and quality (default normal) must exist as prototypes. By default countPerTarget is whole items, at least 1, and a target succeeds only when the actor holds the full count and its fuel inventory reports insertable space for all of it; otherwise it fails with a typed error (LOOKUP, VALIDATION, REACH, INVENTORY or ENGINE) and is never partially filled, matching fuel. Setting topUpTo instead fills every target's fuel inventory up to that many items, which is idempotent: requested is the shortfall to reach topUpTo, a target that already holds topUpTo is reported once with skipped true and moved 0, and repeating the same call adds nothing the second time while countPerTarget is ignored. The batch continues past failures and is not transactional: there is no rollback, results list only reached targets with a one-based input index, failed counts every failure while errors lists at most the first 20, and successfully inserted fuel stays inserted even when a later target fails. Duplicate targets are rejected for the whole call before any RCON interaction, surface mismatches are per-target VALIDATION failures, and reach is checked only when FACTORIO_ENFORCE_REACH is on. Success announces a generated summary only when at least one item moved, unless message overrides it."""
   fuelMany(input: FuelManyInput!): FuelManyResult!
-  """Moves one item between the actor's main inventory and a typed inventory of up to 200 distinct explicit entities in one RCON call, reporting per-target availability, capacity and moved amounts plus totals. Per-target semantics match transfer: moved is min(countPerTarget, source available, destination insertable), a short move is a success entry and not an error, stack limits and a chest's bar slots are honoured, and direction TO_ACTOR reverses source and destination so the item comes out of the target. Targets are resolved independently by unitNumber or entity name plus position with their own surface (default nauvis); the actor must select exactly one of player or character, countPerTarget must be a whole number from 1 through 4294967295, the item must be non-empty and quality (default normal) must resolve, all rejected in Go before any RCON interaction, while item and quality prototype existence is checked in the engine call. Lookup, surface-mismatch, missing-inventory and out-of-reach targets produce typed errors (LOOKUP, VALIDATION, REACH) while the batch continues and is not transactional: results list only reached targets with one-based input indices, failed counts every failure, errors lists at most the first 20, and earlier moves are not undone. There is no area scan, so pass entities from machines, nearby or entities; duplicates are rejected for the whole call up front, and success announces a generated summary only when something moved, unless message overrides it."""
+  """Moves one item between the actor's main inventory and a typed inventory of up to 1000 distinct explicit entities in one RCON call, reporting per-target availability, capacity and moved amounts plus totals. Per-target semantics match transfer: moved is min(countPerTarget, source available, destination insertable), a short move is a success entry and not an error, stack limits and a chest's bar slots are honoured, and direction TO_ACTOR reverses source and destination so the item comes out of the target. Targets are resolved independently by unitNumber or entity name plus position with their own surface (default nauvis); the actor must select exactly one of player or character, countPerTarget must be a whole number from 1 through 4294967295, the item must be non-empty and quality (default normal) must resolve, all rejected in Go before any RCON interaction, while item and quality prototype existence is checked in the engine call. Lookup, surface-mismatch, missing-inventory and out-of-reach targets produce typed errors (LOOKUP, VALIDATION, REACH) while the batch continues and is not transactional: results list only reached targets with one-based input indices, failed counts every failure, errors lists at most the first 20, and earlier moves are not undone. There is no area scan, so pass entities from machines, nearby or entities; duplicates are rejected for the whole call up front, and success announces a generated summary only when something moved, unless message overrides it."""
   transferMany(input: TransferManyInput!): TransferManyResult!
 }
 
 input FuelManyInput {
   actor: ActorInput!
-  """1 through 200 distinct entity references."""
+  """1 through 1000 distinct entity references."""
   targets: [EntityRefInput!]!
   item: String!
   """Item quality prototype name; defaults to normal."""
   quality: String = "normal"
-  """Whole items per target, at least 1."""
+  """Whole items per target, at least 1; ignored when topUpTo is set."""
   countPerTarget: Int! = 1
+  """Fill each target's fuel inventory up to this many items instead of inserting countPerTarget. Idempotent: a target that already holds topUpTo items is reported as skipped and nothing is added."""
+  topUpTo: Int
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
 
 input TransferManyInput {
   actor: ActorInput!
-  """1 through 200 distinct entity references."""
+  """1 through 1000 distinct entity references."""
   targets: [EntityRefInput!]!
   inventory: InventoryKind!
   direction: TransferDirection!
@@ -39,8 +41,12 @@ type FuelTargetResult {
   entity: String!
   unitNumber: UnitNumber
   position: Position!
+  """Items the target needed: countPerTarget, or the shortfall to reach topUpTo."""
   requested: Int!
+  """Items this target really received."""
   moved: Int!
+  """True when topUpTo was already reached, so nothing was inserted."""
+  skipped: Boolean!
 }
 
 type FuelManyResult {
@@ -54,8 +60,10 @@ type FuelManyResult {
   failed: Int!
   """Items removed from the actor and inserted into targets."""
   moved: Int!
+  """Targets that already held topUpTo items and were left alone."""
+  skipped: Int!
   results: [FuelTargetResult!]!
-  """Typed failures with one-based index and target identity; at most the first 20 are listed."""
+  """Typed failures with one-based index and target identity; at most the first 100 are listed."""
   errors: [BatchError!]!
 }
 
@@ -69,6 +77,12 @@ type TransferTargetResult {
   available: Float!
   capacity: Float!
   moved: Float!
+  """Destination inventory bar, or null when the inventory has no bar."""
+  bar: Int
+  """Whether the target entity is marked for deconstruction; a marked entity still accepts items, but nothing will consume them."""
+  toBeDeconstructed: Boolean!
+  """Why nothing moved (BAR_LIMITED, MARKED_FOR_DECONSTRUCTION, FILTERED, NO_SOURCE, NO_CAPACITY); null when moved is nonzero."""
+  reason: String
 }
 
 type TransferManyResult {

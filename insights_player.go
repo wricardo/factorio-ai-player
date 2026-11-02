@@ -35,7 +35,16 @@ func playerInsight(r *Resolver, input *PlayerInsightInput) (*PlayerInsight, erro
 			}
 			target = "{unit=" + strconv.FormatUint(n, 10) + ",name=" + name + ",surface=" + surface + "}"
 		} else if input.Target.Position != nil {
-			target = fmt.Sprintf("{position={x=%s,y=%s}}", strconv.FormatFloat(input.Target.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Target.Position.Y, 'g', -1, 64))
+			// entity + position is the common identity form: name the prototype at
+			// the position so the reach answer is about the entity, not a point.
+			name, surface := "nil", "nil"
+			if input.Target.Entity != nil && *input.Target.Entity != "" {
+				name = luaString(*input.Target.Entity)
+			}
+			if input.Target.Surface != nil && *input.Target.Surface != "" {
+				surface = luaString(*input.Target.Surface)
+			}
+			target = fmt.Sprintf("{position={x=%s,y=%s},name=%s,surface=%s}", strconv.FormatFloat(input.Target.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Target.Position.Y, 'g', -1, 64), name, surface)
 		} else {
 			return nil, errors.New("target requires unitNumber or position")
 		}
@@ -84,8 +93,9 @@ end
 local target=%s
 if target then
   local reach={}
+  local entity=nil
   if target.unit then
-    local entity=game.get_entity_by_unit_number(target.unit)
+    entity=game.get_entity_by_unit_number(target.unit)
     if not entity and target.name then
       -- Most prototypes lack the get-by-unit-number flag; scan by prototype name instead.
       local scan_surface=target.surface and game.surfaces[target.surface] or s
@@ -96,6 +106,23 @@ if target then
       end
     end
     if not entity or not entity.valid then fail("target entity not found; pass entity (prototype name) for prototypes not resolvable by unit number alone"); return end
+  elseif target.position then
+    if target.name then
+      -- entity + position resolves the entity at that spot, so reach is about the
+      -- entity instead of an anonymous point.
+      local scan_surface=target.surface and game.surfaces[target.surface] or s
+      if scan_surface then
+        for _,candidate in pairs(scan_surface.find_entities_filtered{name=target.name,position=target.position,radius=0.01}) do entity=candidate; break end
+      end
+      if not entity or not entity.valid then fail("target entity not found at position; pass the prototype name of an entity there or omit entity for a position-only distance"); return end
+    else
+      reach.targetPosition=target.position
+      local dx,dy=target.position.x-pos.x,target.position.y-pos.y
+      reach.distance=math.sqrt(dx*dx+dy*dy)
+      reach.unavailableReason="Factorio exposes entity reachability, not position reachability"
+    end
+  end
+  if entity then
     reach.targetName=entity.name
     reach.targetPosition=entity.position
     if not c then reach.unavailableReason="Player has no character"
@@ -105,11 +132,6 @@ if target then
       local dx,dy=entity.position.x-pos.x,entity.position.y-pos.y
       reach.distance=math.sqrt(dx*dx+dy*dy)
     end
-  else
-    reach.targetPosition=target.position
-    local dx,dy=target.position.x-pos.x,target.position.y-pos.y
-    reach.distance=math.sqrt(dx*dx+dy*dy)
-    reach.unavailableReason="Factorio exposes entity reachability, not position reachability"
   end
   result.reach=reach
 end

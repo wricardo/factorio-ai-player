@@ -17,7 +17,7 @@ type charactersArgs struct {
 }
 
 // charactersQuery pages every character on a surface; the scan is not bounded
-// by the 256-tile area limit of the entities query.
+// by the area bound of the entities query.
 func charactersQuery(r *Resolver, input *CharactersInput) (*CharacterPage, error) {
 	args := charactersArgs{Surface: "nauvis", DetachedOnly: true, Limit: 100}
 	if input != nil {
@@ -31,8 +31,8 @@ func charactersQuery(r *Resolver, input *CharactersInput) (*CharacterPage, error
 	if args.Surface == "" {
 		return nil, errors.New("surface must not be empty")
 	}
-	if args.Limit < 1 || args.Limit > 1000 {
-		return nil, errors.New("limit must be between 1 and 1000")
+	if args.Limit < 1 || args.Limit > maxPageSize {
+		return nil, pageLimitError("limit")
 	}
 	if args.Offset < 0 {
 		return nil, errors.New("offset must be non-negative")
@@ -62,6 +62,36 @@ rcon.print(helpers.table_to_json({tick=game.tick,character=c.unit_number,surface
 		strconv.FormatFloat(*x, 'g', -1, 64), strconv.FormatFloat(*y, 'g', -1, 64)), nil
 }
 
+// characterDeleteLua destroys one detached character. It refuses to destroy
+// anything that could lose items: the character must belong to no player
+// (including a disconnected player's stored character), must match the
+// explicitly requested force, and must have empty crafting queue, main
+// inventory, and equipment/trash inventories. Items are never voided because a
+// nonempty character is rejected instead of being emptied or spilled.
+func characterDeleteLua(args []string, out io.Writer) (string, error) {
+	fs := flag.NewFlagSet("character-delete", flag.ContinueOnError)
+	fs.SetOutput(out)
+	force := fs.String("force", "", "Force the character must belong to (required)")
+	unit := fs.Uint64("character", 0, "Detached character unit number (required)")
+	if err := fs.Parse(args); err != nil {
+		return "", err
+	}
+	if fs.NArg() != 0 || *force == "" || *unit == 0 || *unit > math.MaxUint32 {
+		return "", errors.New("force and character are required; no positional arguments allowed")
+	}
+	return luaFail + fmt.Sprintf(`local f=game.forces[%s]; if not f then fail("force not found"); return end
+local c=game.get_entity_by_unit_number(%d); if not c or not c.valid or c.type~="character" then fail("character not found"); return end
+if c.player then fail("character is controlled by a player"); return end
+for _,q in pairs(game.players) do if q.character==c then fail("character belongs to player "..q.name); return end end
+if c.force~=f then fail("character force does not match requested force"); return end
+if c.crafting_queue_size>0 then fail("character crafting queue must be empty"); return end
+for _,key in ipairs({"character_guns","character_ammo","character_armor","character_trash"}) do local other=c.get_inventory(defines.inventory[key]); if other and not other.is_empty() then fail("character has items outside main inventory"); return end end
+local inv=c.get_main_inventory(); if inv and not inv.is_empty() then fail("character main inventory is not empty; empty it before deleting"); return end
+local id, surface, force, position=c.unit_number, c.surface.name, c.force.name, c.position
+c.destroy()
+rcon.print(helpers.table_to_json({tick=game.tick, character=id, surface=surface, force=force, position=position}))`, luaString(*force), *unit), nil
+}
+
 func charactersLua(args []string, out io.Writer) (string, error) {
 	fs := flag.NewFlagSet("characters", flag.ContinueOnError)
 	fs.SetOutput(out)
@@ -75,8 +105,8 @@ func charactersLua(args []string, out io.Writer) (string, error) {
 	if fs.NArg() != 0 || *surface == "" {
 		return "", errors.New("surface is required and no positional arguments are allowed")
 	}
-	if *limit < 1 || *limit > 1000 {
-		return "", errors.New("limit must be between 1 and 1000")
+	if *limit < 1 || *limit > maxPageSize {
+		return "", pageLimitError("limit")
 	}
 	if *offset < 0 {
 		return "", errors.New("offset must be non-negative")

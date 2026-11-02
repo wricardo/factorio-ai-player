@@ -6,7 +6,7 @@ import (
 )
 
 func TestConstructionOrdersValidateBeforeRCON(t *testing.T) {
-	area := &FactoryAreaInput{LeftTopX: 0, LeftTopY: 0, RightBottomX: 257, RightBottomY: 1}
+	area := &FactoryAreaInput{LeftTopX: 0, LeftTopY: 0, RightBottomX: maxAreaTiles + 1, RightBottomY: 1}
 	badState := ConstructionOrderState("BOGUS")
 	tests := []struct {
 		name  string
@@ -15,7 +15,7 @@ func TestConstructionOrdersValidateBeforeRCON(t *testing.T) {
 	}{
 		{"surface", &ConstructionOrdersInput{Surface: "", Limit: 10}, "surface"},
 		{"limit low", &ConstructionOrdersInput{Surface: "nauvis", Limit: 0}, "limit"},
-		{"limit high", &ConstructionOrdersInput{Surface: "nauvis", Limit: 1001}, "limit"},
+		{"limit high", &ConstructionOrdersInput{Surface: "nauvis", Limit: maxPageSize + 1}, "limit"},
 		{"offset", &ConstructionOrdersInput{Surface: "nauvis", Limit: 10, Offset: -1}, "offset"},
 		{"state", &ConstructionOrdersInput{Surface: "nauvis", Limit: 10, State: badState}, "state"},
 		{"area", &ConstructionOrdersInput{Surface: "nauvis", Limit: 10, Area: area}, "area"},

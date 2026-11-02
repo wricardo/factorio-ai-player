@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"math"
 	"net"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -89,5 +93,122 @@ func TestRCONContextCancelsBlockedRead(t *testing.T) {
 	_, err = executeContext(ctx, listener.Addr().String(), "password", "command", false)
 	if err == nil || time.Since(start) > time.Second {
 		t.Fatalf("blocked RCON read: error %v after %v", err, time.Since(start))
+	}
+}
+
+// runLuaScript executes a script with the system Lua interpreter and returns its
+// trimmed stdout. It is the harness for Lua fragments that only need stubs.
+func runLuaScript(t *testing.T, script string) string {
+	t.Helper()
+	lua, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("Lua interpreter not installed")
+	}
+	path := filepath.Join(t.TempDir(), "script.lua")
+	if err := os.WriteFile(path, []byte(script), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(lua, path).CombinedOutput()
+	if err != nil {
+		t.Fatalf("lua script failed: %v\n%s", err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// runLuaScriptError is runLuaScript for scripts that are expected to raise.
+func runLuaScriptError(t *testing.T, script string) (string, error) {
+	t.Helper()
+	lua, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("Lua interpreter not installed")
+	}
+	path := filepath.Join(t.TempDir(), "script.lua")
+	if err := os.WriteFile(path, []byte(script), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(lua, path).CombinedOutput()
+	return string(out), err
+}
+
+func TestNavigationTargetRef(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		ref     *EntityRefInput
+		want    []string
+		absent  []string
+		wantErr string
+	}{
+		{
+			name:   "name and position",
+			ref:    &EntityRefInput{Entity: new("wooden-chest"), Position: &PositionInput{X: 10.5, Y: -3}},
+			want:   []string{"name=", "x=10.5", "y=-3"},
+			absent: []string{"unit="},
+		},
+		{
+			name: "unit alone",
+			ref:  &EntityRefInput{UnitNumber: new("42")},
+			want: []string{"{unit=42}"},
+		},
+		{
+			name: "unit with name and position",
+			ref:  &EntityRefInput{UnitNumber: new("42"), Entity: new("wooden-chest"), Position: &PositionInput{X: 1, Y: 2}},
+			want: []string{"name=", "x=1", "y=2", "unit=42"},
+		},
+		{name: "name without position", ref: &EntityRefInput{Entity: new("wooden-chest")}, wantErr: "both"},
+		{name: "position without name", ref: &EntityRefInput{Position: &PositionInput{X: 1, Y: 2}}, wantErr: "both"},
+		{name: "empty reference", ref: &EntityRefInput{}, wantErr: "targetEntity"},
+		{name: "zero unit", ref: &EntityRefInput{UnitNumber: new("0")}, wantErr: "unitNumber"},
+		{name: "own unit", ref: &EntityRefInput{UnitNumber: new("1")}, wantErr: "differ"},
+		{name: "nan position", ref: &EntityRefInput{Entity: new("wooden-chest"), Position: &PositionInput{X: 0, Y: math.NaN()}}, wantErr: "finite"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			lua, err := navigationTargetRef(tc.ref, 1)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected %q error, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(lua, want) {
+					t.Fatalf("%q missing from %s", want, lua)
+				}
+			}
+			for _, absent := range tc.absent {
+				if strings.Contains(lua, absent) {
+					t.Fatalf("%q must not appear in %s", absent, lua)
+				}
+			}
+		})
+	}
+}
+
+func TestNavigationJobProgressFields(t *testing.T) {
+	sample := `{"tick":100,"id":"7","character":"1","surface":"nauvis","destination":{"x":3,"y":0},"position":{"x":1.5,"y":0},"status":"MOVING","tolerance":0.5,"timeoutTicks":600,"replans":2,"waypointsRemaining":4,"distanceRemaining":1.25,"startedTick":10,"updatedTick":99}`
+	var wire navigationJobWire
+	if err := json.Unmarshal([]byte(sample), &wire); err != nil {
+		t.Fatalf("decode navigation job: %v", err)
+	}
+	job := wire.model()
+	if job.Tolerance != 0.5 || job.TimeoutTicks != 600 || job.Replans != 2 {
+		t.Fatalf("unexpected job settings: %+v", job)
+	}
+	if job.WaypointsRemaining != 4 || job.DistanceRemaining != 1.25 {
+		t.Fatalf("unexpected job progress: %+v", job)
+	}
+}
+
+func TestNavigationActiveRequiresActor(t *testing.T) {
+	if _, err := navigationActive(context.Background(), &Resolver{}, &ActorInput{}); err == nil {
+		t.Fatal("expected an actor validation error")
+	}
+}
+
+func TestNavigationStatusRequiresID(t *testing.T) {
+	if _, err := navigationStatus(&Resolver{}, "  "); err == nil {
+		t.Fatal("expected an empty id error")
 	}
 }

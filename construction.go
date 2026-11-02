@@ -15,11 +15,12 @@ import (
 // buildGhosts revives the entity ghosts inside an area.
 //
 // Script revival bypasses item consumption and construction robots entirely:
-// the engine builds the ghost without checking or withdrawing materials. The
-// result therefore reports missing materials as the prototype cost of ghosts
-// that could not be revived, which in practice means the ghost's tile was
-// blocked by another entity, not that the force lacked items. Revived entities
-// come back in full regardless of stock.
+// the engine builds the ghost without checking or withdrawing materials.
+// missing therefore reports the prototype cost of ghosts that could not be
+// revived, which in practice means the ghost's tile was blocked by another
+// entity, not that the force lacked items. Items that a successfully revived
+// entity displaced are reported separately in collidedItems and, when an actor
+// is given, transferred to that actor's main inventory as overflow.
 func buildGhosts(r *Resolver, input BuildGhostsInput) (*BuildGhostsResult, error) {
 	if input.Area == nil {
 		return nil, errors.New("area is required")
@@ -36,8 +37,8 @@ func buildGhosts(r *Resolver, input BuildGhostsInput) (*BuildGhostsResult, error
 	if err := bounds.validate(); err != nil {
 		return nil, err
 	}
-	if input.Limit < 1 || input.Limit > 1000 {
-		return nil, errors.New("limit must be between 1 and 1000")
+	if input.Limit < 1 || input.Limit > maxPageSize {
+		return nil, pageLimitError("limit")
 	}
 	mode := input.Mode
 	if mode == "" {
@@ -46,10 +47,11 @@ func buildGhosts(r *Resolver, input BuildGhostsInput) (*BuildGhostsResult, error
 	if !mode.IsValid() {
 		return nil, errors.New("mode must be REVIVE or SILENT")
 	}
-	if _, _, err := optionalActorFrom(input.Actor); err != nil {
+	character, player, err := optionalActorFrom(input.Actor)
+	if err != nil {
 		return nil, err
 	}
-	response, _, err := executeLua(r.addr, r.password, buildGhostsLua(surface, force, bounds, string(mode), input.Limit))
+	response, _, err := executeLua(r.addr, r.password, buildGhostsLua(surface, force, bounds, string(mode), input.Limit, character, player))
 	if err != nil {
 		return nil, err
 	}
@@ -75,31 +77,49 @@ func buildGhostsSummary(result *BuildGhostsResult) string {
 }
 
 // buildGhostsLua revives ghosts with the engine's revive or silent_revive.
-// Failed ghosts report their prototype cost: script revival never checks stock,
-// so a failure is a blocked tile, not a missing item.
-func buildGhostsLua(surface, force string, bounds areaBounds, mode string, limit int) string {
-	revive := "g.revive{raise_revive=false}"
+// raise_revive follows the schema: REVIVE raises script_raised_revive,
+// SILENT does not. Items the revived entity collided with are reported in
+// collidedItems, never as missing materials, and an actor's main inventory
+// receives them as overflow when one is given.
+func buildGhostsLua(surface, force string, bounds areaBounds, mode string, limit int, character uint64, player string) string {
+	revive := "g.revive{raise_revive=true,overflow=overflow}"
 	if mode == string(BuildGhostsModeSilent) {
-		revive = "g.silent_revive{raise_revive=true}"
+		revive = "g.silent_revive{raise_revive=false,overflow=overflow}"
 	}
 	return luaFail + fmt.Sprintf(`local surface_name,force_name=%s,%s; local area=%s; local limit=%d
+local unit,player_name=%d,%s
 local s=game.surfaces[surface_name]; if not s then fail("surface not found"); return end
 local f=game.forces[force_name]; if not f then fail("force not found"); return end
+local overflow=nil
+if unit~=0 then
+  local actor=game.get_entity_by_unit_number(unit)
+  if not actor or actor.type~="character" then fail("character not found"); return end
+  local okmain,main=pcall(function() return actor.get_main_inventory() end)
+  if okmain then overflow=main end
+elseif player_name~="" then
+  local actor_player=game.players[player_name]
+  if not actor_player then fail("player not found"); return end
+  if actor_player.character then
+    local okmain,main=pcall(function() return actor_player.character.get_main_inventory() end)
+    if okmain then overflow=main end
+  end
+end
 local ghosts=s.find_entities_filtered{area=area,force=f,type="entity-ghost",limit=limit}
-local revived,failed=0,0; local entities={}; local errors={}; local missing={}
-local function add_missing(name,count,quality)
+local revived,failed=0,0; local entities={}; local errors={}; local missing={}; local collided_items={}
+local function add_item(target,name,count,quality)
   local key=name..string.char(31)..quality
-  local item=missing[key]
-  if not item then item={name=name,quality=quality,count=0}; missing[key]=item end
+  local item=target[key]
+  if not item then item={name=name,quality=quality,count=0}; target[key]=item end
   item.count=item.count+count
 end
+local function add_missing(name,count,quality) add_item(missing,name,count,quality) end
 local function add_collided(collided)
   if type(collided)~="table" then return false end
   local added=false
   for _,item in pairs(collided) do
     local quality=item.quality
     if type(quality)=="table" then quality=quality.name end
-    add_missing(item.name,item.count,quality or "normal")
+    add_item(collided_items,item.name,item.count,quality or "normal")
     added=true
   end
   return added
@@ -113,7 +133,6 @@ local function prototype_cost(g)
   for _,stack in pairs(items) do cost[#cost+1]={name=stack.name,count=stack.count} end
   return cost
 end
-local silent=%t
 for index,g in ipairs(ghosts) do
   if g.valid then
     -- Reviving invalidates the ghost, so snapshot everything read later first.
@@ -121,20 +140,18 @@ for index,g in ipairs(ghosts) do
     local ghost_position=g.position
     local cost=prototype_cost(g)
     local ok,r1,r2=pcall(function() return %s end)
-    -- revive returns (collided items, built entity, proxy); silent_revive returns (built entity).
+    -- revive and silent_revive both return (collided items, built entity, proxy).
     local collided,built=nil,nil
     if ok then
       collided=r1; built=r2
     end
+    add_collided(collided)
     if ok and built and built.valid then
       revived=revived+1
       entities[#entities+1]={name=built.name,type=built.type,position=built.position,unit_number=tostring(built.unit_number or 0)}
-      add_collided(collided)
     else
       failed=failed+1
-      if not add_collided(collided) then
-        for _,stack in pairs(cost) do add_missing(stack.name,stack.count,"normal") end
-      end
+      for _,stack in pairs(cost) do add_missing(stack.name,stack.count,"normal") end
       if #errors<20 then
         local code,message
         if ok then
@@ -149,10 +166,14 @@ for index,g in ipairs(ghosts) do
     end
   end
 end
-local missing_list={}; for _,item in pairs(missing) do missing_list[#missing_list+1]=item end
-table.sort(missing_list,function(a,b) if a.name~=b.name then return a.name<b.name end return a.quality<b.quality end)
-rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,mode=%s,revived=revived,failed=failed,missing=missing_list,entities=entities,errors=errors}))`,
-		luaString(surface), luaString(force), bounds.lua(), limit, mode == string(BuildGhostsModeSilent), revive, luaString(mode))
+local function sorted_items(source)
+  local list={}
+  for _,item in pairs(source) do list[#list+1]=item end
+  table.sort(list,function(a,b) if a.name~=b.name then return a.name<b.name end return a.quality<b.quality end)
+  return list
+end
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,mode=%s,revived=revived,failed=failed,missing=sorted_items(missing),collidedItems=sorted_items(collided_items),entities=entities,errors=errors}))`,
+		luaString(surface), luaString(force), bounds.lua(), limit, character, luaString(player), revive, luaString(mode))
 }
 
 // logisticNetworks reads the logistic networks served by roboports on a
@@ -168,8 +189,8 @@ func logisticNetworks(r *Resolver, input *LogisticNetworksInput) (*LogisticNetwo
 	if input.Force == "" {
 		return nil, errors.New("force must not be empty")
 	}
-	if input.Limit < 1 || input.Limit > 1000 {
-		return nil, errors.New("limit must be between 1 and 1000")
+	if input.Limit < 1 || input.Limit > maxPageSize {
+		return nil, pageLimitError("limit")
 	}
 	if input.Offset < 0 {
 		return nil, errors.New("offset must be non-negative")
@@ -177,8 +198,8 @@ func logisticNetworks(r *Resolver, input *LogisticNetworksInput) (*LogisticNetwo
 	if input.ItemsLimit == 0 {
 		input.ItemsLimit = 1000
 	}
-	if input.ItemsLimit < 1 || input.ItemsLimit > 1000 {
-		return nil, errors.New("itemsLimit must be between 1 and 1000")
+	if input.ItemsLimit < 1 || input.ItemsLimit > maxPageSize {
+		return nil, pageLimitError("itemsLimit")
 	}
 	if input.ItemsOffset < 0 {
 		return nil, errors.New("itemsOffset must be non-negative")
@@ -398,7 +419,12 @@ for i=offset+1,math.min(total,offset+limit) do
     row.inFlight=row.inFlight or 0
     row.incoming=row.incoming or 0
     row.targetedPickup=row.targetedPickup or 0
-    local missing=row.requested-row.delivered-row.incoming
+    -- A vanilla 2.0 requester chest compiles to count (the request minimum) with
+    -- max_count nil for infinite, so the trigger amount is the minimum; the
+    -- maximum is only a fallback for rows that carry no minimum.
+    local demand=row.requestedMinimum
+    if demand<=0 then demand=row.requested end
+    local missing=demand-row.delivered-row.inFlight-row.incoming
     if missing<0 then missing=0 end
     row.missing=missing
     rows[#rows+1]=row
@@ -415,4 +441,259 @@ for i=offset+1,math.min(total,offset+limit) do
 end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,page_info={total=total,limit=limit,offset=offset,has_more=total>offset+limit},networks=list}))`,
 		luaString(surface), luaString(force), area, limit, offset, luaString(requested), strconv.FormatBool(includeItems), itemsLimit, itemsOffset)
+}
+
+// upgradeMapping is one validated prototype substitution for upgradeArea.
+type upgradeMapping struct {
+	From    string
+	To      string
+	Quality string
+}
+
+// validateUpgradeMappings validates the requested prototype substitutions and
+// rejects duplicates so every entity matches at most one mapping.
+func validateUpgradeMappings(values []*UpgradeMappingInput) ([]upgradeMapping, error) {
+	if len(values) == 0 {
+		return nil, errors.New("mappings must contain at least one entry")
+	}
+	if len(values) > maxBatchTargets {
+		return nil, fmt.Errorf("mappings must contain at most %d entries", maxBatchTargets)
+	}
+	result := make([]upgradeMapping, 0, len(values))
+	seen := make(map[string]bool, len(values))
+	for i, value := range values {
+		if value == nil {
+			return nil, fmt.Errorf("mapping %d is missing", i+1)
+		}
+		from := strings.TrimSpace(value.From)
+		to := strings.TrimSpace(value.To)
+		if from == "" {
+			return nil, fmt.Errorf("mapping %d from must not be empty", i+1)
+		}
+		if to == "" {
+			return nil, fmt.Errorf("mapping %d to must not be empty", i+1)
+		}
+		if seen[from] {
+			return nil, fmt.Errorf("mapping %d repeats from %s", i+1, from)
+		}
+		seen[from] = true
+		quality := "normal"
+		if value.Quality != nil {
+			quality = strings.TrimSpace(*value.Quality)
+			if quality == "" {
+				return nil, fmt.Errorf("mapping %d quality must not be empty", i+1)
+			}
+		}
+		result = append(result, upgradeMapping{From: from, To: to, Quality: quality})
+	}
+	return result, nil
+}
+
+// upgradeAreaOptions carries the validated inputs of an area upgrade request.
+type upgradeAreaOptions struct {
+	Surface    string
+	Force      string
+	Bounds     areaBounds
+	Mappings   []upgradeMapping
+	Limit      int
+	Character  uint64
+	Player     string
+	CancelOnly bool
+}
+
+// upgradeArea marks every entity in the area whose prototype appears in the
+// mappings for upgrade to the mapped prototype.
+//
+// LuaSurface.upgrade_area requires an upgrade planner LuaItemStack, and the 2.0
+// script API cannot set mappings on an item stack, so the engine path can only
+// replay a planner the player already configured. The per-entity script API
+// order_upgrade is the equivalent write: it records the same upgrade order that
+// construction robots execute and that constructionOrders(UPGRADE) reports.
+func upgradeArea(r *Resolver, input UpgradeAreaInput) (*UpgradeAreaResult, error) {
+	mappings, err := validateUpgradeMappings(input.Mappings)
+	if err != nil {
+		return nil, err
+	}
+	options, err := upgradeAreaOptionsFrom(input.Surface, input.Force, input.Area, input.Actor, input.Limit, mappings)
+	if err != nil {
+		return nil, err
+	}
+	response, _, err := executeLua(r.addr, r.password, upgradeAreaLua(options))
+	if err != nil {
+		return nil, err
+	}
+	result, err := factoryDecode[UpgradeAreaResult](response)
+	if err != nil {
+		return nil, err
+	}
+	announceMutation(r, input.Message, upgradeAreaSummary(result, false))
+	return result, nil
+}
+
+// cancelUpgradeArea cancels upgrade orders in the area.
+func cancelUpgradeArea(r *Resolver, input CancelUpgradeAreaInput) (*UpgradeAreaResult, error) {
+	options, err := upgradeAreaOptionsFrom(input.Surface, input.Force, input.Area, input.Actor, input.Limit, nil)
+	if err != nil {
+		return nil, err
+	}
+	options.CancelOnly = true
+	response, _, err := executeLua(r.addr, r.password, upgradeAreaLua(options))
+	if err != nil {
+		return nil, err
+	}
+	result, err := factoryDecode[UpgradeAreaResult](response)
+	if err != nil {
+		return nil, err
+	}
+	announceMutation(r, input.Message, upgradeAreaSummary(result, true))
+	return result, nil
+}
+
+func upgradeAreaOptionsFrom(surface, force string, area *FactoryAreaInput, actor *ActorInput, limit int, mappings []upgradeMapping) (upgradeAreaOptions, error) {
+	if area == nil {
+		return upgradeAreaOptions{}, errors.New("area is required")
+	}
+	bounds := areaBounds{area.LeftTopX, area.LeftTopY, area.RightBottomX, area.RightBottomY}
+	if err := bounds.validate(); err != nil {
+		return upgradeAreaOptions{}, err
+	}
+	if strings.TrimSpace(surface) == "" {
+		return upgradeAreaOptions{}, errors.New("surface must not be empty")
+	}
+	if strings.TrimSpace(force) == "" {
+		return upgradeAreaOptions{}, errors.New("force must not be empty")
+	}
+	if limit < 1 || limit > maxPageSize {
+		return upgradeAreaOptions{}, pageLimitError("limit")
+	}
+	character, player, err := optionalActorFrom(actor)
+	if err != nil {
+		return upgradeAreaOptions{}, err
+	}
+	return upgradeAreaOptions{Surface: surface, Force: force, Bounds: bounds, Mappings: mappings, Limit: limit, Character: character, Player: player}, nil
+}
+
+func upgradeAreaSummary(result *UpgradeAreaResult, cancel bool) string {
+	if cancel {
+		summary := fmt.Sprintf("canceled %d upgrade orders on %s for %s", result.Canceled, result.Surface, result.Force)
+		if result.Skipped > 0 {
+			summary += fmt.Sprintf(", %d skipped", result.Skipped)
+		}
+		return summary
+	}
+	summary := fmt.Sprintf("marked %d entities for upgrade on %s for %s", result.Orders, result.Surface, result.Force)
+	if result.Skipped > 0 {
+		summary += fmt.Sprintf(", %d skipped", result.Skipped)
+	}
+	return summary
+}
+
+// upgradeAreaLua renders the area upgrade or cancel program. limit bounds the
+// entities visited, and rows/errors are capped so one call stays readable.
+func upgradeAreaLua(options upgradeAreaOptions) string {
+	var mappings strings.Builder
+	mappings.WriteString("{")
+	for _, mapping := range options.Mappings {
+		fmt.Fprintf(&mappings, "[%s]={to=%s,quality=%s},", luaString(mapping.From), luaString(mapping.To), luaString(mapping.Quality))
+	}
+	mappings.WriteString("}")
+	cancel := strconv.FormatBool(options.CancelOnly)
+	return luaFail + fmt.Sprintf(`local surface_name,force_name=%s,%s; local area=%s; local limit=%d; local cancel=%s
+local unit,player_name=%d,%s
+local mappings=%s
+local s=game.surfaces[surface_name]; if not s then fail("surface not found"); return end
+local f=game.forces[force_name]; if not f then fail("force not found"); return end
+local player_object=nil
+if unit~=0 then
+  local actor=game.get_entity_by_unit_number(unit)
+  if not actor or actor.type~="character" then fail("character not found"); return end
+  player_object=actor.player
+elseif player_name~="" then
+  player_object=game.players[player_name]
+  if not player_object then fail("player not found"); return end
+end
+local rows,errors={},{}
+local orders,skipped,canceled=0,0,0
+local function skippable(e)
+  return e.type=="character" or e.type=="entity-ghost" or e.type=="tile-ghost"
+end
+local function target_row(e,target,quality,status,message)
+  rows[#rows+1]={unitNumber=(e.unit_number and tostring(e.unit_number) or nil),name=e.name,type=e.type,
+    position={x=e.position.x,y=e.position.y},target=target,quality=quality,status=status,message=message}
+end
+local function add_error(index,code,message,e)
+  if #errors<20 then
+    errors[#errors+1]={index=index,code=code,message=message,target={surface=s.name,entity=e.name,
+      position={x=e.position.x,y=e.position.y},unit_number=(e.unit_number and tostring(e.unit_number) or nil)}}
+  end
+end
+local function upgrade_entity(e)
+  local mapping=mappings[e.name]
+  if not mapping then return end
+  local index=#rows+1
+  local target,quality=mapping.to,mapping.quality
+  if not prototypes.entity[target] then
+    skipped=skipped+1
+    target_row(e,target,quality,"LOOKUP","entity prototype not found: "..target)
+    add_error(index,"LOOKUP","entity prototype not found: "..target,e)
+    return
+  end
+  if not prototypes.quality[quality] then
+    skipped=skipped+1
+    target_row(e,target,quality,"LOOKUP","quality prototype not found: "..quality)
+    add_error(index,"LOOKUP","quality prototype not found: "..quality,e)
+    return
+  end
+  local ok_before,before=pcall(function() return e.to_be_upgraded() end)
+  if ok_before and before then
+    skipped=skipped+1
+    target_row(e,target,quality,"ALREADY_MARKED",nil)
+    return
+  end
+  local ok_order,result=pcall(function()
+    return e.order_upgrade{target={name=target,quality=quality},force=f,player=player_object}
+  end)
+  local ok_after,after=pcall(function() return e.to_be_upgraded() end)
+  if ok_order and result and ok_after and after then
+    orders=orders+1
+    target_row(e,target,quality,"MARKED",nil)
+  else
+    skipped=skipped+1
+    local message=ok_order and "engine did not record the upgrade order" or tostring(result)
+    target_row(e,target,quality,"REFUSED",message)
+    add_error(index,"ENGINE",message,e)
+  end
+end
+local function cancel_entity(e)
+  local ok_state,marked=pcall(function() return e.to_be_upgraded() end)
+  if not ok_state or not marked then return end
+  local index=#rows+1
+  local target,quality="","normal"
+  local ok_target,encoded_target,encoded_quality=pcall(function() return e.get_upgrade_target() end)
+  if ok_target and encoded_target then target=encoded_target.name end
+  if ok_target and encoded_quality then
+    if type(encoded_quality)=="table" then quality=encoded_quality.name else quality=tostring(encoded_quality) end
+  end
+  local ok_cancel,result=pcall(function() return e.cancel_upgrade(f,player_object) end)
+  local ok_after,after=pcall(function() return e.to_be_upgraded() end)
+  if ok_cancel and result and ok_after and not after then
+    canceled=canceled+1
+    target_row(e,target,quality,"CANCELED",nil)
+  else
+    skipped=skipped+1
+    local message=ok_cancel and "engine did not cancel the upgrade order" or tostring(result)
+    target_row(e,target,quality,"REFUSED",message)
+    add_error(index,"ENGINE",message,e)
+  end
+end
+for _,e in ipairs(s.find_entities_filtered{area=area,force=f,skip_fog_of_war=true}) do
+  if #rows>=limit then break end
+  if e.valid and not skippable(e) then
+    if cancel then cancel_entity(e) else upgrade_entity(e) end
+  end
+end
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,orders=orders,skipped=skipped,
+  canceled=canceled,rows=rows,errors=errors}))`,
+		luaString(options.Surface), luaString(options.Force), options.Bounds.lua(), options.Limit, cancel,
+		options.Character, luaString(options.Player), mappings.String())
 }

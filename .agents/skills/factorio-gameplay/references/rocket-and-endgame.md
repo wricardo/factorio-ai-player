@@ -18,7 +18,7 @@ sulfuric-acid (1 s, chemistry): 1 iron-plate + 5 sulfur + 100 water -> 50 acid
 solid-fuel-from-light-oil (1 s, chemistry): 10 light-oil -> 1 solid-fuel
 ```
 
-Research path (`scripts/tech-path.js`, current save): 25 technologies / 4216 units. Silo prerequisites: `advanced-material-processing-2`, `concrete`, `logistic-robotics`, `low-density-structure`, `processing-unit`, `rocket-fuel`, then `rocket-silo` itself (1000 units, 60 s each). Packs needed: red, green, blue.
+Research path (`research-and-science.md` section 6 holds the ordered sequence): the fresh-run closure is 29 technologies / 4229 units / 155,075 lab-seconds; on the live save (2026-11-02, tick ~2.15M) 19-20 technologies / 3826-3876 units / ~149,250 lab-seconds remain. Silo prerequisites: `advanced-material-processing-2`, `concrete`, `logistic-robotics`, `low-density-structure`, `processing-unit`, `rocket-fuel`, then `rocket-silo` itself (1000 units, 60 s each = 60,000 lab-seconds, 39% of the bill). Packs needed: red, green, blue — no military, production or utility pack.
 
 ## 2. Plan quantities from engine state, not memory
 

@@ -53,8 +53,8 @@ func validateCapsuleInput(input CapsuleInput) error {
 	if input.Item == "" {
 		return errors.New("item must not be empty")
 	}
-	if input.Count < 1 || input.Count > 100 {
-		return errors.New("count must be between 1 and 100")
+	if input.Count < 1 || input.Count > maxBatchTargets {
+		return fmt.Errorf("count must be between 1 and %d", maxBatchTargets)
 	}
 	if input.Target == nil {
 		return errors.New("target is required")
@@ -68,8 +68,8 @@ func validateRepairInput(input RepairInput) error {
 	if _, _, err := settingsActorFrom(input.Actor); err != nil {
 		return err
 	}
-	if input.Count < 1 || input.Count > 100 {
-		return errors.New("count must be between 1 and 100")
+	if input.Count < 1 || input.Count > maxBatchTargets {
+		return fmt.Errorf("count must be between 1 and %d", maxBatchTargets)
 	}
 	_, err := settingsTargetFromRef(input.Actor, input.Target)
 	return err
@@ -103,16 +103,30 @@ func setGameSpeed(r *Resolver, input GameSpeedInput) (*GameSpeedResult, error) {
 	return result, nil
 }
 
+// teleportLua moves the actor, defaulting to its current surface. Only a player
+// can be moved across surfaces, so a cross-surface move goes through LuaPlayer
+// instead of the character entity.
 func teleportLua(character uint64, player, surface string, x, y float64, snap bool) string {
-	return settingsActorPrefix(character, player) + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
+	return settingsActorPrefix(character, player) + fmt.Sprintf(`local s=c.surface
+local surface_name=%s
+if surface_name~="" then s=game.surfaces[surface_name]; if not s then fail("surface not found"); return end end
 local position={x=%s,y=%s}
-local ok,result=pcall(function() return c.teleport(position, s, false, %t, defines.build_check_type.script_ghost) end)
+local cross=s~=c.surface
+local owner=c.player
+local ok,result
+if cross and not owner then
+  fail("cross-surface teleport requires a player-controlled character"); return
+elseif cross then
+  ok,result=pcall(function() return owner.teleport(position, s, false, %t, defines.build_check_type.script_ghost) end)
+else
+  ok,result=pcall(function() return c.teleport(position, s, false, %t, defines.build_check_type.script_ghost) end)
+end
 if not ok then fail("teleport failed: "..tostring(result)); return end
 if result==false then fail("teleport was rejected by the engine"); return end
 local out={tick=game.tick,surface=c.surface.name,force=c.force.name,position={x=c.position.x,y=c.position.y}}
 if %d~=0 then out.character=%d else out.player=p.name end
 rcon.print(helpers.table_to_json(out))`,
-		luaString(surface), luaCoordinate(x), luaCoordinate(y), snap, character, character)
+		luaString(surface), luaCoordinate(x), luaCoordinate(y), snap, snap, character, character)
 }
 
 // teleportActor moves the acting character to finite coordinates on an existing
@@ -125,7 +139,7 @@ func teleportActor(r *Resolver, input TeleportInput) (*ActionResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	surface := stringValueOr(input.Surface, "nauvis")
+	surface := stringValueOr(input.Surface, "")
 	snap := input.SnapToGrid != nil && *input.SnapToGrid
 	response, _, err := executeLua(r.addr, r.password, luaFail+teleportLua(character, player, surface, input.Position.X, input.Position.Y, snap))
 	if err != nil {
@@ -188,6 +202,31 @@ func useCapsule(r *Resolver, input CapsuleInput) (*CapsuleResult, error) {
 	return result, nil
 }
 
+// repairPackLua derives the health a single normal repair pack restores.
+// ToolPrototype durability is the durability spent per use and
+// RepairToolPrototype.speed is the health restored per durability point, so one
+// normal repair pack restores durability*speed health: 300*2 = 600 in 2.0.77,
+// not the 300 a durability-only read would suggest.
+const repairPackLua = `local proto=prototypes.item["repair-pack"]
+local durability=300
+local durability_ok,durability_value=pcall(function() return proto.get_durability("normal") end)
+if durability_ok and type(durability_value)=="number" and durability_value>0 then durability=durability_value end
+local speed=1
+local speed_ok,speed_value=pcall(function() return proto.speed end)
+if speed_ok and type(speed_value)=="number" and speed_value>0 then speed=speed_value end
+local per_pack=durability*speed
+`
+
+// repairPacksLua derives the packs needed for the current damage, the packs the
+// call may spend, and the health those packs restore.
+func repairPacksLua(count int) string {
+	return repairPackLua + fmt.Sprintf(`local damage=max_health-health
+local needed=math.ceil(damage/per_pack)
+local packs=math.min(needed, %d)
+local after=math.min(max_health, health+packs*per_pack)
+`, count)
+}
+
 // repairLua consumes repair packs and raises the entity health directly. This
 // is a scripted repair: the engine's asynchronous repair_state action cannot run
 // inside one RCON call, so the health delta is applied here.
@@ -196,19 +235,13 @@ func repairLua(target settingsTarget, count int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return prefix + fmt.Sprintf(`local health_ok,health=pcall(function() return e.health end)
+	return prefix + `local health_ok,health=pcall(function() return e.health end)
 if not health_ok or type(health)~="number" then fail("entity has no health"); return end
 if health<=0 then fail("entity is destroyed"); return end
 local max_ok,max_health=pcall(function() return e.max_health end)
 if not max_ok or type(max_health)~="number" or max_health<=0 then fail("entity has no maximum health"); return end
 if health>=max_health then fail("entity is not damaged"); return end
-local durability=300
-local durability_ok,durability_value=pcall(function() return prototypes.item["repair-pack"].durability end)
-if durability_ok and type(durability_value)=="number" and durability_value>0 then durability=durability_value end
-local damage=max_health-health
-local needed=math.ceil(damage/durability)
-local packs=math.min(needed, %d)
-local inv=c.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end
+` + repairPacksLua(count) + `local inv=c.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end
 local have=inv.get_item_count({name="repair-pack",quality="normal"})
 if have<packs then fail("not enough repair packs: need "..packs..", have "..have); return end
 local removed=inv.remove{name="repair-pack",quality="normal",count=packs}
@@ -216,13 +249,12 @@ if removed~=packs then
   if removed>0 then inv.insert{name="repair-pack",quality="normal",count=removed} end
   fail("could not remove repair packs"); return
 end
-local after=math.min(max_health, health+packs*durability)
 local set_ok,set_error=pcall(function() e.health=after end)
 if not set_ok then
   inv.insert{name="repair-pack",quality="normal",count=packs}
   fail("could not apply repair: "..tostring(set_error)); return
 end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=e.surface.name,force=e.force.name,name=e.name,unit_number=e.unit_number,position=e.position,before=health,after=after,max_health=max_health,packs_used=packs}))`, count), nil
+rcon.print(helpers.table_to_json({tick=game.tick,surface=e.surface.name,force=e.force.name,name=e.name,unit_number=e.unit_number,position=e.position,before=health,after=after,max_health=max_health,packs_used=packs}))`, nil
 }
 
 // repairEntity repairs a reachable damaged entity using repair packs from the

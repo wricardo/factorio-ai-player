@@ -1,20 +1,23 @@
 extend type Query {
   """
   Force recipes whose products contain the given item, optionally restricted to enabled or disabled recipes, read from
-  the force recipe catalogue in one snapshot, sorted by recipe name and paginated with limit 1..1000 and a zero-based
+  the force recipe catalogue in one snapshot, sorted by recipe name and paginated with limit 1..10000 and a zero-based
   offset. The enabled argument is a tri-state filter: omitting it returns enabled and disabled recipes alike, and only
-  products are matched by prototype name — ingredients are never searched. Each recipe exposes its category, energy,
-  raw ingredient and product lists plus craftingMachines: every assembling machine, furnace or rocket-silo prototype
-  with a matching crafting category, which does not assert that such a machine is built, researched or otherwise
-  available to the force. pageInfo.total counts all matching recipes before pagination, and an empty recipes list means
-  no recipe produces the item. Empty force or item names, an unknown force name, or out-of-range limit/offset produce a
-  GraphQL error; the query changes no state and emits no notification.
+  products are matched by prototype name — ingredients are never searched. Hidden recipes, which include every recycling
+  and parameter recipe, are excluded unless includeHidden is true; each recipe reports its own hidden flag so a filtered
+  list can still be recognized. Each recipe exposes its category, additional categories, energy, handCraftable (the
+  actor-free character crafting categories gather, wood and other hand recipes), raw ingredient and product lists plus
+  craftingMachines: every assembling machine, furnace or rocket-silo prototype whose crafting categories intersect the
+  recipe's category or any additional category, which does not assert that such a machine is built, researched or
+  otherwise available to the force. pageInfo.total counts all matching recipes before pagination, and an empty recipes
+  list means no recipe produces the item. Empty force or item names, an unknown force name, or out-of-range
+  limit/offset produce a GraphQL error; the query changes no state and emits no notification.
   """
   itemRecipes(input: ItemRecipesInput!): ItemRecipePage!
 }
-"""Force and item must be non-empty. Limit is 1 through 1000; offset is zero-based and non-negative."""
-input ItemRecipesInput { force: String! = "player" item: String! enabled: Boolean limit: Int! = 100 offset: Int! = 0 }
-"""Crafting machines are entity prototype names with a matching category, not necessarily built or available to the force."""
-type ItemRecipe { name: String! enabled: Boolean! category: String! energy: Float! ingredients: [RecipeIngredient!]! products: [RecipeProduct!]! craftingMachines: [String!]! }
+"""Force and item must be non-empty. Limit is 1 through 10000; offset is zero-based and non-negative. includeHidden defaults to false because recycling and parameter recipes otherwise bury every real recipe."""
+input ItemRecipesInput { force: String! = "player" item: String! enabled: Boolean includeHidden: Boolean! = false limit: Int! = 100 offset: Int! = 0 }
+"""Crafting machines are entity prototype names whose crafting categories intersect the recipe category or one of its additional categories, not necessarily built or available to the force."""
+type ItemRecipe { name: String! enabled: Boolean! hidden: Boolean! category: String! """Recipe additional_categories; empty when the recipe has none.""" additionalCategories: [String!]! energy: Float! """True when the character can hand-craft it: its category or an additional category is a character crafting category such as crafting or advanced-crafting.""" handCraftable: Boolean! ingredients: [RecipeIngredient!]! products: [RecipeProduct!]! craftingMachines: [String!]! }
 """Total counts matching recipes before pagination."""
 type ItemRecipePage { tick: Float! force: String! item: String! pageInfo: PageInfo! recipes: [ItemRecipe!]! }

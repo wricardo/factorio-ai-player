@@ -2,18 +2,21 @@ extend type Query {
   """
   Single-snapshot threat and damage report for a force on a surface, optionally bounded by area: enemies (entities whose
   force satisfies force.is_enemy), damaged friendly entities (selected force or its friends with health below max),
-  optional point pollution, optional player alerts, and evolution, pollution and kill statistics. Enemies, damaged
-  entities and alerts are paginated independently (each limit 1..1000 and non-negative offset) after deterministic
-  sorting — enemies and damaged by type, name, position, force and unit number; alerts by tick, type, position,
-  prototype, target and icon — and each pageInfo.total counts pre-pagination matches. playerAlerts.available is false
-  with unavailableReason when no player was requested; a requested player must exist and belong to the selected force,
-  alerts outside the area are dropped, and alerts without a position remain with areaMatchUnknown true. pollution is
-  the surface's airborne pollutant in the chunk of pollutionPosition (null when no position is given) and
-  totalPollution is the surface-wide airborne total, neither being a risk prediction; evolution components degrade to
-  0 when the engine refuses a reading, and killCounts reports the force's kill-statistic totals per prototype sorted by
-  name. Invalid surface/force names, non-finite or inverted bounds, a non-finite pollution position, an empty player
-  name, or out-of-range pagination produce a GraphQL error; an empty area scan means nothing matched and no state is
-  changed.
+  optional point pollution, optional player alerts, and evolution, pollution and kill statistics. Both entity scans are
+  engine force-filtered: enemies come from one query over the enemy forces and damaged entities from one query over the
+  selected force and its friends, so untouched trees, rocks and resource tiles are never visited. Enemies, damaged
+  entities and alerts are paginated independently (each limit 1..10000 and non-negative offset) after deterministic
+  sorting — enemies by distance to basePosition (then type, name, position, force and unit number) so the nearest danger
+  comes first, damaged by type, name, position, force and unit number; basePosition is the area center, or the force
+  spawn position when no area is given, and every entity reports its distance from it. Each pageInfo.total counts
+  pre-pagination matches. playerAlerts.available is false with unavailableReason when no player was requested; a
+  requested player must exist and belong to the selected force, alerts outside the area are dropped, and alerts without
+  a position remain with areaMatchUnknown true. pollution is the surface's airborne pollutant in the chunk of
+  pollutionPosition (null when no position is given) and totalPollution is the surface-wide airborne total, neither
+  being a risk prediction; evolution components degrade to 0 when the engine refuses a reading, and killCounts reports
+  the force's kill-statistic totals per prototype sorted by name. Invalid surface/force names, non-finite or inverted
+  bounds, a non-finite pollution position, an empty player name, or out-of-range pagination produce a GraphQL error; an
+  empty area scan means nothing matched and no state is changed.
   """
   safety(input: SafetyInput = {}): SafetySnapshot!
 }
@@ -29,15 +32,15 @@ input SafetyInput {
   pollutionPosition: SafetyPositionInput
   """Optional non-empty player name; the player must belong to the selected force."""
   player: String
-  """Enemy page size, from 1 through 1000."""
+  """Enemy page size, from 1 through 10000."""
   enemyLimit: Int! = 100
   """Zero-based, non-negative enemy offset."""
   enemyOffset: Int! = 0
-  """Damaged entity page size, from 1 through 1000."""
+  """Damaged entity page size, from 1 through 10000."""
   damagedLimit: Int! = 100
   """Zero-based, non-negative damaged entity offset."""
   damagedOffset: Int! = 0
-  """Alert page size, from 1 through 1000."""
+  """Alert page size, from 1 through 10000."""
   alertLimit: Int! = 100
   """Zero-based, non-negative alert offset."""
   alertOffset: Int! = 0
@@ -56,6 +59,8 @@ type SafetyEntity {
   status: String
   statusCode: Int
   pollution: SafetyPollution!
+  """Straight-line distance from the snapshot basePosition (the area center, or the force spawn when no area is given)."""
+  distance: Float!
 }
 type SafetyEntityPage { pageInfo: PageInfo! entities: [SafetyEntity!]! }
 """Message is JSON containing the untranslated Factorio LocalisedString under key 'value'."""
@@ -86,6 +91,8 @@ type SafetySnapshot {
   tick: Float!
   surface: String!
   force: String!
+  """Reference point used to rank enemies by distance: the area center when an area is given, otherwise the force spawn position on the surface."""
+  basePosition: Position!
   pollution: SafetyPollution
   enemies: SafetyEntityPage!
   damaged: SafetyEntityPage!

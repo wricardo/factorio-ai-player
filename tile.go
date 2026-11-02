@@ -46,6 +46,9 @@ if c.surface~=s then fail("actor is on another surface"); return end
 local dx=c.position.x-position.x; local dy=c.position.y-position.y
 if %s then fail("position is out of build reach"); return end
 local tile=s.get_tile(position); if not tile then fail("tile is not available at position"); return end
+if tile.name==result_tile.name then fail("tile already matches at position; no item consumed"); return end
+local previous_tile=tile.name
+local previous_mineable=tile.prototype.mineable_properties
 local allowed
 local conditions=placement.tile_condition
 if conditions and #conditions>0 then
@@ -77,7 +80,21 @@ if inv.get_item_count({name=item,quality=quality})<1 then fail("actor lacks item
 if inv.remove{name=item,quality=quality,count=1}~=1 then fail("could not remove item"); return end
 s.set_tiles({{name=result_tile.name,position=position}})
 local placed=s.get_tile(position); if not placed or placed.name~=result_tile.name then inv.insert{name=item,quality=quality,count=1}; fail("tile placement failed; item returned"); return end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=c.force.name,tile=placed.name,position=position}))`,
+-- Manual play returns the mined product of the replaced tile; the engine's
+-- set_tiles destroys it, so mine it into the actor inventory explicitly.
+local items={}
+if previous_mineable and previous_mineable.minable then
+  for _,product in pairs(previous_mineable.products or {}) do
+    if product.type=="item" then
+      local amount=math.floor(product.amount or 0)
+      if amount>0 then
+        local inserted=inv.insert{name=product.name,quality="normal",count=amount}
+        if inserted>0 then items[#items+1]={name=product.name,quality="normal",count=inserted} end
+      end
+    end
+  end
+end
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=c.force.name,tile=placed.name,previous_tile=previous_tile,position=position,items=items}))`,
 		luaString(player), character, luaString(surface),
 		strconv.FormatFloat(input.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Position.Y, 'g', -1, 64), luaString(input.Item), luaString(quality),
 		distanceViolation("dx", "dy", "c.build_distance"))

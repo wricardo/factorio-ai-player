@@ -2,15 +2,20 @@ extend type Query {
   """
   Observed item quantities in a single-tick snapshot, grouped by inventory or belt line, item and quality, with three
   independent pages: locations (one row per inventory/belt line and item), totals (per item, quality and category) and
-  items (per item and quality summed across every category), each with its own limit 1..1000 and zero-based offset.
+  items (per item and quality summed across every category), each with its own limit 1..10000 and zero-based offset.
   Totals and items cover the complete filtered scope regardless of the location page, while locations are sorted by
   category, position, entity type and name, player, inventory kind and item. Scope covers selected-force player main
-  inventories, ordinary/logistic/infinity chest contents, crafting machine, furnace, silo, lab, drill, agricultural
-  tower and asteroid collector inventories, fuel and burnt-result inventories, inserter hands, belt and loader
-  transport lines and ground item stacks; linked containers, vehicles, wagons, robots, roboports, turrets, cargo hubs,
-  player equipment and trash, and all fluids are excluded, so totals are not global factory stock. Ground stacks have
+  inventories both connected and disconnected, detached character main inventories (characters that control no player,
+  reported under the WORKER category with their unit number), ordinary/logistic/infinity chest contents, crafting
+  machine, furnace, silo, lab, drill, agricultural tower and asteroid collector inventories, fuel and burnt-result
+  inventories, inserter hands, belt and loader transport lines and ground item stacks; linked containers, vehicles,
+  wagons, robots, roboports, turrets, cargo hubs, player equipment and trash, and all fluids are excluded, so totals are
+  not global factory stock. Detached characters are found by scanning the surface for character entities, so their
+  inventories count even when no player controls them. An item filter keeps only stacks of that exact item, so every
+  location row it returns is a holder of that item and totals/items cover only that item; a location holding several
+  items yields one row per item, filtered or not. Ground stacks have
   no force ownership and are included regardless of the selected force, while every other source must match the
-  selected force and surface; area filters entity and player positions, not individual items along a belt. All
+  selected force and surface; area filters entity, player and character positions, not individual items along a belt. All
   transport lines of each belt are counted, a line object one entity exposes twice is deduplicated by line_equals, and
   contents are read per entity tile, so a long belt contributes every item actually sitting on it. Exceeding one
   million line comparisons fails the whole query instead of returning partial totals, and an empty item value, invalid
@@ -29,26 +34,27 @@ input StockInput {
   item: String
   """Exact stock category; omit to include every category."""
   category: StockCategory
-  """Location page size from 1 through 1000."""
+  """Location page size from 1 through 10000."""
   limit: Int! = 100
   """Zero-based, non-negative location offset."""
   offset: Int! = 0
-  """Totals page size from 1 through 1000, independent of locations."""
+  """Totals page size from 1 through 10000, independent of locations."""
   totalsLimit: Int! = 100
   """Zero-based, non-negative totals offset."""
   totalsOffset: Int! = 0
-  """Items page size from 1 through 1000, independent of the other pages."""
+  """Items page size from 1 through 10000, independent of the other pages."""
   itemsLimit: Int! = 100
   """Zero-based, non-negative items offset."""
   itemsOffset: Int! = 0
 }
 
-"""Stock location category. STORED is an entity inventory, IN_TRANSIT is a belt or inserter hand, GROUND is a dropped stack, PLAYER is a connected player's inventory."""
+"""Stock location category. STORED is an entity inventory, IN_TRANSIT is a belt or inserter hand, GROUND is a dropped stack, PLAYER is a game player's own main inventory whether connected or not, WORKER is a detached character created for courier or builder work."""
 enum StockCategory {
   STORED
   IN_TRANSIT
   GROUND
   PLAYER
+  WORKER
 }
 
 type StockPage {
@@ -65,11 +71,13 @@ type StockPage {
 }
 
 type StockLocation {
-  """stored, in-transit, ground, or player."""
+  """stored, in-transit, ground, player, or worker."""
   category: String!
   entityName: String!
   entityType: String!
   player: String
+  """Unit number of the entity or character that holds the stack, so a row can be addressed like inspect(); null when the source exposes no unit number."""
+  unitNumber: UnitNumber
   position: Position!
   """Inventory kind, or line-N for a transport line; shared lines are counted once."""
   inventoryKind: String!

@@ -82,7 +82,7 @@ Throughput (base game, measure before trusting): basic inserter chest-to-chest ~
 - Side-loading: a belt joining from the side fills only the near lane of the receiving belt. Turn belts keep lane identity; a head-on merge needs a splitter.
 - Yellow transport-belt: `beltSpeed 0.03125` tiles/tick = 1.875 tiles/s; 15 items/s total, 7.5 per lane. Fast: 0.0625 (30 items/s). Underground-belt `maxUndergroundDistance 5` (entrance and exit up to 5 tiles apart, i.e. at most 4 tiles between); `pipe-to-ground` distance is 10.
 - Place belts **with the final direction**; `setDirection`/`rotate` are not reliable for belts in 2.0.77 (scripted direction writes are ignored). If a belt faces wrong, `remove` and re-place.
-- Underground pair: `placeMany` with `undergroundType: INPUT` on the entrance (item enters) and `OUTPUT` on the exit, in one call, same direction as travel. Without the flags both halves become entrances and nothing connects. `connectEntities` handles this automatically.
+- Underground pair: set `undergroundType: INPUT` on the entrance (item enters) and `OUTPUT` on the exit, same direction as travel. The halves pair as soon as a facing half of the same tier exists, so entrance and exit may be placed in one `placeMany` batch or in separate calls; without the flags both halves become entrances and nothing connects. `connectEntities` handles this automatically.
 - `undergroundNeighbour` on `inspect` is always null on 2.0.77 (README); prove pairing with `beltStretch` (a tunnel collapses to one hop) or with measured flow.
 
 ## 5. Drills, furnaces, chests
@@ -91,7 +91,7 @@ Throughput (base game, measure before trusting): basic inserter chest-to-chest ~
 - Electric drill (3x3) outputs at the middle of the facing edge.
 - Burner drills/furnaces/inserters burn fuel; electric ones do not. Fuel supply is part of the design (see `bootstrap-and-progression.md`).
 - Pumpjack: centre tile must sit on the crude patch; fluid output box at `centre + (+1,-2)` (rotation-dependent: confirm with `inspect.fluidboxNeighbours`).
-- Chests have `bar`: usable slots = bar-1 (see `engine-traps.md`).
+- Chests: `allowedSlots` is the usable slot count (null = no limit); `bar` is the raw engine index where the blocked area starts (see `engine-traps.md`).
 
 ## 6. Worked layouts
 

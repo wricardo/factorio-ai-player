@@ -120,7 +120,7 @@ rcon.print("ok")`)
 
 		added := h.mutation(t, `mutation {
 		  addChartTag(input:{surface:"`+integrationSurface+`",force:"player",
-		    position:{x:7.5,y:-3.25},text:"`+markerText+`",icon:{type:"item",name:"iron-plate"}}) {
+		    position:{x:7.5,y:-3.25},text:"`+markerText+`",icon:{type:ITEM,name:"iron-plate"}}) {
 		    force surface tag { tagNumber text position { x y } icon { type name quality } }
 		  }
 		}`)
@@ -130,7 +130,7 @@ rcon.print("ok")`)
 			t.Fatalf("added chart tag=%v, want text %q", tag, markerText)
 		}
 		icon := jsonObject(t, tag, "icon")
-		if jsonString(t, icon, "type") != "item" || jsonString(t, icon, "name") != "iron-plate" {
+		if jsonString(t, icon, "type") != "ITEM" || jsonString(t, icon, "name") != "iron-plate" {
 			t.Fatalf("added chart tag icon=%v", icon)
 		}
 
@@ -168,6 +168,74 @@ rcon.print("ok")`)
 		if total := jsonNumber(t, jsonObject(t, jsonObject(t, jsonObject(t, after, "data"), "chartTags"), "pageInfo"), "total"); total != 0 {
 			t.Fatalf("chart tag remained after removal: total=%v", total)
 		}
+	})
+
+	t.Run("PlaceGhosts", func(t *testing.T) {
+		const area = `{leftTopX:10,leftTopY:-14,rightBottomX:22,rightBottomY:-4}`
+		t.Cleanup(func() {
+			if h.isStopped() {
+				return
+			}
+			h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+if surface then
+  for _,e in pairs(surface.find_entities_filtered{area=`+luaBounds(area)+`}) do if e.valid and e.type~="character" then e.destroy() end end
+end
+rcon.print("ok")`)
+		})
+
+		placed := h.mutation(t, `mutation {
+		  placeGhosts(input:{surface:"`+integrationSurface+`",force:"player",
+		    entities:[
+		      {name:"transport-belt",position:{x:11.5,y:-11.5}},
+		      {name:"inserter",position:{x:13.5,y:-11.5},direction:4},
+		      {name:"assembling-machine-1",position:{x:16.5,y:-11.5},recipe:"iron-gear-wheel"}
+		    ],
+		    tiles:[{name:"stone-path",x:20,y:-6}]
+		  }) {
+		    entitiesCreated tilesCreated failed
+		    ghosts { name type innerName quality position { x y } }
+		    errors { index code message }
+		  }
+		}`)
+		result := jsonObject(t, jsonObject(t, placed, "data"), "placeGhosts")
+		if created := jsonNumber(t, result, "entitiesCreated"); created != 3 {
+			t.Fatalf("entitiesCreated=%v, want 3; result=%v", created, result)
+		}
+		if tiles := jsonNumber(t, result, "tilesCreated"); tiles != 1 {
+			t.Fatalf("tilesCreated=%v, want 1; result=%v", tiles, result)
+		}
+		if failed := jsonNumber(t, result, "failed"); failed != 0 {
+			t.Fatalf("failed=%v, want 0; errors=%v", failed, jsonArray(t, result, "errors"))
+		}
+		inner := map[string]bool{}
+		for _, raw := range jsonArray(t, result, "ghosts") {
+			inner[jsonString(t, raw.(map[string]any), "innerName")] = true
+		}
+		for _, want := range []string{"transport-belt", "inserter", "assembling-machine-1", "stone-path"} {
+			if !inner[want] {
+				t.Fatalf("ghost %q missing from result %v", want, inner)
+			}
+		}
+
+		// The engine must hold the plan: ghosts of the force inside the area,
+		// and the assembling-machine ghost must still carry its recipe.
+		live := h.query(t, fmt.Sprintf(`{
+		  ghosts(input:{surface:%q,force:"player",area:%s,limit:100}) {
+		    pageInfo { total }
+		    ghostEntries { name kind position { x y } }
+		  }
+		}`, integrationSurface, area))
+		page := jsonObject(t, jsonObject(t, live, "data"), "ghosts")
+		if total := jsonNumber(t, jsonObject(t, page, "pageInfo"), "total"); total != 4 {
+			t.Fatalf("live ghost total=%v, want 4; ghosts=%v", total, jsonArray(t, page, "ghostEntries"))
+		}
+		h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+local ghost=surface.find_entity("entity-ghost",{x=16.5,y=-11.5})
+assert(ghost and ghost.valid, "assembling-machine ghost missing")
+assert(ghost.ghost_name=="assembling-machine-1", "ghost inner name is "..tostring(ghost.ghost_name))
+local recipe=ghost.get_recipe()
+assert(recipe and recipe.name=="iron-gear-wheel", "ghost recipe is "..tostring(recipe and recipe.name))
+rcon.print("ok")`)
 	})
 
 	t.Run("CharacterSpawnInventory", func(t *testing.T) {
@@ -278,12 +346,12 @@ rcon.print("ok")`)
 		})
 
 		result := h.mutation(t, fmt.Sprintf(`mutation {
-		  setLampSettings(input:{actor:{character:%q},target:{surface:%q,entity:"small-lamp",unitNumber:%q},color:{r:0.25,g:0.5,b:0.75,a:1},alwaysOn:true,useColors:false,colorMode:0}) {
+		  setLampSettings(input:{actor:{character:%q},target:{surface:%q,entity:"small-lamp",unitNumber:%q},color:{r:0.25,g:0.5,b:0.75,a:1},alwaysOn:true,useColors:false,colorMode:COLOR_MAPPING}) {
 		    tick lamp { color { r g b a } alwaysOn useColors colorMode }
 		  }
 		}`, character.id, integrationSurface, unit))
 		settings := jsonObject(t, jsonObject(t, jsonObject(t, result, "data"), "setLampSettings"), "lamp")
-		if !jsonBool(t, settings, "alwaysOn") || jsonBool(t, settings, "useColors") || jsonNumber(t, settings, "colorMode") != 0 {
+		if !jsonBool(t, settings, "alwaysOn") || jsonBool(t, settings, "useColors") || jsonString(t, settings, "colorMode") != "COLOR_MAPPING" {
 			t.Fatalf("unexpected post-write lamp settings: %v", settings)
 		}
 		color := jsonObject(t, settings, "color")
@@ -325,25 +393,25 @@ rcon.print("ok")`)
 		}
 		network := h.query(t, fmt.Sprintf(`{
 		  circuitNetwork(input:{target:{surface:%q,entity:"small-lamp",unitNumber:%q},color:RED}) {
-		    color connected redConnections greenConnections
+		    color connected connector networkId
 		  }
 		}`, integrationSurface, unit))
 		networkResult := jsonObject(t, jsonObject(t, network, "data"), "circuitNetwork")
-		if !jsonBool(t, networkResult, "connected") || jsonString(t, networkResult, "color") != "RED" || jsonNumber(t, networkResult, "redConnections") < 1 {
-			t.Fatalf("circuitNetwork = %v, want connected RED with >=1 connection", networkResult)
+		if !jsonBool(t, networkResult, "connected") || jsonString(t, networkResult, "color") != "RED" || jsonString(t, networkResult, "connector") != "circuit_red" {
+			t.Fatalf("circuitNetwork = %v, want connected RED on the circuit_red connector", networkResult)
 		}
 
 		result := h.mutation(t, fmt.Sprintf(`mutation {
-		  setCircuitBehavior(input:{actor:{character:%q},target:{surface:%q,entity:"small-lamp",unitNumber:%q},useColors:true,colorMode:1}) {
+		  setCircuitBehavior(input:{actor:{character:%q},target:{surface:%q,entity:"small-lamp",unitNumber:%q},useColors:true,colorMode:COMPONENTS}) {
 		    circuit { useColors colorMode }
 		  }
 		}`, character.id, integrationSurface, unit))
 		circuit := jsonObject(t, jsonObject(t, jsonObject(t, result, "data"), "setCircuitBehavior"), "circuit")
-		if !jsonBool(t, circuit, "useColors") || jsonNumber(t, circuit, "colorMode") != 1 {
+		if !jsonBool(t, circuit, "useColors") || jsonString(t, circuit, "colorMode") != "COMPONENTS" {
 			t.Fatalf("unexpected post-write circuit behavior: %v", circuit)
 		}
 		readback := jsonObject(t, h.inspectSettings(t, character.id, unit), "circuit")
-		if !jsonBool(t, readback, "useColors") || jsonNumber(t, readback, "colorMode") != 1 {
+		if !jsonBool(t, readback, "useColors") || jsonString(t, readback, "colorMode") != "COMPONENTS" {
 			t.Fatalf("inspection did not preserve circuit behavior: %v", readback)
 		}
 	})
@@ -504,7 +572,7 @@ rcon.print("ok")`)
 		})
 
 		first := h.mutation(t, fmt.Sprintf(`mutation {
-		  place(input:{actor:{character:%q},surface:%q,position:{x:16,y:4},direction:4,item:"underground-belt"}) { tick unitNumber direction }
+		  place(input:{actor:{character:%q},surface:%q,position:{x:16,y:4},direction:4,item:"underground-belt",undergroundType:INPUT}) { tick unitNumber direction }
 		}`, character.id, integrationSurface))
 		firstResult := jsonObject(t, jsonObject(t, first, "data"), "place")
 		firstUnit := jsonString(t, firstResult, "unitNumber")
@@ -512,7 +580,7 @@ rcon.print("ok")`)
 			t.Fatalf("place direction=%v, want 4", got)
 		}
 		second := h.mutation(t, fmt.Sprintf(`mutation {
-		  place(input:{actor:{character:%q},surface:%q,position:{x:19,y:4},direction:4,item:"underground-belt"}) { tick unitNumber direction }
+		  place(input:{actor:{character:%q},surface:%q,position:{x:19,y:4},direction:4,item:"underground-belt",undergroundType:OUTPUT}) { tick unitNumber direction }
 		}`, character.id, integrationSurface))
 		secondResult := jsonObject(t, jsonObject(t, second, "data"), "place")
 		secondUnit := jsonString(t, secondResult, "unitNumber")
@@ -2295,7 +2363,19 @@ func startIntegrationHarness(t *testing.T) *integrationHarness {
 	if err := os.MkdirAll(mods, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(mod, filepath.Join(mods, "factorio_ai_navigation_1.0.0")); err != nil {
+	// The mod directory name must carry the info.json version, so read it
+	// instead of hard-coding a version that drifts with mod releases.
+	infoBody, err := os.ReadFile(filepath.Join(mod, "info.json"))
+	if err != nil {
+		t.Fatalf("read navigation mod info.json: %v", err)
+	}
+	var info struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(infoBody, &info); err != nil || info.Version == "" {
+		t.Fatalf("decode navigation mod info.json: %v", err)
+	}
+	if err := os.Symlink(mod, filepath.Join(mods, "factorio_ai_navigation_"+info.Version)); err != nil {
 		t.Fatalf("link navigation mod: %v", err)
 	}
 

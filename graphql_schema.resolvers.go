@@ -77,6 +77,11 @@ func (r *mutationResolver) CharacterSpawn(ctx context.Context, input CharacterSp
 	return command[ActionResult](r.Resolver, "character-spawn", input)
 }
 
+// CharacterDelete is the resolver for the characterDelete field.
+func (r *mutationResolver) CharacterDelete(ctx context.Context, input CharacterDeleteInput) (*ActionResult, error) {
+	return command[ActionResult](r.Resolver, "character-delete", input)
+}
+
 // PlayerRestoreCharacter is the resolver for the playerRestoreCharacter field.
 func (r *mutationResolver) PlayerRestoreCharacter(ctx context.Context, input PlayerRestoreInput) (*ActionResult, error) {
 	return command[ActionResult](r.Resolver, "player-restore-character", input)
@@ -289,6 +294,11 @@ func (r *queryResolver) Inspect(ctx context.Context, input InspectInput) (*Entit
 	return inspect(r.Resolver, input)
 }
 
+// InspectMany is the resolver for the inspectMany field.
+func (r *queryResolver) InspectMany(ctx context.Context, input InspectManyInput) (*BatchInspectionPage, error) {
+	return inspectManyQuery(r.Resolver, input)
+}
+
 // FactoryOverview is the resolver for the factoryOverview field.
 func (r *queryResolver) FactoryOverview(ctx context.Context, input *FactoryOverviewInput) (*FactoryOverview, error) {
 	production, err := factoryProductionQuery(r.Resolver, input)
@@ -315,6 +325,11 @@ func (r *queryResolver) Machines(ctx context.Context, input *MachinesInput) (*Ma
 // Entities is the resolver for the entities field.
 func (r *queryResolver) Entities(ctx context.Context, input EntitiesInput) (*EntityPage, error) {
 	return entitiesQuery(r.Resolver, input)
+}
+
+// EntityCount is the resolver for the entityCount field.
+func (r *queryResolver) EntityCount(ctx context.Context, input EntityCountInput) ([]*EntityCountRow, error) {
+	return entityCountQuery(r.Resolver, input)
 }
 
 // Belts is the resolver for the belts field.
@@ -344,9 +359,6 @@ func (r *Resolver) Entity() EntityResolver { return &entityResolver{r} }
 // EntityInspection returns EntityInspectionResolver implementation.
 func (r *Resolver) EntityInspection() EntityInspectionResolver { return &entityInspectionResolver{r} }
 
-// FactoryMachine returns FactoryMachineResolver implementation.
-func (r *Resolver) FactoryMachine() FactoryMachineResolver { return &factoryMachineResolver{r} }
-
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
@@ -360,7 +372,6 @@ type actorResolver struct{ *Resolver }
 type connectedPlayerResolver struct{ *Resolver }
 type entityResolver struct{ *Resolver }
 type entityInspectionResolver struct{ *Resolver }
-type factoryMachineResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type queueEntryResolver struct{ *Resolver }

@@ -46,15 +46,15 @@ func TestConnectionPlanRoutingValidation(t *testing.T) {
 		{"empty underground item", func(in *ConnectionPlanInput) { in.AllowUnderground = true; in.UndergroundItem = &empty }, "undergroundItem must not be empty"},
 		{"span too short", func(in *ConnectionPlanInput) { in.AllowUnderground = true; in.MaxUndergroundDistance = &one }, "maxUndergroundDistance must be between 2 and 32"},
 		{"span too long", func(in *ConnectionPlanInput) { in.AllowUnderground = true; in.MaxUndergroundDistance = &tooLong }, "maxUndergroundDistance must be between 2 and 32"},
-		{"too many avoid areas", func(in *ConnectionPlanInput) { in.AvoidAreas = many }, "at most 20 areas"},
+		{"too many avoid areas", func(in *ConnectionPlanInput) { in.AvoidAreas = many }, "at most 100 areas"},
 		{"bad avoid area", func(in *ConnectionPlanInput) {
 			in.AvoidAreas = []*FactoryAreaInput{{LeftTopX: 5, RightBottomX: 1, RightBottomY: 1}}
 		}, "avoid area 1"},
-		{"expansion zero", func(in *ConnectionPlanInput) { in.MaxExpandedTiles = &zero }, "maxExpandedTiles must be between 1 and 50000"},
-		{"expansion huge", func(in *ConnectionPlanInput) { in.MaxExpandedTiles = &big }, "maxExpandedTiles must be between 1 and 50000"},
-		{"margin negative", func(in *ConnectionPlanInput) { neg := -1; in.SearchMargin = &neg }, "searchMargin must be between 0 and 64"},
-		{"margin huge", func(in *ConnectionPlanInput) { in.SearchMargin = &farMargin }, "searchMargin must be between 0 and 64"},
-		{"region too large", func(in *ConnectionPlanInput) { in.To = &PositionInput{X: 200, Y: 200} }, "above the 16384 tile limit"},
+		{"expansion zero", func(in *ConnectionPlanInput) { in.MaxExpandedTiles = &zero }, "maxExpandedTiles must be between 1 and 200000"},
+		{"expansion huge", func(in *ConnectionPlanInput) { in.MaxExpandedTiles = &big }, "maxExpandedTiles must be between 1 and 200000"},
+		{"margin negative", func(in *ConnectionPlanInput) { neg := -1; in.SearchMargin = &neg }, "searchMargin must be between 0 and 256"},
+		{"margin huge", func(in *ConnectionPlanInput) { in.SearchMargin = &farMargin }, "searchMargin must be between 0 and 256"},
+		{"region too large", func(in *ConnectionPlanInput) { in.To = &PositionInput{X: 400, Y: 400} }, "above the 65536 tile limit"},
 		{"missing endpoint", func(in *ConnectionPlanInput) { in.To = nil }, "from and to are required"},
 	}
 	for _, tc := range cases {
@@ -125,6 +125,7 @@ func TestConnectionPlanAStarDecodesRoute(t *testing.T) {
 		`local kind=` + luaString("BELT"),
 		`local left,top,cols,rows=0,0,5,1`,
 		`max_underground_distance`,
+		`build_check_type=defines.build_check_type.manual`,
 	} {
 		if !strings.Contains(lua, want) {
 			t.Fatalf("region Lua missing %q\n%s", want, lua)

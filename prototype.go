@@ -42,6 +42,12 @@ if entity then
   local raw_categories=get(entity,"crafting_categories")
   if raw_categories then for category,_ in pairs(raw_categories) do categories[#categories+1]=category end end
   table.sort(categories)
+  local resource_categories={}
+  local raw_resource_categories=get(entity,"resource_categories")
+  if raw_resource_categories then for category,_ in pairs(raw_resource_categories) do resource_categories[#resource_categories+1]=category end end
+  table.sort(resource_categories)
+  -- Engine energies are joules per tick; watts are 60 times that.
+  local max_energy_usage=call(entity,"get_max_energy_usage")
   local boxes=get(entity,"fluidbox_prototypes")
   local mineable=get(entity,"mineable_properties")
   entity_info={
@@ -56,12 +62,17 @@ if entity then
     inserterPickup=get(entity,"inserter_pickup_position"),
     inserterDrop=get(entity,"inserter_drop_position"),
     craftingCategories=categories,
+    resourceCategories=resource_categories,
     fluidBoxCount=(boxes and #boxes) or 0,
     mineable=(mineable and mineable.minable) or false,
     maxHealth=call(entity,"get_max_health"),
     wireReach=call(entity,"get_max_wire_distance"),
     supplyArea=call(entity,"get_supply_area_distance"),
-    craftingSpeed=call(entity,"get_crafting_speed")
+    craftingSpeed=call(entity,"get_crafting_speed"),
+    miningRadius=(call(entity,"get_mining_drill_radius") or get(entity,"mining_drill_radius")),
+    miningSpeed=get(entity,"mining_speed"),
+    energyUsageWatts=(max_energy_usage and max_energy_usage*60),
+    moduleSlots=get(entity,"module_inventory_size")
   }
 end
 rcon.print(helpers.table_to_json{name=name,item=item_info,entity=entity_info})`, luaString(name))
@@ -89,7 +100,7 @@ func placeNextTo(r *Resolver, input PlaceNextToInput) (*PlaceNextToResult, error
 		return nil, errors.New("direction must be a cardinal engine direction: 0, 4, 8, or 12")
 	}
 	if input.Gap < 0 || input.Gap > 16 {
-		return nil, errors.New("gap must be between 0 and 16")
+		return nil, errors.New("gap must be between 0 and 64")
 	}
 	quality, err := resolveQuality(input.Quality)
 	if err != nil {
@@ -110,7 +121,7 @@ func placeNextTo(r *Resolver, input PlaceNextToInput) (*PlaceNextToResult, error
 	default:
 		return nil, fmt.Errorf("unsupported side %q", input.Side)
 	}
-	lua := luaFail + fmt.Sprintf(`local player=%s; local unit=%d; local actor; local c
+	lua := luaFail + luaTileOccupants + fmt.Sprintf(`local player=%s; local unit=%d; local actor; local c
 if unit~=0 then actor=game.get_entity_by_unit_number(unit); if not actor or actor.type~="character" then fail("character not found"); return end; c=actor
 else actor=game.get_player(player); if not actor then fail("player not found"); return end; c=actor.character; if not c then fail("player has no character"); return end end
 local inv=actor.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end
@@ -154,26 +165,45 @@ local function keeps_gap(position)
   if side=="SOUTH" then return position.y-half_h>=box.right_bottom.y+gap-0.000001 end
   return position.y+half_h<=box.left_top.y-gap+0.000001
 end
-local chosen=nil
+local out_of_reach=false
+local refused=false
 for _,offset in ipairs(offsets) do
   local position={x=base.x+offset[1],y=base.y+offset[2]}
-  if keeps_gap(position) and surface.can_place_entity{name=new_proto.name,position=position,direction=direction,force=c.force} then
-    chosen=position
-    break
+  if keeps_gap(position) then
+    local dx=c.position.x-position.x; local dy=c.position.y-position.y
+    if %s then
+      out_of_reach=true
+    elseif #tile_occupants(surface,position)>0 then
+      -- create_entity ignores collision boxes, so an occupied candidate tile
+      -- would stack a second entity instead of failing; try the next offset.
+      refused=true
+    elseif inv.get_item_count{name=item,quality=quality}<1 then
+      fail("actor lacks item"); return
+    elseif inv.remove{name=item,quality=quality,count=1}~=1 then
+      fail("could not remove item"); return
+    else
+      -- Entity creation is the success test; can_place_entity can reject a
+      -- box the engine would snap onto a free tile, so it must not decide.
+      local before=tile_unit_set(surface,position)
+      local created,err=pcall(function() return surface.create_entity{name=new_proto.name,position=position,direction=direction,quality=quality,force=c.force,raise_built=true} end)
+      local e=nil; if created then e=err end
+      -- The engine can raise or return nil after committing the entity;
+      -- refunding then would duplicate the item and report a false failure.
+      if not e then e=new_tile_entity(surface,position,before) end
+      if e then
+        rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=c.force.name,item=item,name=e.name,unitNumber=e.unit_number,position={x=e.position.x,y=e.position.y},relativeTo=target.unit_number,side=side,gap=gap})
+        return
+      end
+      inv.insert{name=item,quality=quality,count=1}
+      if not created then fail("entity creation failed: "..tostring(err)); return end
+      refused=true
+    end
   end
 end
-if not chosen then fail("cannot place "..new_proto.name.." beside the target; no legal position"); return end
-local dx=c.position.x-chosen.x; local dy=c.position.y-chosen.y
-if %s then fail("out of build reach"); return end
-if inv.get_item_count{name=item,quality=quality}<1 then fail("actor lacks item"); return end
-if inv.remove{name=item,quality=quality,count=1}~=1 then fail("could not remove item"); return end
-local created,e=pcall(function() return surface.create_entity{name=new_proto.name,position=chosen,direction=direction,quality=quality,force=c.force,raise_built=true} end)
-if not created or not e then
-  inv.insert{name=item,quality=quality,count=1}
-  fail("entity creation failed"..(created and "" or ": "..tostring(e)))
-  return
-end
-rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=c.force.name,item=item,name=e.name,unitNumber=e.unit_number,position={x=e.position.x,y=e.position.y},relativeTo=target.unit_number,side=side,gap=gap})`,
+if refused then fail("entity creation failed"); return end
+if out_of_reach then fail("out of build reach"); return end
+fail("cannot place "..new_proto.name.." beside the target; no legal position")
+return`,
 		distanceViolation("dx", "dy", "c.build_distance"))
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {

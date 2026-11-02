@@ -13,11 +13,11 @@ Read in this order:
 
 1. `paused` / `speed`: a frozen game explains everything.
 2. `attentionCounts` and `attention[]` (CRITICAL first). One shared root cause usually explains most rows: many `NO_FUEL` rows = no fuel path; many `NO_POWER` = pole gap or dead generator.
-3. `machines[]` per type: `working` vs `noFuel/noPower/noIngredients/outputFull`. A type with `working 0` and `noIngredients N` points upstream.
+3. `machines[]` per type: `working` vs `noFuel/noPower/noIngredients/outputFull/resourceDepleted`. A type with `working 0` and `noIngredients N` points upstream.
 4. `power{productionWatts consumptionWatts}` and `networks`: multiple networks or `production == consumption` at the limit mean undersupply or a split grid.
 5. `research{currentTechnology progress queue}`: null current research is lost lab time.
 6. `production[]` rates and `stockouts[]` for named items.
-7. `warnings[]` list skipped sections (ghosts need `area`, stockouts need `watchItems`).
+7. `warnings[]` list skipped sections (stockouts need `watchItems`) and capped scans; ghost counts follow the briefing scope, the area when given and otherwise the whole surface.
 
 Live example (2026-11-01): `attentionTotal 40`, drills and furnaces `NO_FUEL`, one lab idle, no research. Root cause class = fuel supply + idle research, not "needs more machines".
 
@@ -59,11 +59,12 @@ Engine status names (`statusName` / `status`). **[base]** names come from the en
 
 | Question | Read |
 |---|---|
-| What is everything doing in this block? | `factoryGraph(area)` (machines, belts, chests, inserters with edges) |
+| What is everything doing in this block? | `factoryGraph(area)` (machines, belts, chests, inserters with edges); `factoryAlerts(area)` for every unhealthy status-bearing entity in one scan |
 | Which entity feeds which? | `inspect{logistics{inserters{pickup drop}}}`, `factoryGraph.edges` |
+| Is this item short, and who starves? | `itemBalance(item)` (observed flow + stock + starved consumers), then `machines{diagnostics{blocked shortfall mining burner}}` |
 | Is the belt flowing? | `beltStretchMeasure(target, durationTicks 600, wait:true)` or `beltThroughputStart` then `beltThroughput(id)` |
 | Does the lane carry mixed items? | `beltStretch` side totals + `mixed` flags |
-| Where is an item? | `stock(item, category: STORED\|IN_TRANSIT\|GROUND\|PLAYER)` locations and totals |
+| Where is an item? | `stock(item, category: STORED\|IN_TRANSIT\|GROUND\|PLAYER\|WORKER)` locations and totals |
 | Real rate vs ceiling? | `scripts/measure-rate.js` (stock delta over N ticks) and `production(window)` |
 | Geometry sanity | `mapArea`, `adjacency` (touching vs connected) |
 | Misrouted pipes | `adjacency`, `fluidStock` by location, `inspect.fluidboxNeighbours` |

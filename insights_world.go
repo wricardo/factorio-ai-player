@@ -10,12 +10,12 @@ import (
 
 // worldAreaLua validates bounded scans and returns both API and response representations.
 func worldAreaLua(area *FactoryAreaInput, limit, offset int) (string, string, error) {
-	areaLua, responseArea, err := worldAreaBoundsLua(area, 256)
+	areaLua, responseArea, err := worldAreaBoundsLua(area, maxAreaTiles)
 	if err != nil {
 		return "", "", err
 	}
-	if limit < 1 || limit > 1000 || offset < 0 {
-		return "", "", errors.New("limit must be between 1 and 1000 and offset must be non-negative")
+	if limit < 1 || limit > maxPageSize || offset < 0 {
+		return "", "", fmt.Errorf("limit must be between 1 and %d and offset must be non-negative", maxPageSize)
 	}
 	return areaLua, responseArea, nil
 }
@@ -119,8 +119,8 @@ func worldResourcesQuery(r *Resolver, input *WorldResourcesInput) (*WorldResourc
 	if err != nil {
 		return nil, err
 	}
-	if math.IsNaN(input.DrillRadius) || math.IsInf(input.DrillRadius, 0) || input.DrillRadius < 0 || input.DrillRadius > 100 {
-		return nil, errors.New("drillRadius must be between 0 and 100")
+	if math.IsNaN(input.DrillRadius) || math.IsInf(input.DrillRadius, 0) || input.DrillRadius < 0 || input.DrillRadius > maxDrillRadius {
+		return nil, fmt.Errorf("drillRadius must be between 0 and %d", maxDrillRadius)
 	}
 	supportedKinds := map[string]bool{"resource": true, "tree": true, "cliff": true, "simple-entity": true, "water": true}
 	kindLiterals := make([]string, len(input.Kinds))
@@ -140,12 +140,13 @@ local kind_filter={}
 for _,k in ipairs(kind_list) do kind_filter[k]=true end
 local function keep(kind) return #kind_list==0 or kind_filter[kind]==true end
 local entries={}; local resources={}; local resource_total,obstacle_total,water_total=0,0,0
+local status_names={}; for name,value in pairs(defines.entity_status) do status_names[value]=name end
 for _,e in pairs(surface.find_entities_filtered{area=area,type={"resource","tree","cliff","simple-entity"}}) do
   if e.type=="resource" then
     if resource_name=="" or e.name==resource_name then
       local props=e.prototype.mineable_properties
       resource_total=resource_total+1
-      resources[#resources+1]={name=e.name,position=e.position,amount=e.amount or 0}
+      resources[#resources+1]={name=e.name,position=e.position,amount=e.amount or 0,infinite=props.infinite==true}
       if keep("resource") then
         entries[#entries+1]={kind="resource",name=e.name,position=e.position,amount=e.amount,requiredFluid=props.required_fluid,fluidAmount=props.fluid_amount,entity=e}
       end
@@ -169,7 +170,7 @@ for i=offset+1,math.min(#entries,offset+limit) do
   local entry=entries[i]; local drills={}
   if entry.kind=="resource" then
     for _,d in pairs(surface.find_entities_filtered{position=entry.position,radius=radius,type="mining-drill",force=force}) do
-      drills[#drills+1]={kind="drill",name=d.name,position=d.position,unitNumber=d.unit_number}
+      drills[#drills+1]={kind="drill",name=d.name,position=d.position,unitNumber=d.unit_number,status=status_names[d.status]}
     end
     table.sort(drills,less)
   end
@@ -184,7 +185,7 @@ if group_patches and #resources>0 then
     local key=res.name..":"..tx..":"..ty
     if parent[key]==nil then
       parent[key]=key
-      items[#items+1]={key=key,name=res.name,position=res.position,amount=res.amount,tx=tx,ty=ty}
+      items[#items+1]={key=key,name=res.name,position=res.position,amount=res.amount,tx=tx,ty=ty,infinite=res.infinite}
     end
   end
   local function find(a)
@@ -212,11 +213,18 @@ if group_patches and #resources>0 then
     local root=find(item.key)
     local group=groups[root]
     if not group then
-      group={name=item.name,tiles=0,totalAmount=0,minx=math.huge,miny=math.huge,maxx=-math.huge,maxy=-math.huge,sumx=0,sumy=0}
+      group={name=item.name,tiles=0,totalAmount=0,yieldPercent=0,infinite=false,minx=math.huge,miny=math.huge,maxx=-math.huge,maxy=-math.huge,sumx=0,sumy=0}
       groups[root]=group
     end
     group.tiles=group.tiles+1
-    group.totalAmount=group.totalAmount+item.amount
+    -- Infinite resources (crude oil) carry a yield percentage, not a finite
+    -- amount, so they are reported separately instead of inflating totalAmount.
+    if item.infinite then
+      group.infinite=true
+      group.yieldPercent=group.yieldPercent+item.amount
+    else
+      group.totalAmount=group.totalAmount+item.amount
+    end
     group.sumx=group.sumx+item.position.x
     group.sumy=group.sumy+item.position.y
     if item.position.x<group.minx then group.minx=item.position.x end
@@ -225,24 +233,57 @@ if group_patches and #resources>0 then
     if item.position.y>group.maxy then group.maxy=item.position.y end
   end
   local list={}
-  for _,group in pairs(groups) do list[#list+1]=group end
+  for _,group in pairs(groups) do
+    group.sortAmount=(group.totalAmount>0) and group.totalAmount or group.yieldPercent
+    list[#list+1]=group
+  end
   table.sort(list,function(a,b)
-    if a.totalAmount~=b.totalAmount then return a.totalAmount>b.totalAmount end
+    if a.sortAmount~=b.sortAmount then return a.sortAmount>b.sortAmount end
     if a.name~=b.name then return a.name<b.name end
     if a.minx~=b.minx then return a.minx<b.minx end
     return a.miny<b.miny
   end)
+  -- Drills are matched by their mining area (mining_drill_radius around the
+  -- drill), not by distance, so a drill next to a patch it cannot mine is never
+  -- reported for it, and every reported drill carries its engine status.
+  local max_mining_radius=radius
+  for _,drill_proto in pairs(prototypes.entity) do
+    if drill_proto.type=="mining-drill" then
+      local value=drill_proto.mining_drill_radius
+      if type(value)=="number" and value>max_mining_radius then max_mining_radius=value end
+    end
+  end
+  local function drill_radius(d)
+    local value=d.prototype.mining_drill_radius
+    if type(value)=="number" then return value end
+    return radius
+  end
   for _,group in ipairs(list) do
     local drills,seen={},{}
-    local found=surface.find_entities_filtered{area={{group.minx-radius,group.miny-radius},{group.maxx+radius,group.maxy+radius}},type="mining-drill",force=force}
+    local covered={}
+    local covered_tiles,covered_amount=0,0
+    local found=surface.find_entities_filtered{area={{group.minx-max_mining_radius,group.miny-max_mining_radius},{group.maxx+max_mining_radius,group.maxy+max_mining_radius}},type="mining-drill",force=force}
     for _,d in pairs(found) do
       if not seen[d.unit_number] then
         seen[d.unit_number]=true
-        drills[#drills+1]={kind="drill",name=d.name,position=d.position,unitNumber=d.unit_number}
+        local r=drill_radius(d)
+        local mine_area={{d.position.x-r,d.position.y-r},{d.position.x+r,d.position.y+r}}
+        local drill_tiles,drill_amount=0,0
+        for _,resource in pairs(surface.find_entities_filtered{area=mine_area,type="resource",name=group.name}) do
+          local amount=resource.amount or 0
+          drill_tiles=drill_tiles+1
+          drill_amount=drill_amount+amount
+          local key=resource.position.x..":"..resource.position.y
+          if not covered[key] then covered[key]=true; covered_tiles=covered_tiles+1; covered_amount=covered_amount+amount end
+        end
+        if drill_tiles>0 then
+          drills[#drills+1]={kind="drill",name=d.name,position=d.position,unitNumber=d.unit_number,status=status_names[d.status],coveredTiles=drill_tiles,coveredAmount=drill_amount}
+        end
       end
     end
     table.sort(drills,less)
-    patches[#patches+1]={name=group.name,tiles=group.tiles,totalAmount=group.totalAmount,bounds={leftTopX=group.minx,leftTopY=group.miny,rightBottomX=group.maxx,rightBottomY=group.maxy},centroid={x=group.sumx/group.tiles,y=group.sumy/group.tiles},nearbyDrills=drills}
+    local clipped=(group.minx<=area[1][1]+0.5 or group.maxx>=area[2][1]-0.5 or group.miny<=area[1][2]+0.5 or group.maxy>=area[2][2]-0.5)
+    patches[#patches+1]={name=group.name,tiles=group.tiles,totalAmount=group.totalAmount,infinite=group.infinite,yieldPercent=group.yieldPercent,bounds={leftTopX=group.minx,leftTopY=group.miny,rightBottomX=group.maxx,rightBottomY=group.maxy},centroid={x=group.sumx/group.tiles,y=group.sumy/group.tiles},nearbyDrills=drills,coveredTiles=covered_tiles,coveredAmount=covered_amount,clippedByArea=clipped}
   end
 end
 rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,area=area_result,drillRadius=radius,pageInfo={total=#entries,limit=limit,offset=offset,hasMore=#entries>offset+limit},resourceTotal=resource_total,obstacleTotal=obstacle_total,waterTotal=water_total,worldEntries=result,patches=patches})`
@@ -267,24 +308,35 @@ func worldPlacementQuery(r *Resolver, input *WorldPlacementInput) (*WorldPlaceme
 `, luaString(input.Surface), luaString(input.Force), luaString(input.Prototype), strconv.FormatFloat(input.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Position.Y, 'g', -1, 64), input.Direction) + worldCommonLua + `
 local proto=prototypes.entity[prototype]
 if not proto then fail("entity prototype not found"); return end
+-- manual is the check a player placing by hand gets; the engine default only
+-- tests collisions, so an offshore pump would pass on dry land.
+local build_check=defines.build_check_type.manual
+local w=proto.tile_width or 1
+local h=proto.tile_height or 1
+if direction==4 or direction==12 then w,h=h,w end
+local layers=proto.collision_mask.layers
 local position={x=x,y=y}
-local can_place=surface.can_place_entity{name=prototype,position=position,direction=direction,force=force}
+local can_place=surface.can_place_entity{name=prototype,position=position,direction=direction,force=force,build_check_type=build_check}
 local blockers={}
 local terrain=false
-local tx,ty=math.floor(x),math.floor(y)
-local tile=surface.get_tile(tx,ty)
+local tile=surface.get_tile(math.floor(x),math.floor(y))
 local tile_name=(tile and tile.valid) and tile.name or ""
 if not can_place then
+  -- The refusal comes from the whole footprint, so blockers and terrain are
+  -- collected over every tile the entity would occupy, not just the center tile.
   local seen={}
-  for _,e in pairs(surface.find_entities_filtered{area={{tx,ty},{tx+1,ty+1}},collision_mask=proto.collision_mask.layers}) do
+  for _,e in pairs(surface.find_entities_filtered{area={{x-w/2,y-h/2},{x+w/2,y+h/2}},collision_mask=layers}) do
     if e.valid and not seen[e.name] then seen[e.name]=true; blockers[#blockers+1]=e.name end
   end
   table.sort(blockers)
-  local tile_mask=tile and tile.valid and tile.prototype.collision_mask or nil
-  local layers=tile_mask and tile_mask.layers or {}
-  for layer,_ in pairs(proto.collision_mask.layers) do
-    if layers[layer] then terrain=true; break end
-  end
+  local x0,x1=math.floor(x-w/2+0.001),math.ceil(x+w/2-0.001)-1
+  local y0,y1=math.floor(y-h/2+0.001),math.ceil(y+h/2-0.001)-1
+  for ty=y0,y1 do for tx=x0,x1 do
+    local footprint_tile=surface.get_tile(tx,ty)
+    local mask=footprint_tile and footprint_tile.valid and footprint_tile.prototype.collision_mask or nil
+    local tile_layers=mask and mask.layers or {}
+    for layer,_ in pairs(layers) do if tile_layers[layer] then terrain=true end end
+  end end
 end
 rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,prototype=prototype,position=position,direction=direction,canPlace=can_place,blockers=blockers,terrain=terrain,tile=tile_name})`
 	response, _, err := executeLua(r.addr, r.password, lua)

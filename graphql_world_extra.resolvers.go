@@ -33,3 +33,8 @@ func (r *queryResolver) CircuitNetwork(ctx context.Context, input CircuitNetwork
 func (r *queryResolver) ChartTags(ctx context.Context, input ChartTagsInput) (*ChartTagPage, error) {
 	return chartTagsQuery(r.Resolver, input)
 }
+
+// CircuitNetworks is the resolver for the circuitNetworks field.
+func (r *queryResolver) CircuitNetworks(ctx context.Context, input CircuitNetworksInput) (*CircuitNetworkPage, error) {
+	return circuitNetworksQuery(r.Resolver, input)
+}

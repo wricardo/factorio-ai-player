@@ -78,10 +78,53 @@ func TestPrototypeQueryDecodeAndLua(t *testing.T) {
 		`get(entity,"fluidbox_prototypes")`,
 		`call(entity,"get_max_wire_distance")`,
 		`call(entity,"get_supply_area_distance")`,
+		// Mining coverage, drill speed and power budgets are read so agents never
+		// hard-code them.
+		`get(entity,"resource_categories")`,
+		`resourceCategories=resource_categories`,
+		`call(entity,"get_mining_drill_radius")`,
+		`get(entity,"mining_drill_radius")`,
+		`get(entity,"mining_speed")`,
+		`call(entity,"get_max_energy_usage")`,
+		`energyUsageWatts=(max_energy_usage and max_energy_usage*60)`,
+		`get(entity,"module_inventory_size")`,
+		`miningRadius=`,
+		`miningSpeed=`,
+		`moduleSlots=`,
 	} {
 		if !strings.Contains(lua, want) {
 			t.Fatalf("prototype Lua missing %q\n%s", want, lua)
 		}
+	}
+}
+
+// A mining drill prototype must expose its mining area, speed, resource
+// categories, energy usage and module slots, so coverage and power budgets need
+// no hard-coded constants.
+func TestPrototypeQueryMiningFields(t *testing.T) {
+	r, _ := serveLuaOnce(t, `{"name":"electric-mining-drill","entity":{"name":"electric-mining-drill","type":"mining-drill","tileWidth":3,"tileHeight":3,"crafting_categories":{},"resourceCategories":["basic-solid","hard-solid"],"fluidBoxCount":0,"mineable":true,"maxHealth":300,"miningRadius":2.5,"miningSpeed":0.5,"energyUsageWatts":540000,"moduleSlots":3}}`)
+	result, err := prototypeQuery(r, "electric-mining-drill")
+	if err != nil {
+		t.Fatal(err)
+	}
+	entity := result.Entity
+	if entity == nil {
+		t.Fatalf("entity prototype missing: %+v", result)
+	}
+	if entity.MiningRadius == nil || *entity.MiningRadius != 2.5 {
+		t.Fatalf("miningRadius: %+v", entity.MiningRadius)
+	}
+	if entity.MiningSpeed == nil || *entity.MiningSpeed != 0.5 {
+		t.Fatalf("miningSpeed: %+v", entity.MiningSpeed)
+	}
+	if entity.EnergyUsageWatts == nil || *entity.EnergyUsageWatts != 540000 {
+		t.Fatalf("energyUsageWatts: %+v", entity.EnergyUsageWatts)
+	}
+	if entity.ModuleSlots == nil || *entity.ModuleSlots != 3 {
+		t.Fatalf("moduleSlots: %+v", entity.ModuleSlots)
+	}
+	if len(entity.ResourceCategories) != 2 || entity.ResourceCategories[0] != "basic-solid" || entity.ResourceCategories[1] != "hard-solid" {
+		t.Fatalf("resourceCategories: %+v", entity.ResourceCategories)
 	}
 }
 
@@ -137,10 +180,12 @@ func TestPlaceNextToDecodeAndLua(t *testing.T) {
 		`new_proto.tile_width`,
 		`if direction==4 or direction==12 then w,h=h,w end`,
 		`keeps_gap`,
-		`surface.can_place_entity{name=new_proto.name,position=position,direction=direction,force=c.force}`,
+		`surface.create_entity{name=new_proto.name,position=position,direction=direction,quality=quality,force=c.force,raise_built=true}`,
 		`inv.remove{name=item,quality=quality,count=1}`,
 		`inv.insert{name=item,quality=quality,count=1}`,
-		`if false then fail("out of build reach")`,
+		`if false then
+      out_of_reach=true`,
+		`fail("out of build reach")`,
 	} {
 		if !strings.Contains(lua, want) {
 			t.Fatalf("placeNextTo Lua missing %q\n%s", want, lua)

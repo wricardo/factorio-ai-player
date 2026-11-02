@@ -22,7 +22,7 @@ import (
 // belt_neighbours never contains it. Belt neighbours otherwise come from
 // LuaEntity.belt_neighbours, whose entries are BeltConnectableNeighbour tables
 // that hold the entity in their .entity field rather than exposing it directly.
-const entityMetaFieldsLua = `local function entity_meta_neighbour(value)
+const entityMetaFieldsLua = luaSignalTypeName + `local function entity_meta_neighbour(value)
   if value==nil then return nil end
   -- BeltConnectableNeighbour and fluidbox records wrap the entity in .entity.
   local ok_unwrap,unwrapped=pcall(function() return value.entity end)
@@ -76,12 +76,53 @@ local function entity_meta_fields(entity)
     if ok_fallback and fallback~=nil then return fallback end
     return nil
   end
+  -- SignalID.type is nil for item signals when reading and lowercase otherwise,
+  -- so it is normalized to the SignalType enum name here: a parameter read then
+  -- round-trips into setCombinatorParameters, which takes a SignalInput.
+  local function entity_meta_signal(signal)
+    if not signal then return nil end
+    local quality=signal.quality
+    if type(quality)~="string" then quality=quality and quality.name or nil end
+    return {name=signal.name,type=signal_type_name(signal.type),quality=quality}
+  end
+  local function entity_meta_networks(selection)
+    if not selection then return nil end
+    return {red=selection.red,green=selection.green}
+  end
+  local function entity_meta_arithmetic(parameters)
+    return {firstSignal=entity_meta_signal(parameters.first_signal),
+      firstSignalNetworks=entity_meta_networks(parameters.first_signal_networks),
+      firstConstant=parameters.first_constant,
+      secondSignal=entity_meta_signal(parameters.second_signal),
+      secondSignalNetworks=entity_meta_networks(parameters.second_signal_networks),
+      secondConstant=parameters.second_constant,
+      operation=parameters.operation,
+      outputSignal=entity_meta_signal(parameters.output_signal)}
+  end
+  local function entity_meta_decider(parameters)
+    local conditions={}
+    for _,condition in ipairs(parameters.conditions or {}) do
+      conditions[#conditions+1]={firstSignal=entity_meta_signal(condition.first_signal),
+        firstSignalNetworks=entity_meta_networks(condition.first_signal_networks),
+        secondSignal=entity_meta_signal(condition.second_signal),
+        secondSignalNetworks=entity_meta_networks(condition.second_signal_networks),
+        constant=condition.constant,comparator=condition.comparator,
+        compareType=condition.compare_type}
+    end
+    local outputs={}
+    for _,output in ipairs(parameters.outputs or {}) do
+      outputs[#outputs+1]={signal=entity_meta_signal(output.signal),
+        copyCountFromInput=output.copy_count_from_input~=false,
+        constant=output.constant,networks=entity_meta_networks(output.networks)}
+    end
+    return {conditions=conditions,outputs=outputs}
+  end
   local parameters=entity_meta_parameters(entity)
   if parameters~=nil then
     if entity.type=="arithmetic-combinator" then
-      meta.combinator_parameters={arithmetic=parameters}
+      meta.combinator_parameters={arithmetic=entity_meta_arithmetic(parameters)}
     elseif entity.type=="decider-combinator" then
-      meta.combinator_parameters={decider=parameters}
+      meta.combinator_parameters={decider=entity_meta_decider(parameters)}
     else
       local ok_json,encoded=pcall(helpers.table_to_json,parameters)
       if ok_json and encoded then meta.parameters_raw_json=encoded end
@@ -140,9 +181,9 @@ func combinatorSignalLua(signal *SignalInput) (string, error) {
 	if signal == nil || strings.TrimSpace(signal.Name) == "" {
 		return "", errors.New("signal name must not be empty")
 	}
-	kind := stringValueOr(signal.Type, "item")
-	if strings.TrimSpace(kind) == "" {
-		return "", errors.New("signal type must not be empty")
+	kind, err := signalTypeName(signal.Type)
+	if err != nil {
+		return "", err
 	}
 	result := "{type=" + luaString(kind) + ",name=" + luaString(signal.Name)
 	if signal.Quality != nil {
@@ -231,11 +272,11 @@ func deciderCombinatorParametersLua(input *DeciderCombinatorParametersInput) (st
 	if input == nil {
 		return "", errors.New("decider parameters must not be null")
 	}
-	if len(input.Conditions) == 0 || len(input.Conditions) > 100 {
-		return "", errors.New("decider conditions must contain between 1 and 100 entries")
+	if len(input.Conditions) == 0 || len(input.Conditions) > maxControlConditions {
+		return "", fmt.Errorf("decider conditions must contain between 1 and %d entries", maxControlConditions)
 	}
-	if len(input.Outputs) == 0 || len(input.Outputs) > 100 {
-		return "", errors.New("decider outputs must contain between 1 and 100 entries")
+	if len(input.Outputs) == 0 || len(input.Outputs) > maxControlConditions {
+		return "", fmt.Errorf("decider outputs must contain between 1 and %d entries", maxControlConditions)
 	}
 	validComparators := map[string]bool{"<": true, ">": true, "=": true, "≤": true, "≥": true, "≠": true, "<=": true, ">=": true, "!=": true}
 	var out strings.Builder

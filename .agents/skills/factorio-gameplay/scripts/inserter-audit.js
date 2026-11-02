@@ -2,7 +2,7 @@
 // Run with --strict=false: otherwise a GraphQL error throws and the envelope is lost.
 // gqlcli script --file .agents/skills/factorio-gameplay/scripts/inserter-audit.js \
 //   --arg '{"area":{"leftTopX":-120,"leftTopY":-45,"rightBottomX":-90,"rightBottomY":-34}}'
-// Input: area (<=256 tiles/side), surface, force. Uses factoryGraph, which returns each inserter with
+// Input: area (<=1024 tiles/side), surface, force. Uses factoryGraph, which returns each inserter with
 // its actual pickup/drop endpoint (machines, belts, chests). Returns only suspicious inserters.
 // Flags: NO_PICKUP / NO_DROP (empty tile or unsupported entity), SAME_ENDPOINT, and non-working status.
 async function run(gql, input) {

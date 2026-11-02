@@ -66,6 +66,11 @@ func runWithCredentials(args []string, out io.Writer, password string) error {
 	return runGraphQL(args, out, *addr, password)
 }
 
+// luaStatus reports the game tick, the game speed and pause state, and every
+// connected player with the unit number of the character it controls. Nested
+// actor fields are resolved by separate backend calls.
+const luaStatus = `local players = {}; for _, p in pairs(game.connected_players) do players[#players+1] = {name=p.name, surface=p.surface.name, position=p.position, character=p.character and p.character.unit_number or nil} end; rcon.print(helpers.table_to_json({tick=game.tick, players=players, speed=game.speed, paused=game.tick_paused}))`
+
 // executeGameOperation is the private game backend used by GraphQL resolvers.
 func executeGameOperation(args []string, out io.Writer, addr, password string) error {
 	var lua string
@@ -74,7 +79,7 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 		if len(args) != 1 {
 			return errors.New("status takes no options")
 		}
-		lua = `local players = {}; for _, p in pairs(game.connected_players) do players[#players+1] = {name=p.name, surface=p.surface.name, position=p.position} end; rcon.print(helpers.table_to_json({tick=game.tick, players=players, speed=game.speed, paused=game.tick_paused}))`
+		lua = luaStatus
 	case "entity":
 		var err error
 		lua, err = entityLua(args[1:], out)
@@ -96,6 +101,15 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 	case "character-spawn":
 		var err error
 		lua, err = characterSpawnLua(args[1:], out)
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	case "character-delete":
+		var err error
+		lua, err = characterDeleteLua(args[1:], out)
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
@@ -293,6 +307,7 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 		radius := fs.Float64("radius", 10, "Search radius (greater than 0, at most 100)")
 		name := fs.String("name", "", "Filter by entity prototype name")
 		kind := fs.String("type", "", "Filter by entity type")
+		force := fs.String("force", "", "Filter by force name")
 		order := fs.String("order", "distance", "Result order: distance or unit-number")
 		offset := fs.Int("offset", 0, "Zero-based offset into the ordered matches")
 		limit := fs.Int("limit", 100, "Maximum returned entities (1-1000)")
@@ -305,17 +320,17 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 		if fs.NArg() != 0 {
 			return errors.New("nearby takes no positional arguments")
 		}
-		if *surface == "" || math.IsNaN(*x) || math.IsInf(*x, 0) || math.IsNaN(*y) || math.IsInf(*y, 0) || math.IsNaN(*radius) || math.IsInf(*radius, 0) || *radius <= 0 || *radius > 100 {
+		if *surface == "" || math.IsNaN(*x) || math.IsInf(*x, 0) || math.IsNaN(*y) || math.IsInf(*y, 0) || math.IsNaN(*radius) || math.IsInf(*radius, 0) || *radius <= 0 || *radius > maxNeighborRadius {
 			return errors.New("invalid surface, coordinates, or radius")
 		}
 		ordering := strings.ToLower(*order)
 		if ordering != "distance" && ordering != "unit-number" && ordering != "unit_number" {
 			return errors.New("order must be distance or unit-number")
 		}
-		if *offset < 0 || *limit < 1 || *limit > 1000 {
-			return errors.New("offset must be non-negative and limit must be between 1 and 1000")
+		if *offset < 0 || *limit < 1 || *limit > maxPageSize {
+			return fmt.Errorf("offset must be non-negative and limit must be between 1 and %d", maxPageSize)
 		}
-		lua = nearbyLua(*surface, *x, *y, *radius, *name, *kind, ordering, *offset, *limit)
+		lua = nearbyLua(*surface, *x, *y, *radius, *name, *kind, *force, ordering, *offset, *limit)
 	default:
 		return fmt.Errorf("unknown command %q; use help", args[0])
 	}
@@ -425,7 +440,33 @@ func rconClosedAfterQuit(err error) bool {
 	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.ECONNRESET)
 }
 
+// rconConcurrency caps simultaneous RCON sessions. Every backend call opens its
+// own connection and gqlgen resolves list elements concurrently, so a query that
+// selects a forced field per row (Entity.inspection across 300 entities) would
+// otherwise open hundreds of sockets and Factorio answers with "connection
+// reset by peer". Callers wait for a slot; the per-connection deadline starts
+// after the wait so queueing never eats a call's budget.
+const rconConcurrency = 6
+
+var rconSlots = make(chan struct{}, rconConcurrency)
+
+// acquireRCONSlot blocks until a connection slot is free or ctx is done.
+func acquireRCONSlot(ctx context.Context) error {
+	select {
+	case rconSlots <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func releaseRCONSlot() { <-rconSlots }
+
 func executeContext(ctx context.Context, addr, password, command string, single bool) (string, error) {
+	if err := acquireRCONSlot(ctx); err != nil {
+		return "", err
+	}
+	defer releaseRCONSlot()
 	conn, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return "", fmt.Errorf("connect RCON: %w", err)
@@ -503,8 +544,8 @@ func executeContext(ctx context.Context, addr, password, command string, single 
 		if id != 2 {
 			return "", errors.New("unexpected RCON response ID")
 		}
-		if response.Len()+len(body) > 4<<20 {
-			return "", errors.New("RCON response exceeds 4 MiB")
+		if response.Len()+len(body) > 16<<20 {
+			return "", errors.New("RCON response exceeds 16 MiB")
 		}
 		response.WriteString(body)
 		if !commandReplied {
@@ -521,8 +562,8 @@ func executeContext(ctx context.Context, addr, password, command string, single 
 }
 
 func writePacket(w io.Writer, id, kind int32, body string) error {
-	if len(body) > 4<<20 {
-		return errors.New("RCON request exceeds 4 MiB")
+	if len(body) > 16<<20 {
+		return errors.New("RCON request exceeds 16 MiB")
 	}
 	packet := make([]byte, 14+len(body))
 	binary.LittleEndian.PutUint32(packet, uint32(len(body)+10))
@@ -548,7 +589,7 @@ func readPacket(r io.Reader) (int32, int32, string, error) {
 		return 0, 0, "", err
 	}
 	size := binary.LittleEndian.Uint32(sizeBytes[:])
-	if size < 10 || size > 4<<20 {
+	if size < 10 || size > 16<<20 {
 		return 0, 0, "", fmt.Errorf("invalid RCON packet size %d", size)
 	}
 	packet := make([]byte, size)

@@ -120,7 +120,11 @@ func factoryProductionQuery(r *Resolver, input *FactoryOverviewInput) (*FactoryP
 	if err != nil {
 		return nil, err
 	}
-	return factoryDecode[FactoryProduction](response)
+	production, err := factoryDecode[FactoryProduction](response)
+	if err != nil {
+		return nil, err
+	}
+	return filterProductionNames(production, input.ItemNames), nil
 }
 
 func factoryMachinesQuery(r *Resolver, input *MachinesInput) (*MachinePage, error) {
@@ -500,12 +504,16 @@ func isListField(key string) bool {
 		"bomMined", "bomIngredients", "bomProducts", "sciencePacks", "missingSciencePacks",
 		"ghostEntries", "placementAlternatives", "requestedMaterials", "rootBoxIds",
 		"fluidEntities", "fluidBoxes", "fluidConnections", "fluidSegments", "segmentFluids", "crossedItems", "characters", "blockedTiles", "blockers", "rows", "sites", "patches", "conflicts",
-		"sections", "slots", "trains", "schedule", "contents", "grid", "signals", "craftingCategories",
+		"sections", "slots", "trains", "schedule", "contents", "grid", "signals", "craftingCategories", "resourceCategories",
 		"conditions", "outputs", "killCounts", "missing", "created", "cargo", "equipmentGrid", "packs", "legend", "attention", "attentionCounts", "stockouts", "existing", "openTunnel", "results",
 		"roboportRobot", "roboportMaterial", "cargoWagon", "carTrunk", "spiderTrunk", "artilleryWagonAmmo", "orders",
 		"beltNeighbours", "fluidboxNeighbours", "produced", "consumed", "production", "seedRequirements",
 		"shortfall", "surfaces", "tags", "theoreticalBaseProducts", "ends", "targets",
-		"components", "stallEnds", "starveHeads":
+		"components", "stallEnds", "starveHeads", "ghosts",
+		"starvedConsumers", "byCategory", "additionalCategories", "fuelItems",
+		"compactEdges", "compactBoundaryEdges", "compactInserters", "compactNodes", "groundPositions",
+		"members", "segments", "problems", "trainStops", "carriages", "waitConditions", "collidedItems", "groundItems",
+		"entityCount", "defects", "counts":
 		return true
 	}
 	return false

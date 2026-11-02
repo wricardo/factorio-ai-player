@@ -13,3 +13,8 @@ import (
 func (r *queryResolver) FactoryBriefing(ctx context.Context, input FactoryBriefingInput) (*FactoryBriefing, error) {
 	return factoryBriefingQuery(r.Resolver, &input)
 }
+
+// FactoryAlerts is the resolver for the factoryAlerts field.
+func (r *queryResolver) FactoryAlerts(ctx context.Context, input FactoryAlertsInput) (*FactoryAlerts, error) {
+	return factoryAlertsQuery(r.Resolver, &input)
+}

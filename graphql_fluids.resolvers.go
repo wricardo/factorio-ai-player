@@ -19,3 +19,8 @@ func (r *mutationResolver) SetFluid(ctx context.Context, input SetFluidInput) (*
 func (r *queryResolver) FluidStock(ctx context.Context, input *FluidStockInput) (*FluidStockPage, error) {
 	return fluidStockQuery(r.Resolver, input)
 }
+
+// FluidSegments is the resolver for the fluidSegments field.
+func (r *queryResolver) FluidSegments(ctx context.Context, input FluidSegmentsInput) (*FluidSegmentsReport, error) {
+	return fluidSegmentsQuery(r.Resolver, &input)
+}

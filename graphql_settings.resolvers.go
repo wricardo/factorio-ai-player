@@ -68,6 +68,12 @@ func (r *mutationResolver) SetCircuitBehavior(ctx context.Context, input Circuit
 	return setActorResult(result, input.Actor, err)
 }
 
+// SetConstantCombinator is the resolver for the setConstantCombinator field.
+func (r *mutationResolver) SetConstantCombinator(ctx context.Context, input SetConstantCombinatorInput) (*SettingsResult, error) {
+	result, err := setConstantCombinator(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
+}
+
 // ConnectWire is the resolver for the connectWire field.
 func (r *mutationResolver) ConnectWire(ctx context.Context, input WireInput) (*WireResult, error) {
 	result, err := connectWire(r.Resolver, input, true)
@@ -78,4 +84,9 @@ func (r *mutationResolver) ConnectWire(ctx context.Context, input WireInput) (*W
 func (r *mutationResolver) DisconnectWire(ctx context.Context, input WireInput) (*WireResult, error) {
 	result, err := connectWire(r.Resolver, input, false)
 	return setActorResult(result, input.Actor, err)
+}
+
+// EntitySettings is the resolver for the entitySettings field.
+func (r *queryResolver) EntitySettings(ctx context.Context, input EntitySettingsInput) (*EntitySettingsPage, error) {
+	return entitySettingsQuery(r.Resolver, input)
 }

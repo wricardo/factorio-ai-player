@@ -3,6 +3,7 @@ package main
 import (
 	"math"
 	"net"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -78,9 +79,13 @@ func TestPlacementProbeLuaAndDecode(t *testing.T) {
 		"local direction=4",
 		"local area,area_result={{-3,-4},{7,6}}",
 		"local layers=proto.collision_mask.layers",
-		"surface.find_tiles_filtered{area=area,collision_mask=layers}",
+		"local build_check=defines.build_check_type.manual",
+		"surface.find_tiles_filtered{area={{left-margin,top-margin},{right+margin,bottom+margin}},collision_mask=layers}",
+		"local margin=math.max(math.ceil(w/2),math.ceil(h/2))",
 		"position={x=tx+0.5,y=ty+0.5}",
-		"surface.can_place_entity{name=prototype",
+		"surface.can_place_entity{name=prototype,position=position,direction=direction,force=force,build_check_type=build_check}",
+		`surface.find_entities_filtered{area={{position.x-w/2,position.y-h/2},{position.x+w/2,position.y+h/2}},collision_mask=layers}`,
+		"terrain=footprint_blocks(position.x,position.y)",
 		"tx=left,right-1",
 	} {
 		if !strings.Contains(lua, want) {
@@ -142,8 +147,8 @@ func TestPlacementProbeValidation(t *testing.T) {
 		{"missing area", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe"}, "area is required"},
 		{"nan coordinate", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Area: &FactoryAreaInput{LeftTopX: math.NaN(), RightBottomX: 2, RightBottomY: 2}}, "area coordinates must be finite"},
 		{"inverted area", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Area: &FactoryAreaInput{LeftTopX: 5, RightBottomX: 2, RightBottomY: 2}}, "area must have positive dimensions"},
-		{"too wide", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Area: &FactoryAreaInput{RightBottomX: 257, RightBottomY: 2}}, "no greater than 256 tiles"},
-		{"too many samples", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Area: &FactoryAreaInput{RightBottomX: 200, RightBottomY: 100}}, "above the 16384 tile limit"},
+		{"too wide", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Area: &FactoryAreaInput{RightBottomX: maxAreaTiles + 1, RightBottomY: 2}}, "no greater than 1024 tiles"},
+		{"too many samples", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Area: &FactoryAreaInput{RightBottomX: 400, RightBottomY: 200}}, "above the 65536 tile limit"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -227,8 +232,8 @@ func TestPlacementProbeSiteValidation(t *testing.T) {
 		{"zero width", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Mode: PlacementProbeModeSites, SiteWidth: 0, SiteHeight: 1, MaxSites: 1, Area: area}, "site width and height must be finite and at least 1"},
 		{"nan height", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Mode: PlacementProbeModeSites, SiteWidth: 1, SiteHeight: math.NaN(), MaxSites: 1, Area: area}, "site width and height must be finite and at least 1"},
 		{"site wider than area", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Mode: PlacementProbeModeSites, SiteWidth: 9, SiteHeight: 1, MaxSites: 1, Area: area}, "must not exceed the probe area"},
-		{"zero max sites", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Mode: PlacementProbeModeSites, SiteWidth: 1, SiteHeight: 1, MaxSites: 0, Area: area}, "maxSites must be between 1 and 200"},
-		{"excess max sites", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Mode: PlacementProbeModeSites, SiteWidth: 1, SiteHeight: 1, MaxSites: 201, Area: area}, "maxSites must be between 1 and 200"},
+		{"zero max sites", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Mode: PlacementProbeModeSites, SiteWidth: 1, SiteHeight: 1, MaxSites: 0, Area: area}, "maxSites must be between 1 and 1000"},
+		{"excess max sites", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Mode: PlacementProbeModeSites, SiteWidth: 1, SiteHeight: 1, MaxSites: maxProbeSites + 1, Area: area}, "maxSites must be between 1 and 1000"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -238,4 +243,109 @@ func TestPlacementProbeSiteValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A belt-occupied tile must be reported blocked for every probe direction.
+// can_place_entity accepts the tile for every direction that differs from the
+// belt's own one because the engine would fast-replace it, so the probe must
+// not rely on that engine check alone (factorio-ai-player-0ge).
+func TestPlacementProbeBeltOccupiedTileBlockedForEveryDirection(t *testing.T) {
+	stubs := `
+defines.build_check_type={manual=2}
+prototypes={entity={["transport-belt"]={collision_mask={layers={object=true}},tile_width=1,tile_height=1}},item={},fluid={}}
+local belt={name="transport-belt",type="transport-belt",valid=true,unit_number=1949,
+  position={x=17.5,y=27.5},
+  bounding_box={left_top={x=17,y=27},right_bottom={x=18,y=28}}}
+local function overlaps_belt(area)
+  return area[1][1]<18 and area[2][1]>17 and area[1][2]<28 and area[2][2]>27
+end
+local surface=game.surfaces["nauvis"]
+surface.find_entities_filtered=function(filter)
+  if filter.position then
+    if filter.position.x==17.5 and filter.position.y==27.5 then return {belt} end
+    return {}
+  end
+  if filter.area and overlaps_belt(filter.area) then return {belt} end
+  return {}
+end
+surface.find_tiles_filtered=function() return {} end
+-- The engine's manual check accepts a belt on a belt unless the direction
+-- matches: that is the fast-replace acceptance this probe must override.
+surface.can_place_entity=function(spec)
+  local on_belt=spec.position.x==17.5 and spec.position.y==27.5
+  return not (on_belt and spec.direction==0)
+end
+surface.get_tile=function(x,y) return {valid=true,name="grass-1"} end
+`
+	for _, direction := range []int{0, 4, 8, 12} {
+		t.Run(strconv.Itoa(direction), func(t *testing.T) {
+			r, commands := serveLuaOnce(t, "{}")
+			if _, err := placementProbeQuery(r, &PlacementProbeInput{
+				Surface: "nauvis", Force: "player", Prototype: "transport-belt",
+				Direction: direction,
+				Area:      &FactoryAreaInput{LeftTopX: 17, LeftTopY: 27, RightBottomX: 18, RightBottomY: 28},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			source := <-commands
+			assertions := `
+assert(captured, "no payload captured")
+assert(not captured.error, "probe failed: "..tostring(captured.error))
+assert(captured.sampled==1, "sampled "..tostring(captured.sampled))
+assert(captured.blocked==1, "blocked "..tostring(captured.blocked))
+assert(captured.placeable==0, "placeable "..tostring(captured.placeable))
+assert(#captured.blockedTiles==1, "blockedTiles "..#captured.blockedTiles)
+local names=captured.blockedTiles[1].blockers
+assert(#names==1 and names[1]=="transport-belt", "blockers "..tostring(names[1]))
+`
+			runLuaFixture(t, source, stubs, assertions)
+		})
+	}
+}
+
+// A resource tile stays placeable: belts are legal over ore, and the occupancy
+// guard must keep excluding resources (and ghosts and item stacks) so a mining
+// field does not read as a wall.
+func TestPlacementProbeResourceTileStaysPlaceable(t *testing.T) {
+	r, commands := serveLuaOnce(t, "{}")
+	if _, err := placementProbeQuery(r, &PlacementProbeInput{
+		Surface: "nauvis", Force: "player", Prototype: "transport-belt",
+		Direction: 0,
+		Area:      &FactoryAreaInput{LeftTopX: 30, LeftTopY: 30, RightBottomX: 31, RightBottomY: 31},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	stubs := `
+defines.build_check_type={manual=2}
+prototypes={entity={["transport-belt"]={collision_mask={layers={object=true}},tile_width=1,tile_height=1}},item={},fluid={}}
+local ore={name="iron-ore",type="resource",valid=true,
+  position={x=30.5,y=30.5},
+  bounding_box={left_top={x=30,y=30},right_bottom={x=31,y=31}}}
+local ghost={name="transport-belt",type="entity-ghost",valid=true,
+  position={x=30.5,y=30.5},
+  bounding_box={left_top={x=30,y=30},right_bottom={x=31,y=31}}}
+local stack={name="coal",type="item-entity",valid=true,
+  position={x=30.5,y=30.5},
+  bounding_box={left_top={x=30,y=30},right_bottom={x=31,y=31}}}
+local surface=game.surfaces["nauvis"]
+surface.find_entities_filtered=function(filter)
+  if filter.position then return {ore,ghost,stack} end
+  -- Resources, ghosts and item stacks are not on the prototype's collision
+  -- layer, so the engine's collision scan finds nothing there.
+  return {}
+end
+surface.find_tiles_filtered=function() return {} end
+surface.can_place_entity=function() return true end
+surface.get_tile=function(x,y) return {valid=true,name="grass-1"} end
+`
+	source := <-commands
+	assertions := `
+assert(captured, "no payload captured")
+assert(not captured.error, "probe failed: "..tostring(captured.error))
+assert(captured.sampled==1, "sampled "..tostring(captured.sampled))
+assert(captured.placeable==1, "placeable "..tostring(captured.placeable))
+assert(captured.blocked==0, "blocked "..tostring(captured.blocked))
+assert(#captured.blockedTiles==0, "blockedTiles "..#captured.blockedTiles)
+`
+	runLuaFixture(t, source, stubs, assertions)
 }

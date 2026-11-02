@@ -24,7 +24,7 @@ import (
 
 const (
 	graphqlPath    = "/query"
-	graphqlMaxBody = 1 << 20
+	graphqlMaxBody = 16 << 20
 )
 
 // runServer starts a GraphQL HTTP endpoint for the same schema the inline

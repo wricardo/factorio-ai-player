@@ -168,3 +168,99 @@ func TestMachineDiagnosticsUsesMachineSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Every 2.0.77 condition that stops a machine must land in an actionable
+// category, including the statuses missing from the original mapping.
+func TestMachineDiagnosticBlockingCoversEveryEngineStoppingStatus(t *testing.T) {
+	for _, test := range []struct {
+		status   string
+		category MachineBlockCategory
+	}{
+		{"low_input_fluid", MachineBlockCategoryMissingIngredients},
+		{"no_minable_resources", MachineBlockCategoryResourceDepleted},
+		{"recipe_not_researched", MachineBlockCategoryMissingResearch},
+		{"not_enough_space_in_output", MachineBlockCategoryOutputBlocked},
+		{"disabled", MachineBlockCategoryDisabled},
+		{"frozen", MachineBlockCategoryDisabled},
+		{"paused", MachineBlockCategoryDisabled},
+		{"marked_for_deconstruction", MachineBlockCategoryDisabled},
+		{"recharging_after_power_outage", MachineBlockCategoryMissingPower},
+		{"disabled_by_recipe", MachineBlockCategoryOther},
+	} {
+		t.Run(test.status, func(t *testing.T) {
+			result := diagnosticBlocked(&test.status, nil)
+			if result.Category != test.category {
+				t.Fatalf("category = %v, want %v", result.Category, test.category)
+			}
+			wantAction := test.category != MachineBlockCategoryOther
+			if (result.SuggestedAction != nil) != wantAction {
+				t.Fatalf("suggested action = %v, want present %v", result.SuggestedAction, wantAction)
+			}
+		})
+	}
+}
+
+// Mining and burner state must be reported from the same snapshot, and a
+// remembered furnace recipe must be labelled PREVIOUS.
+func TestMachineDiagnosticMiningBurnerAndPreviousRecipe(t *testing.T) {
+	snapshot := &machineDiagnosticSnapshot{
+		Recipe: new("iron-plate"), RecipeQuality: new("normal"), RecipeSource: new("PREVIOUS"),
+		RecipeDuration: 3.2, CraftingSpeed: 1,
+		Ingredients: []diagnosticIngredient{{Name: "iron-ore", Type: "item", Amount: 1}},
+		Products:    []diagnosticProduct{{Name: "iron-plate", Type: "item", Amount: new(1.0), Probability: 1}},
+		Input:       []diagnosticInput{{Name: "iron-ore", Quality: "normal", Count: 2}},
+		Mining:      &machineDiagnosticMining{Target: "iron-ore", Amount: new(12000.0), TheoreticalUnitsPerSecond: new(0.25), ProductivityBonus: new(0.1)},
+		Burner: &machineDiagnosticBurner{FuelItems: []diagnosticInput{{Name: "coal", Quality: "normal", Count: 3}},
+			RemainingBurningFuelJoules: 1000, CurrentlyBurning: new("coal"), EstimatedSecondsOfFuel: new(20.0)},
+		RawStatusName: new("no_ingredients"), RawStatusCode: new(18),
+	}
+	result := calculateMachineDiagnostics(snapshot)
+	if result.RecipeSource == nil || *result.RecipeSource != RecipeSourcePrevious {
+		t.Fatalf("recipe source: %v", result.RecipeSource)
+	}
+	if result.Mining == nil || result.Mining.Target != "iron-ore" || *result.Mining.TheoreticalUnitsPerSecond != 0.25 ||
+		*result.Mining.Amount != 12000 || *result.Mining.ProductivityBonus != 0.1 {
+		t.Fatalf("mining: %+v", result.Mining)
+	}
+	if result.Burner == nil || len(result.Burner.FuelItems) != 1 || result.Burner.FuelItems[0].Count != 3 ||
+		*result.Burner.CurrentlyBurning != "coal" || *result.Burner.EstimatedSecondsOfFuel != 20 ||
+		result.Burner.RemainingBurningFuelJoules != 1000 {
+		t.Fatalf("burner: %+v", result.Burner)
+	}
+	if result.Blocked.Category != MachineBlockCategoryMissingIngredients || result.Throughput == nil {
+		t.Fatalf("blocked/throughput: %+v %+v", result.Blocked, result.Throughput)
+	}
+	snapshot.Mining = nil
+	snapshot.Burner = nil
+	bare := calculateMachineDiagnostics(&machineDiagnosticSnapshot{})
+	if bare.RecipeSource != nil || bare.Mining != nil || bare.Burner != nil {
+		t.Fatalf("absent state must stay null: %+v", bare)
+	}
+}
+
+// A drill without a recipe points the reader at its mining section rather than
+// claiming the machine selection is missing.
+func TestMachineDiagnosticDrillReasonsMentionMining(t *testing.T) {
+	snapshot := &machineDiagnosticSnapshot{Mining: &machineDiagnosticMining{Target: "coal", TheoreticalUnitsPerSecond: new(0.2)}}
+	result := calculateMachineDiagnostics(snapshot)
+	if result.Throughput != nil || result.ThroughputUnavailableReason == nil || !strings.Contains(*result.ThroughputUnavailableReason, "mining") {
+		t.Fatalf("drill reason: %v", result.ThroughputUnavailableReason)
+	}
+}
+
+// The snapshot builder must stay printable for the single-entity body and must
+// not call fail() before the supported-type guard.
+func TestMachineDiagnosticsBodyKeepsSnapshotContract(t *testing.T) {
+	if !strings.HasSuffix(machineDiagnosticsBody, "rcon.print(helpers.table_to_json(snapshot))") {
+		t.Fatalf("body tail changed:\n%s", machineDiagnosticsBody)
+	}
+	builder := machineDiagnosticsSnapshotLua
+	if !strings.Contains(builder, "local function machine_diagnostics_snapshot(e)") || strings.Contains(builder, "fail(") {
+		t.Fatalf("snapshot builder must not fail:\n%s", builder)
+	}
+	for _, want := range []string{"previous_recipe", "get_max_energy_usage", "fuel_value", "theoretical_units_per_second"} {
+		if !strings.Contains(builder, want) {
+			t.Fatalf("snapshot builder missing %q", want)
+		}
+	}
+}

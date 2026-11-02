@@ -100,7 +100,8 @@ func clearRecipe(r *Resolver, input ClearRecipeInput) (*ActionResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	lua := luaFail + prefix + machineDrainLua + `if e.is_crafting() then fail("machine has an active craft"); return end
+	lua := luaFail + prefix + machineDrainLua + `if e.type~="assembling-machine" then fail("clearing a recipe needs an assembling machine; a furnace selects its recipe from its input"); return end
+if e.is_crafting() then fail("machine has an active craft"); return end
 local drained={}
 machine_drain(e,drained,c,c.position,true)
 local ok,engine_returned=pcall(function() return e.set_recipe(nil) end)

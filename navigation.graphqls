@@ -1,5 +1,5 @@
 extend type Mutation {
-  """Starts one persistent navigation job that walks a detached character, or a connected player's current character, toward a finite position, a tracked character, or an entity's bounding box; a player-controlled character whose player is disconnected or no longer controls it is rejected, and a character may have only one active job at a time. Supply exactly one of position, targetCharacter, and targetEntity: a chase target must differ from the walker and needs tolerance of at least 1 because characters collide, while a static target is approached to the nearest point on its bounding box expanded by tolerance. Invalid input (bad unit numbers, non-finite or beyond +/-1000000 coordinates, tolerance outside (0, 10], timeoutTicks outside 1..216000, waitTimeoutSeconds outside 1..3600, missing factorio_ai_navigation interface) is a GraphQL error and no job is created. The job runs in the tick loop as PATHFINDING then MOVING with at most three replans and a 120-tick stall detector, and finishes as ARRIVED, NO_PATH, TIMED_OUT, STUCK, CANCELLED, TARGET_MISSING, or CHARACTER_MISSING; chase destinations track the target's live position and finished jobs remain readable until 256 newer jobs evict them. Emits one in-game notification unless message overrides it. wait=false returns the freshly started job; wait=true polls status every 250 ms until the job leaves PATHFINDING/MOVING or waitTimeoutSeconds expires, in which case the latest observation is returned without cancelling anything."""
+  """Starts one persistent navigation job that walks a detached character, or a connected player's current character, toward a finite position, a tracked character, or an entity's bounding box; a player-controlled character whose player is disconnected or no longer controls it is rejected, and a character may have only one active job at a time. Supply exactly one of position, targetCharacter, and targetEntity: a chase target must differ from the walker and needs tolerance of at least 1 because characters collide, while a static target is approached to the nearest point on its bounding box expanded by tolerance, probing the midpoint and corner of each inflated side so one blocked side does not fail the job. A requested position that falls inside a machine's collision box is snapped to the nearest free tile and reported through the returned destination. Starting while the character already has an active job is a GraphQL error that names that job's id, which navigationActive also reports, so a lost start response can be recovered or cancelled. Invalid input (bad unit numbers, non-finite or beyond +/-1000000 coordinates, tolerance outside (0, 10], timeoutTicks outside 1..216000, waitTimeoutSeconds outside 1..3600, missing factorio_ai_navigation interface) is a GraphQL error and no job is created. The job runs in the tick loop as PATHFINDING then MOVING with at most three replans and a 120-tick stall detector, and finishes as ARRIVED, NO_PATH, TIMED_OUT, STUCK, CANCELLED, TARGET_MISSING, or CHARACTER_MISSING; chase destinations track the target's live position and finished jobs remain readable until 256 newer jobs evict them. Emits one in-game notification unless message overrides it. wait=false returns the freshly started job; wait=true polls status every 250 ms until the job leaves PATHFINDING/MOVING or waitTimeoutSeconds expires, in which case the latest observation is returned without cancelling anything."""
   navigateStart(input: NavigateStartInput!): NavigationJob!
   """Cancels the navigation job with the given ID: an active job stops its character and finishes as CANCELLED with reason "cancelled by request", while an already finished job is returned unchanged. Unknown or evicted IDs (only the newest 256 finished jobs are retained) and blank IDs are GraphQL errors. The returned job is the post-cancel snapshot. Emits one in-game notification unless message overrides it."""
   navigateCancel(
@@ -12,18 +12,20 @@ extend type Mutation {
 extend type Query {
   """Reads one navigation job's latest snapshot by ID without changing it; this is the polling surface used by wait=true and by callers that started a job with wait=false. A blank or unknown ID, including a job evicted after 256 newer completed jobs, is a GraphQL error. tick is when the snapshot was observed, destination is the current goal (updated each tick for a chase), position is the last observed character position, and status carries a normalized category, terminal flag, and raw engine name; surface and character identify the walker, and reason explains terminal or cancelled outcomes. Each call is one RCON read, so concurrent status polls do not block the game thread beyond that read."""
   navigation(id: ID!): NavigationJob!
+  """Reads the job the selected actor's character is currently walking, or null when it has none. Use it to recover from a lost navigateStart response: the id returned here can be polled with navigation or cancelled with navigateCancel. Actor selection and character resolution are validated in Go, and the lookup is one RCON read of the mod's active-job map."""
+  navigationActive(actor: ActorInput!): NavigationJob
 }
 
 """Destination and limits for navigation of a detached character or connected player's current character. Provide exactly one of finite x and y, targetCharacter, or targetEntity. With targetCharacter the destination follows that character's current position, so the walker chases it; tolerance must then be at least 1 because characters collide. Chase goals are probed on rings of eight points starting at the tolerance radius, so a target standing inside a chest or inserter row is still reachable; only exhausting every candidate reports NO_PATH. With targetEntity the character walks to the nearest point on the entity's bounding box expanded by tolerance, which suits chests, assembling machines, inserters, and other static entities."""
 input NavigateStartInput {
   """Actor whose character moves. Player selectors resolve current character before starting."""
   actor: ActorInput!
-  """Finite destination coordinates on the character's current surface. Required unless targetCharacter or targetEntity is set."""
+  """Finite destination coordinates on the character's current surface. Required unless targetCharacter or targetEntity is set. A point inside an entity is moved to the nearest non-colliding spot, which the returned destination reports."""
   position: PositionInput
   """Character unit number from 1 to 4294967295 on the same surface; the destination tracks this character and must differ from character. Use targetEntity for anything that is not a character."""
   targetCharacter: UnitNumber
-  """Unit number of a static entity on the character's current surface."""
-  targetEntity: UnitNumber
+  """Static entity to approach, addressed by prototype name plus position (preferred, resolved inside one tile) or by unit number alone for prototypes the engine can look up directly. surface is ignored because navigation always resolves the entity on the walking character's current surface, and the position should be the entity centre reported by entities or nearby; a rounded tile coordinate still matches. Position targets are snapped out of collision boxes, and arrival is measured from the entity's bounding box inflated by tolerance."""
+  targetEntity: EntityRefInput
   """Arrival distance, greater than zero and at most 10. For a chase (targetCharacter) it is the gap from the target character; for targetEntity it is the gap from the entity's bounding box. At least 1 when targetCharacter is set."""
   tolerance: Float! = 0.5
   """Maximum job duration in ticks, from 1 to 216000."""
@@ -54,13 +56,23 @@ type NavigationJob {
   targetEntity: UnitNumber
   """Surface on which navigation started."""
   surface: String!
-  """Requested destination."""
+  """Requested destination, adjusted to the nearest non-colliding position when the requested point was inside an entity."""
   destination: Position!
   """Latest character position, if available."""
   position: Position
   status: EngineStatus!
   """Optional explanation of the job state."""
   reason: String
+  """Arrival distance used by this job."""
+  tolerance: Float!
+  """Maximum job duration in ticks."""
+  timeoutTicks: Int!
+  """Re-path attempts since the last real progress; reset when the character moves."""
+  replans: Int!
+  """Waypoints left on the current path, zero while pathfinding or when no path is held."""
+  waypointsRemaining: Int!
+  """Distance still to cover before arrival is reported: the gap to an entity's inflated bounding box, otherwise the distance to the destination."""
+  distanceRemaining: Float!
   """Tick at which the job started."""
   startedTick: Float!
   """Tick at which the job was last updated."""

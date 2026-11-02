@@ -24,7 +24,7 @@ extend type Mutation {
   setEntityTags(input: EntityTagsInput!): EntityMetaResult!
   """Sets one entity's map name tag, or clears it when nameTag is the empty string; the entity must accept name_tag. Address the entity by unitNumber on the actor's surface, or by prototype name plus exact centre position on the actor's force, with an actor naming exactly one player or character, and out-of-reach targets rejected only when FACTORIO_ENFORCE_REACH is enabled. Returns the post-write snapshot including nameTag, and emits an in-game notification that says set or cleared unless message overrides it."""
   setNameTag(input: EntityNameTagInput!): EntityMetaResult!
-  """Replaces the control behavior parameters of one arithmetic or decider combinator. parameters must fill exactly one family matching the target's engine type, otherwise the write is rejected; arithmetic needs a whitelisted operation (*, /, +, -, %, ^, <<, >>, AND, OR, XOR) and an output signal with firstSignal/firstConstant and secondSignal/secondConstant mutually exclusive, while decider needs 1..100 conditions and 1..100 outputs with optional comparator (including <=, >=, !=), and/or compareType, and mutually exclusive secondSignal and constant per condition. The target is addressed by unitNumber or by prototype name plus exact centre position on the actor's force, and the result is the post-write snapshot with the stored combinatorParameters. Emits one in-game notification unless message overrides it."""
+  """Replaces the control behavior parameters of one arithmetic or decider combinator. parameters must fill exactly one family matching the target's engine type, otherwise the write is rejected; arithmetic needs a whitelisted operation (*, /, +, -, %, ^, <<, >>, AND, OR, XOR) and an output signal with firstSignal/firstConstant and secondSignal/secondConstant mutually exclusive, while decider needs 1..1000 conditions and 1..1000 outputs with optional comparator (including <=, >=, !=), and/or compareType, and mutually exclusive secondSignal and constant per condition. The target is addressed by unitNumber or by prototype name plus exact centre position on the actor's force, and the result is the post-write snapshot with the stored combinatorParameters. Emits one in-game notification unless message overrides it."""
   setCombinatorParameters(input: SetCombinatorParametersInput!): EntityMetaResult!
 }
 
@@ -54,20 +54,21 @@ type CircuitNetworkSelection {
 }
 
 type ArithmeticCombinatorParameters {
-  firstSignal: CircuitSignal
+  firstSignal: SignalID
   firstSignalNetworks: CircuitNetworkSelection
   firstConstant: Int
-  secondSignal: CircuitSignal
+  secondSignal: SignalID
   secondSignalNetworks: CircuitNetworkSelection
   secondConstant: Int
   operation: String!
-  outputSignal: CircuitSignal!
+  """Null on a freshly placed combinator: the engine stores no output signal yet."""
+  outputSignal: SignalID
 }
 
 type DeciderCombinatorCondition {
-  firstSignal: CircuitSignal
+  firstSignal: SignalID
   firstSignalNetworks: CircuitNetworkSelection
-  secondSignal: CircuitSignal
+  secondSignal: SignalID
   secondSignalNetworks: CircuitNetworkSelection
   constant: Int
   comparator: String
@@ -75,7 +76,7 @@ type DeciderCombinatorCondition {
 }
 
 type DeciderCombinatorOutput {
-  signal: CircuitSignal!
+  signal: SignalID
   copyCountFromInput: Boolean!
   constant: Int
   networks: CircuitNetworkSelection

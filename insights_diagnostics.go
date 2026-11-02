@@ -68,89 +68,166 @@ type diagnosticFluid struct {
 	Temperature float64 `json:"temperature"`
 }
 
-type machineDiagnosticSnapshot struct {
-	Tick              float64                `json:"tick"`
-	Recipe            *string                `json:"recipe"`
-	RecipeQuality     *string                `json:"recipeQuality"`
-	RecipeDuration    float64                `json:"recipeDuration"`
-	CraftingSpeed     float64                `json:"craftingSpeed"`
-	ProductivityBonus *float64               `json:"productivityBonus"`
-	Ingredients       []diagnosticIngredient `json:"ingredients"`
-	Products          []diagnosticProduct    `json:"products"`
-	Input             []diagnosticInput      `json:"input"`
-	Fluids            []diagnosticFluid      `json:"fluids"`
-	RawStatusName     *string                `json:"rawStatusName"`
-	RawStatusCode     *int                   `json:"rawStatusCode"`
-	Power             *MachinePowerState     `json:"power"`
+type machineDiagnosticMining struct {
+	Target                    string   `json:"target"`
+	Amount                    *float64 `json:"amount"`
+	TheoreticalUnitsPerSecond *float64 `json:"theoreticalUnitsPerSecond"`
+	ProductivityBonus         *float64 `json:"productivityBonus"`
 }
 
-const machineDiagnosticsBody = `
-local supported={["assembling-machine"]=true,furnace=true,["mining-drill"]=true,lab=true,["rocket-silo"]=true}
-if not supported[e.type] then fail("endpoint is no longer a supported machine"); return end
-local status_names={}; for name,code in pairs(defines.entity_status) do status_names[code]=name end
-local snapshot={tick=game.tick,ingredients={},products={},input={},fluids={},
-  raw_status_name=status_names[e.status] or "unknown",raw_status_code=e.status}
-local function quality_name(quality)
+type machineDiagnosticBurner struct {
+	FuelItems                  []diagnosticInput `json:"fuelItems"`
+	RemainingBurningFuelJoules float64           `json:"remainingBurningFuelJoules"`
+	CurrentlyBurning           *string           `json:"currentlyBurning"`
+	EstimatedSecondsOfFuel     *float64          `json:"estimatedSecondsOfFuel"`
+}
+
+type machineDiagnosticSnapshot struct {
+	Tick              float64                  `json:"tick"`
+	Recipe            *string                  `json:"recipe"`
+	RecipeQuality     *string                  `json:"recipeQuality"`
+	RecipeSource      *string                  `json:"recipeSource"`
+	RecipeDuration    float64                  `json:"recipeDuration"`
+	CraftingSpeed     float64                  `json:"craftingSpeed"`
+	ProductivityBonus *float64                 `json:"productivityBonus"`
+	Ingredients       []diagnosticIngredient   `json:"ingredients"`
+	Products          []diagnosticProduct      `json:"products"`
+	Input             []diagnosticInput        `json:"input"`
+	Fluids            []diagnosticFluid        `json:"fluids"`
+	Mining            *machineDiagnosticMining `json:"mining"`
+	Burner            *machineDiagnosticBurner `json:"burner"`
+	RawStatusName     *string                  `json:"rawStatusName"`
+	RawStatusCode     *int                     `json:"rawStatusCode"`
+	Power             *MachinePowerState       `json:"power"`
+}
+
+// machineDiagnosticsSnapshotLua defines machine_diagnostics_snapshot(e), which
+// reads one entity into a raw snapshot table. It never calls fail(), so batch
+// callers can compose it; the supported-type guard lives in the body below.
+const machineDiagnosticsSnapshotLua = `
+local function machine_diagnostics_quality_name(quality)
   if quality==nil then return "normal" end
   local ok,name=pcall(function() return quality.name end)
   if ok and name then return name end
   if type(quality)=="string" then return quality end
   return "normal"
 end
-local function inventory_contents(inv)
+local function machine_diagnostics_contents(inv)
   if not inv then return {} end
   local result={}
   for _,stack in pairs(inv.get_contents()) do
-    result[#result+1]={name=stack.name,quality=quality_name(stack.quality),count=stack.count}
+    result[#result+1]={name=stack.name,quality=machine_diagnostics_quality_name(stack.quality),count=stack.count}
   end
   table.sort(result,function(a,b) if a.name~=b.name then return a.name<b.name end return a.quality<b.quality end)
   return result
 end
-local recipe,recipe_quality
-if e.type=="furnace" or e.type=="assembling-machine" or e.type=="rocket-silo" then
-  recipe,recipe_quality=e.get_recipe()
-end
-if recipe then
-  snapshot.recipe=recipe.name
-  snapshot.recipe_quality=quality_name(recipe_quality)
-  snapshot.recipe_duration=recipe.energy
-  snapshot.ingredients=recipe.ingredients or {}
-  snapshot.products=recipe.products or {}
-end
-local ok_speed,speed=pcall(function() return e.crafting_speed end)
-snapshot.crafting_speed=ok_speed and speed or 0
-local ok_productivity,productivity=pcall(function() return e.productivity_bonus end)
-if ok_productivity then snapshot.productivity_bonus=productivity end
-if e.type=="furnace" then
-  snapshot.input=inventory_contents(e.get_inventory(defines.inventory.furnace_source))
-elseif e.type=="assembling-machine" or e.type=="rocket-silo" then
-  snapshot.input=inventory_contents(e.get_inventory(defines.inventory.crafter_input))
-elseif e.type=="lab" then
-  snapshot.input=inventory_contents(e.get_inventory(defines.inventory.lab_input))
-end
-for index=1,#e.fluidbox do
-  local fluid=e.fluidbox[index]
-  local include=true
-  local ok_proto,box=pcall(function() return e.fluidbox.get_prototype(index) end)
-  if ok_proto and box and box.production_type then include=box.production_type~="output" end
-  if include and fluid then
-    snapshot.fluids[#snapshot.fluids+1]={name=fluid.name,amount=fluid.amount,temperature=fluid.temperature}
+local function machine_diagnostics_snapshot(e)
+  local status_names={}; for name,code in pairs(defines.entity_status) do status_names[code]=name end
+  local snapshot={tick=game.tick,ingredients={},products={},input={},fluids={},
+    raw_status_name=status_names[e.status] or "unknown",raw_status_code=e.status}
+  local recipe,recipe_quality
+  if e.type=="furnace" or e.type=="assembling-machine" or e.type=="rocket-silo" then
+    recipe,recipe_quality=e.get_recipe()
+    if recipe then
+      snapshot.recipe_source="CURRENT"
+    elseif e.type=="furnace" then
+      local previous=e.previous_recipe
+      if previous then
+        recipe,recipe_quality=previous.name,previous.quality
+        snapshot.recipe_source="PREVIOUS"
+      end
+    end
   end
+  if recipe then
+    snapshot.recipe=recipe.name
+    snapshot.recipe_quality=machine_diagnostics_quality_name(recipe_quality)
+    snapshot.recipe_duration=recipe.energy
+    snapshot.ingredients=recipe.ingredients or {}
+    snapshot.products=recipe.products or {}
+  end
+  local ok_speed,speed=pcall(function() return e.crafting_speed end)
+  snapshot.crafting_speed=ok_speed and speed or 0
+  local ok_productivity,productivity=pcall(function() return e.productivity_bonus end)
+  if ok_productivity then snapshot.productivity_bonus=productivity end
+  if e.type=="furnace" then
+    snapshot.input=machine_diagnostics_contents(e.get_inventory(defines.inventory.furnace_source))
+  elseif e.type=="assembling-machine" or e.type=="rocket-silo" then
+    snapshot.input=machine_diagnostics_contents(e.get_inventory(defines.inventory.crafter_input))
+  elseif e.type=="lab" then
+    snapshot.input=machine_diagnostics_contents(e.get_inventory(defines.inventory.lab_input))
+  end
+  for index=1,#e.fluidbox do
+    local fluid=e.fluidbox[index]
+    local include=true
+    local ok_proto,box=pcall(function() return e.fluidbox.get_prototype(index) end)
+    if ok_proto and box and box.production_type then include=box.production_type~="output" end
+    if include and fluid then
+      snapshot.fluids[#snapshot.fluids+1]={name=fluid.name,amount=fluid.amount,temperature=fluid.temperature}
+    end
+  end
+  if e.type=="mining-drill" then
+    local target=e.mining_target
+    if target and target.valid then
+      local properties=target.prototype.mineable_properties
+      local mining={target=target.name}
+      if not target.prototype.infinite_resource then mining.amount=target.amount end
+      local yield=0
+      for _,product in pairs(properties.products or {}) do
+        if product.type=="item" then
+          yield=yield+(product.amount or ((product.amount_min or 0)+(product.amount_max or 0))/2)*(product.probability or 1)
+        end
+      end
+      if properties.mining_time and properties.mining_time>0 then
+        mining.theoretical_units_per_second=e.prototype.mining_speed*(1+e.speed_bonus)/properties.mining_time*yield
+      end
+      if ok_productivity then mining.productivity_bonus=productivity end
+      snapshot.mining=mining
+    end
+  end
+  local ok_burner,burner=pcall(function() return e.burner end)
+  if ok_burner and burner then
+    local fuel=machine_diagnostics_contents(e.get_fuel_inventory())
+    local burner_state={fuel_items=fuel,remaining_burning_fuel_joules=burner.remaining_burning_fuel}
+    local burning=burner.currently_burning
+    if burning then burner_state.currently_burning=burning.name end
+    local ok_usage,usage=pcall(function() return e.prototype.get_max_energy_usage(e.quality) end)
+    if ok_usage and usage and usage>0 then
+      local joules=burner.remaining_burning_fuel or 0
+      for _,stack in pairs(fuel) do
+        local prototype=prototypes.item[stack.name]
+        if prototype and prototype.fuel_value then joules=joules+prototype.fuel_value*stack.count end
+      end
+      burner_state.estimated_seconds_of_fuel=joules/(usage*60)
+    end
+    snapshot.burner=burner_state
+  end
+  local buffer=(e.electric_buffer_size or 0)
+  local drain=(e.electric_drain or 0)
+  local electric=buffer>0 or drain>0
+  local connected,network_id,producing=nil,nil,nil
+  if electric then
+    local ok_id,id=pcall(function() return e.electric_network_id end)
+    if ok_id and id then network_id=tostring(id); connected=true else connected=false end
+    local ok_connected,value=pcall(function() return e.is_connected_to_electric_network() end)
+    if ok_connected then producing=value end
+  end
+  snapshot.power={electric=electric,connected=connected,network_id=network_id,
+    connected_to_producing_network=producing,satisfaction_unavailable_reason="Factorio exposes no instantaneous per-machine power satisfaction ratio"}
+  return snapshot
 end
-local buffer=(e.electric_buffer_size or 0)
-local drain=(e.electric_drain or 0)
-local electric=buffer>0 or drain>0
-local connected,network_id,producing=nil,nil,nil
-if electric then
-  local ok_id,id=pcall(function() return e.electric_network_id end)
-  if ok_id and id then network_id=tostring(id); connected=true else connected=false end
-  local ok_connected,value=pcall(function() return e.is_connected_to_electric_network() end)
-  if ok_connected then producing=value end
-end
-snapshot.power={electric=electric,connected=connected,network_id=network_id,
-  connected_to_producing_network=producing,satisfaction_unavailable_reason="Factorio exposes no instantaneous per-machine power satisfaction ratio"}
+`
+
+// machineDiagnosticsBody keeps the single-entity body. The final print and the
+// snapshot local are part of the contract with batch callers that rewrite it.
+const machineDiagnosticsBody = machineDiagnosticsSnapshotLua + `
+local supported={["assembling-machine"]=true,furnace=true,["mining-drill"]=true,lab=true,["rocket-silo"]=true}
+if not supported[e.type] then fail("endpoint is no longer a supported machine"); return end
+local snapshot = machine_diagnostics_snapshot(e)
 rcon.print(helpers.table_to_json(snapshot))`
 
+// machineDiagnosticsQuery reads one entity into the modelled diagnostics shape.
+// Machine pages already compute diagnostics inside their own snapshot, so this
+// single-entity path serves callers that only hold an entity reference.
 func machineDiagnosticsQuery(r *Resolver, obj *FactoryMachine) (*MachineDiagnostics, error) {
 	if obj == nil || obj.Force == "" {
 		return nil, errors.New("diagnostics require a machine and force")
@@ -174,8 +251,30 @@ func machineDiagnosticsQuery(r *Resolver, obj *FactoryMachine) (*MachineDiagnost
 func calculateMachineDiagnostics(s *machineDiagnosticSnapshot) *MachineDiagnostics {
 	result := &MachineDiagnostics{Tick: s.Tick, Recipe: s.Recipe, RecipeQuality: s.RecipeQuality,
 		Blocked: diagnosticBlocked(s.RawStatusName, s.RawStatusCode), Power: s.Power}
+	if s.RecipeSource != nil {
+		source := RecipeSource(*s.RecipeSource)
+		result.RecipeSource = &source
+	}
+	if s.Mining != nil {
+		result.Mining = &MachineMiningRate{Target: s.Mining.Target, Amount: s.Mining.Amount,
+			TheoreticalUnitsPerSecond: s.Mining.TheoreticalUnitsPerSecond, ProductivityBonus: s.Mining.ProductivityBonus}
+	}
+	if s.Burner != nil {
+		fuel := make([]*InventoryStack, 0, len(s.Burner.FuelItems))
+		for _, stack := range s.Burner.FuelItems {
+			fuel = append(fuel, &InventoryStack{Name: stack.Name, Quality: stack.Quality, Count: stack.Count})
+		}
+		result.Burner = &MachineBurnerState{FuelItems: fuel, RemainingBurningFuelJoules: s.Burner.RemainingBurningFuelJoules,
+			CurrentlyBurning: s.Burner.CurrentlyBurning, EstimatedSecondsOfFuel: s.Burner.EstimatedSecondsOfFuel}
+	}
 	if s.Recipe == nil {
-		reason := "No crafting recipe selected; mining and research rates are not crafting rates"
+		reason := "No crafting recipe selected and no rate applies to this machine type; labs research and machines without a recipe do not craft"
+		switch {
+		case s.Mining != nil:
+			reason = "Mining rate is reported in mining; there is no crafting recipe to derive a crafting throughput"
+		case s.Burner != nil && s.Power == nil:
+			reason = "Machine has no crafting recipe; only its burner fuel state is known"
+		}
 		result.ThroughputUnavailableReason = &reason
 		return result
 	}
@@ -249,18 +348,20 @@ func diagnosticBlocked(status *string, code *int) *MachineBlockedReason {
 		result.Category = MachineBlockCategoryNone
 	case "no_recipe":
 		result.Category, action = MachineBlockCategoryMissingRecipe, "Select a compatible recipe"
-	case "no_ingredients", "item_ingredient_shortage", "fluid_ingredient_shortage", "missing_science_packs", "missing_required_fluid", "no_input_fluid":
+	case "no_ingredients", "item_ingredient_shortage", "fluid_ingredient_shortage", "missing_science_packs", "missing_required_fluid", "no_input_fluid", "low_input_fluid":
 		result.Category, action = MachineBlockCategoryMissingIngredients, "Supply the missing compatible ingredients; inspect one-craft shortfall where a recipe is selected"
-	case "no_research_in_progress":
+	case "no_research_in_progress", "recipe_not_researched":
 		result.Category, action = MachineBlockCategoryMissingResearch, "Start an available research technology"
 	case "no_fuel":
 		result.Category, action = MachineBlockCategoryMissingFuel, "Supply compatible fuel"
-	case "no_power", "low_power", "not_plugged_in_electric_network":
+	case "no_power", "low_power", "not_plugged_in_electric_network", "recharging_after_power_outage":
 		result.Category, action = MachineBlockCategoryMissingPower, "Check electric network connection, generation and demand"
-	case "full_output", "full_burnt_result_output", "waiting_for_space_in_destination":
+	case "full_output", "full_burnt_result_output", "waiting_for_space_in_destination", "not_enough_space_in_output":
 		result.Category, action = MachineBlockCategoryOutputBlocked, "Clear or transport the blocked output"
-	case "disabled_by_control_behavior", "disabled_by_script", "disabled_by_recipe":
-		result.Category, action = MachineBlockCategoryDisabled, "Inspect the disabling control behavior, script or recipe condition"
+	case "disabled_by_control_behavior", "disabled_by_script", "disabled", "frozen", "paused", "marked_for_deconstruction":
+		result.Category, action = MachineBlockCategoryDisabled, "Inspect the disabling control behavior, script, freeze, pause or deconstruction order"
+	case "no_minable_resources":
+		result.Category, action = MachineBlockCategoryResourceDepleted, "Relocate the machine to remaining resources or remove it"
 	}
 	if action != "" {
 		result.SuggestedAction = &action

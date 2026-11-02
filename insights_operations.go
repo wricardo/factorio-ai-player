@@ -156,20 +156,47 @@ func inspectionMissingSciencePacks(r *Resolver, obj *EntityInspection) ([]*Missi
 	return result.Packs, nil
 }
 
+// ghostsQuery pages ghosts of one force on a surface. An omitted area scans the
+// whole surface, matching entities, entityCount and factoryAlerts: the engine
+// search is linear in the matches and pageInfo.total counts the whole backlog,
+// so requiring an area would only force callers to stitch the map together out
+// of arbitrary tiles. A supplied area keeps the shared area cap and
+// bounds both the ghost scan and its material stock exactly as before.
 func ghostsQuery(r *Resolver, input *GhostsInput) (*GhostsPage, error) {
 	if input == nil || input.Surface == "" || input.Force == "" {
 		return nil, errors.New("surface, force, and input are required")
 	}
-	area, responseArea, err := worldAreaLua(input.Area, input.Limit, input.Offset)
-	if err != nil {
-		return nil, err
+	area, responseArea := "nil", "nil"
+	if input.Area != nil {
+		var err error
+		area, responseArea, err = worldAreaBoundsLua(input.Area, maxAreaTiles)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if input.Limit < 1 || input.Limit > maxPageSize || input.Offset < 0 {
+		return nil, fmt.Errorf("limit must be between 1 and %d and offset must be non-negative", maxPageSize)
 	}
 	lua := luaFail + fmt.Sprintf(`local surface=game.surfaces[%s]
 local force=game.forces[%s]
 if not surface then fail("surface not found"); return end
 if not force then fail("force not found"); return end
 local area,limit,offset=%s,%d,%d
-`, luaString(input.Surface), luaString(input.Force), area, input.Limit, input.Offset) + operationsStockLua + `
+`, luaString(input.Surface), luaString(input.Force), area, input.Limit, input.Offset) + operationsStockLua + operationsGhostsLua + fmt.Sprintf(`
+rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,area=%s,
+  pageInfo={total=#matches,limit=limit,offset=offset,hasMore=#matches>offset+limit},ghostEntries=entries})`, responseArea)
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
+		return nil, err
+	}
+	return factoryDecode[GhostsPage](response)
+}
+
+// operationsGhostsLua builds the paged ghost rows from surface/force/area,
+// limit and offset. With a nil area the engine search covers the whole
+// surface; with a bounding box it covers that box, so the same body serves
+// both scopes.
+const operationsGhostsLua = `
 local stock=storage_stock(area,false)
 local matches=surface.find_entities_filtered{force=force,area=area,type={"entity-ghost","tile-ghost","item-request-proxy"}}
 table.sort(matches,function(a,b) return entity_id(a)<entity_id(b) end)
@@ -214,18 +241,11 @@ for i=offset+1,math.min(#matches,offset+limit) do
   end
   entries[#entries+1]=row
 end
-rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,area=` + responseArea + `,
-  pageInfo={total=#matches,limit=limit,offset=offset,hasMore=#matches>offset+limit},ghostEntries=entries})`
-	response, _, err := executeLua(r.addr, r.password, lua)
-	if err != nil {
-		return nil, err
-	}
-	return factoryDecode[GhostsPage](response)
-}
+`
 
 func inspectionFluidNetwork(r *Resolver, obj *EntityInspection, maxBoxes int) (*FluidNetwork, error) {
-	if maxBoxes < 1 || maxBoxes > 10000 {
-		return nil, errors.New("maxBoxes must be between 1 and 10000")
+	if maxBoxes < 1 || maxBoxes > maxInspectionFluidBoxes {
+		return nil, limitError("maxBoxes", maxInspectionFluidBoxes)
 	}
 	lua, err := operationsInspectionLua(obj)
 	if err != nil {
@@ -269,9 +289,10 @@ while cursor<=#queue do
   local engine_id=fb.get_fluid_segment_id(index)
   local sid=engine_id and (tostring(e.surface.index)..":segment:"..tostring(engine_id)) or (node.id..":storage")
   result.fluidBoxes[#result.fluidBoxes+1]={id=node.id,entityId=eid,index=index,segmentId=sid}
-  if not segments[sid] then
-    segments[sid]=true
-    local segment={id=sid,engineSegmentId=engine_id and tostring(engine_id) or nil,capacity=fb.get_capacity(index),segmentFluids={}}
+  local segment=segments[sid]
+  if not segment then
+    segment={id=sid,engineSegmentId=engine_id and tostring(engine_id) or nil,capacity=fb.get_capacity(index),segmentFluids={},temperature=nil,members={}}
+    segments[sid]=segment
     local contents=engine_id and fb.get_fluid_segment_contents(index) or nil
     if contents then
       for name,amount in pairs(contents) do segment.segmentFluids[#segment.segmentFluids+1]={name=name,amount=amount} end
@@ -284,6 +305,20 @@ while cursor<=#queue do
     for _,fluid in ipairs(segment.segmentFluids) do result.totalAmount=result.totalAmount+fluid.amount end
     result.fluidSegments[#result.fluidSegments+1]=segment
   end
+  -- Members and temperature come from the visited boxes only, so a truncated
+  -- traversal reports what it actually saw. Segment capacity stays the engine
+  -- value for the whole segment.
+  local box_fluid=fb[index]
+  local temperature=box_fluid and box_fluid.temperature or nil
+  if temperature~=nil and (segment.temperature==nil or temperature>segment.temperature) then segment.temperature=temperature end
+  local ok_proto,proto=pcall(function() return fb.get_prototype(index) end)
+  if ok_proto and type(proto)=="table" and proto[1]~=nil then proto=proto[1] end
+  local ok_filter,filter=pcall(function() return fb.get_filter(index) end)
+  local filter_name=nil
+  if ok_filter and type(filter)=="table" then filter_name=filter.name end
+  segment.members[#segment.members+1]={unitNumber=(e.unit_number and tostring(e.unit_number) or nil),
+    name=e.name,type=e.type,position={x=e.position.x,y=e.position.y},boxIndex=index,
+    productionType=(ok_proto and proto and proto.production_type or nil),filter=filter_name}
   for _,connection in pairs(fb.get_pipe_connections(index)) do
     local other=connection.target
     local other_index=connection.target_fluidbox_index
@@ -308,6 +343,13 @@ while cursor<=#queue do
 end
 result.visitedBoxes=#queue
 local function by_id(a,b) return a.id<b.id end
+for _,segment in ipairs(result.fluidSegments) do
+  table.sort(segment.members,function(a,b)
+    local ua,ub=a.unitNumber or "",b.unitNumber or ""
+    if ua~=ub then return ua<ub end
+    return a.boxIndex<b.boxIndex
+  end)
+end
 table.sort(result.rootBoxIds)
 table.sort(result.fluidEntities,by_id)
 table.sort(result.fluidBoxes,by_id)

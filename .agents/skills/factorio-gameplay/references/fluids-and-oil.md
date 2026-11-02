@@ -6,7 +6,8 @@ Oil is the most failure-prone domain in this project (contaminated segments, sta
 
 - A connected set of pipes, tanks and machine fluid boxes forms a **segment**. A segment holds exactly **one fluid**. Joining two different fluids contaminates or blocks the whole segment.
 - `inspect.fluidNetwork` returns a **transitive neighbour closure**: several segments can appear without being merged. Machine boxes report synthetic segment ids, so **neighbouring PIPE segment ids are the only reliable connection evidence**.
-- `fluidStock` pipe amount = `network_fluid / network_capacity * 100`, so equal per-pipe amounts mean one segment. Use this to tell a genuine producer line from a mis-filled one before clearing anything.
+- `fluidStock` pipe amount = `network_fluid / network_capacity * 100`, so equal per-pipe amounts mean one segment. Use this to tell a genuine producer line from a mis-filled one before clearing anything. Each location row also carries its fluidbox index, engine production type, filter, `segmentId`, `temperature` and box `capacity`, so it can be fed straight back to `setFluid` or inspected per box.
+- `fluidSegments(area, maxBoxes)` is the one-call segment census: every fluidbox in the area grouped by engine segment (a box outside any segment forms its own single-box segment), with member boxes, per-fluid amounts, the highest member temperature and the largest reported capacity. `problems` flags multi-fluid segments, full outputs, filter mismatches and empty inputs. Use it to find a contaminated segment without one inspection per entity.
 - `inspect.fluidboxNeighbours` shows engine neighbours per box; use it after **every** pipe connection.
 
 ## 2. Pipe-to-ground (the usual contamination cause)
@@ -42,7 +43,7 @@ Procedure for a fluid supply/demand model:
 4. Check the by-product outlet: a fluid with no consumer (heavy oil with lubricant full) fills its tank and then blocks the whole refinery. Compute the stall ETA from the measured slope.
 5. State the binding constraint, the sustainable product rate, and the time to a named target.
 
-`itemFlow` theoretical rates are unreliable for chemical plants; use `recipe.energy` and machine speed. `production` has no fluids. `machines.machineFluids` may show input boxes only.
+`itemFlow` theoretical rates are unreliable for chemical plants; use `recipe.energy` and machine speed. `production` returns both `items` and `fluids` over the same window. `machines.machineFluids` may show input boxes only.
 
 Do **not** gate cracking or "preserve" a fluid without checking all consumers of the same feed: petroleum chains (plastic, sulfur, acid, batteries) usually share the light-oil/gas source. Prefer capacity over priority when a block is oversubscribed several times over.
 
@@ -57,7 +58,7 @@ Symptoms: refinery `full_output` with product stuck in a box; consumers `fluid_i
 5. **Restore intent:** connect the cleared network to a pipe/box that still holds the right fluid; re-pair underground pipes (`setDirection`); remove and re-place any pipe that stays on a private stub.
 6. **Prove:** two windows >= 60 s apart show: every affected segment holds exactly one fluid (segment id, capacity, fluid), blocked machines leave `full_output`/`fluid_ingredient_shortage`, pumps `working`, totals move the expected direction.
 
-`setFluid` can also seed a test or prime a segment (`SET`/`ADD`); treat it as admin, record the entity and amount, and prefer physical supply.
+`setFluid` can also seed a test or prime a segment (`SET`/`ADD`); treat it as admin, record the entity and amount, and prefer physical supply. Its result reports `scope` (one engine segment, the entity's own boxes, or a mix), `inserted` (what the engine accepted), `boxesAffected`, and the before/after/capacity totals for that scope — a segment scope includes fluid held by other entities in the same segment, so read it together with `segmentId`.
 
 ## 6. Boundaries
 

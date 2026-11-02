@@ -1,5 +1,5 @@
 extend type Mutation {
-  """Writes one fluid into one entity's fluid boxes: SET empties every box first and then inserts, so the engine clamps the amount to total capacity; ADD inserts into the current contents and reports only what the engine accepted; CLEAR empties the boxes and ignores fluid and amount. SET and ADD require a non-empty fluid prototype name and a finite amount of zero or more, and temperature must be finite when given; these and the actor/target addressing (unitNumber, or prototype name plus exact centre position on the actor's force, reach-checked only when FACTORIO_ENFORCE_REACH is enabled) are validated before RCON. SET clearing first means a SET never mixes fluids, while ADD leaves the boxes' existing fluid in place, so the engine rejects a mismatched fluid or temperature and the call fails. before and after total the named fluid in the entity (all fluids when fluid is omitted), capacity sums every fluid box capacity, boxesAffected is the entity's fluid box count, and the result also carries the entity name, unit number, position, and mode. Emits one in-game notification unless message overrides it."""
+  """Writes one fluid into one entity's fluid boxes: SET empties every box first and then inserts, so the engine clamps the amount to capacity; ADD inserts into the current contents and reports only what the engine accepted; CLEAR empties the boxes and ignores fluid and amount. SET and ADD require a non-empty fluid prototype name and a finite amount of zero or more, and temperature must be finite when given; these and the actor/target addressing (unitNumber, or prototype name plus exact centre position on the actor's force, reach-checked only when FACTORIO_ENFORCE_REACH is enabled) are validated before RCON. SET clearing first means a SET never mixes fluids, while ADD leaves the boxes' existing fluid in place, so the engine rejects a mismatched fluid or temperature and the call fails. Amount and capacity share one scope: a box belonging to an engine fluid segment is measured with the whole segment through get_fluid_segment_contents and the segment capacity, a box outside any segment with its own contents and capacity, and scope names which one the numbers describe (SEGMENT, ENTITY, or MIXED when both occur). before and after total the named fluid in that scope (all fluids when fluid is omitted), inserted is the amount the engine accepted from a SET or ADD, boxesAffected counts this entity's boxes whose contents changed, and the result also carries the entity name, unit number, position, and mode. Emits one in-game notification unless message overrides it."""
   setFluid(input: SetFluidInput!): FluidWriteResult!
 }
 
@@ -7,6 +7,13 @@ enum FluidWriteMode {
   SET
   ADD
   CLEAR
+}
+
+"""What the reported before/after/capacity describe: one engine fluid segment, one entity's own boxes, or a mix of both when an entity has boxes in both kinds of scope."""
+enum FluidWriteScope {
+  SEGMENT
+  ENTITY
+  MIXED
 }
 
 """Write fluid in one entity."""
@@ -30,15 +37,23 @@ type FluidWriteResult {
   unitNumber: UnitNumber
   position: Position!
   fluid: String
+  """Named fluid total in the reported scope before the write (all fluids when fluid is omitted)."""
   before: Float!
+  """Named fluid total in the reported scope after the write."""
   after: Float!
+  """Capacity the engine reports for the scope. For a segmented pipe box that is the whole segment capacity, shared with every box in it; a non-pipe box can report only its own volume."""
   capacity: Float!
+  """What the amounts describe; a segment scope includes fluid held by other entities in the same segment."""
+  scope: FluidWriteScope!
+  """Amount the engine accepted from a SET or ADD; zero for CLEAR."""
+  inserted: Float!
   mode: FluidWriteMode!
+  """This entity's fluid boxes whose contents changed."""
   boxesAffected: Int!
 }
 
 extend type Query {
-  """Aggregates the fluid held in every fluid box on one surface for the named force plus the neutral force (unless neutral itself is named), excluding ghosts; every box with a positive amount becomes one location row, and per-fluid totals are summed over the same scan. surface and force must exist, an optional area must be finite with positive dimensions of at most 256 tiles per side, and an optional fluid filter must name a real fluid prototype. limit and totalsLimit are 1..1000 with non-negative offsets; locations are sorted by position then fluid, entity name and type, totals by fluid then category (currently only "stored"), and the two pages report total and hasMore independently. Each location also carries the entity name/type, inventory kind, and the box temperature when known. One snapshot at the reported tick; no actor or reach check is involved, so this read works for any force's entities on the surface."""
+  """Aggregates the fluid held in every fluid box on one surface for the named force plus the neutral force (unless neutral itself is named), scanning only fluid-capable entity types; every fluidbox holding a positive amount becomes one location row, and per-fluid totals are summed over the same scan. surface and force must exist, an optional area must be finite with positive dimensions of at most 1024 tiles per side, and an optional fluid filter must name a real fluid prototype. limit and totalsLimit are 1..10000 with non-negative offsets; locations are sorted by position, fluid, entity name, entity type then box index, totals by fluid then category (currently only "stored"), and the two pages report total and hasMore independently. Each location carries the fluidbox identity and content: entity name/type/unit number, box index, production type, filter, engine segment id, temperature, and the capacity the engine reports for that box. One snapshot at the reported tick; no actor or reach check is involved, so this read works for any force's entities on the surface."""
   fluidStock(input: FluidStockInput = {}): FluidStockPage!
 }
 
@@ -76,7 +91,93 @@ type FluidStockLocation {
   entityType: String!
   position: Position!
   inventoryKind: String!
+  """Entity unit number; null for entities the engine does not give one."""
+  unitNumber: UnitNumber
+  """Fluidbox index on the entity, so the row can be fed to setFluid or inspected per box."""
+  boxIndex: Int!
+  """Engine fluidbox production type of this box (input, output, input-output or none), null when the prototype reports none."""
+  productionType: String
+  """Fluid prototype locked into this box by a filter, null when the box is unfiltered."""
+  filter: String
+  """Engine fluid segment id in surface:segment:engineId form, null when the box is not part of a segment (fluid wagon, fluid turret buffer, circuit-connected storage)."""
+  segmentId: ID
   fluid: String!
+  """Amount this box holds."""
   amount: Float!
+  """Fluid temperature in this box."""
   temperature: Float
+  """Capacity the engine reports for this fluidbox index (get_capacity). Pipe boxes report their whole segment here while machine boxes report only their own volume, so read it together with segmentId instead of assuming a per-box size."""
+  capacity: Float
+}
+
+extend type Query {
+  """Reads every fluidbox inside a required area of at most 1024 tiles per side and groups them by engine fluid segment, so a contaminated segment, a full refinery output, a filter mismatch or a starved input is visible in one call instead of one inspection per entity. Segments carry the engine segment id, the largest capacity the member boxes report, the highest member box temperature, the segment amount and per-fluid amounts, and every member box with its entity name, unit number, position, box index, production type and filter. A box outside any segment (fluid wagon, fluid turret buffer, circuit-connected storage) forms its own single-box segment. maxBoxes is 1 through 2000 (default 500) and bounds visited boxes; truncated reports that the bound was hit. problems classifies MIXED (a segment holds more than one fluid), OUTPUT_FULL (an output box holds its prototype volume), FILTER_MISMATCH (a filtered box holds another fluid) and INPUT_EMPTY (an input box holds no fluid), each with the entity, unit number, position, box index and a detail. Segments are sorted by id and problems by kind then position; invalid surface, force, area or maxBoxes is a GraphQL error."""
+  fluidSegments(input: FluidSegmentsInput!): FluidSegmentsReport!
+}
+
+input FluidSegmentsInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  """Finite positive dimensions, at most 1024 tiles per side."""
+  area: FactoryAreaInput!
+  """Hard bound on visited fluid boxes, 1 through 20000."""
+  maxBoxes: Int! = 500
+}
+
+type FluidSegmentsReport {
+  tick: Float!
+  surface: String!
+  force: String!
+  area: WorldArea!
+  visitedBoxes: Int!
+  truncated: Boolean!
+  segments: [FluidSegmentSummary!]!
+  problems: [FluidProblem!]!
+}
+
+"""One engine fluid segment, or one standalone fluidbox, built from the boxes inside the requested area."""
+type FluidSegmentSummary {
+  """Segment identity: surface:segment:engineId, or surface:box:entity:boxIndex for a box the engine reports outside a pipe segment. A box id is not a disconnection verdict: a boiler output box is normally listed this way while feeding the adjacent pipe segment, so a working boiler shows surface:box:entity:2 beside a steam segment it fills. Use problems, or an adjacency pair with an empty connection, before calling a fluidbox disconnected."""
+  id: ID!
+  engineSegmentId: ID
+  """Largest capacity the engine reports among the member boxes: pipe boxes report their whole segment, machine boxes only their own volume, so this is the segment capacity whenever a pipe is a member."""
+  capacity: Float!
+  """Highest temperature among member boxes; null when the segment holds no fluid."""
+  temperature: Float
+  amount: Float!
+  fluids: [FluidNetworkAmount!]!
+  members: [FluidBoxMember!]!
+}
+
+"""One fluidbox that belongs to a segment or standalone box listing."""
+type FluidBoxMember {
+  unitNumber: UnitNumber
+  name: String!
+  type: String!
+  position: Position!
+  boxIndex: Int!
+  """Engine fluidbox production type (input, output, input-output), null when the prototype reports none."""
+  productionType: String
+  """Fluid prototype locked into this box by a filter, null when unfiltered."""
+  filter: String
+}
+
+enum FluidProblemKind {
+  """A segment holds more than one fluid."""
+  MIXED
+  """An output fluidbox holds its prototype volume."""
+  OUTPUT_FULL
+  """A filtered fluidbox holds a fluid other than its filter."""
+  FILTER_MISMATCH
+  """An input fluidbox holds no fluid."""
+  INPUT_EMPTY
+}
+
+type FluidProblem {
+  kind: FluidProblemKind!
+  entity: String!
+  unitNumber: UnitNumber
+  position: Position!
+  boxIndex: Int!
+  detail: String!
 }

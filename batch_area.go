@@ -99,15 +99,29 @@ table.sort(targets,function(a,b)
   if a.position.y~=b.position.y then return a.position.y<b.position.y end
   return a.name<b.name
 end)
-local trees,rocks,out_of_reach,failed=0,0,0,0; local errors={}
+local trees,rocks,out_of_reach,failed,stumps_removed,stumps_left=0,0,0,0,0,0; local errors={}
+` + luaHarvestStumpCleanup + `
 for index,e in ipairs(targets) do
   local kind=e.type
+  -- The tree bounding box is captured before mining because the entity becomes
+  -- invalid; the stump corpse spawns inside it.
+  local tree_box=(kind=="tree") and e.bounding_box or nil
   local target={surface=surface.name,entity=e.name,position=e.position,unit_number=e.unit_number and tostring(e.unit_number) or nil}
   if ` + reachViolation("actor", "e") + ` then
     out_of_reach=out_of_reach+1
     if #errors<20 then errors[#errors+1]={index=index,code="REACH",message="entity is out of actor reach",target=target} end
   elseif actor.mine_entity(e,false) then
-    if kind=="tree" then trees=trees+1 else rocks=rocks+1 end
+    if kind=="tree" then
+      trees=trees+1
+      -- Factorio 2.0 leaves a non-mineable corpse stump behind at the tree
+      -- position. It does not block construction (corpses collide with tiles
+      -- only), but clear it so a harvested route holds no debris.
+      local cleared,left=clear_tree_stump(surface,tree_box)
+      stumps_removed=stumps_removed+cleared
+      stumps_left=stumps_left+left
+    else
+      rocks=rocks+1
+    end
   else
     failed=failed+1
     if #errors<20 then errors[#errors+1]={index=index,code="ENGINE",message="engine refused to mine entity",target=target} end
@@ -115,7 +129,7 @@ for index,e in ipairs(targets) do
 end
 local items=inventory_item_difference(before,inv)
 
-rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=actor.force.name,trees_mined=trees,rocks_mined=rocks,out_of_reach=out_of_reach,failed=failed,errors=errors,items=items}))`, nil
+rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=actor.force.name,trees_mined=trees,rocks_mined=rocks,out_of_reach=out_of_reach,failed=failed,stumps_removed=stumps_removed,stumps_left=stumps_left,errors=errors,items=items}))`, nil
 }
 
 func pickupAreaLua(args []string, out io.Writer) (string, error) {
@@ -172,6 +186,20 @@ for index,e in ipairs(candidates) do
 end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=c.force.name,stacks_found=#candidates,stacks_out_of_reach=stacks_out_of_reach,errors=errors,items_picked_up=sorted_items(picked_up),items_remaining=sorted_items(remaining_items)}))`, nil
 }
+
+// luaHarvestStumpCleanup destroys the corpse stump a Factorio 2.0 tree mine
+// leaves behind. The stump is type corpse with mineable=false, so mine_entity
+// and remove cannot clear it, yet its collision box still blocks placement;
+// LuaEntity.destroy removes it (it carries no items, so nothing is lost).
+const luaHarvestStumpCleanup = `local function clear_tree_stump(surface,tree_box)
+  local removed,left=0,0
+  if not tree_box then return removed,left end
+  for _,corpse in pairs(surface.find_entities_filtered{area={{tree_box.left_top.x,tree_box.left_top.y},{tree_box.right_bottom.x,tree_box.right_bottom.y}},type="corpse"}) do
+    if corpse.destroy{raise_destroy=true} then removed=removed+1 else left=left+1 end
+  end
+  return removed,left
+end
+`
 
 const inventoryItemHelpersLua = `
 local function add_item_count(items,name,quality,count)

@@ -35,7 +35,7 @@ func navigationStart(ctx context.Context, r *Resolver, input NavigateStartInput)
 	if forms != 1 {
 		return nil, fmt.Errorf("provide exactly one of position, targetCharacter, or targetEntity")
 	}
-	targetCharacter, targetEntity := "nil", "nil"
+	targetCharacter, targetRef := "nil", "nil"
 	if input.TargetCharacter != nil {
 		unit, err := strconv.ParseUint(*input.TargetCharacter, 10, 32)
 		if err != nil || unit == 0 {
@@ -50,14 +50,11 @@ func navigationStart(ctx context.Context, r *Resolver, input NavigateStartInput)
 		targetCharacter = strconv.FormatUint(unit, 10)
 	}
 	if input.TargetEntity != nil {
-		unit, err := strconv.ParseUint(*input.TargetEntity, 10, 32)
-		if err != nil || unit == 0 {
-			return nil, fmt.Errorf("targetEntity must be a unit number from 1 to 4294967295")
+		ref, err := navigationTargetRef(input.TargetEntity, character)
+		if err != nil {
+			return nil, err
 		}
-		if unit == character {
-			return nil, fmt.Errorf("targetEntity must differ from character")
-		}
-		targetEntity = strconv.FormatUint(unit, 10)
+		targetRef = ref
 	}
 	if input.Position != nil && (math.IsNaN(input.Position.X) || math.IsInf(input.Position.X, 0) || math.IsNaN(input.Position.Y) || math.IsInf(input.Position.Y, 0)) {
 		return nil, fmt.Errorf("destination coordinates must be finite")
@@ -74,7 +71,7 @@ func navigationStart(ctx context.Context, r *Resolver, input NavigateStartInput)
 		y = strconv.FormatFloat(input.Position.Y, 'g', -1, 64)
 	}
 	args := fmt.Sprintf("%d,%s,%s,%s,%d,%s,%s", character, x, y,
-		strconv.FormatFloat(input.Tolerance, 'g', -1, 64), input.TimeoutTicks, targetCharacter, targetEntity)
+		strconv.FormatFloat(input.Tolerance, 'g', -1, 64), input.TimeoutTicks, targetCharacter, targetRef)
 	job, err := navigationCallContext(ctx, r, "start", args)
 	if err != nil {
 		return job, err
@@ -86,6 +83,72 @@ func navigationStart(ctx context.Context, r *Resolver, input NavigateStartInput)
 	return waitForNavigation(ctx, job, time.Duration(input.WaitTimeoutSeconds)*time.Second, func(ctx context.Context, id string) (*NavigationJob, error) {
 		return navigationCallContext(ctx, r, "status", luaString(id))
 	})
+}
+
+// navigationTargetRef validates an entity reference and renders the Lua table
+// the mod resolves by prototype name and centre. The reference keeps the start
+// call from scanning the whole surface for a static building.
+func navigationTargetRef(ref *EntityRefInput, character uint64) (string, error) {
+	// EntityRefInput.surface keeps its "nauvis" schema default and other
+	// mutations use it, so navigation ignores it: the mod always resolves the
+	// reference on the walking character's own surface.
+	name := ""
+	if ref.Entity != nil {
+		name = strings.TrimSpace(*ref.Entity)
+	}
+	unit := ""
+	if ref.UnitNumber != nil {
+		parsed, err := strconv.ParseUint(*ref.UnitNumber, 10, 32)
+		if err != nil || parsed == 0 {
+			return "", fmt.Errorf("targetEntity unitNumber must be a unit number from 1 to 4294967295")
+		}
+		if parsed == character {
+			return "", fmt.Errorf("targetEntity must differ from character")
+		}
+		unit = strconv.FormatUint(parsed, 10)
+	}
+	if (name == "") != (ref.Position == nil) {
+		return "", fmt.Errorf("targetEntity needs both the entity name and its position")
+	}
+	if name == "" && unit == "" {
+		return "", fmt.Errorf("targetEntity needs a unitNumber or an entity name and position")
+	}
+	parts := make([]string, 0, 4)
+	if name != "" {
+		parts = append(parts, "name="+luaString(name))
+	}
+	if ref.Position != nil {
+		if math.IsNaN(ref.Position.X) || math.IsInf(ref.Position.X, 0) || math.IsNaN(ref.Position.Y) || math.IsInf(ref.Position.Y, 0) {
+			return "", fmt.Errorf("targetEntity position coordinates must be finite")
+		}
+		parts = append(parts, "x="+luaCoordinate(ref.Position.X), "y="+luaCoordinate(ref.Position.Y))
+	}
+	if unit != "" {
+		parts = append(parts, "unit="+unit)
+	}
+	return "{" + strings.Join(parts, ",") + "}", nil
+}
+
+// navigationActive reads the job a character is currently walking, so a caller
+// that lost a start response can recover or cancel the orphaned job instead of
+// waiting for its timeout. It returns nil when the character has no active job.
+func navigationActive(ctx context.Context, r *Resolver, actor *ActorInput) (*NavigationJob, error) {
+	characterText, err := resolveActorCharacterInput(r, actor)
+	if err != nil {
+		return nil, err
+	}
+	character, err := strconv.ParseUint(characterText, 10, 32)
+	if err != nil || character == 0 {
+		return nil, fmt.Errorf("character must be a unit number from 1 to 4294967295")
+	}
+	job, err := navigationCallContext(ctx, r, "active", strconv.FormatUint(character, 10))
+	if err != nil {
+		return nil, err
+	}
+	if job == nil || job.ID == "" {
+		return nil, nil
+	}
+	return job, nil
 }
 
 func navigationStatus(r *Resolver, id string) (*NavigationJob, error) {
@@ -154,19 +217,24 @@ func navigationCallContext(ctx context.Context, r *Resolver, method, args string
 }
 
 type navigationJobWire struct {
-	Tick            float64   `json:"tick"`
-	Force           *string   `json:"force,omitempty"`
-	ID              string    `json:"id"`
-	Character       string    `json:"character"`
-	TargetCharacter *string   `json:"targetCharacter,omitempty"`
-	TargetEntity    *string   `json:"targetEntity,omitempty"`
-	Surface         string    `json:"surface"`
-	Destination     *Position `json:"destination"`
-	Position        *Position `json:"position,omitempty"`
-	Status          string    `json:"status"`
-	Reason          *string   `json:"reason,omitempty"`
-	StartedTick     float64   `json:"startedTick"`
-	UpdatedTick     float64   `json:"updatedTick"`
+	Tick               float64   `json:"tick"`
+	Force              *string   `json:"force,omitempty"`
+	ID                 string    `json:"id"`
+	Character          string    `json:"character"`
+	TargetCharacter    *string   `json:"targetCharacter,omitempty"`
+	TargetEntity       *string   `json:"targetEntity,omitempty"`
+	Surface            string    `json:"surface"`
+	Destination        *Position `json:"destination"`
+	Position           *Position `json:"position,omitempty"`
+	Status             string    `json:"status"`
+	Reason             *string   `json:"reason,omitempty"`
+	Tolerance          float64   `json:"tolerance"`
+	TimeoutTicks       int       `json:"timeoutTicks"`
+	Replans            int       `json:"replans"`
+	WaypointsRemaining int       `json:"waypointsRemaining"`
+	DistanceRemaining  float64   `json:"distanceRemaining"`
+	StartedTick        float64   `json:"startedTick"`
+	UpdatedTick        float64   `json:"updatedTick"`
 }
 
 func (wire navigationJobWire) model() *NavigationJob {
@@ -175,6 +243,8 @@ func (wire navigationJobWire) model() *NavigationJob {
 		ID: wire.ID, Character: wire.Character, TargetCharacter: wire.TargetCharacter,
 		TargetEntity: wire.TargetEntity, Surface: wire.Surface, Destination: wire.Destination,
 		Position: wire.Position, Status: engineStatus(wire.Status), Reason: wire.Reason,
+		Tolerance: wire.Tolerance, TimeoutTicks: wire.TimeoutTicks, Replans: wire.Replans,
+		WaypointsRemaining: wire.WaypointsRemaining, DistanceRemaining: wire.DistanceRemaining,
 		StartedTick: wire.StartedTick, UpdatedTick: wire.UpdatedTick,
 	}
 }

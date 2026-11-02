@@ -10,9 +10,10 @@ import (
 )
 
 type ActionResult struct {
-	Actor              *ActorIdentity              `json:"actor"`
-	Character          *string                     `json:"character,omitempty"`
-	Player             *string                     `json:"player,omitempty"`
+	Actor     *ActorIdentity `json:"actor"`
+	Character *string        `json:"character,omitempty"`
+	Player    *string        `json:"player,omitempty"`
+	// Game tick the performing backend read the result at; a real write always advances it. 0 means the payload for that command carries no tick, which is not evidence of a no-op.
 	Tick               float64                     `json:"tick"`
 	Position           *Position                   `json:"position,omitempty"`
 	Surface            string                      `json:"surface"`
@@ -47,6 +48,16 @@ type ActionResult struct {
 	WaitedSeconds      *float64                    `json:"waitedSeconds,omitempty"`
 	Instant            *bool                       `json:"instant,omitempty"`
 	Mined              *bool                       `json:"mined,omitempty"`
+	// Why a mutating action moved nothing (BAR_LIMITED, NO_CAPACITY, NO_SOURCE, MARKED_FOR_DECONSTRUCTION, FILTERED); null when moved is nonzero or the reason does not apply.
+	Reason *string `json:"reason,omitempty"`
+	// Destination slot bar index reported by transfer (usable slots are bar-1).
+	Bar *int `json:"bar,omitempty"`
+	// True when the transfer destination is marked for deconstruction, which blocks insertion.
+	ToBeDeconstructed *bool `json:"toBeDeconstructed,omitempty"`
+	// Underground belt half created by place.
+	UndergroundType *UndergroundBeltType `json:"undergroundType,omitempty"`
+	// Unit number of the facing underground half the engine paired with this one.
+	PairedUnitNumber *string `json:"pairedUnitNumber,omitempty"`
 }
 
 type Actor struct {
@@ -145,20 +156,33 @@ type AdjacencyPair struct {
 	Gap        float64            `json:"gap"`
 }
 
+// Container an inserter waits to fill.
+type AlertDestination struct {
+	Name       string    `json:"name"`
+	Type       string    `json:"type"`
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Position   *Position `json:"position"`
+	// Inventory bar index; 0 means no slot is barred.
+	Bar int `json:"bar"`
+	// Slots still free for items: bar-1 when bar>0, otherwise the inventory size.
+	UsableSlots int `json:"usableSlots"`
+}
+
 type AnnounceResult struct {
 	Tick    float64 `json:"tick"`
 	Message string  `json:"message"`
 }
 
 type ArithmeticCombinatorParameters struct {
-	FirstSignal          *CircuitSignal           `json:"firstSignal,omitempty"`
+	FirstSignal          *SignalID                `json:"firstSignal,omitempty"`
 	FirstSignalNetworks  *CircuitNetworkSelection `json:"firstSignalNetworks,omitempty"`
 	FirstConstant        *int                     `json:"firstConstant,omitempty"`
-	SecondSignal         *CircuitSignal           `json:"secondSignal,omitempty"`
+	SecondSignal         *SignalID                `json:"secondSignal,omitempty"`
 	SecondSignalNetworks *CircuitNetworkSelection `json:"secondSignalNetworks,omitempty"`
 	SecondConstant       *int                     `json:"secondConstant,omitempty"`
 	Operation            string                   `json:"operation"`
-	OutputSignal         *CircuitSignal           `json:"outputSignal"`
+	// Null on a freshly placed combinator: the engine stores no output signal yet.
+	OutputSignal *SignalID `json:"outputSignal,omitempty"`
 }
 
 type ArithmeticCombinatorParametersInput struct {
@@ -212,7 +236,8 @@ type BOMRequirement struct {
 	MaterialType string  `json:"materialType"`
 	Quality      string  `json:"quality"`
 	Amount       float64 `json:"amount"`
-	Reason       string  `json:"reason"`
+	// MINED_RAW (resource entity), GATHERED_RAW (tree, plant, simple-entity, fish or asteroid-chunk), RAW_FLUID (fluid with no recipe), RECIPE_NOT_RESEARCHED (a non-hidden recipe exists but is disabled), NO_ENABLED_RECIPE (nothing enabled produces it), or an explicit plan bound such as RECIPE_CYCLE, EXPANSION_LIMIT, CATALYST_SEED_MISSING, FLUID_TEMPERATURE_NOT_PLANNED, INVALID_RECIPE_YIELD or NUMERIC_BOUND_EXCEEDED.
+	Reason string `json:"reason"`
 }
 
 type BOMStep struct {
@@ -231,7 +256,7 @@ type BOMStockInput struct {
 	Source BOMStockSource `json:"source"`
 	// Required only for PLAYER. Main inventory only, same force and surface required.
 	Player *string `json:"player,omitempty"`
-	// Optional FACTORY scan bounds, at most 256 tiles per side.
+	// Optional FACTORY scan bounds, at most 1024 tiles per side.
 	Area *FactoryAreaInput `json:"area,omitempty"`
 }
 
@@ -243,6 +268,26 @@ type BatchError struct {
 	Target  *BatchTarget   `json:"target,omitempty"`
 }
 
+// One inspectMany row. error is set and inspection null when the target could not be resolved.
+type BatchInspection struct {
+	Index       int                 `json:"index"`
+	Name        *string             `json:"name,omitempty"`
+	Type        *string             `json:"type,omitempty"`
+	Position    *Position           `json:"position,omitempty"`
+	UnitNumber  *string             `json:"unitNumber,omitempty"`
+	Inspection  *EntityInspection   `json:"inspection,omitempty"`
+	Settings    *SettingsResult     `json:"settings,omitempty"`
+	Diagnostics *MachineDiagnostics `json:"diagnostics,omitempty"`
+	Error       *string             `json:"error,omitempty"`
+}
+
+type BatchInspectionPage struct {
+	Tick    float64            `json:"tick"`
+	Surface string             `json:"surface"`
+	Force   string             `json:"force"`
+	Results []*BatchInspection `json:"results"`
+}
+
 // Identity of the failed batch target when available.
 type BatchTarget struct {
 	Surface    *string   `json:"surface,omitempty"`
@@ -251,7 +296,7 @@ type BatchTarget struct {
 	Position   *Position `json:"position,omitempty"`
 }
 
-// One weakly connected belt component inside the requested area. Sources have no incoming engine belt connection and sinks no outgoing one, both restricted to belts found in the area, so a component cut by the area border reports border belts as sources or sinks and its outside edges as boundary edges. dead means nothing feeds or drains the component: no inserter has a pickup or drop target on any of its belts and no machine drops onto them. That is a structural signal, not a stall measurement.
+// One weakly connected belt component inside the requested area. Sources have no incoming engine belt connection and sinks no outgoing one, both restricted to belts found in the area, so a component cut by the area border reports border belts as sources or sinks and its outside edges as boundary edges. dead means nothing feeds or drains the component: no inserter has a pickup or drop target on any of its belts and no machine drops onto them. Inserters and machines are scanned 2.5 tiles beyond the area, so an arm or drill centred outside the area that reaches a belt inside it counts and does not report a working component as dead. That is a structural signal, not a stall measurement.
 type BeltComponent struct {
 	// Position of this component in the sorted, filtered result list. Stable only within one response.
 	ID   string `json:"id"`
@@ -272,6 +317,10 @@ type BeltComponent struct {
 	StallEnds []*LogisticsEndpoint `json:"stallEnds"`
 	// Source belts that no inserter drops onto and no machine drops onto, so nothing feeds the run there.
 	StarveHeads []*LogisticsEndpoint `json:"starveHeads"`
+	// True when at least one belt in this component carries more than one prototype or quality combination on one side (left, right or unknown), the same rule as BeltStretchTotal.mixed. Different belts carrying different single items do not set it, and splitters or underground belts report their extra lines through the side they belong to.
+	Mixed bool `json:"mixed"`
+	// Belt tiles of this component that two or more inserters pick from, counted from resolved pickup targets. Each such tile is contention: the arms share one source.
+	SharedPickupSources int `json:"sharedPickupSources"`
 }
 
 // One snapshot of every belt component in an area, with contents aggregated per component. Contents are in-transit stock, not measured flow.
@@ -296,17 +345,20 @@ type BeltComponentsInput struct {
 	Force string `json:"force"`
 	// Area bounds; each side may be up to 1024 tiles for this read-only analysis.
 	Area *FactoryAreaInput `json:"area"`
-	// Per-component traversal bound, 1 through 5000. A component that hits it is truncated and its unfound belts stay out of that component.
+	// Per-component traversal bound, 1 through 20000. A component that hits it is truncated and its unfound belts stay out of that component.
 	MaxEntities int `json:"maxEntities"`
 	// Keep only dead components: no inserter pickup or drop target and no machine drop target touches any belt in the component.
 	DeadOnly bool `json:"deadOnly"`
-	// Components returned after sorting, 1 through 100.
+	// Components returned after sorting, 1 through 1000.
 	Limit int `json:"limit"`
 	// Zero-based offset into the sorted component list.
 	Offset int `json:"offset"`
+	// Also emit internal transport-line links as edges with kind line. Off by default because those links join belts along one line rather than adjacent tiles, so they inflate the payload and the boundary between components.
+	IncludeLineLinks bool `json:"includeLineLinks"`
 }
 
 type BeltInfo struct {
+	Name       string    `json:"name"`
 	Position   *Position `json:"position"`
 	Direction  *int      `json:"direction,omitempty"`
 	UnitNumber *string   `json:"unitNumber,omitempty"`
@@ -326,7 +378,7 @@ type BeltPage struct {
 	Belts    []*BeltInfo `json:"belts"`
 }
 
-// One bounded weakly connected belt component. Sources/sinks have no engine belt predecessor/successor, including checked connections beyond the traversal boundary. They are structural terminals, never stalled/dead-end diagnoses. Inserters are actual engine pickup/drop targets touching returned belts. Nodes can span surfaces through linked belts. Boundary edges describe omitted connected belts when truncated.
+// One bounded weakly connected belt component. Sources/sinks have no engine belt predecessor/successor, including checked connections beyond the traversal boundary. They are structural terminals, never stalled/dead-end diagnoses. Inserters are actual engine pickup/drop targets touching returned belts. Nodes can span surfaces through linked belts. Boundary edges describe omitted connected belts when truncated. Transport-line links only extend traversal unless includeLineLinks asked for them.
 type BeltRun struct {
 	Tick          float64              `json:"tick"`
 	Surface       string               `json:"surface"`
@@ -354,6 +406,8 @@ type BeltStretch struct {
 	Right       *BeltStretchTotal  `json:"right"`
 	// Items on transport lines the engine reports without a left/right name. Empty for ordinary belts, underground belts and splitters.
 	Unknown *BeltStretchTotal `json:"unknown"`
+	// Inserters whose pickup or drop resolves to a belt in the stretch, read from one scan over the stretch bounds padded by 2.5 tiles. Each entry carries the engine inserter status, so a full stretch plus an idle or blocked consumer is one call. Structural wiring only: it does not measure whether the arm actually moved items.
+	Inserters []*ConnectedInserter `json:"inserters"`
 }
 
 // Where the walk stopped and why. kind is boundary (no connected belt), merge (two or more predecessors), split (two or more successors, including every splitter), loop (the connected belt was already walked), or truncated (maxEntities was reached). targets are the connected belts beyond the stop, empty for boundary. A merge or split is a structural stop, not a diagnosis of a jam.
@@ -369,6 +423,8 @@ type BeltStretchEnd struct {
 	// True when reason is MISSING_BELT, BLOCKED, HEAD_ON or UNPAIRED_UNDERGROUND: the line evidently should continue but does not connect.
 	Gap    bool          `json:"gap"`
 	Reason BeltEndReason `json:"reason"`
+	// Entity occupying the expected tile or the first tile between the stretch and the next aligned belt: the consumer waiting at a heading, normally a machine, chest, or the belt that continues the line. Null when nothing occupies those tiles. Its status distinguishes a blocked consumer (for example waiting_for_space_in_destination or output_full) from an empty approach.
+	Downstream *LogisticsEndpoint `json:"downstream,omitempty"`
 }
 
 // One transport line of one belt entity. lineName is the engine defines.transport_line name, for example left_line, right_line, secondary_left_line, left_split_line. In Factorio 2.0.77 an underground belt reports its surface lanes as left_line/right_line and its tunnel contents as secondary_left_line/secondary_right_line, and a splitter reports eight lines. side is left, right, or unknown when the name is unrecognised, so tunnel contents stay on the side of the lane they carry.
@@ -408,7 +464,7 @@ type BeltStretchNode struct {
 	Lanes      []*BeltStretchLane `json:"lanes"`
 }
 
-// Total in-transit items on one side of a stretch, summed over every belt in it with duplicate line objects of a single entity counted once. mixed is true when at least one belt in the stretch carries more than one prototype or quality combination on that side, which is the lane-contamination signal; different belts carrying different single items do not set it.
+// Total in-transit items on one side of a stretch, summed over every transport line every entity in the stretch exposes. An underground entrance reports its surface lanes and its tunnel contents as separate lines that share one internal line, and a splitter reports its split lines, so all of them are counted here; identity deduplication would silently drop the tunnel. mixed is true when at least one belt in the stretch carries more than one prototype or quality combination on that side, which is the lane-contamination signal; different belts carrying different single items do not set it.
 type BeltStretchTotal struct {
 	Side      string            `json:"side"`
 	Items     []*InventoryStack `json:"items"`
@@ -416,7 +472,7 @@ type BeltStretchTotal struct {
 	Mixed     bool              `json:"mixed"`
 }
 
-// Take items from one transport belt.
+// Take items from one transport belt of any tier (transport-belt, fast-, express-, turbo-transport-belt).
 type BeltTakeInput struct {
 	Actor  *ActorInput     `json:"actor"`
 	Target *EntityRefInput `json:"target"`
@@ -480,7 +536,7 @@ type BeltThroughputStartInput struct {
 	WaitTimeoutSeconds int `json:"waitTimeoutSeconds"`
 }
 
-// Area bounds match FactoryAreaInput. limit is 1 through 1000 and offset is zero-based. Only type=transport-belt entities are returned; line1 is the left line and line2 the right line relative to each belt's direction.
+// Area bounds match FactoryAreaInput. limit is 1 through 10000 and offset is zero-based. Only type=transport-belt entities are returned; line1 is the left line and line2 the right line relative to each belt's direction.
 type BeltsInput struct {
 	Surface string            `json:"surface"`
 	Area    *FactoryAreaInput `json:"area"`
@@ -522,9 +578,9 @@ type BillOfMaterialsInput struct {
 	Quality         string                    `json:"quality"`
 	Stock           *BOMStockInput            `json:"stock"`
 	RecipeOverrides []*BOMRecipeOverrideInput `json:"recipeOverrides,omitempty"`
-	// 1..128 dependency levels.
+	// 1..512 dependency levels.
 	MaxDepth int `json:"maxDepth"`
-	// 1..10000 recursive allocations. Exhaustion is explicit unresolved demand.
+	// 1..100000 recursive allocations. Exhaustion is explicit unresolved demand.
 	MaxExpansions int `json:"maxExpansions"`
 }
 
@@ -549,10 +605,14 @@ type BlueprintFromEntitiesResult struct {
 
 // Ghosts placed by placeBlueprint.
 type BlueprintPlaceResult struct {
-	Tick     float64                  `json:"tick"`
-	Surface  string                   `json:"surface"`
-	Force    string                   `json:"force"`
-	Ghosts   int                      `json:"ghosts"`
+	Tick    float64 `json:"tick"`
+	Surface string  `json:"surface"`
+	Force   string  `json:"force"`
+	Ghosts  int     `json:"ghosts"`
+	// Entities described by the blueprint; ghosts below this means some ghosts were skipped.
+	EntityCount int `json:"entityCount"`
+	// Blueprint entities the engine refused to place as ghosts.
+	Skipped  int                      `json:"skipped"`
 	Entities []*BlueprintPlacedEntity `json:"entities"`
 }
 
@@ -573,14 +633,14 @@ type BlueprintResult struct {
 	Blueprint   string  `json:"blueprint"`
 }
 
-// One blueprint-relative tile. At most 2000 tiles; positions are integer tile coordinates.
+// One blueprint-relative tile. At most 20000 tiles; positions are integer tile coordinates.
 type BlueprintTileInput struct {
 	Name string `json:"name"`
 	X    int    `json:"x"`
 	Y    int    `json:"y"`
 }
 
-// Ghost counts are null when no area was given. ghostsBuildable counts ghosts whose placement material is in observed stock in the area, over the first 1000 ghosts.
+// Ghosts of the force in the section's scope: the whole surface when no area was given, otherwise the area. ghostsBuildable counts ghosts whose placement material is in observed stock in the same scope, over the first 1000 ghosts.
 type BriefingConstruction struct {
 	Ghosts               *int `json:"ghosts,omitempty"`
 	GhostsBuildable      *int `json:"ghostsBuildable,omitempty"`
@@ -588,11 +648,21 @@ type BriefingConstruction struct {
 	UpgradeOrders        int  `json:"upgradeOrders"`
 }
 
-// Sums over every electric network represented by a pole in the scope. productionWatts and consumptionWatts are the engine's one-minute averages.
+// Sums over every electric network represented by a pole in the scope. productionWatts and consumptionWatts are the engine's one-minute averages. capacityWatts is the summed theoretical maximum production of the networks' generators (a lower bound for the whole networks, not observed output), so headroom is visible; satisfaction is consumptionWatts divided by capacityWatts and is 0 when the area exposes no generating capacity, so a value near 1 means the observed load is at the observed capacity and a value above 1 means demand outruns it. accumulatorChargeJoules and accumulatorCapacityJoules sum the stored energy and buffer capacity of accumulators on those networks, and lowPowerConsumers counts entities on them whose engine status is low_power.
 type BriefingPower struct {
 	Networks         int     `json:"networks"`
 	ProductionWatts  float64 `json:"productionWatts"`
 	ConsumptionWatts float64 `json:"consumptionWatts"`
+	// Summed theoretical maximum production of the networks' generators in watts; 0 when the area exposes no producers.
+	CapacityWatts float64 `json:"capacityWatts"`
+	// consumptionWatts / capacityWatts; 0 when capacityWatts is 0, above 1 when observed load exceeds observed capacity.
+	Satisfaction float64 `json:"satisfaction"`
+	// Summed accumulator stored energy in joules.
+	AccumulatorChargeJoules float64 `json:"accumulatorChargeJoules"`
+	// Summed accumulator buffer capacity in joules.
+	AccumulatorCapacityJoules float64 `json:"accumulatorCapacityJoules"`
+	// Entities on those networks whose engine status is low_power.
+	LowPowerConsumers int `json:"lowPowerConsumers"`
 }
 
 type BriefingResearch struct {
@@ -609,7 +679,7 @@ type BriefingWatchItemInput struct {
 	Minimum float64 `json:"minimum"`
 }
 
-// Area limits are positive and at most 256 tiles per side. limit is 1 through 1000.
+// Area limits are positive and at most 1024 tiles per side. limit is 1 through 10000.
 type BuildGhostsInput struct {
 	Actor   *ActorInput       `json:"actor,omitempty"`
 	Force   *string           `json:"force,omitempty"`
@@ -622,16 +692,19 @@ type BuildGhostsInput struct {
 }
 
 type BuildGhostsResult struct {
-	Tick     float64         `json:"tick"`
-	Surface  string          `json:"surface"`
-	Force    string          `json:"force"`
-	Actor    *ActorIdentity  `json:"actor,omitempty"`
-	Mode     BuildGhostsMode `json:"mode"`
-	Revived  int             `json:"revived"`
-	Failed   int             `json:"failed"`
-	Missing  []*ItemRequest  `json:"missing"`
-	Entities []*PlacedEntity `json:"entities"`
-	Errors   []*BatchError   `json:"errors"`
+	Tick    float64         `json:"tick"`
+	Surface string          `json:"surface"`
+	Force   string          `json:"force"`
+	Actor   *ActorIdentity  `json:"actor,omitempty"`
+	Mode    BuildGhostsMode `json:"mode"`
+	Revived int             `json:"revived"`
+	Failed  int             `json:"failed"`
+	// Prototype cost of ghosts that could not be revived. A blocked tile, not absent stock: script revival never checks or withdraws items.
+	Missing []*ItemRequest `json:"missing"`
+	// Items on the ground that revived entities collided with and displaced. Never counted as missing materials; transferred to the actor's main inventory as overflow when actor is given.
+	CollidedItems []*ItemRequest  `json:"collidedItems"`
+	Entities      []*PlacedEntity `json:"entities"`
+	Errors        []*BatchError   `json:"errors"`
 }
 
 // Cancel crafts at a one-based queue index.
@@ -650,7 +723,18 @@ type CancelResearchInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Selected actor must be a connected player controlling a character. count is 1 through 100.
+type CancelUpgradeAreaInput struct {
+	Actor   *ActorInput `json:"actor,omitempty"`
+	Force   string      `json:"force"`
+	Surface string      `json:"surface"`
+	// Finite positive dimensions, at most 1024 tiles per side.
+	Area  *FactoryAreaInput `json:"area"`
+	Limit int               `json:"limit"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// Selected actor must be a connected player controlling a character. count is 1 through 10000.
 type CapsuleInput struct {
 	Actor  *ActorInput    `json:"actor"`
 	Item   string         `json:"item"`
@@ -675,6 +759,14 @@ type CapsuleResult struct {
 // Player must be disconnected and have an empty crafting queue and a main inventory.
 type CharacterCreateInput struct {
 	Player string `json:"player"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// Character must control no player and must not be any player's character; force must match the character's force exactly. Crafting queue, main inventory, and guns, ammo, armor, and trash inventories must all be empty, otherwise the call fails with nothing destroyed.
+type CharacterDeleteInput struct {
+	Character string `json:"character"`
+	Force     string `json:"force"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
@@ -722,17 +814,11 @@ type CharactersInput struct {
 
 // One force-visible custom marker in map view.
 type ChartTag struct {
-	TagNumber string        `json:"tagNumber"`
-	Position  *Position     `json:"position"`
-	Text      string        `json:"text"`
-	Icon      *ChartTagIcon `json:"icon,omitempty"`
-}
-
-// Signal icon shown beside a custom chart tag.
-type ChartTagIcon struct {
-	Type    string  `json:"type"`
-	Name    string  `json:"name"`
-	Quality *string `json:"quality,omitempty"`
+	TagNumber string    `json:"tagNumber"`
+	Position  *Position `json:"position"`
+	Text      string    `json:"text"`
+	// Icon signal, using the shared SignalID shape; type is item when the engine stores none.
+	Icon *SignalID `json:"icon,omitempty"`
 }
 
 // Snapshot returned after adding or removing one chart tag.
@@ -751,7 +837,7 @@ type ChartTagPage struct {
 	Tags     []*ChartTag `json:"tags"`
 }
 
-// List custom chart tags, optionally restricted to an area. limit is 1 through 1000 and offset is zero-based.
+// List custom chart tags, optionally restricted to an area. limit is 1 through 10000 and offset is zero-based.
 type ChartTagsInput struct {
 	Surface string            `json:"surface"`
 	Force   string            `json:"force"`
@@ -782,13 +868,33 @@ type CircuitBehaviorInput struct {
 	ReadLogistics    *bool `json:"readLogistics,omitempty"`
 	ReadRobotStats   *bool `json:"readRobotStats,omitempty"`
 	// Roboport: defines.control_behavior.roboport.read_items_mode.
-	ReadItemsMode            *int  `json:"readItemsMode,omitempty"`
-	SetFilters               *bool `json:"setFilters,omitempty"`
-	ReadHandContents         *bool `json:"readHandContents,omitempty"`
-	SetStackSize             *bool `json:"setStackSize,omitempty"`
-	ConnectToLogisticNetwork *bool `json:"connectToLogisticNetwork,omitempty"`
-	UseColors                *bool `json:"useColors,omitempty"`
-	ColorMode                *int  `json:"colorMode,omitempty"`
+	ReadItemsMode    *int  `json:"readItemsMode,omitempty"`
+	SetFilters       *bool `json:"setFilters,omitempty"`
+	ReadHandContents *bool `json:"readHandContents,omitempty"`
+	// Inserter: defines.control_behavior.inserter.hand_read_mode (hold or pulse).
+	HandReadMode *int `json:"handReadMode,omitempty"`
+	// Inserter: signal the circuit-set stack size reads; without it setStackSize has no effect.
+	StackControlSignal       *SignalInput   `json:"stackControlSignal,omitempty"`
+	SetStackSize             *bool          `json:"setStackSize,omitempty"`
+	ConnectToLogisticNetwork *bool          `json:"connectToLogisticNetwork,omitempty"`
+	UseColors                *bool          `json:"useColors,omitempty"`
+	ColorMode                *LampColorMode `json:"colorMode,omitempty"`
+	// Lamp: per-channel color signals used by COLOR_MAPPING and COMPONENTS.
+	RedSignal   *SignalInput `json:"redSignal,omitempty"`
+	GreenSignal *SignalInput `json:"greenSignal,omitempty"`
+	BlueSignal  *SignalInput `json:"blueSignal,omitempty"`
+	RgbSignal   *SignalInput `json:"rgbSignal,omitempty"`
+	// Transport belt: defines.control_behavior.transport_belt.content_read_mode (pulse, hold, entire_belt_hold).
+	ContentsReadMode *int `json:"contentsReadMode,omitempty"`
+	// Crafter and furnace: broadcast a pulse when the recipe finishes.
+	ReadRecipeFinished   *bool        `json:"readRecipeFinished,omitempty"`
+	RecipeFinishedSignal *SignalInput `json:"recipeFinishedSignal,omitempty"`
+	// Crafter and furnace: signal emitted while the machine works.
+	WorkingSignal *SignalInput `json:"workingSignal,omitempty"`
+	// Crafter and furnace: count building contents in crafting signals.
+	IncludeInCrafting *bool `json:"includeInCrafting,omitempty"`
+	// Crafter and furnace: count fuel in crafting signals.
+	IncludeFuel *bool `json:"includeFuel,omitempty"`
 	// Splitter: circuit controls the filter and each lane's input/output side.
 	SetFilter            *bool                 `json:"setFilter,omitempty"`
 	SplitterInputSide    *bool                 `json:"splitterInputSide,omitempty"`
@@ -798,26 +904,37 @@ type CircuitBehaviorInput struct {
 	OutputLeftCondition  *SignalConditionInput `json:"outputLeftCondition,omitempty"`
 	OutputRightCondition *SignalConditionInput `json:"outputRightCondition,omitempty"`
 	// Train stop circuit flags.
-	SendToTrain      *bool `json:"sendToTrain,omitempty"`
-	ReadFromTrain    *bool `json:"readFromTrain,omitempty"`
-	ReadStoppedTrain *bool `json:"readStoppedTrain,omitempty"`
+	SendToTrain        *bool        `json:"sendToTrain,omitempty"`
+	ReadFromTrain      *bool        `json:"readFromTrain,omitempty"`
+	ReadStoppedTrain   *bool        `json:"readStoppedTrain,omitempty"`
+	SetTrainsLimit     *bool        `json:"setTrainsLimit,omitempty"`
+	ReadTrainsCount    *bool        `json:"readTrainsCount,omitempty"`
+	StoppedTrainSignal *SignalInput `json:"stoppedTrainSignal,omitempty"`
+	TrainsCountSignal  *SignalInput `json:"trainsCountSignal,omitempty"`
+	TrainsLimitSignal  *SignalInput `json:"trainsLimitSignal,omitempty"`
+	SetPriority        *bool        `json:"setPriority,omitempty"`
+	PrioritySignal     *SignalInput `json:"prioritySignal,omitempty"`
 	// Rocket silo: defines.control_behavior.rocket_silo.read_mode.
 	SiloReadMode *int `json:"siloReadMode,omitempty"`
+	// Logistic container: enable/disable through the logistic condition.
+	CircuitConditionEnabled *bool `json:"circuitConditionEnabled,omitempty"`
+	// Logistic container: defines.control_behavior.logistic_container.exclusive_mode (0 none, 1 send_contents, 2 set_requests).
+	ExclusiveModeOfOperation *int `json:"exclusiveModeOfOperation,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
 
 // Raw control behavior settings and the writable flags this behavior exposes. Null fields mean the behavior has no such setting.
 type CircuitBehaviorSettings struct {
-	BehaviorType         int                `json:"behaviorType"`
-	Enabled              *bool              `json:"enabled,omitempty"`
-	CircuitEnableDisable *bool              `json:"circuitEnableDisable,omitempty"`
-	CircuitCondition     *InserterCondition `json:"circuitCondition,omitempty"`
-	LogisticCondition    *InserterCondition `json:"logisticCondition,omitempty"`
-	ReadContents         *bool              `json:"readContents,omitempty"`
-	SetRecipe            *bool              `json:"setRecipe,omitempty"`
-	ReadIngredients      *bool              `json:"readIngredients,omitempty"`
-	ReadWorking          *bool              `json:"readWorking,omitempty"`
+	BehaviorType         int               `json:"behaviorType"`
+	Enabled              *bool             `json:"enabled,omitempty"`
+	CircuitEnableDisable *bool             `json:"circuitEnableDisable,omitempty"`
+	CircuitCondition     *CircuitCondition `json:"circuitCondition,omitempty"`
+	LogisticCondition    *CircuitCondition `json:"logisticCondition,omitempty"`
+	ReadContents         *bool             `json:"readContents,omitempty"`
+	SetRecipe            *bool             `json:"setRecipe,omitempty"`
+	ReadIngredients      *bool             `json:"readIngredients,omitempty"`
+	ReadWorking          *bool             `json:"readWorking,omitempty"`
 	// Mining drill: read resource amounts instead of contents.
 	ReadResources *bool `json:"readResources,omitempty"`
 	// Mining drill: defines.control_behavior.mining_drill.resource_read_mode.
@@ -826,36 +943,106 @@ type CircuitBehaviorSettings struct {
 	ReadLogistics    *bool `json:"readLogistics,omitempty"`
 	ReadRobotStats   *bool `json:"readRobotStats,omitempty"`
 	// Roboport: defines.control_behavior.roboport.read_items_mode.
-	ReadItemsMode            *int   `json:"readItemsMode,omitempty"`
-	SetFilters               *bool  `json:"setFilters,omitempty"`
-	ReadHandContents         *bool  `json:"readHandContents,omitempty"`
-	SetStackSize             *bool  `json:"setStackSize,omitempty"`
-	ConnectToLogisticNetwork *bool  `json:"connectToLogisticNetwork,omitempty"`
-	UseColors                *bool  `json:"useColors,omitempty"`
-	ColorMode                *int   `json:"colorMode,omitempty"`
-	LampColor                *Color `json:"lampColor,omitempty"`
+	ReadItemsMode    *int  `json:"readItemsMode,omitempty"`
+	SetFilters       *bool `json:"setFilters,omitempty"`
+	ReadHandContents *bool `json:"readHandContents,omitempty"`
+	// Inserter: defines.control_behavior.inserter.hand_read_mode (hold or pulse).
+	HandReadMode *int `json:"handReadMode,omitempty"`
+	// Inserter: signal the circuit-set stack size reads.
+	StackControlSignal       *SignalID      `json:"stackControlSignal,omitempty"`
+	SetStackSize             *bool          `json:"setStackSize,omitempty"`
+	ConnectToLogisticNetwork *bool          `json:"connectToLogisticNetwork,omitempty"`
+	UseColors                *bool          `json:"useColors,omitempty"`
+	ColorMode                *LampColorMode `json:"colorMode,omitempty"`
+	LampColor                *Color         `json:"lampColor,omitempty"`
+	// Lamp: per-channel color signals used by COLOR_MAPPING and COMPONENTS.
+	RedSignal   *SignalID `json:"redSignal,omitempty"`
+	GreenSignal *SignalID `json:"greenSignal,omitempty"`
+	BlueSignal  *SignalID `json:"blueSignal,omitempty"`
+	RgbSignal   *SignalID `json:"rgbSignal,omitempty"`
+	// Transport belt: defines.control_behavior.transport_belt.content_read_mode (pulse, hold, entire_belt_hold).
+	ContentsReadMode *int `json:"contentsReadMode,omitempty"`
+	// Crafter and furnace: broadcast a pulse when the recipe finishes.
+	ReadRecipeFinished   *bool     `json:"readRecipeFinished,omitempty"`
+	RecipeFinishedSignal *SignalID `json:"recipeFinishedSignal,omitempty"`
+	// Crafter and furnace: signal emitted while the machine works.
+	WorkingSignal *SignalID `json:"workingSignal,omitempty"`
+	// Crafter and furnace: count building contents in crafting signals.
+	IncludeInCrafting *bool `json:"includeInCrafting,omitempty"`
+	// Crafter and furnace: count fuel in crafting signals.
+	IncludeFuel *bool `json:"includeFuel,omitempty"`
 	// Splitter: circuit controls the filter.
-	SetFilter            *bool              `json:"setFilter,omitempty"`
-	SplitterInputSide    *bool              `json:"splitterInputSide,omitempty"`
-	SplitterOutputSide   *bool              `json:"splitterOutputSide,omitempty"`
-	InputLeftCondition   *InserterCondition `json:"inputLeftCondition,omitempty"`
-	InputRightCondition  *InserterCondition `json:"inputRightCondition,omitempty"`
-	OutputLeftCondition  *InserterCondition `json:"outputLeftCondition,omitempty"`
-	OutputRightCondition *InserterCondition `json:"outputRightCondition,omitempty"`
+	SetFilter            *bool             `json:"setFilter,omitempty"`
+	SplitterInputSide    *bool             `json:"splitterInputSide,omitempty"`
+	SplitterOutputSide   *bool             `json:"splitterOutputSide,omitempty"`
+	InputLeftCondition   *CircuitCondition `json:"inputLeftCondition,omitempty"`
+	InputRightCondition  *CircuitCondition `json:"inputRightCondition,omitempty"`
+	OutputLeftCondition  *CircuitCondition `json:"outputLeftCondition,omitempty"`
+	OutputRightCondition *CircuitCondition `json:"outputRightCondition,omitempty"`
 	// Train stop: circuit flags.
-	SendToTrain       *bool           `json:"sendToTrain,omitempty"`
-	ReadFromTrain     *bool           `json:"readFromTrain,omitempty"`
-	ReadStoppedTrain  *bool           `json:"readStoppedTrain,omitempty"`
-	TrainsLimitSignal *InserterSignal `json:"trainsLimitSignal,omitempty"`
-	PrioritySignal    *InserterSignal `json:"prioritySignal,omitempty"`
+	SendToTrain        *bool     `json:"sendToTrain,omitempty"`
+	ReadFromTrain      *bool     `json:"readFromTrain,omitempty"`
+	ReadStoppedTrain   *bool     `json:"readStoppedTrain,omitempty"`
+	SetTrainsLimit     *bool     `json:"setTrainsLimit,omitempty"`
+	ReadTrainsCount    *bool     `json:"readTrainsCount,omitempty"`
+	StoppedTrainSignal *SignalID `json:"stoppedTrainSignal,omitempty"`
+	TrainsCountSignal  *SignalID `json:"trainsCountSignal,omitempty"`
+	TrainsLimitSignal  *SignalID `json:"trainsLimitSignal,omitempty"`
+	SetPriority        *bool     `json:"setPriority,omitempty"`
+	PrioritySignal     *SignalID `json:"prioritySignal,omitempty"`
 	// Rocket silo: defines.control_behavior.rocket_silo.read_mode.
 	SiloReadMode *int `json:"siloReadMode,omitempty"`
+	// Logistic container: enable/disable through the logistic condition.
+	CircuitConditionEnabled *bool `json:"circuitConditionEnabled,omitempty"`
+	// Logistic container: defines.control_behavior.logistic_container.exclusive_mode (0 none, 1 send_contents, 2 set_requests).
+	ExclusiveModeOfOperation *int `json:"exclusiveModeOfOperation,omitempty"`
 }
 
-// Read one entity's red or green circuit network.
+// A circuit condition as the engine stores it, mirroring SignalConditionInput so reads round-trip into writes.
+type CircuitCondition struct {
+	Comparator   *string   `json:"comparator,omitempty"`
+	Constant     *float64  `json:"constant,omitempty"`
+	FirstSignal  *SignalID `json:"firstSignal,omitempty"`
+	SecondSignal *SignalID `json:"secondSignal,omitempty"`
+	// Engine evaluation result at the read tick; ignored on write.
+	Fulfilled *bool `json:"fulfilled,omitempty"`
+}
+
+// One circuit network with its signals and member connectors. Signals cover the whole network, so a network extending past the queried area reports signals from outside it.
+type CircuitNetworkEntry struct {
+	NetworkID int                     `json:"networkId"`
+	Color     *WireColor              `json:"color,omitempty"`
+	Signals   []*CircuitSignal        `json:"signals"`
+	Members   []*CircuitNetworkMember `json:"members"`
+	// True when the network has more members than memberLimit.
+	Truncated bool `json:"truncated"`
+}
+
+// Read one entity's red or green circuit network, optionally through a specific wire connector.
 type CircuitNetworkInput struct {
 	Target *EntityRefInput `json:"target"`
 	Color  WireColor       `json:"color"`
+	// Engine wire connector id, for example circuit_red, circuit_green, combinator_output_red. Defaults to circuit_<color>, which on a combinator is the input connector; pass combinators' output connector to read the network the combinator drives.
+	Connector *string `json:"connector,omitempty"`
+}
+
+type CircuitNetworkMember struct {
+	Name string `json:"name"`
+	// Entity type, for example arithmetic-combinator.
+	EntityType string    `json:"entityType"`
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Position   *Position `json:"position"`
+	// Engine wire connector the entity attaches to the network with.
+	Connector string `json:"connector"`
+}
+
+type CircuitNetworkPage struct {
+	Tick    float64 `json:"tick"`
+	Surface string  `json:"surface"`
+	Force   string  `json:"force"`
+	// Networks sorted by network id.
+	Networks        []*CircuitNetworkEntry `json:"networks"`
+	ScannedEntities int                    `json:"scannedEntities"`
 }
 
 // Circuit network selection. Omitted flags default to both networks in Factorio.
@@ -875,22 +1062,37 @@ type CircuitNetworkSignals struct {
 	Name       *string   `json:"name,omitempty"`
 	UnitNumber *string   `json:"unitNumber,omitempty"`
 	Color      WireColor `json:"color"`
-	// True when the entity exposes a network of that color.
-	Connected        bool             `json:"connected"`
-	RedConnections   int              `json:"redConnections"`
-	GreenConnections int              `json:"greenConnections"`
-	Signals          []*CircuitSignal `json:"signals"`
+	// Engine connector the network was read through.
+	Connector string `json:"connector"`
+	// True when the entity exposes a network through that connector.
+	Connected bool `json:"connected"`
+	// Engine network id; equal ids mean the same network. Null when not connected.
+	NetworkID *int `json:"networkId,omitempty"`
+	// Engine connected_circuit_count: how many circuits are attached to that network, not how many wires this entity has. Null when not connected.
+	NetworkCircuitCount *int             `json:"networkCircuitCount,omitempty"`
+	Signals             []*CircuitSignal `json:"signals"`
 }
 
-// One circuit signal; quality is null for virtual and fluid signals.
+// List circuit networks in an area and the entities attached to them.
+type CircuitNetworksInput struct {
+	Surface string            `json:"surface"`
+	Force   string            `json:"force"`
+	Area    *FactoryAreaInput `json:"area"`
+	// Maximum entities scanned, 1 through 50000.
+	Limit int `json:"limit"`
+	// Maximum members reported per network, 1 through 10000.
+	MemberLimit int `json:"memberLimit"`
+}
+
+// One circuit signal; quality is null for virtual and fluid signals. type uses the same SignalType enum as SignalInput.
 type CircuitSignal struct {
-	Type    string  `json:"type"`
-	Name    string  `json:"name"`
-	Quality *string `json:"quality,omitempty"`
-	Value   float64 `json:"value"`
+	Type    SignalType `json:"type"`
+	Name    string     `json:"name"`
+	Quality *string    `json:"quality,omitempty"`
+	Value   float64    `json:"value"`
 }
 
-// Clearing is limited to areas with positive dimensions no greater than 256 tiles per side.
+// Clearing is limited to areas with positive dimensions no greater than 1024 tiles per side.
 type ClearAreaInput struct {
 	Surface string            `json:"surface"`
 	Area    *FactoryAreaInput `json:"area"`
@@ -940,6 +1142,22 @@ type CombinatorParametersInput struct {
 	Decider    *DeciderCombinatorParametersInput    `json:"decider,omitempty"`
 }
 
+// One inserter and the keys of its resolved pickup and drop entities; null keys mean the arm touches nothing insertable on that side.
+type CompactInserter struct {
+	Inserter string  `json:"inserter"`
+	Pickup   *string `json:"pickup,omitempty"`
+	Drop     *string `json:"drop,omitempty"`
+}
+
+// One edge with endpoint keys instead of repeated endpoint objects. Keys are surface:unitNumber, or surface:type:name:x:y for entities without a unit number. Match them against the node fields to recover the full endpoint.
+type CompactTopologyEdge struct {
+	From          string  `json:"from"`
+	To            string  `json:"to"`
+	Kind          string  `json:"kind"`
+	Boundary      bool    `json:"boundary"`
+	FlowDirection *string `json:"flowDirection,omitempty"`
+}
+
 type ConnectEntitiesInput struct {
 	Actor   *ActorInput `json:"actor"`
 	Surface string      `json:"surface"`
@@ -959,14 +1177,20 @@ type ConnectEntitiesInput struct {
 	UndergroundItem *string `json:"undergroundItem,omitempty"`
 	// ASTAR only: cap on the offset between underground halves, 2 or more; the effective offset is the smaller of this and the prototype's max underground distance. Requires allowUnderground.
 	MaxUndergroundDistance *int `json:"maxUndergroundDistance,omitempty"`
-	// ASTAR only: areas, each at most 256 tiles per side and at most 20 in total, where no entity may be placed. Underground spans may pass beneath them.
+	// ASTAR only: areas, each at most 1024 tiles per side and at most 100 in total, where no entity may be placed. Underground spans may pass beneath them.
 	AvoidAreas []*FactoryAreaInput `json:"avoidAreas,omitempty"`
 	// ASTAR only: let the route reuse existing same-name entities, cheaper than new tiles. A belt tile is reused only when it already faces the route's direction; reusing a pipe merges fluid networks, so it also needs allowFluidAdjacency. Existing entities at the two endpoints are always usable.
 	PreferExisting bool `json:"preferExisting"`
-	// ASTAR only: search at most this many states, 1 through 50000; default 5000.
+	// ASTAR only: search at most this many states, 1 through 200000; default 10000.
 	MaxExpandedTiles *int `json:"maxExpandedTiles,omitempty"`
-	// ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 64; default 12. The padded region may cover at most 16384 tiles.
+	// ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 256; default 32. The padded region may cover at most 65536 tiles.
 	SearchMargin *int `json:"searchMargin,omitempty"`
+	// Start by entity instead of tile; replaces from. The planner picks the adjacent route tile and its orientation.
+	FromEntity *ConnectionEndpointInput `json:"fromEntity,omitempty"`
+	// End at an entity instead of a tile; replaces to. A goal belt is side-loaded unless it faces the arrival head-on.
+	ToEntity *ConnectionEndpointInput `json:"toEntity,omitempty"`
+	// Accept an existing belt outside the run that points into a new route tile, which side-loads foreign items into the run or turns a planned corner into a straight belt.
+	AllowBeltAdjacency bool `json:"allowBeltAdjacency"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
@@ -1001,11 +1225,13 @@ type ConnectedInserter struct {
 	Drop     *LogisticsEndpoint `json:"drop,omitempty"`
 }
 
+// A connected player with the unit number of the character it currently controls, or null for a god controller.
 type ConnectedPlayer struct {
-	Name     string    `json:"name"`
-	Surface  string    `json:"surface"`
-	Position *Position `json:"position"`
-	Actor    *Actor    `json:"actor"`
+	Name      string    `json:"name"`
+	Surface   string    `json:"surface"`
+	Position  *Position `json:"position"`
+	Character *string   `json:"character,omitempty"`
+	Actor     *Actor    `json:"actor"`
 }
 
 type ConnectionConflict struct {
@@ -1018,6 +1244,16 @@ type ConnectionConflict struct {
 	// Ground tile prototype name.
 	Tile    string `json:"tile"`
 	Message string `json:"message"`
+}
+
+// An entity endpoint instead of a tile. The planner resolves the tile to use: the entity's own tile when it already holds the route entity, and otherwise the adjacent free tile on the chosen side, oriented away from the entity for a start and into it for a goal. No manual coordinates or directions are needed.
+type ConnectionEndpointInput struct {
+	// Entity to connect, by unitNumber or exact center position; surface defaults to the plan surface.
+	Entity *EntityRefInput `json:"entity"`
+	// Preferred side of the entity: auto (default), north, east, south or west. Other sides are tried when the preferred side has no free tile.
+	Side *string `json:"side,omitempty"`
+	// Preferred belt lane for a side-loading goal: left, right or auto (default). Reported back as ConnectionPlan.lane when the route ends on an existing belt.
+	Lane *string `json:"lane,omitempty"`
 }
 
 type ConnectionPlan struct {
@@ -1042,7 +1278,9 @@ type ConnectionPlan struct {
 	// Total cost of the planned steps; for DIRECT it equals needed.
 	Cost float64 `json:"cost"`
 	// States the search expanded; 0 for DIRECT.
-	Expanded  int                   `json:"expanded"`
+	Expanded int `json:"expanded"`
+	// Belt lane that receives the run when it ends by side-loading an existing belt: left or right from that belt's travel direction. Null when the goal is a new tile or the arrival is head-on.
+	Lane      *string               `json:"lane,omitempty"`
 	Steps     []*ConnectionStep     `json:"steps"`
 	Conflicts []*ConnectionConflict `json:"conflicts"`
 }
@@ -1068,14 +1306,20 @@ type ConnectionPlanInput struct {
 	UndergroundItem *string `json:"undergroundItem,omitempty"`
 	// ASTAR only: cap on the offset between underground halves, 2 or more; the effective offset is the smaller of this and the prototype's max underground distance. Requires allowUnderground.
 	MaxUndergroundDistance *int `json:"maxUndergroundDistance,omitempty"`
-	// ASTAR only: areas, each at most 256 tiles per side and at most 20 in total, where no entity may be placed. Underground spans may pass beneath them.
+	// ASTAR only: areas, each at most 1024 tiles per side and at most 100 in total, where no entity may be placed. Underground spans may pass beneath them.
 	AvoidAreas []*FactoryAreaInput `json:"avoidAreas,omitempty"`
 	// ASTAR only: let the route reuse existing same-name entities, cheaper than new tiles. A belt tile is reused only when it already faces the route's direction; reusing a pipe merges fluid networks, so it also needs allowFluidAdjacency. Existing entities at the two endpoints are always usable.
 	PreferExisting bool `json:"preferExisting"`
-	// ASTAR only: search at most this many states, 1 through 50000; default 5000.
+	// ASTAR only: search at most this many states, 1 through 200000; default 10000.
 	MaxExpandedTiles *int `json:"maxExpandedTiles,omitempty"`
-	// ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 64; default 12. The padded region may cover at most 16384 tiles.
+	// ASTAR only: tiles of padding around the endpoint bounding box that the search may use, 0 through 256; default 32. The padded region may cover at most 65536 tiles.
 	SearchMargin *int `json:"searchMargin,omitempty"`
+	// Start by entity instead of tile; replaces from. The planner picks the adjacent route tile and its orientation.
+	FromEntity *ConnectionEndpointInput `json:"fromEntity,omitempty"`
+	// End at an entity instead of a tile; replaces to. A goal belt is side-loaded unless it faces the arrival head-on.
+	ToEntity *ConnectionEndpointInput `json:"toEntity,omitempty"`
+	// Accept an existing belt outside the run that points into a new route tile, which side-loads foreign items into the run or turns a planned corner into a straight belt.
+	AllowBeltAdjacency bool `json:"allowBeltAdjacency"`
 }
 
 type ConnectionStep struct {
@@ -1089,6 +1333,48 @@ type ConnectionStep struct {
 	UndergroundType *UndergroundBeltType `json:"undergroundType,omitempty"`
 	// Cost units of this step; see ConnectionRouting.ASTAR.
 	Cost float64 `json:"cost"`
+}
+
+// One constant combinator section. Section index, active flag, multiplier and group come from LuaLogisticSection.
+type ConstantCombinatorSection struct {
+	Index      int                       `json:"index"`
+	Active     bool                      `json:"active"`
+	Multiplier float64                   `json:"multiplier"`
+	Group      string                    `json:"group"`
+	Slots      []*ConstantCombinatorSlot `json:"slots"`
+}
+
+type ConstantCombinatorSectionInput struct {
+	// One-based section index; sections are added in list order.
+	Index *int `json:"index,omitempty"`
+	// Omitted keeps the engine default true.
+	Active *bool `json:"active,omitempty"`
+	// Multiplier applied to every slot before the signals are used; omitted keeps the engine value.
+	Multiplier *float64 `json:"multiplier,omitempty"`
+	// Section group name; omitted or empty writes no group.
+	Group *string                        `json:"group,omitempty"`
+	Slots []*ConstantCombinatorSlotInput `json:"slots"`
+}
+
+// Constant combinator sections and their constant signals.
+type ConstantCombinatorSettings struct {
+	Enabled  bool                         `json:"enabled"`
+	Sections []*ConstantCombinatorSection `json:"sections"`
+}
+
+// One constant combinator slot: a signal and the count it emits.
+type ConstantCombinatorSlot struct {
+	Index  int       `json:"index"`
+	Signal *SignalID `json:"signal"`
+	Count  int       `json:"count"`
+}
+
+type ConstantCombinatorSlotInput struct {
+	// One-based slot index inside the section.
+	Index  int          `json:"index"`
+	Signal *SignalInput `json:"signal"`
+	// Signal count, written as the engine slot min; 0 to 2147483647.
+	Count int `json:"count"`
 }
 
 type ConstructionOrder struct {
@@ -1115,7 +1401,7 @@ type ConstructionOrderPage struct {
 // Orders are per force in the engine, but the filter matches any force; force is reported per entity.
 type ConstructionOrdersInput struct {
 	Surface string `json:"surface"`
-	// Optional area (at most 256 tiles per side); omitted scans the whole surface.
+	// Optional area (at most 1024 tiles per side); omitted scans the whole surface.
 	Area   *FactoryAreaInput      `json:"area,omitempty"`
 	State  ConstructionOrderState `json:"state"`
 	Limit  int                    `json:"limit"`
@@ -1127,8 +1413,8 @@ type ContainerBarInput struct {
 	Target *EntityRefInput `json:"target"`
 	// Inventory key: input, output, fuel, chest, modules or turret-ammo.
 	Inventory *string `json:"inventory,omitempty"`
-	// Allowed slots from 0 (no limit) to the inventory size.
-	Bar int `json:"bar"`
+	// Number of usable slots; null removes the limit (engine nil) and 0 blocks every slot. Never an engine bar index: the write sends allowedSlots+1.
+	AllowedSlots *int `json:"allowedSlots,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
@@ -1136,8 +1422,10 @@ type ContainerBarInput struct {
 // Bar limit of one container inventory.
 type ContainerSettings struct {
 	Inventory string `json:"inventory"`
-	// Number of allowed slots; 0 means no limit.
+	// Engine bar index: the index at which the red (blocked) area starts, so allowedSlots is this value minus one. Zero means the inventory has no limit.
 	Bar int `json:"bar"`
+	// Usable slot count, derived as bar-1 and clamped to the capacity. Null means no limit; 0 means every slot is blocked.
+	AllowedSlots *int `json:"allowedSlots,omitempty"`
 	// Total slots of the inventory.
 	Capacity int `json:"capacity"`
 }
@@ -1174,7 +1462,7 @@ type CreateBlueprintFromEntitiesInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Area limits are positive and at most 256 tiles per side. Modules and fuel default on; tiles, trains, and station names default off.
+// Area limits are positive and at most 1024 tiles per side. Modules default on; tiles, fuel, trains, and station names default off.
 type CreateBlueprintInput struct {
 	Surface             *string           `json:"surface,omitempty"`
 	Force               *string           `json:"force,omitempty"`
@@ -1189,9 +1477,9 @@ type CreateBlueprintInput struct {
 }
 
 type DeciderCombinatorCondition struct {
-	FirstSignal          *CircuitSignal           `json:"firstSignal,omitempty"`
+	FirstSignal          *SignalID                `json:"firstSignal,omitempty"`
 	FirstSignalNetworks  *CircuitNetworkSelection `json:"firstSignalNetworks,omitempty"`
-	SecondSignal         *CircuitSignal           `json:"secondSignal,omitempty"`
+	SecondSignal         *SignalID                `json:"secondSignal,omitempty"`
 	SecondSignalNetworks *CircuitNetworkSelection `json:"secondSignalNetworks,omitempty"`
 	Constant             *int                     `json:"constant,omitempty"`
 	Comparator           *string                  `json:"comparator,omitempty"`
@@ -1209,7 +1497,7 @@ type DeciderCombinatorConditionInput struct {
 }
 
 type DeciderCombinatorOutput struct {
-	Signal             *CircuitSignal           `json:"signal"`
+	Signal             *SignalID                `json:"signal,omitempty"`
 	CopyCountFromInput bool                     `json:"copyCountFromInput"`
 	Constant           *int                     `json:"constant,omitempty"`
 	Networks           *CircuitNetworkSelection `json:"networks,omitempty"`
@@ -1247,7 +1535,7 @@ type DeconstructAreaInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Place or cancel deconstruction orders for up to 200 explicit targets.
+// Place or cancel deconstruction orders for up to 1000 explicit targets.
 type DeconstructEntitiesInput struct {
 	Force   *string           `json:"force,omitempty"`
 	Targets []*EntityRefInput `json:"targets"`
@@ -1289,8 +1577,13 @@ type DropItemResult struct {
 	Item      string         `json:"item"`
 	Quality   string         `json:"quality"`
 	Requested float64        `json:"requested"`
-	Moved     float64        `json:"moved"`
-	Position  *Position      `json:"position"`
+	// Items the belt really accepted, or the whole stack for a ground drop.
+	Moved float64 `json:"moved"`
+	// Items that did not move and therefore stayed in the actor's inventory.
+	Remaining float64   `json:"remaining"`
+	Position  *Position `json:"position"`
+	// Item-on-ground entities created by a ground drop; empty for a belt drop.
+	GroundPositions []*Position `json:"groundPositions"`
 	// Transport line (1 or 2) that received the items; zero for a ground drop.
 	Line int `json:"line"`
 }
@@ -1299,11 +1592,19 @@ type ElectricNetworkInsight struct {
 	ID string `json:"id"`
 	// Number of selected force's poles in the area; not a whole-network count.
 	PolesInArea int `json:"polesInArea"`
-	// Average production over the past minute, watts at 60 ticks/second. Includes the entire network.
+	// Average production over the selected window, watts at 60 ticks/second. Includes the entire network.
 	ProductionWatts float64 `json:"productionWatts"`
-	// Average consumption over the past minute, watts at 60 ticks/second. Includes the entire network.
+	// Average consumption over the selected window, watts at 60 ticks/second. Includes the entire network.
 	ConsumptionWatts float64 `json:"consumptionWatts"`
-	// Current satisfaction is not exposed by the runtime API.
+	// Summed theoretical maximum production of generators, burner generators, solar panels and fusion generators of the force inside the area, in watts. A lower bound for the whole network and not observed output.
+	MaxProductionWatts float64 `json:"maxProductionWatts"`
+	// Stored energy of accumulators on this network inside the area, in joules.
+	AccumulatorChargeJoules float64 `json:"accumulatorChargeJoules"`
+	// Buffer capacity of those accumulators, in joules.
+	AccumulatorCapacityJoules float64 `json:"accumulatorCapacityJoules"`
+	// Entities on this network inside the area whose engine status is low_power.
+	LowPowerConsumers int `json:"lowPowerConsumers"`
+	// consumptionWatts divided by maxProductionWatts when capacity is positive; null when no producer is in the area. An observed-load ratio, not engine power satisfaction.
 	Satisfaction *float64 `json:"satisfaction,omitempty"`
 }
 
@@ -1323,16 +1624,20 @@ type EngineStatus struct {
 	Terminal bool           `json:"terminal"`
 }
 
-// Area limits are positive and at most 256 tiles per side. Limits are 1 to 1000; offsets are non-negative.
+// Omit area to scan the whole surface; a supplied area must have positive dimensions and has no size cap. limit is 1 to 10000 and offset is non-negative; whole-surface listings page through one deterministic order.
 type EntitiesInput struct {
 	Surface string            `json:"surface"`
-	Area    *FactoryAreaInput `json:"area"`
+	Area    *FactoryAreaInput `json:"area,omitempty"`
 	Name    *string           `json:"name,omitempty"`
-	Type    *string           `json:"type,omitempty"`
-	Limit   int               `json:"limit"`
-	Offset  int               `json:"offset"`
+	// Entity type filter (engine type, not a prototype name); an unknown type is an error.
+	Type *string `json:"type,omitempty"`
+	// Optional force filter; every row also carries Entity.force.
+	Force  *string `json:"force,omitempty"`
+	Limit  int     `json:"limit"`
+	Offset int     `json:"offset"`
 }
 
+// One entity row. status and statusName are the engine entity_status code and name (for example 53 and no_fuel), and health is the entity's current health, so a listing shows what each entity is doing without a follow-up inspect. Fields are null when the engine reports nothing for that entity.
 type Entity struct {
 	Tick       *float64          `json:"tick,omitempty"`
 	Force      *string           `json:"force,omitempty"`
@@ -1344,7 +1649,30 @@ type Entity struct {
 	UnitNumber *string           `json:"unitNumber,omitempty"`
 	Amount     *float64          `json:"amount,omitempty"`
 	Distance   *float64          `json:"distance,omitempty"`
+	Status     *int              `json:"status,omitempty"`
+	StatusName *string           `json:"statusName,omitempty"`
+	Health     *float64          `json:"health,omitempty"`
 	Inspection *EntityInspection `json:"inspection,omitempty"`
+}
+
+// Omit area to count the whole surface; a supplied area must have positive dimensions and has no size cap. names and types are exact filters and an unknown entry is an error.
+type EntityCountInput struct {
+	Surface string            `json:"surface"`
+	Area    *FactoryAreaInput `json:"area,omitempty"`
+	Force   *string           `json:"force,omitempty"`
+	Names   []string          `json:"names,omitempty"`
+	Types   []string          `json:"types,omitempty"`
+	// Adds a row per engine status within each name and type.
+	GroupByStatus bool `json:"groupByStatus"`
+}
+
+// One count group. status and statusName are null unless groupByStatus is true.
+type EntityCountRow struct {
+	Name       string  `json:"name"`
+	Type       string  `json:"type"`
+	Status     *int    `json:"status,omitempty"`
+	StatusName *string `json:"statusName,omitempty"`
+	Count      int     `json:"count"`
 }
 
 type EntityInspection struct {
@@ -1454,18 +1782,53 @@ type EntityPrototype struct {
 	// Supply area distance for electric poles.
 	SupplyArea *float64 `json:"supplyArea,omitempty"`
 	// Crafting speed at normal quality when the entity crafts.
-	CraftingSpeed      *float64 `json:"craftingSpeed,omitempty"`
+	CraftingSpeed *float64 `json:"craftingSpeed,omitempty"`
+	// Mining radius in tiles for mining drills, measured from the entity center; null when the prototype does not mine.
+	MiningRadius *float64 `json:"miningRadius,omitempty"`
+	// Mining speed at normal quality for mining drills and characters; null otherwise.
+	MiningSpeed *float64 `json:"miningSpeed,omitempty"`
+	// Resource categories this drill or character can mine, sorted; empty when the prototype has none.
+	ResourceCategories []string `json:"resourceCategories"`
+	// Theoretical maximum electric energy usage at normal quality in watts (engine joules per tick times 60); null when the prototype consumes no energy.
+	EnergyUsageWatts *float64 `json:"energyUsageWatts,omitempty"`
+	// Module inventory size; null when the prototype has no module slots.
+	ModuleSlots        *int     `json:"moduleSlots,omitempty"`
 	CraftingCategories []string `json:"craftingCategories"`
 	FluidBoxCount      int      `json:"fluidBoxCount"`
 	Mineable           bool     `json:"mineable"`
 }
 
-// Address one entity by unit number, or by prototype name and exact center position.
+// Address one entity by unit number, or by prototype name and a position inside the entity. The exact centre is not required: a rock or resource tile that does not sit on the tile grid is matched when the named point falls inside its bounding box.
 type EntityRefInput struct {
 	Surface    *string        `json:"surface,omitempty"`
 	Entity     *string        `json:"entity,omitempty"`
 	UnitNumber *string        `json:"unitNumber,omitempty"`
 	Position   *PositionInput `json:"position,omitempty"`
+}
+
+type EntitySettingsInput struct {
+	Surface string            `json:"surface"`
+	Force   string            `json:"force"`
+	Area    *FactoryAreaInput `json:"area"`
+	// Prototype names to include; omitted means every name.
+	Names []string `json:"names,omitempty"`
+	// Entity types to include, for example container, inserter, assembling-machine; omitted means every type.
+	Types []string `json:"types,omitempty"`
+	// Maximum rows returned, 1 through 10000.
+	Limit int `json:"limit"`
+	// Container inventory key used for the bar section: chest, fuel, input, output, modules or turret-ammo.
+	Inventory *string `json:"inventory,omitempty"`
+}
+
+// One settings batch read over an area, filter and limit, produced by a single Lua chunk.
+type EntitySettingsPage struct {
+	Tick    float64 `json:"tick"`
+	Surface string  `json:"surface"`
+	Force   string  `json:"force"`
+	// Entities sorted by unit number; entities without a unit number sort last by position.
+	Entities []*SettingsResult `json:"entities"`
+	// Number of entities the engine matched before the limit was applied.
+	Matched int `json:"matched"`
 }
 
 type EntitySnapshot struct {
@@ -1518,6 +1881,49 @@ type EquipmentGridResult struct {
 	Moved     float64           `json:"moved"`
 }
 
+// One unhealthy entity. status is the raw engine defines.entity_status name, direction is the engine direction code when the entity exposes one, and suggestedAction is a short next step for its kind. kind and severity match the briefing classification.
+type FactoryAlert struct {
+	Kind            AttentionKind     `json:"kind"`
+	Severity        AttentionSeverity `json:"severity"`
+	Status          string            `json:"status"`
+	Name            string            `json:"name"`
+	Type            string            `json:"type"`
+	Position        *Position         `json:"position"`
+	UnitNumber      *string           `json:"unitNumber,omitempty"`
+	Direction       *int              `json:"direction,omitempty"`
+	SuggestedAction string            `json:"suggestedAction"`
+	// Cause refined beyond the engine status: DESTINATION_BAR_LIMITED when an inserter waits for space in a drop target whose bar leaves no usable slot; null when the status alone explains the block.
+	Cause *string `json:"cause,omitempty"`
+	// Drop target read for a waiting inserter; null when the entity is not an inserter, the status is not waiting_for_space_in_destination, or the target exposes no container inventory.
+	Destination *AlertDestination `json:"destination,omitempty"`
+}
+
+type FactoryAlerts struct {
+	Tick    float64    `json:"tick"`
+	Surface string     `json:"surface"`
+	Force   string     `json:"force"`
+	Area    *WorldArea `json:"area,omitempty"`
+	// Status-bearing entities the scan visited, healthy or not.
+	Scanned int `json:"scanned"`
+	// Unhealthy entities found before the limit cut.
+	Total int `json:"total"`
+	// Rows ordered by severity, kind, distance from the area center (or force spawn) and position; cut to limit.
+	Alerts []*FactoryAlert `json:"alerts"`
+	// Per-kind counts over the whole scan, independent of limit and kinds.
+	AttentionCounts []*AttentionCount `json:"attentionCounts"`
+	// Crafting-machine summaries on the shared MachineSummary shape; machines outside those types appear only in alerts.
+	Machines []*MachineSummary `json:"machines"`
+}
+
+// Surface and force must name existing objects. area, when given, must have positive dimensions of at most 1024 tiles per side and bounds the scan. kinds keeps only the listed kinds. limit is 1 through 10000 and caps the rows returned, while attentionCounts and total always cover the whole scan.
+type FactoryAlertsInput struct {
+	Surface string            `json:"surface"`
+	Force   string            `json:"force"`
+	Area    *FactoryAreaInput `json:"area,omitempty"`
+	Kinds   []AttentionKind   `json:"kinds,omitempty"`
+	Limit   int               `json:"limit"`
+}
+
 type FactoryAreaInput struct {
 	LeftTopX     float64 `json:"leftTopX"`
 	LeftTopY     float64 `json:"leftTopY"`
@@ -1538,7 +1944,8 @@ type FactoryBriefing struct {
 	// Null when no watchItems were supplied.
 	StockTick  *float64          `json:"stockTick,omitempty"`
 	Production []*ProductionItem `json:"production"`
-	Machines   []*MachineSummary `json:"machines"`
+	// Crafting-machine summaries from the same factoryAlerts status scan (assembling machines, furnaces, mining drills, labs, rocket silos). Every other status-bearing type appears in attention instead.
+	Machines []*MachineSummary `json:"machines"`
 	// Highest severity first, then by kind, position and name; cut to attentionLimit.
 	Attention []*AttentionItem `json:"attention"`
 	// Attention items found before the attentionLimit cut.
@@ -1552,7 +1959,7 @@ type FactoryBriefing struct {
 	Warnings []string `json:"warnings"`
 }
 
-// Surface and force must name existing objects. area, when given, must have positive dimensions of at most 256 tiles per side and bounds machines, power networks, safety, ghosts, construction orders and stock; omit it to scan the whole surface (ghosts are then skipped). attentionLimit is 1 through 100. watchItems holds at most 20 distinct items.
+// Surface and force must name existing objects. area, when given, must have positive dimensions of at most 1024 tiles per side and bounds machines, power networks, safety, ghosts, construction orders and stock; omit it to scan the whole surface, including the whole ghost backlog. attentionLimit is 1 through 1000. watchItems holds at most 100 distinct items.
 type FactoryBriefingInput struct {
 	Surface        string                    `json:"surface"`
 	Force          string                    `json:"force"`
@@ -1564,21 +1971,84 @@ type FactoryBriefingInput struct {
 	Actor *ActorInput `json:"actor,omitempty"`
 }
 
+type FactoryDefect struct {
+	Kind     DefectKind     `json:"kind"`
+	Severity DefectSeverity `json:"severity"`
+	// Prototype name of the entity the row is about; the belt component id for component-wide rows.
+	Entity     string    `json:"entity"`
+	Type       *string   `json:"type,omitempty"`
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Position   *Position `json:"position"`
+	Detail     string    `json:"detail"`
+}
+
+type FactoryDefectCount struct {
+	Kind  DefectKind `json:"kind"`
+	Count int        `json:"count"`
+}
+
+type FactoryDefects struct {
+	// Tick of the factoryGraph read that supplied nodes, inserters and edges.
+	GraphTick float64 `json:"graphTick"`
+	// Tick of the beltComponents read; null when no belt kind was requested.
+	BeltTick *float64 `json:"beltTick,omitempty"`
+	// Tick of the powerConsumers read; null when PRODUCER_UNPLUGGED was not requested.
+	PowerTick *float64 `json:"powerTick,omitempty"`
+	// Tick of the ghosts and logisticNetworks reads; null when GHOST_NO_ROBOPORT was not requested.
+	GhostTick        *float64   `json:"ghostTick,omitempty"`
+	Surface          string     `json:"surface"`
+	Force            string     `json:"force"`
+	Area             *WorldArea `json:"area"`
+	ScannedNodes     int        `json:"scannedNodes"`
+	ScannedInserters int        `json:"scannedInserters"`
+	ScannedBelts     int        `json:"scannedBelts"`
+	// Rows found before the limit cut.
+	Total   int              `json:"total"`
+	Limit   int              `json:"limit"`
+	Defects []*FactoryDefect `json:"defects"`
+	// Per-kind counts over the requested kinds, independent of limit; sections whose kinds were filtered out are not read at all.
+	Counts []*FactoryDefectCount `json:"counts"`
+	// Skipped sections and truncated scans; empty when the read is complete.
+	Warnings []string `json:"warnings"`
+}
+
+type FactoryDefectsInput struct {
+	Surface string `json:"surface"`
+	Force   string `json:"force"`
+	// Required bounds; each side may be up to 1024 tiles.
+	Area *FactoryAreaInput `json:"area"`
+	// Keep only these kinds; empty means every kind.
+	Kinds []DefectKind `json:"kinds,omitempty"`
+	// Row cap, 1 through 10000.
+	Limit int `json:"limit"`
+}
+
 // All supported selected-force nodes intersecting area, without pagination or silent omission. Supported machines: assembling machines, furnaces, drills, labs, rocket silos. Chests include logistic, linked, and infinity containers. Inserters also include outside-area and other-force inserters whose actual target is a returned node. Edges include physical belt, loader/container, and inserter pickup/drop connections. boundaryEdges are the subset crossing the returned node set, including force boundaries; endpoints remain fully identified. No adjacency guessing or rate estimates.
 type FactoryGraph struct {
-	Tick      float64              `json:"tick"`
-	Surface   string               `json:"surface"`
-	Force     string               `json:"force"`
-	Area      *WorldArea           `json:"area"`
-	Nodes     []*LogisticsEndpoint `json:"nodes"`
-	Machines  []*LogisticsEndpoint `json:"machines"`
-	Belts     []*LogisticsEndpoint `json:"belts"`
-	Chests    []*LogisticsEndpoint `json:"chests"`
+	Tick    float64    `json:"tick"`
+	Surface string     `json:"surface"`
+	Force   string     `json:"force"`
+	Area    *WorldArea `json:"area"`
+	// Every supported node in the area, each with its engine type, so nodes alone identifies machines, belts, chests, inserters and fluid entities. This is the only entity list that stays populated when compact is true.
+	Nodes []*LogisticsEndpoint `json:"nodes"`
+	// Supported machines in the area. Empty when compact is true; filter nodes by type instead.
+	Machines []*LogisticsEndpoint `json:"machines"`
+	// Belt entities in the area. Empty when compact is true; filter nodes by type instead.
+	Belts []*LogisticsEndpoint `json:"belts"`
+	// Chest entities in the area. Empty when compact is true; filter nodes by type instead.
+	Chests []*LogisticsEndpoint `json:"chests"`
+	// Inserter wiring with resolved endpoints. Empty when compact is true; read compactInserters instead.
 	Inserters []*ConnectedInserter `json:"inserters"`
-	// Fluid-network entities in the area: offshore pumps, pipes, pipe-to-ground, pumps, boilers, generators, heat exchangers and storage tanks.
+	// Fluid-network entities in the area: offshore pumps, pipes, pipe-to-ground, pumps, boilers, generators, heat exchangers and storage tanks. Empty when compact is true; filter nodes by type instead, otherwise a compact call reports zero fluid entities even when the area holds them.
 	FluidEntities []*LogisticsEndpoint `json:"fluidEntities"`
 	Edges         []*TopologyEdge      `json:"edges"`
 	BoundaryEdges []*TopologyEdge      `json:"boundaryEdges"`
+	// Compact mode only: every edge as endpoint keys. Empty otherwise.
+	CompactEdges []*CompactTopologyEdge `json:"compactEdges"`
+	// Compact mode only: boundary edges as endpoint keys. Empty otherwise.
+	CompactBoundaryEdges []*CompactTopologyEdge `json:"compactBoundaryEdges"`
+	// Compact mode only: inserter wiring as endpoint keys. Empty otherwise.
+	CompactInserters []*CompactInserter `json:"compactInserters"`
 }
 
 type FactoryMachine struct {
@@ -1590,7 +2060,7 @@ type FactoryMachine struct {
 	Surface    string            `json:"surface"`
 	Force      string            `json:"force"`
 	UnitNumber *string           `json:"unitNumber,omitempty"`
-	// One additional game snapshot for ingredient demand, theoretical throughput, blocking status and electric state together.
+	// Computed by the machines page in the same Lua snapshot as the row, so selecting it adds no call per machine. Carries ingredient demand, theoretical throughput or mining rate, blocking status, burner fuel state and electric state together.
 	Diagnostics *MachineDiagnostics `json:"diagnostics"`
 	// Stored energy in joules, not instantaneous power consumption.
 	Energy *float64 `json:"energy,omitempty"`
@@ -1629,6 +2099,8 @@ type FactoryOverviewInput struct {
 	Surface string           `json:"surface"`
 	Force   string           `json:"force"`
 	Window  ProductionWindow `json:"window"`
+	// Optional exact item and fluid prototype names to keep in the production rows; omit or leave empty to return every row. Applied after the statistics read, so it only trims rows and never changes rates.
+	ItemNames []string `json:"itemNames,omitempty"`
 }
 
 type FactoryProduction struct {
@@ -1637,6 +2109,8 @@ type FactoryProduction struct {
 	Force   string            `json:"force"`
 	Window  ProductionWindow  `json:"window"`
 	Items   []*ProductionItem `json:"items"`
+	// Fluid flows from the force fluid statistics over the same window; item and fluid rows share the ProductionItem shape.
+	Fluids []*ProductionItem `json:"fluids"`
 }
 
 // One fluid quantity, optionally at a known temperature.
@@ -1644,6 +2118,19 @@ type FluidAmount struct {
 	Name        string   `json:"name"`
 	Amount      float64  `json:"amount"`
 	Temperature *float64 `json:"temperature,omitempty"`
+}
+
+// One fluidbox that belongs to a segment or standalone box listing.
+type FluidBoxMember struct {
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"`
+	Position   *Position `json:"position"`
+	BoxIndex   int       `json:"boxIndex"`
+	// Engine fluidbox production type (input, output, input-output), null when the prototype reports none.
+	ProductionType *string `json:"productionType,omitempty"`
+	// Fluid prototype locked into this box by a filter, null when unfiltered.
+	Filter *string `json:"filter,omitempty"`
 }
 
 // Aggregated fluid amount in an inspected entity.
@@ -1655,7 +2142,7 @@ type FluidContent struct {
 type FluidNetwork struct {
 	Tick    float64 `json:"tick"`
 	Surface string  `json:"surface"`
-	// Hard bound on visited fluidbox nodes, from 1 to 10000.
+	// Hard bound on visited fluidbox nodes, from 1 to 50000.
 	MaxBoxes     int  `json:"maxBoxes"`
 	VisitedBoxes int  `json:"visitedBoxes"`
 	Truncated    bool `json:"truncated"`
@@ -1704,6 +2191,53 @@ type FluidNetworkSegment struct {
 	EngineSegmentID *string               `json:"engineSegmentId,omitempty"`
 	Capacity        float64               `json:"capacity"`
 	SegmentFluids   []*FluidNetworkAmount `json:"segmentFluids"`
+	// Highest temperature among visited member boxes of this segment; null when the segment holds no fluid or no member box was visited.
+	Temperature *float64 `json:"temperature,omitempty"`
+	// Visited boxes belonging to this segment. The traversal may not reach every box of the engine segment, so this is the observed membership, not the full segment.
+	Members []*FluidBoxMember `json:"members"`
+}
+
+type FluidProblem struct {
+	Kind       FluidProblemKind `json:"kind"`
+	Entity     string           `json:"entity"`
+	UnitNumber *string          `json:"unitNumber,omitempty"`
+	Position   *Position        `json:"position"`
+	BoxIndex   int              `json:"boxIndex"`
+	Detail     string           `json:"detail"`
+}
+
+// One engine fluid segment, or one standalone fluidbox, built from the boxes inside the requested area.
+type FluidSegmentSummary struct {
+	// Segment identity: surface:segment:engineId, or surface:box:entity:boxIndex for a box the engine reports outside a pipe segment. A box id is not a disconnection verdict: a boiler output box is normally listed this way while feeding the adjacent pipe segment, so a working boiler shows surface:box:entity:2 beside a steam segment it fills. Use problems, or an adjacency pair with an empty connection, before calling a fluidbox disconnected.
+	ID              string  `json:"id"`
+	EngineSegmentID *string `json:"engineSegmentId,omitempty"`
+	// Largest capacity the engine reports among the member boxes: pipe boxes report their whole segment, machine boxes only their own volume, so this is the segment capacity whenever a pipe is a member.
+	Capacity float64 `json:"capacity"`
+	// Highest temperature among member boxes; null when the segment holds no fluid.
+	Temperature *float64              `json:"temperature,omitempty"`
+	Amount      float64               `json:"amount"`
+	Fluids      []*FluidNetworkAmount `json:"fluids"`
+	Members     []*FluidBoxMember     `json:"members"`
+}
+
+type FluidSegmentsInput struct {
+	Surface string `json:"surface"`
+	Force   string `json:"force"`
+	// Finite positive dimensions, at most 1024 tiles per side.
+	Area *FactoryAreaInput `json:"area"`
+	// Hard bound on visited fluid boxes, 1 through 20000.
+	MaxBoxes int `json:"maxBoxes"`
+}
+
+type FluidSegmentsReport struct {
+	Tick         float64                `json:"tick"`
+	Surface      string                 `json:"surface"`
+	Force        string                 `json:"force"`
+	Area         *WorldArea             `json:"area"`
+	VisitedBoxes int                    `json:"visitedBoxes"`
+	Truncated    bool                   `json:"truncated"`
+	Segments     []*FluidSegmentSummary `json:"segments"`
+	Problems     []*FluidProblem        `json:"problems"`
 }
 
 type FluidStockInput struct {
@@ -1724,9 +2258,23 @@ type FluidStockLocation struct {
 	EntityType    string    `json:"entityType"`
 	Position      *Position `json:"position"`
 	InventoryKind string    `json:"inventoryKind"`
-	Fluid         string    `json:"fluid"`
-	Amount        float64   `json:"amount"`
-	Temperature   *float64  `json:"temperature,omitempty"`
+	// Entity unit number; null for entities the engine does not give one.
+	UnitNumber *string `json:"unitNumber,omitempty"`
+	// Fluidbox index on the entity, so the row can be fed to setFluid or inspected per box.
+	BoxIndex int `json:"boxIndex"`
+	// Engine fluidbox production type of this box (input, output, input-output or none), null when the prototype reports none.
+	ProductionType *string `json:"productionType,omitempty"`
+	// Fluid prototype locked into this box by a filter, null when the box is unfiltered.
+	Filter *string `json:"filter,omitempty"`
+	// Engine fluid segment id in surface:segment:engineId form, null when the box is not part of a segment (fluid wagon, fluid turret buffer, circuit-connected storage).
+	SegmentID *string `json:"segmentId,omitempty"`
+	Fluid     string  `json:"fluid"`
+	// Amount this box holds.
+	Amount float64 `json:"amount"`
+	// Fluid temperature in this box.
+	Temperature *float64 `json:"temperature,omitempty"`
+	// Capacity the engine reports for this fluidbox index (get_capacity). Pipe boxes report their whole segment here while machine boxes report only their own volume, so read it together with segmentId instead of assuming a per-box size.
+	Capacity *float64 `json:"capacity,omitempty"`
 }
 
 type FluidStockPage struct {
@@ -1746,19 +2294,27 @@ type FluidTotal struct {
 }
 
 type FluidWriteResult struct {
-	Tick          float64        `json:"tick"`
-	Surface       string         `json:"surface"`
-	Force         string         `json:"force"`
-	Actor         *ActorIdentity `json:"actor"`
-	Name          string         `json:"name"`
-	UnitNumber    *string        `json:"unitNumber,omitempty"`
-	Position      *Position      `json:"position"`
-	Fluid         *string        `json:"fluid,omitempty"`
-	Before        float64        `json:"before"`
-	After         float64        `json:"after"`
-	Capacity      float64        `json:"capacity"`
-	Mode          FluidWriteMode `json:"mode"`
-	BoxesAffected int            `json:"boxesAffected"`
+	Tick       float64        `json:"tick"`
+	Surface    string         `json:"surface"`
+	Force      string         `json:"force"`
+	Actor      *ActorIdentity `json:"actor"`
+	Name       string         `json:"name"`
+	UnitNumber *string        `json:"unitNumber,omitempty"`
+	Position   *Position      `json:"position"`
+	Fluid      *string        `json:"fluid,omitempty"`
+	// Named fluid total in the reported scope before the write (all fluids when fluid is omitted).
+	Before float64 `json:"before"`
+	// Named fluid total in the reported scope after the write.
+	After float64 `json:"after"`
+	// Capacity the engine reports for the scope. For a segmented pipe box that is the whole segment capacity, shared with every box in it; a non-pipe box can report only its own volume.
+	Capacity float64 `json:"capacity"`
+	// What the amounts describe; a segment scope includes fluid held by other entities in the same segment.
+	Scope FluidWriteScope `json:"scope"`
+	// Amount the engine accepted from a SET or ADD; zero for CLEAR.
+	Inserted float64        `json:"inserted"`
+	Mode     FluidWriteMode `json:"mode"`
+	// This entity's fluid boxes whose contents changed.
+	BoxesAffected int `json:"boxesAffected"`
 }
 
 // Fuel one entity as the selected actor.
@@ -1775,13 +2331,15 @@ type FuelInput struct {
 
 type FuelManyInput struct {
 	Actor *ActorInput `json:"actor"`
-	// 1 through 200 distinct entity references.
+	// 1 through 1000 distinct entity references.
 	Targets []*EntityRefInput `json:"targets"`
 	Item    string            `json:"item"`
 	// Item quality prototype name; defaults to normal.
 	Quality *string `json:"quality,omitempty"`
-	// Whole items per target, at least 1.
+	// Whole items per target, at least 1; ignored when topUpTo is set.
 	CountPerTarget int `json:"countPerTarget"`
+	// Fill each target's fuel inventory up to this many items instead of inserting countPerTarget. Idempotent: a target that already holds topUpTo items is reported as skipped and nothing is added.
+	TopUpTo *int `json:"topUpTo,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
@@ -1796,9 +2354,11 @@ type FuelManyResult struct {
 	// Targets that failed; every failure appears in errors up to its cap.
 	Failed int `json:"failed"`
 	// Items removed from the actor and inserted into targets.
-	Moved   int                 `json:"moved"`
+	Moved int `json:"moved"`
+	// Targets that already held topUpTo items and were left alone.
+	Skipped int                 `json:"skipped"`
 	Results []*FuelTargetResult `json:"results"`
-	// Typed failures with one-based index and target identity; at most the first 20 are listed.
+	// Typed failures with one-based index and target identity; at most the first 100 are listed.
 	Errors []*BatchError `json:"errors"`
 }
 
@@ -1808,8 +2368,12 @@ type FuelTargetResult struct {
 	Entity     string    `json:"entity"`
 	UnitNumber *string   `json:"unitNumber,omitempty"`
 	Position   *Position `json:"position"`
-	Requested  int       `json:"requested"`
-	Moved      int       `json:"moved"`
+	// Items the target needed: countPerTarget, or the shortfall to reach topUpTo.
+	Requested int `json:"requested"`
+	// Items this target really received.
+	Moved int `json:"moved"`
+	// True when topUpTo was already reached, so nothing was inserted.
+	Skipped bool `json:"skipped"`
 }
 
 // speed must be between 0.1 and 1000. paused omitted keeps the current pause state.
@@ -1841,6 +2405,22 @@ type GhostBacklogEntry struct {
 	Buildable bool `json:"buildable"`
 }
 
+// One ghost to plan. position is an absolute map position, not blueprint-relative.
+type GhostEntityInput struct {
+	// Entity prototype to ghost.
+	Name string `json:"name"`
+	// Exact map position of the ghost's center.
+	Position *PositionInput `json:"position"`
+	// Canonical engine direction 0 through 15; 0 is north.
+	Direction int `json:"direction"`
+	// Entity quality prototype name; defaults to normal.
+	Quality *string `json:"quality,omitempty"`
+	// Recipe to set on the ghost's crafting machine; the prototype must exist.
+	Recipe *string `json:"recipe,omitempty"`
+	// Quality prototype of recipe products; only meaningful with recipe.
+	RecipeQuality *string `json:"recipeQuality,omitempty"`
+}
+
 type GhostMaterial struct {
 	Name      string  `json:"name"`
 	Quality   string  `json:"quality"`
@@ -1849,20 +2429,40 @@ type GhostMaterial struct {
 	Missing   float64 `json:"missing"`
 }
 
+type GhostPlacementResult struct {
+	Tick            float64        `json:"tick"`
+	Surface         string         `json:"surface"`
+	Force           string         `json:"force"`
+	EntitiesCreated int            `json:"entitiesCreated"`
+	TilesCreated    int            `json:"tilesCreated"`
+	Failed          int            `json:"failed"`
+	Errors          []*BatchError  `json:"errors"`
+	Ghosts          []*PlacedGhost `json:"ghosts"`
+}
+
+// One tile ghost at whole-tile map coordinates.
+type GhostTileInput struct {
+	// Tile prototype to ghost.
+	Name string `json:"name"`
+	X    int    `json:"x"`
+	Y    int    `json:"y"`
+}
+
 type GhostsInput struct {
 	Surface string `json:"surface"`
 	Force   string `json:"force"`
-	// Finite positive dimensions, at most 256 tiles per side.
-	Area   *FactoryAreaInput `json:"area"`
+	// Optional finite positive dimensions, at most 1024 tiles per side. Omit to scan the whole surface.
+	Area   *FactoryAreaInput `json:"area,omitempty"`
 	Limit  int               `json:"limit"`
 	Offset int               `json:"offset"`
 }
 
 type GhostsPage struct {
-	Tick     float64    `json:"tick"`
-	Surface  string     `json:"surface"`
-	Force    string     `json:"force"`
-	Area     *WorldArea `json:"area"`
+	Tick    float64 `json:"tick"`
+	Surface string  `json:"surface"`
+	Force   string  `json:"force"`
+	// Bounds that scoped this read; null when area was omitted and the whole surface was scanned.
+	Area     *WorldArea `json:"area,omitempty"`
 	PageInfo *PageInfo  `json:"pageInfo"`
 	// Independent per-entry availability. Same stock can satisfy multiple entries; no reservations or promise that whole backlog can be built.
 	GhostEntries []*GhostBacklogEntry `json:"ghostEntries"`
@@ -1877,12 +2477,16 @@ type HarvestAreaInput struct {
 }
 
 type HarvestAreaResult struct {
-	Tick       float64           `json:"tick"`
-	Surface    string            `json:"surface"`
-	Force      string            `json:"force"`
-	Actor      *ActorIdentity    `json:"actor"`
-	TreesMined int               `json:"treesMined"`
-	RocksMined int               `json:"rocksMined"`
+	Tick       float64        `json:"tick"`
+	Surface    string         `json:"surface"`
+	Force      string         `json:"force"`
+	Actor      *ActorIdentity `json:"actor"`
+	TreesMined int            `json:"treesMined"`
+	RocksMined int            `json:"rocksMined"`
+	// Tree stump corpses destroyed after mining a tree; Factorio 2.0 leaves one per mined tree. A surviving stump does not block construction, because corpses collide with tiles only, but harvesting still clears it as debris.
+	StumpsRemoved int `json:"stumpsRemoved"`
+	// Stumps destroy could not remove, normally 0. A leftover stump is debris, not an obstacle: it does not block placement.
+	StumpsLeft int               `json:"stumpsLeft"`
 	OutOfReach int               `json:"outOfReach"`
 	Failed     int               `json:"failed"`
 	Errors     []*BatchError     `json:"errors"`
@@ -1893,24 +2497,18 @@ type InserterCircuitSettings struct {
 	// Whether control behavior currently permits operation. Other causes may still make InserterSettings.active false.
 	Enabled bool `json:"enabled"`
 	// Whether the enable/disable circuit-condition checkbox is selected.
-	CircuitEnableDisable      bool               `json:"circuitEnableDisable"`
-	DisabledByControlBehavior bool               `json:"disabledByControlBehavior"`
-	SetFilters                bool               `json:"setFilters"`
-	ReadHandContents          bool               `json:"readHandContents"`
-	HandReadMode              int                `json:"handReadMode"`
-	SetStackSize              bool               `json:"setStackSize"`
-	StackControlSignal        *InserterSignal    `json:"stackControlSignal,omitempty"`
-	ConnectToLogisticNetwork  bool               `json:"connectToLogisticNetwork"`
-	CircuitCondition          *InserterCondition `json:"circuitCondition,omitempty"`
-	LogisticCondition         *InserterCondition `json:"logisticCondition,omitempty"`
-}
-
-type InserterCondition struct {
-	Comparator   *string         `json:"comparator,omitempty"`
-	Constant     *float64        `json:"constant,omitempty"`
-	FirstSignal  *InserterSignal `json:"firstSignal,omitempty"`
-	SecondSignal *InserterSignal `json:"secondSignal,omitempty"`
-	Fulfilled    *bool           `json:"fulfilled,omitempty"`
+	CircuitEnableDisable      bool `json:"circuitEnableDisable"`
+	DisabledByControlBehavior bool `json:"disabledByControlBehavior"`
+	SetFilters                bool `json:"setFilters"`
+	ReadHandContents          bool `json:"readHandContents"`
+	HandReadMode              int  `json:"handReadMode"`
+	SetStackSize              bool `json:"setStackSize"`
+	// Shared SignalID shape: signal type, name and optional quality.
+	StackControlSignal       *SignalID `json:"stackControlSignal,omitempty"`
+	ConnectToLogisticNetwork bool      `json:"connectToLogisticNetwork"`
+	// Shared CircuitCondition shape: comparator, constant and both signals, with the engine's evaluated result.
+	CircuitCondition  *CircuitCondition `json:"circuitCondition,omitempty"`
+	LogisticCondition *CircuitCondition `json:"logisticCondition,omitempty"`
 }
 
 type InserterFilterInput struct {
@@ -1966,16 +2564,19 @@ type InserterSettingsInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-type InserterSignal struct {
-	Name    *string `json:"name,omitempty"`
-	Type    string  `json:"type"`
-	Quality *string `json:"quality,omitempty"`
-}
-
 // Inspect one entity using the selected actor's force.
 type InspectInput struct {
 	Actor  *ActorInput     `json:"actor"`
 	Target *EntityRefInput `json:"target"`
+}
+
+// Inspect up to 1000 entities in one call. includeSettings adds SettingsResult rows and includeDiagnostics adds MachineDiagnostics rows, both computed in the same backend call.
+type InspectManyInput struct {
+	Actor              *ActorInput       `json:"actor"`
+	Surface            *string           `json:"surface,omitempty"`
+	Targets            []*EntityRefInput `json:"targets"`
+	IncludeSettings    *bool             `json:"includeSettings,omitempty"`
+	IncludeDiagnostics *bool             `json:"includeDiagnostics,omitempty"`
 }
 
 // Inserters whose actual pickup or drop target is the inspected entity, read in a separate game snapshot. Targets fall back to the entity under the arm's geometric pickup/drop position when the engine target is null, so wiring stays visible for inserters that have not run since placement or power loss.
@@ -1983,7 +2584,7 @@ type InspectionLogistics struct {
 	Tick      float64              `json:"tick"`
 	Inserters []*ConnectedInserter `json:"inserters"`
 	Surface   string               `json:"surface"`
-	// Belt components reached from this inspection's actual inserter pickup/drop targets, read together in a new snapshot. Seeds already returned by a previous component are skipped; truncated components can overlap. Each traversal is bounded to maxEntities (1 through 1000). A changed or removed parent target is an error.
+	// Belt components reached from this inspection's actual inserter pickup/drop targets, read together in a new snapshot. Seeds already returned by a previous component are skipped; truncated components can overlap. Each traversal is bounded to maxEntities (1 through 10000). A changed or removed parent target is an error.
 	BeltRuns []*BeltRun `json:"beltRuns"`
 }
 
@@ -2012,6 +2613,55 @@ type InventoryStack struct {
 	Name    string  `json:"name"`
 	Count   float64 `json:"count"`
 	Quality string  `json:"quality"`
+}
+
+type ItemBalance struct {
+	Tick    float64          `json:"tick"`
+	Force   string           `json:"force"`
+	Surface string           `json:"surface"`
+	Item    string           `json:"item"`
+	Window  ProductionWindow `json:"window"`
+	// Observed production for the whole surface and force over the window, from flow statistics.
+	ProducedPerMinute float64 `json:"producedPerMinute"`
+	// Observed consumption for the whole surface and force over the window, from flow statistics.
+	ConsumedPerMinute float64 `json:"consumedPerMinute"`
+	// Sum of itemFlow producer rates times 60: a potential, not measured supply.
+	TheoreticalSupply float64 `json:"theoreticalSupply"`
+	// Sum of itemFlow consumer rates times 60: a potential upper bound, not measured demand.
+	TheoreticalDemand float64 `json:"theoreticalDemand"`
+	// producedPerMinute minus consumedPerMinute, from observed statistics only.
+	Net       float64             `json:"net"`
+	Stock     *ItemBalanceStock   `json:"stock"`
+	Producers []*ItemFlowEndpoint `json:"producers"`
+	Consumers []*ItemFlowEndpoint `json:"consumers"`
+	// Consumers that are short of this item specifically: FUEL consumers whose fuel inventory holds none of it or that report no_fuel, and RECIPE consumers reporting missing ingredients or fuel. Consumers blocked on an unrelated condition such as no_minable_resources, no_power or full_output are excluded unless their own inventory for this item is empty.
+	StarvedConsumers []*ItemFlowEndpoint `json:"starvedConsumers"`
+	// True when producers or consumers were cut at the 1000-row scan limit, so the lists are partial.
+	Truncated   bool   `json:"truncated"`
+	Assumptions string `json:"assumptions"`
+}
+
+type ItemBalanceCategory struct {
+	// Stock category name: stored, in-transit, ground, player or worker.
+	Category string  `json:"category"`
+	Count    float64 `json:"count"`
+}
+
+// Surface and force must be non-empty names of existing objects; item must be exactly one item or fluid prototype.
+type ItemBalanceInput struct {
+	Force   string `json:"force"`
+	Surface string `json:"surface"`
+	Item    string `json:"item"`
+	// Flow-statistics window; ONE_MINUTE, TEN_MINUTES or ONE_HOUR.
+	Window ProductionWindow `json:"window"`
+	// Optional finite bounds; left/top must not exceed right/bottom. Omit to scan the surface.
+	Area *FactoryAreaInput `json:"area,omitempty"`
+}
+
+type ItemBalanceStock struct {
+	// Sum of every counted stock row for the item, independent of pagination.
+	Total      float64                `json:"total"`
+	ByCategory []*ItemBalanceCategory `json:"byCategory"`
 }
 
 // An item filter with optional quality and comparator.
@@ -2043,24 +2693,30 @@ type ItemFlow struct {
 }
 
 type ItemFlowEndpoint struct {
-	UnitNumber    *string   `json:"unitNumber,omitempty"`
-	Name          string    `json:"name"`
-	Type          string    `json:"type"`
-	Surface       string    `json:"surface"`
-	Force         string    `json:"force"`
-	Position      *Position `json:"position"`
-	Status        string    `json:"status"`
-	Recipe        *string   `json:"recipe,omitempty"`
-	RecipeQuality *string   `json:"recipeQuality,omitempty"`
-	MiningTarget  *string   `json:"miningTarget,omitempty"`
-	MaterialType  string    `json:"materialType"`
-	// Matching item stacks in only this role's input/output inventory; never whole-factory stock.
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"`
+	Surface    string    `json:"surface"`
+	Force      string    `json:"force"`
+	Position   *Position `json:"position"`
+	Status     string    `json:"status"`
+	// RECIPE for recipe or mining-target matches, FUEL for burner fuel consumption.
+	Role          ItemFlowRole `json:"role"`
+	Recipe        *string      `json:"recipe,omitempty"`
+	RecipeQuality *string      `json:"recipeQuality,omitempty"`
+	// CURRENT when the machine holds this recipe now, PREVIOUS when an idle furnace only remembers it, null for mining or fuel endpoints.
+	RecipeSource *RecipeSource `json:"recipeSource,omitempty"`
+	MiningTarget *string       `json:"miningTarget,omitempty"`
+	MaterialType string        `json:"materialType"`
+	// Matching item stacks in only this role's input/output/fuel inventory; never whole-factory stock.
 	BufferedItems []*InventoryStack `json:"bufferedItems"`
 	// Matching fluid in role-compatible fluidboxes; null for items.
 	BufferedFluidAmount *float64 `json:"bufferedFluidAmount,omitempty"`
 	// Expected units/second at current speed, excluding productivity and quality upgrades. Null when uncomputable, including infinite mining resources.
 	TheoreticalRatePerSecond *float64 `json:"theoreticalRatePerSecond,omitempty"`
-	RateUnavailableReason    *string  `json:"rateUnavailableReason,omitempty"`
+	// Why the rate is an approximation rather than an instantaneous expectation: FUEL_UPPER_BOUND for burner fuel at full duty, IDLE_PREVIOUS_RECIPE_POTENTIAL for an idle furnace's remembered recipe. Null when the rate is the plain theoretical expectation.
+	RateBasis             *string `json:"rateBasis,omitempty"`
+	RateUnavailableReason *string `json:"rateUnavailableReason,omitempty"`
 }
 
 type ItemFlowInput struct {
@@ -2086,12 +2742,17 @@ type ItemPrototype struct {
 	BurntResult *string `json:"burntResult,omitempty"`
 }
 
-// Crafting machines are entity prototype names with a matching category, not necessarily built or available to the force.
+// Crafting machines are entity prototype names whose crafting categories intersect the recipe category or one of its additional categories, not necessarily built or available to the force.
 type ItemRecipe struct {
-	Name             string              `json:"name"`
-	Enabled          bool                `json:"enabled"`
-	Category         string              `json:"category"`
-	Energy           float64             `json:"energy"`
+	Name     string `json:"name"`
+	Enabled  bool   `json:"enabled"`
+	Hidden   bool   `json:"hidden"`
+	Category string `json:"category"`
+	// Recipe additional_categories; empty when the recipe has none.
+	AdditionalCategories []string `json:"additionalCategories"`
+	Energy               float64  `json:"energy"`
+	// True when the character can hand-craft it: its category or an additional category is a character crafting category such as crafting or advanced-crafting.
+	HandCraftable    bool                `json:"handCraftable"`
 	Ingredients      []*RecipeIngredient `json:"ingredients"`
 	Products         []*RecipeProduct    `json:"products"`
 	CraftingMachines []string            `json:"craftingMachines"`
@@ -2106,13 +2767,14 @@ type ItemRecipePage struct {
 	Recipes  []*ItemRecipe `json:"recipes"`
 }
 
-// Force and item must be non-empty. Limit is 1 through 1000; offset is zero-based and non-negative.
+// Force and item must be non-empty. Limit is 1 through 10000; offset is zero-based and non-negative. includeHidden defaults to false because recycling and parameter recipes otherwise bury every real recipe.
 type ItemRecipesInput struct {
-	Force   string `json:"force"`
-	Item    string `json:"item"`
-	Enabled *bool  `json:"enabled,omitempty"`
-	Limit   int    `json:"limit"`
-	Offset  int    `json:"offset"`
+	Force         string `json:"force"`
+	Item          string `json:"item"`
+	Enabled       *bool  `json:"enabled,omitempty"`
+	IncludeHidden bool   `json:"includeHidden"`
+	Limit         int    `json:"limit"`
+	Offset        int    `json:"offset"`
 }
 
 // One requested item quantity or range.
@@ -2136,8 +2798,8 @@ type LampSettings struct {
 	AlwaysOn bool   `json:"alwaysOn"`
 	// True when the lamp takes its color from circuit signals.
 	UseColors bool `json:"useColors"`
-	// Engine lamp color mode; 0 means no circuit color check.
-	ColorMode int `json:"colorMode"`
+	// Which circuit signals drive the color. Colors are turned off by useColors, never by this mode.
+	ColorMode LampColorMode `json:"colorMode"`
 }
 
 type LampSettingsInput struct {
@@ -2147,8 +2809,8 @@ type LampSettingsInput struct {
 	AlwaysOn *bool           `json:"alwaysOn,omitempty"`
 	// Take the color from circuit signals instead of the fixed color.
 	UseColors *bool `json:"useColors,omitempty"`
-	// Engine lamp color mode; 0 disables colors, 1 uses the color signal, 2 uses red/green/blue signals.
-	ColorMode *int `json:"colorMode,omitempty"`
+	// Which circuit signals drive the color. This never turns colors off; use useColors for that.
+	ColorMode *LampColorMode `json:"colorMode,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
@@ -2180,7 +2842,7 @@ type LogisticItemStat struct {
 	Incoming float64 `json:"incoming"`
 	// Items robots are committed to pick up from providers or storage but are not carrying yet.
 	TargetedPickup float64 `json:"targetedPickup"`
-	// max(0, requested - delivered - inFlight - incoming). Non-zero means chest demand is not covered by delivered, carried, or committed deliveries; compare with `stored` and `targetedPickup` to separate supply shortage from robot backlog.
+	// max(0, demand - delivered - inFlight - incoming), where demand is `requestedMinimum` when the row has a request minimum (a vanilla requester chest compiles to count only, with no maximum) and `requested` otherwise. Non-zero means chest demand is not covered by delivered, carried or committed deliveries; compare with `stored` and `targetedPickup` to separate supply shortage from robot backlog.
 	Missing float64 `json:"missing"`
 }
 
@@ -2227,7 +2889,7 @@ type LogisticNetworksInput struct {
 	Offset    int     `json:"offset"`
 	// Include per-item stock, request, robot-cargo and shortfall stats. Set false for a cheaper robots-and-points read.
 	IncludeItemStats bool `json:"includeItemStats"`
-	// Maximum item rows per network, 1 through 1000. Rows are ordered by item name, then quality.
+	// Maximum item rows per network, 1 through 10000. Rows are ordered by item name, then quality.
 	ItemsLimit  int `json:"itemsLimit"`
 	ItemsOffset int `json:"itemsOffset"`
 }
@@ -2249,7 +2911,8 @@ type LogisticRequestInput struct {
 	Name    string  `json:"name"`
 	Quality *string `json:"quality,omitempty"`
 	Min     *int    `json:"min,omitempty"`
-	Max     int     `json:"max"`
+	// Omitted or null means infinite: no engine max is written for that slot.
+	Max *int `json:"max,omitempty"`
 }
 
 // One logistic request slot.
@@ -2258,7 +2921,8 @@ type LogisticRequestSlot struct {
 	Name    *string `json:"name,omitempty"`
 	Quality *string `json:"quality,omitempty"`
 	Min     float64 `json:"min"`
-	Max     float64 `json:"max"`
+	// Null means infinite (the engine stores nil for an unlimited request).
+	Max *float64 `json:"max,omitempty"`
 }
 
 type LogisticRequestsInput struct {
@@ -2274,8 +2938,12 @@ type LogisticRequestsInput struct {
 
 // One logistic request section of a container.
 type LogisticSection struct {
-	Index int                    `json:"index"`
-	Slots []*LogisticRequestSlot `json:"slots"`
+	Index  int  `json:"index"`
+	Active bool `json:"active"`
+	// Multiplier applied to every slot before the requests are used; 1 for plain request sections.
+	Multiplier float64                `json:"multiplier"`
+	Group      string                 `json:"group"`
+	Slots      []*LogisticRequestSlot `json:"slots"`
 }
 
 type LogisticSectionInput struct {
@@ -2305,6 +2973,7 @@ type LogisticsEndpoint struct {
 }
 
 type MachineBlockedReason struct {
+	// NONE for working/normal; MISSING_RECIPE for no_recipe; MISSING_INGREDIENTS for no_ingredients, item_ingredient_shortage, fluid_ingredient_shortage, missing_science_packs, missing_required_fluid, no_input_fluid and low_input_fluid; MISSING_RESEARCH for no_research_in_progress and recipe_not_researched; MISSING_FUEL for no_fuel; MISSING_POWER for no_power, low_power, not_plugged_in_electric_network and recharging_after_power_outage; OUTPUT_BLOCKED for full_output, full_burnt_result_output, waiting_for_space_in_destination and not_enough_space_in_output; DISABLED for disabled_by_control_behavior, disabled_by_script, disabled, frozen, paused and marked_for_deconstruction; RESOURCE_DEPLETED for no_minable_resources; OTHER for any other or future engine status.
 	Category MachineBlockCategory `json:"category"`
 	// Unmodified engine status name; unknown future statuses remain visible with category OTHER.
 	RawStatusName *string `json:"rawStatusName,omitempty"`
@@ -2313,17 +2982,36 @@ type MachineBlockedReason struct {
 	SuggestedAction *string `json:"suggestedAction,omitempty"`
 }
 
+type MachineBurnerState struct {
+	// Fuel inventory contents for this burner; each entry is one item stack, sorted by name then quality.
+	FuelItems []*InventoryStack `json:"fuelItems"`
+	// Energy left in the item currently burning, in joules.
+	RemainingBurningFuelJoules float64 `json:"remainingBurningFuelJoules"`
+	// Item name of the currently burning fuel, or null when nothing is burning.
+	CurrentlyBurning *string `json:"currentlyBurning,omitempty"`
+	// Seconds until the burner stops for lack of fuel: fuel inventory energy plus remaining burning fuel divided by current max energy usage. Null when the usage is unknown or zero.
+	EstimatedSecondsOfFuel *float64 `json:"estimatedSecondsOfFuel,omitempty"`
+}
+
 type MachineDiagnostics struct {
-	Tick          float64 `json:"tick"`
+	Tick float64 `json:"tick"`
+	// Current recipe, or for furnaces the remembered previous recipe when no recipe is selected.
 	Recipe        *string `json:"recipe,omitempty"`
 	RecipeQuality *string `json:"recipeQuality,omitempty"`
+	// CURRENT when the machine holds this recipe now, PREVIOUS when only an idle furnace's previous_recipe matched, null when no recipe applies.
+	RecipeSource *RecipeSource `json:"recipeSource,omitempty"`
 	// Demand for one NEXT craft from input inventories and compatible input fluid boxes. Excludes ingredients already consumed by an in-progress craft. Null if no crafting recipe is selected.
 	Shortfall []*MachineIngredientDemand `json:"shortfall,omitempty"`
-	// Null for entities without a crafting recipe. Never a measured production rate.
-	Throughput                  *MachineTheoreticalThroughput `json:"throughput,omitempty"`
-	ThroughputUnavailableReason *string                       `json:"throughputUnavailableReason,omitempty"`
-	Blocked                     *MachineBlockedReason         `json:"blocked"`
-	Power                       *MachinePowerState            `json:"power"`
+	// Null for entities without a crafting recipe or mining target. Never a measured production rate.
+	Throughput *MachineTheoreticalThroughput `json:"throughput,omitempty"`
+	// Set when no rate could be derived: no current or previous recipe, a furnace that never smelted, a drill without a target, or a non-positive recipe duration.
+	ThroughputUnavailableReason *string `json:"throughputUnavailableReason,omitempty"`
+	// Mining rate for drilling machines; null for everything else.
+	Mining *MachineMiningRate `json:"mining,omitempty"`
+	// Burner fuel state for entities with a burner energy source; null for electric-only and non-energy entities.
+	Burner  *MachineBurnerState   `json:"burner,omitempty"`
+	Blocked *MachineBlockedReason `json:"blocked"`
+	Power   *MachinePowerState    `json:"power"`
 }
 
 type MachineIngredientDemand struct {
@@ -2349,6 +3037,17 @@ type MachineInsightMiningTarget struct {
 	Name     string    `json:"name"`
 	Position *Position `json:"position"`
 	Amount   *float64  `json:"amount,omitempty"`
+}
+
+type MachineMiningRate struct {
+	// Resource prototype name of the current mining target.
+	Target string `json:"target"`
+	// Remaining resource amount of the current mining target, in engine units; null for infinite resources.
+	Amount *float64 `json:"amount,omitempty"`
+	// Expected item units per second: mining_speed times (1+speed_bonus) divided by mining_time, multiplied by the summed expected item product yield of the target. Excludes productivity, depletion and fluid byproducts.
+	TheoreticalUnitsPerSecond *float64 `json:"theoreticalUnitsPerSecond,omitempty"`
+	// Engine mining productivity bonus, observed separately and NOT included in theoreticalUnitsPerSecond.
+	ProductivityBonus *float64 `json:"productivityBonus,omitempty"`
 }
 
 type MachinePage struct {
@@ -2378,11 +3077,14 @@ type MachineSummary struct {
 	Working int    `json:"working"`
 	Idle    int    `json:"idle"`
 	NoFuel  int    `json:"noFuel"`
-	// Machines reporting no_power, low_power, or not_connected_to_electric_network. Machine scans cover assembling machines, furnaces, mining drills, labs, and rocket silos; inserter power faults are visible through powerConsumers.
+	// Machines reporting no_power, low_power, not_plugged_in_electric_network, or recharging_after_power_outage. Machine scans cover assembling machines, furnaces, mining drills, labs, and rocket silos; inserter power faults are visible through powerConsumers.
 	NoPower       int `json:"noPower"`
 	NoIngredients int `json:"noIngredients"`
-	OutputFull    int `json:"outputFull"`
-	Other         int `json:"other"`
+	// Machines reporting no_minable_resources: their current mining target is exhausted or gone, so relocate or remove them.
+	ResourceDepleted int `json:"resourceDepleted"`
+	OutputFull       int `json:"outputFull"`
+	// Machines whose engine status is not classified into another bucket, including no_recipe, no_research_in_progress, disabled, frozen, paused and marked_for_deconstruction.
+	Other int `json:"other"`
 }
 
 type MachineTheoreticalProductRate struct {
@@ -2432,11 +3134,11 @@ type MapArea struct {
 type MapAreaInput struct {
 	Surface string `json:"surface"`
 	Force   string `json:"force"`
-	// Area bounds match the other world scans: positive dimensions of at most 256 tiles per side.
+	// Area bounds match the other world scans: positive dimensions of at most 1024 tiles per side.
 	Area *FactoryAreaInput `json:"area"`
-	// Maximum output rows, 1 through 64.
+	// Maximum output rows, 1 through 256.
 	MaxRows int `json:"maxRows"`
-	// Maximum output columns, 1 through 64.
+	// Maximum output columns, 1 through 256.
 	MaxColumns int      `json:"maxColumns"`
 	Layer      MapLayer `json:"layer"`
 }
@@ -2455,7 +3157,8 @@ type MapLegendEntry struct {
 
 // Mine one entity as the selected actor.
 type MineInput struct {
-	Actor  *ActorInput     `json:"actor"`
+	Actor *ActorInput `json:"actor"`
+	// Resource, tree, rock or simple entity addressed by name plus a position inside the entity (its exact centre is not required, and neutral-force targets are accepted where the operation allows them); mine targets have no unit numbers, so a unitNumber-only target is rejected.
 	Target *EntityRefInput `json:"target"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
@@ -2478,12 +3181,12 @@ type Mutation struct {
 type NavigateStartInput struct {
 	// Actor whose character moves. Player selectors resolve current character before starting.
 	Actor *ActorInput `json:"actor"`
-	// Finite destination coordinates on the character's current surface. Required unless targetCharacter or targetEntity is set.
+	// Finite destination coordinates on the character's current surface. Required unless targetCharacter or targetEntity is set. A point inside an entity is moved to the nearest non-colliding spot, which the returned destination reports.
 	Position *PositionInput `json:"position,omitempty"`
 	// Character unit number from 1 to 4294967295 on the same surface; the destination tracks this character and must differ from character. Use targetEntity for anything that is not a character.
 	TargetCharacter *string `json:"targetCharacter,omitempty"`
-	// Unit number of a static entity on the character's current surface.
-	TargetEntity *string `json:"targetEntity,omitempty"`
+	// Static entity to approach, addressed by prototype name plus position (preferred, resolved inside one tile) or by unit number alone for prototypes the engine can look up directly. surface is ignored because navigation always resolves the entity on the walking character's current surface, and the position should be the entity centre reported by entities or nearby; a rounded tile coordinate still matches. Position targets are snapped out of collision boxes, and arrival is measured from the entity's bounding box inflated by tolerance.
+	TargetEntity *EntityRefInput `json:"targetEntity,omitempty"`
 	// Arrival distance, greater than zero and at most 10. For a chase (targetCharacter) it is the gap from the target character; for targetEntity it is the gap from the entity's bounding box. At least 1 when targetCharacter is set.
 	Tolerance float64 `json:"tolerance"`
 	// Maximum job duration in ticks, from 1 to 216000.
@@ -2514,13 +3217,23 @@ type NavigationJob struct {
 	TargetEntity *string `json:"targetEntity,omitempty"`
 	// Surface on which navigation started.
 	Surface string `json:"surface"`
-	// Requested destination.
+	// Requested destination, adjusted to the nearest non-colliding position when the requested point was inside an entity.
 	Destination *Position `json:"destination"`
 	// Latest character position, if available.
 	Position *Position     `json:"position,omitempty"`
 	Status   *EngineStatus `json:"status"`
 	// Optional explanation of the job state.
 	Reason *string `json:"reason,omitempty"`
+	// Arrival distance used by this job.
+	Tolerance float64 `json:"tolerance"`
+	// Maximum job duration in ticks.
+	TimeoutTicks int `json:"timeoutTicks"`
+	// Re-path attempts since the last real progress; reset when the character moves.
+	Replans int `json:"replans"`
+	// Waypoints left on the current path, zero while pathfinding or when no path is held.
+	WaypointsRemaining int `json:"waypointsRemaining"`
+	// Distance still to cover before arrival is reported: the gap to an entity's inflated bounding box, otherwise the distance to the destination.
+	DistanceRemaining float64 `json:"distanceRemaining"`
 	// Tick at which the job started.
 	StartedTick float64 `json:"startedTick"`
 	// Tick at which the job was last updated.
@@ -2534,16 +3247,20 @@ type Nearby struct {
 	Entities []*Entity `json:"entities"`
 }
 
-// Search around a finite position on a nonempty surface. Radius must be greater than 0 and at most 100; limit is 1 through 1000 and offset is zero-based.
+// Search around a finite position on a nonempty surface. Radius must be greater than 0 and at most 1000; limit is 1 through 10000 and offset is zero-based.
 type NearbyInput struct {
 	Surface  *string        `json:"surface,omitempty"`
 	Position *PositionInput `json:"position,omitempty"`
 	Radius   *float64       `json:"radius,omitempty"`
-	Name     *string        `json:"name,omitempty"`
-	Type     *string        `json:"type,omitempty"`
-	Order    *NearbyOrder   `json:"order,omitempty"`
-	Offset   *int           `json:"offset,omitempty"`
-	Limit    *int           `json:"limit,omitempty"`
+	// Prototype name filter (exact).
+	Name *string `json:"name,omitempty"`
+	// Entity type filter (engine type such as inserter or container, not a prototype name); an unknown type is an error.
+	Type *string `json:"type,omitempty"`
+	// Optional force filter. Rows always carry Entity.force, so an unfiltered scan can still tell own, neutral, and enemy entities apart.
+	Force  *string      `json:"force,omitempty"`
+	Order  *NearbyOrder `json:"order,omitempty"`
+	Offset *int         `json:"offset,omitempty"`
+	Limit  *int         `json:"limit,omitempty"`
 }
 
 // Surface, force and prototype must exist. direction is 0 through 15. maxRadius is greater than 0 and at most 64 tiles, measured from origin to the candidate center. minDistanceFromEntities is 0 through 16 tiles of clear space between the footprint and any built entity or ghost of any force; natural entities (resources, trees, rocks, cliffs), characters, corpses and items never count.
@@ -2563,6 +3280,10 @@ type NearestPlacementInput struct {
 	RequirePowerCoverage bool `json:"requirePowerCoverage"`
 	// Require a water tile within one tile of the footprint.
 	RequireWaterAdjacency bool `json:"requireWaterAdjacency"`
+	// Require this resource prototype inside the prototype's mining area; needs a mining drill prototype that exposes mining_drill_radius.
+	RequireResource *string `json:"requireResource,omitempty"`
+	// Minimum number of resource entities that must sit inside the mining area; omitted or 0 means 1, at most 100000, and only valid together with requireResource.
+	MinResourceTiles *int `json:"minResourceTiles,omitempty"`
 }
 
 // Stable pagination metadata. offset is zero-based; hasMore means another item exists after this page.
@@ -2607,19 +3328,30 @@ type PlaceBlueprintInput struct {
 	Force     *string        `json:"force,omitempty"`
 	Blueprint string         `json:"blueprint"`
 	Position  *PositionInput `json:"position"`
-	Direction int            `json:"direction"`
+	// Blueprint rotation: 0, 4, 8 or 12 (blueprints rotate in 90 degree steps only).
+	Direction int `json:"direction"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
 
-// Place one entity with a canonical engine direction from 0 through 15.
+// At most 10000 entities and 20000 tiles per call; at least one entry is required. surface and force must name existing objects.
+type PlaceGhostsInput struct {
+	Surface  *string             `json:"surface,omitempty"`
+	Force    *string             `json:"force,omitempty"`
+	Entities []*GhostEntityInput `json:"entities"`
+	Tiles    []*GhostTileInput   `json:"tiles"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// Place one entity with a canonical engine direction from 0 through 15: 0=north, 4=east, 8=south, 12=west. The value is passed straight to create_entity and the result reports the direction the engine actually stored. Direction is the side the entity faces, which for an inserter is its pickup side: direction 0 picks up from the tile one to the north and drops on the opposite (south) tile, so an inserter between a machine to the north and a chest to the south takes direction 0 to drain the machine into the chest and direction 8 to insert into the machine. Objects that cannot face (chests, pipes, poles) store 0 and ignore this field.
 type PlaceInput struct {
 	Actor     *ActorInput    `json:"actor"`
 	Surface   *string        `json:"surface,omitempty"`
 	Position  *PositionInput `json:"position"`
 	Item      string         `json:"item"`
 	Direction int            `json:"direction"`
-	// Underground belt half to create. An underground-belt item needs one INPUT and one OUTPUT half placed in the same call or script tick to pair; without it both halves are created as inputs and never connect.
+	// Underground belt half to create: INPUT for the entrance, OUTPUT for the exit. The engine pairs a half as soon as a facing half of the same tier exists, so halves may be placed in separate calls. Omit this field to let the engine create a plain input half.
 	UndergroundType *UndergroundBeltType `json:"undergroundType,omitempty"`
 	// Item quality prototype name; defaults to normal.
 	Quality *string `json:"quality,omitempty"`
@@ -2629,7 +3361,7 @@ type PlaceInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Place the same item at up to 1000 finite positions, continuing past per-entry failures.
+// Place the same item at up to 10000 finite positions, continuing past per-entry failures.
 type PlaceManyInput struct {
 	Actor   *ActorInput `json:"actor"`
 	Surface *string     `json:"surface,omitempty"`
@@ -2705,13 +3437,35 @@ type PlaceTileResult struct {
 	Actor    *ActorIdentity `json:"actor"`
 	Tile     string         `json:"tile"`
 	Position *Position      `json:"position"`
+	// Tile that was replaced, or null when the tile was previously empty ground.
+	PreviousTile *string `json:"previousTile,omitempty"`
+	// Mineable products of the replaced tile, returned to the actor inventory.
+	Items []*InventoryStack `json:"items"`
 }
 
 // One entity reference used by placement and action results.
 type PlacedEntity struct {
-	Name       string    `json:"name"`
-	Type       *string   `json:"type,omitempty"`
-	Position   *Position `json:"position,omitempty"`
+	// Zero-based index of the placement input that produced this entity.
+	Index           *int                 `json:"index,omitempty"`
+	Name            string               `json:"name"`
+	Type            *string              `json:"type,omitempty"`
+	Position        *Position            `json:"position,omitempty"`
+	UnitNumber      *string              `json:"unitNumber,omitempty"`
+	Direction       *int                 `json:"direction,omitempty"`
+	UndergroundType *UndergroundBeltType `json:"undergroundType,omitempty"`
+	// Facing underground half this entity was paired with, when any.
+	PairedUnitNumber *string `json:"pairedUnitNumber,omitempty"`
+}
+
+// One created ghost. name is the engine ghost prototype, innerName the prototype it stands for.
+type PlacedGhost struct {
+	// Engine prototype name of the created ghost: entity-ghost or tile-ghost.
+	Name string `json:"name"`
+	Type string `json:"type"`
+	// Prototype the ghost stands for.
+	InnerName  string    `json:"innerName"`
+	Quality    *string   `json:"quality,omitempty"`
+	Position   *Position `json:"position"`
 	UnitNumber *string   `json:"unitNumber,omitempty"`
 }
 
@@ -2742,18 +3496,22 @@ type PlacementCandidate struct {
 	Tile string `json:"tile"`
 	// Candidates evaluated, including the winner.
 	Expanded int `json:"expanded"`
+	// Resource entities of requireResource inside the winning candidate's mining area; 0 when no resource was required.
+	ResourceTiles int `json:"resourceTiles"`
+	// Total amount of requireResource inside the winning candidate's mining area; 0 when no resource was required.
+	ResourceAmount float64 `json:"resourceAmount"`
 }
 
-// One placement position with canonical engine direction from 0 through 15.
+// One placement position with canonical engine direction from 0 through 15 (0=north, 4=east, 8=south, 12=west); for an inserter the direction is the pickup side, so the drop is the opposite tile.
 type PlacementInput struct {
 	Position    *PositionInput `json:"position"`
 	Direction   int            `json:"direction"`
 	FastReplace *bool          `json:"fastReplace,omitempty"`
-	// Underground belt half to create. An underground-belt pair must be placed with one INPUT and one OUTPUT half in the same call, otherwise both default to INPUT and never connect.
+	// Underground belt half to create: INPUT for the entrance, OUTPUT for the exit. Halves may be placed in separate calls; the engine pairs a facing half of the same tier whenever it appears.
 	UndergroundType *UndergroundBeltType `json:"undergroundType,omitempty"`
 }
 
-// Surface, force and prototype must be non-empty and exist; direction must be between 0 and 15. Area bounds match WorldResourcesInput, but the sampled tile count may not exceed 16384. mode selects which result list is filled (BLOCKED_TILES -> blockedTiles, GRID -> rows, SITES -> sites); siteWidth/siteHeight/maxSites only affect SITES and are tile counts from 1 to the area dimensions, maxSites 1 through 200.
+// Surface, force and prototype must be non-empty and exist; direction must be between 0 and 15. Area bounds match WorldResourcesInput, but the sampled tile count may not exceed 65536. mode selects which result list is filled (BLOCKED_TILES -> blockedTiles, GRID -> rows, SITES -> sites); siteWidth/siteHeight/maxSites only affect SITES and are tile counts from 1 to the area dimensions, maxSites 1 through 200.
 type PlacementProbeInput struct {
 	Surface    string             `json:"surface"`
 	Force      string             `json:"force"`
@@ -2872,7 +3630,7 @@ type PowerEntityInsight struct {
 	UnitNumber *string   `json:"unitNumber,omitempty"`
 	Status     *string   `json:"status,omitempty"`
 	NetworkID  *string   `json:"networkId,omitempty"`
-	// Engine predicate: connected to a network containing at least one power-producing entity; false does not necessarily mean no network.
+	// Engine predicate: connected to a network containing at least one power-producing entity; false does not necessarily mean no network. Meaningful only for consumers: a generator is not a consumer of its own network, so read networkId to decide whether a producer is grid-connected.
 	ConnectedToProducingNetwork *bool `json:"connectedToProducingNetwork,omitempty"`
 	// Current stored entity energy in joules, when available.
 	EnergyJoules *float64 `json:"energyJoules,omitempty"`
@@ -2884,6 +3642,10 @@ type PowerEntityInsight struct {
 	TemperatureCelsius *float64 `json:"temperatureCelsius,omitempty"`
 	// Remaining energy in the currently burning fuel, in joules.
 	BurningFuelJoules *float64 `json:"burningFuelJoules,omitempty"`
+	// Burner fuel inventory stacks; empty for non-burners and for burners whose fuel inventory is empty.
+	Fuel []*InventoryStack `json:"fuel"`
+	// Seconds until a burner's fuel runs out: stored fuel energy plus remaining burning fuel divided by current max energy usage. Null for non-burners or when usage is zero.
+	EstimatedSecondsOfFuel *float64 `json:"estimatedSecondsOfFuel,omitempty"`
 	// Fluid box contents; each entry is one occupied box.
 	PowerFluids []*PowerFluidInsight `json:"powerFluids"`
 }
@@ -2910,17 +3672,19 @@ type PowerInsightsInput struct {
 	Force   string `json:"force"`
 	// Optional finite bounds; left/top must not exceed right/bottom. Omit to scan the surface.
 	Area *FactoryAreaInput `json:"area,omitempty"`
-	// Page size from 1 through 1000.
+	// Page size from 1 through 10000.
 	Limit int `json:"limit"`
 	// Zero-based, non-negative page offset.
 	Offset int `json:"offset"`
+	// electricNetworks only: flow-statistics window for productionWatts and consumptionWatts; null means ONE_MINUTE. powerConsumers ignores it, because its entity rows are instantaneous, so passing a window there is documented as a no-op rather than an error.
+	Window *ProductionWindow `json:"window,omitempty"`
 	// powerConsumers only: exact Factorio entity status name such as no_power; unknown names are an error. electricNetworks rejects it.
 	Status *string `json:"status,omitempty"`
 	// powerConsumers only: keep entities whose connectedToProducingNetwork equals this value. Entities where the predicate does not apply (null) never match. electricNetworks rejects it.
 	ConnectedToProducingNetwork *bool `json:"connectedToProducingNetwork,omitempty"`
 	// Keep one electric network by its positive engine id. For powerConsumers it matches the entity's networkId; entities without a network never match. For electricNetworks it keeps that single network.
 	NetworkID *string `json:"networkId,omitempty"`
-	// powerConsumers only: keep entities that report no_power, low_power, not_plugged_in_electric_network or not_connected_to_electric_network, or whose connectedToProducingNetwork is false. Default false leaves behavior unchanged. electricNetworks rejects true.
+	// powerConsumers only: keep entities that report no_power, low_power or not_plugged_in_electric_network, or whose connectedToProducingNetwork is false, or whose burner fuel inventory is empty. Default false leaves behavior unchanged. electricNetworks rejects true.
 	OnlyIssues bool `json:"onlyIssues"`
 }
 
@@ -3030,7 +3794,7 @@ type RemoveInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Mine up to 200 entities, continuing past per-entry failures.
+// Mine up to 1000 entities, continuing past per-entry failures.
 type RemoveManyInput struct {
 	Actor   *ActorInput       `json:"actor"`
 	Targets []*EntityRefInput `json:"targets"`
@@ -3038,7 +3802,6 @@ type RemoveManyInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Bulk removal counts with typed per-target failures.
 type RemoveManyResult struct {
 	Tick    float64        `json:"tick"`
 	Surface string         `json:"surface"`
@@ -3047,6 +3810,10 @@ type RemoveManyResult struct {
 	Removed int            `json:"removed"`
 	Failed  int            `json:"failed"`
 	Errors  []*BatchError  `json:"errors"`
+	// Per-target rows for successful removals, ordered by input index.
+	Results []*RemovedEntity `json:"results"`
+	// Items recovered across all removed targets.
+	Items []*InventoryStack `json:"items"`
 }
 
 // Mined entity and stacks added to actor main inventory.
@@ -3061,7 +3828,17 @@ type RemoveResult struct {
 	Items    []*InventoryStack `json:"items"`
 }
 
-// Repair one entity as the selected actor. count is 1 through 100.
+// One removed entity with the items it returned to the actor.
+type RemovedEntity struct {
+	Index      int               `json:"index"`
+	Name       string            `json:"name"`
+	Type       *string           `json:"type,omitempty"`
+	Position   *Position         `json:"position,omitempty"`
+	UnitNumber *string           `json:"unitNumber,omitempty"`
+	Items      []*InventoryStack `json:"items"`
+}
+
+// Repair one entity as the selected actor. count is 1 through 10000.
 type RepairInput struct {
 	Actor  *ActorInput     `json:"actor"`
 	Target *EntityRefInput `json:"target"`
@@ -3118,7 +3895,7 @@ type ResearchInsightsInput struct {
 	UnlocksRecipe *string `json:"unlocksRecipe,omitempty"`
 	// Filters may overlap: an in-progress technology can also be available.
 	Status ResearchInsightsStatus `json:"status"`
-	// Page size from 1 through 1000.
+	// Page size from 1 through 10000.
 	Limit int `json:"limit"`
 	// Zero-based, non-negative offset into technologies sorted by name.
 	Offset int `json:"offset"`
@@ -3172,14 +3949,19 @@ type ResearchUnlockResult struct {
 	Technologies int                  `json:"technologies"`
 }
 
-// One connected resource patch. Bounds and centroid are computed from resource entity positions; nearby drills sit inside the bounds expanded by the request drill radius.
+// One connected resource patch. Bounds and centroid are computed from resource entity positions. nearbyDrills only lists drills whose mining area covers at least one tile of this patch; coveredTiles and coveredAmount are the patch tiles and amount under at least one of those drills, so they measure real mining coverage rather than proximity. Infinite resources report yieldPercent (summed tile yield percentage) with totalAmount 0. clippedByArea is true when the patch touches the scan boundary, so its tiles and amounts are partial.
 type ResourcePatch struct {
-	Name         string        `json:"name"`
-	Tiles        int           `json:"tiles"`
-	TotalAmount  float64       `json:"totalAmount"`
-	Bounds       *WorldArea    `json:"bounds"`
-	Centroid     *Position     `json:"centroid"`
-	NearbyDrills []*WorldDrill `json:"nearbyDrills"`
+	Name          string        `json:"name"`
+	Tiles         int           `json:"tiles"`
+	TotalAmount   float64       `json:"totalAmount"`
+	Infinite      bool          `json:"infinite"`
+	YieldPercent  float64       `json:"yieldPercent"`
+	Bounds        *WorldArea    `json:"bounds"`
+	Centroid      *Position     `json:"centroid"`
+	NearbyDrills  []*WorldDrill `json:"nearbyDrills"`
+	CoveredTiles  int           `json:"coveredTiles"`
+	CoveredAmount float64       `json:"coveredAmount"`
+	ClippedByArea bool          `json:"clippedByArea"`
 }
 
 type RobotCount struct {
@@ -3255,6 +4037,8 @@ type SafetyEntity struct {
 	Status     *string          `json:"status,omitempty"`
 	StatusCode *int             `json:"statusCode,omitempty"`
 	Pollution  *SafetyPollution `json:"pollution"`
+	// Straight-line distance from the snapshot basePosition (the area center, or the force spawn when no area is given).
+	Distance float64 `json:"distance"`
 }
 
 type SafetyEntityPage struct {
@@ -3272,15 +4056,15 @@ type SafetyInput struct {
 	PollutionPosition *SafetyPositionInput `json:"pollutionPosition,omitempty"`
 	// Optional non-empty player name; the player must belong to the selected force.
 	Player *string `json:"player,omitempty"`
-	// Enemy page size, from 1 through 1000.
+	// Enemy page size, from 1 through 10000.
 	EnemyLimit int `json:"enemyLimit"`
 	// Zero-based, non-negative enemy offset.
 	EnemyOffset int `json:"enemyOffset"`
-	// Damaged entity page size, from 1 through 1000.
+	// Damaged entity page size, from 1 through 10000.
 	DamagedLimit int `json:"damagedLimit"`
 	// Zero-based, non-negative damaged entity offset.
 	DamagedOffset int `json:"damagedOffset"`
-	// Alert page size, from 1 through 1000.
+	// Alert page size, from 1 through 10000.
 	AlertLimit int `json:"alertLimit"`
 	// Zero-based, non-negative alert offset.
 	AlertOffset int `json:"alertOffset"`
@@ -3300,9 +4084,11 @@ type SafetyPositionInput struct {
 
 // Enemy classification uses force.is_enemy; damaged entities belong to the selected force or its friends. Alerts without positions remain included with areaMatchUnknown=true.
 type SafetySnapshot struct {
-	Tick                 float64           `json:"tick"`
-	Surface              string            `json:"surface"`
-	Force                string            `json:"force"`
+	Tick    float64 `json:"tick"`
+	Surface string  `json:"surface"`
+	Force   string  `json:"force"`
+	// Reference point used to rank enemies by distance: the area center when an area is given, otherwise the force spawn position on the surface.
+	BasePosition         *Position         `json:"basePosition"`
 	Pollution            *SafetyPollution  `json:"pollution,omitempty"`
 	Enemies              *SafetyEntityPage `json:"enemies"`
 	Damaged              *SafetyEntityPage `json:"damaged"`
@@ -3389,7 +4175,20 @@ type SetCombinatorParametersInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Set one entity's canonical engine direction from 0 through 15.
+type SetConstantCombinatorInput struct {
+	Actor  *ActorInput     `json:"actor"`
+	Target *EntityRefInput `json:"target"`
+	// Turns the constant combinator output on or off; omitted keeps the current state.
+	Enabled *bool `json:"enabled,omitempty"`
+	// Replaces every signal section when given; at most 20 sections.
+	Sections []*ConstantCombinatorSectionInput `json:"sections,omitempty"`
+	// Removes every section; cannot be combined with sections.
+	ClearSections *bool `json:"clearSections,omitempty"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// Canonical engine direction from 0 through 15: 0=north, 4=east, 8=south, 12=west. Direction is the side the entity faces, which for an inserter is its pickup side, so the drop tile is the opposite side.
 type SetDirectionInput struct {
 	Actor     *ActorInput     `json:"actor"`
 	Target    *EntityRefInput `json:"target"`
@@ -3410,7 +4209,7 @@ type SetFluidInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Change one machine's recipe.
+// Change one machine's recipe. The target must be an assembling machine or a furnace.
 type SetRecipeInput struct {
 	Actor  *ActorInput     `json:"actor"`
 	Target *EntityRefInput `json:"target"`
@@ -3422,10 +4221,13 @@ type SetRecipeInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Replace or clear one train schedule.
+// Replace or clear one train schedule. Give exactly one of target or trainId.
 type SetTrainScheduleInput struct {
-	Actor   *ActorInput                 `json:"actor"`
-	Target  *EntityRefInput             `json:"target"`
+	Actor *ActorInput `json:"actor"`
+	// Locomotive or carriage of the train to change.
+	Target *EntityRefInput `json:"target,omitempty"`
+	// LuaTrain id from TrainInfo.trainId; no entity scan is needed.
+	TrainID *string                     `json:"trainId,omitempty"`
 	Records []*TrainScheduleRecordInput `json:"records,omitempty"`
 	Clear   bool                        `json:"clear"`
 	// Print this text in-game to all connected players instead of the generated notification.
@@ -3434,21 +4236,22 @@ type SetTrainScheduleInput struct {
 
 // Post-write configuration of one entity, read in the same game tick. Sections are null for prototypes that do not support them.
 type SettingsResult struct {
-	Tick       float64                  `json:"tick"`
-	Surface    string                   `json:"surface"`
-	Force      string                   `json:"force"`
-	Actor      *ActorIdentity           `json:"actor,omitempty"`
-	Name       string                   `json:"name"`
-	UnitNumber *string                  `json:"unitNumber,omitempty"`
-	Position   *Position                `json:"position"`
-	Splitter   *SplitterSettings        `json:"splitter,omitempty"`
-	Inserter   *InserterSettings        `json:"inserter,omitempty"`
-	Lamp       *LampSettings            `json:"lamp,omitempty"`
-	Container  *ContainerSettings       `json:"container,omitempty"`
-	Logistic   *LogisticSettings        `json:"logistic,omitempty"`
-	TrainStop  *TrainStopSettings       `json:"trainStop,omitempty"`
-	RocketSilo *RocketSiloSettings      `json:"rocketSilo,omitempty"`
-	Circuit    *CircuitBehaviorSettings `json:"circuit,omitempty"`
+	Tick               float64                     `json:"tick"`
+	Surface            string                      `json:"surface"`
+	Force              string                      `json:"force"`
+	Actor              *ActorIdentity              `json:"actor,omitempty"`
+	Name               string                      `json:"name"`
+	UnitNumber         *string                     `json:"unitNumber,omitempty"`
+	Position           *Position                   `json:"position"`
+	Splitter           *SplitterSettings           `json:"splitter,omitempty"`
+	Inserter           *InserterSettings           `json:"inserter,omitempty"`
+	Lamp               *LampSettings               `json:"lamp,omitempty"`
+	Container          *ContainerSettings          `json:"container,omitempty"`
+	Logistic           *LogisticSettings           `json:"logistic,omitempty"`
+	TrainStop          *TrainStopSettings          `json:"trainStop,omitempty"`
+	RocketSilo         *RocketSiloSettings         `json:"rocketSilo,omitempty"`
+	Circuit            *CircuitBehaviorSettings    `json:"circuit,omitempty"`
+	ConstantCombinator *ConstantCombinatorSettings `json:"constantCombinator,omitempty"`
 }
 
 // Selected actor must be a connected player. Target uses the shared entity reference; position-only targets are allowed.
@@ -3461,14 +4264,16 @@ type ShootInput struct {
 }
 
 type ShootResult struct {
-	Tick      float64        `json:"tick"`
-	Player    string         `json:"player"`
+	Tick   float64 `json:"tick"`
+	Player string  `json:"player"`
+	// Force of the shooting character.
 	Force     string         `json:"force"`
 	Actor     *ActorIdentity `json:"actor"`
 	Character *string        `json:"character,omitempty"`
-	AmmoUsed  int            `json:"ammoUsed"`
-	Target    *PlacedEntity  `json:"target,omitempty"`
-	Position  *Position      `json:"position,omitempty"`
+	// Rounds actually spent: (magazines-1)*magazine_size plus the rounds left in the current magazine.
+	AmmoUsed int           `json:"ammoUsed"`
+	Target   *PlacedEntity `json:"target,omitempty"`
+	Position *Position     `json:"position,omitempty"`
 }
 
 type SignalConditionInput struct {
@@ -3479,11 +4284,19 @@ type SignalConditionInput struct {
 	SecondSignal *SignalInput `json:"secondSignal,omitempty"`
 }
 
-type SignalInput struct {
-	// Engine signal type, for example item, fluid, virtual or virtual-signal.
-	Type    *string `json:"type,omitempty"`
-	Name    string  `json:"name"`
+// One signal reference without a value, mirroring SignalInput. type is the same enum as the write input, so a read can be fed straight back into a write: Factorio reports nil for item signals and a lowercase engine name otherwise, and the reader normalizes both to the enum.
+type SignalID struct {
+	Type SignalType `json:"type"`
+	Name string     `json:"name"`
+	// Quality prototype name; null when the engine stores no quality.
 	Quality *string `json:"quality,omitempty"`
+}
+
+type SignalInput struct {
+	// Engine signal type: the name must exist in that prototype type, so an iron plate is ITEM while steam is FLUID and signal-A is VIRTUAL.
+	Type    *SignalType `json:"type,omitempty"`
+	Name    string      `json:"name"`
+	Quality *string     `json:"quality,omitempty"`
 }
 
 // Splitter filter and lane priorities. In Factorio 2.0 the output priority selects which output carries the filtered items: a filter with outputPriority none sorts nothing, so the API rejects that combination and defaults outputPriority to left when a filter is set without one. An omitted comparator means the engine default (=).
@@ -3512,8 +4325,9 @@ type SplitterSettingsInput struct {
 
 // Force and technology to start researching. Force defaults to player.
 type StartResearchInput struct {
-	Force      *string `json:"force,omitempty"`
-	Technology string  `json:"technology"`
+	Force *string `json:"force,omitempty"`
+	// Technology to research. Trigger technologies cannot be researched and fail with their trigger description.
+	Technology string `json:"technology"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
@@ -3537,15 +4351,15 @@ type StockInput struct {
 	Item *string `json:"item,omitempty"`
 	// Exact stock category; omit to include every category.
 	Category *StockCategory `json:"category,omitempty"`
-	// Location page size from 1 through 1000.
+	// Location page size from 1 through 10000.
 	Limit int `json:"limit"`
 	// Zero-based, non-negative location offset.
 	Offset int `json:"offset"`
-	// Totals page size from 1 through 1000, independent of locations.
+	// Totals page size from 1 through 10000, independent of locations.
 	TotalsLimit int `json:"totalsLimit"`
 	// Zero-based, non-negative totals offset.
 	TotalsOffset int `json:"totalsOffset"`
-	// Items page size from 1 through 1000, independent of the other pages.
+	// Items page size from 1 through 10000, independent of the other pages.
 	ItemsLimit int `json:"itemsLimit"`
 	// Zero-based, non-negative items offset.
 	ItemsOffset int `json:"itemsOffset"`
@@ -3559,11 +4373,13 @@ type StockItemTotal struct {
 }
 
 type StockLocation struct {
-	// stored, in-transit, ground, or player.
-	Category   string    `json:"category"`
-	EntityName string    `json:"entityName"`
-	EntityType string    `json:"entityType"`
-	Player     *string   `json:"player,omitempty"`
+	// stored, in-transit, ground, player, or worker.
+	Category   string  `json:"category"`
+	EntityName string  `json:"entityName"`
+	EntityType string  `json:"entityType"`
+	Player     *string `json:"player,omitempty"`
+	// Unit number of the entity or character that holds the stack, so a row can be addressed like inspect(); null when the source exposes no unit number.
+	UnitNumber *string   `json:"unitNumber,omitempty"`
 	Position   *Position `json:"position"`
 	// Inventory kind, or line-N for a transport line; shared lines are counted once.
 	InventoryKind string      `json:"inventoryKind"`
@@ -3619,9 +4435,10 @@ type SurfacePage struct {
 	Surfaces []*SurfaceInfo `json:"surfaces"`
 }
 
-// Move one selected actor to a finite position on a surface.
+// Move one selected actor to a finite position, on its current surface unless surface names another one.
 type TeleportInput struct {
-	Actor      *ActorInput    `json:"actor"`
+	Actor *ActorInput `json:"actor"`
+	// Surface to move to. Omit to stay on the actor's current surface; only a player-controlled character can be moved cross-surface, and that move goes through LuaPlayer.
 	Surface    *string        `json:"surface,omitempty"`
 	Position   *PositionInput `json:"position"`
 	SnapToGrid *bool          `json:"snapToGrid,omitempty"`
@@ -3629,7 +4446,7 @@ type TeleportInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Directed structural connection, not measured item flow. kind is belt, underground, linked, loader, pickup, drop, or fluid. boundary means at least one endpoint lies outside the returned node set. Transport-line connections are collapsed to entity edges; splitter priorities and lane routing do not imply measured throughput. Fluid edges follow directed engine pipe connections, including pipes, boilers, pumps, offshore pumps, heat exchangers, storage tanks and fluid-consuming machines.
+// Directed structural connection, not measured item flow. kind is belt, underground, linked, loader, pickup, drop, fluid, or line. boundary means at least one endpoint lies outside the returned node set. A line edge is an internal transport-line link that can join belts along one line rather than adjacent tiles; it appears only for queries that ask for includeLineLinks, and it never feeds sources or sinks. Splitter priorities and lane routing do not imply measured throughput. Fluid edges follow directed engine pipe connections between pipes, boilers, pumps, offshore pumps, heat exchangers, storage tanks and fluid machines; a fluid-port machine is detected through its fluidbox pipe connections.
 type TopologyEdge struct {
 	From     *LogisticsEndpoint `json:"from"`
 	To       *LogisticsEndpoint `json:"to"`
@@ -3639,32 +4456,58 @@ type TopologyEdge struct {
 	FlowDirection *string `json:"flowDirection,omitempty"`
 }
 
-// Control one train.
+// One locomotive or wagon of a train.
+type TrainCarriage struct {
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"`
+	Position   *Position `json:"position"`
+	Direction  *int      `json:"direction,omitempty"`
+}
+
+// Control one train. Give exactly one of target or trainId.
 type TrainControlInput struct {
-	Actor       *ActorInput     `json:"actor"`
-	Target      *EntityRefInput `json:"target"`
-	ManualMode  *bool           `json:"manualMode,omitempty"`
-	GoToStation *string         `json:"goToStation,omitempty"`
+	Actor *ActorInput `json:"actor"`
+	// Locomotive or carriage of the train to control.
+	Target *EntityRefInput `json:"target,omitempty"`
+	// LuaTrain id from TrainInfo.trainId; no entity scan is needed.
+	TrainID     *string `json:"trainId,omitempty"`
+	ManualMode  *bool   `json:"manualMode,omitempty"`
+	GoToStation *string `json:"goToStation,omitempty"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
 
-// A stopped or moving train. state is the engine defines.train_state value; schedule records carry the station name and the engine's wait condition where readable.
+// A stopped or moving train. state is the engine defines.train_state value; schedule records carry the station name and every engine wait condition.
 type TrainInfo struct {
-	Tick          float64                `json:"tick"`
-	Surface       string                 `json:"surface"`
-	Force         string                 `json:"force"`
-	Actor         *ActorIdentity         `json:"actor,omitempty"`
-	ID            string                 `json:"id"`
-	Status        *EngineStatus          `json:"status"`
-	ManualMode    bool                   `json:"manualMode"`
-	Speed         float64                `json:"speed"`
-	Locomotives   int                    `json:"locomotives"`
-	Wagons        int                    `json:"wagons"`
-	FrontPosition *Position              `json:"frontPosition,omitempty"`
-	Schedule      []*TrainScheduleRecord `json:"schedule"`
-	Cargo         []*InventoryStack      `json:"cargo"`
-	Fluids        []*FluidContent        `json:"fluids"`
+	Tick    float64        `json:"tick"`
+	Surface string         `json:"surface"`
+	Force   string         `json:"force"`
+	Actor   *ActorIdentity `json:"actor,omitempty"`
+	// LuaTrain id. This is not a UnitNumber: feed it to trainId on trainControl or setTrainSchedule, or take a carriage unitNumber from carriages.
+	TrainID     string        `json:"trainId"`
+	Status      *EngineStatus `json:"status"`
+	ManualMode  bool          `json:"manualMode"`
+	Speed       float64       `json:"speed"`
+	Locomotives int           `json:"locomotives"`
+	// Non-locomotive rolling stock: cargo, fluid and artillery wagons.
+	Wagons int `json:"wagons"`
+	// Fluid wagon count.
+	FluidWagons   int       `json:"fluidWagons"`
+	FrontPosition *Position `json:"frontPosition,omitempty"`
+	// Backer name of the train stop the train is stopped at; null when moving or not at a stop.
+	Station *string `json:"station,omitempty"`
+	// Backer name of the train stop the train is currently pathing to; null when it has no destination.
+	PathEndStop *string `json:"pathEndStop,omitempty"`
+	// Index of the current schedule record; null without a schedule.
+	ScheduleIndex *int `json:"scheduleIndex,omitempty"`
+	// Station name of the current schedule record; null without a schedule.
+	Destination *string `json:"destination,omitempty"`
+	// Rolling stock in engine order starting at the front. Any of these unitNumbers can be used as a train mutation target.
+	Carriages []*TrainCarriage       `json:"carriages"`
+	Schedule  []*TrainScheduleRecord `json:"schedule"`
+	Cargo     []*InventoryStack      `json:"cargo"`
+	Fluids    []*FluidContent        `json:"fluids"`
 }
 
 type TrainPage struct {
@@ -3676,15 +4519,34 @@ type TrainPage struct {
 }
 
 type TrainScheduleRecord struct {
-	Station       string              `json:"station"`
-	WaitCondition *TrainWaitCondition `json:"waitCondition,omitempty"`
+	Station string `json:"station"`
+	// Every engine wait condition of this record, in order. A record can combine conditions, for example full OR inactivity.
+	WaitConditions []*TrainWaitCondition `json:"waitConditions"`
 	// Unmodified engine wait-condition JSON for unsupported or modded fields.
 	WaitConditionRawJSON *string `json:"waitConditionRawJSON,omitempty"`
 }
 
 type TrainScheduleRecordInput struct {
-	Station       string                   `json:"station"`
-	WaitCondition *TrainWaitConditionInput `json:"waitCondition"`
+	Station string `json:"station"`
+	// At least one wait condition; every entry is written to the record in order.
+	WaitConditions []*TrainWaitConditionInput `json:"waitConditions"`
+}
+
+// One train stop entity.
+type TrainStop struct {
+	// Entity unit number; null for a prototype the engine does not number.
+	UnitNumber *string `json:"unitNumber,omitempty"`
+	// Backer name, which is the station name trains match in their schedule.
+	BackerName string    `json:"backerName"`
+	Position   *Position `json:"position"`
+	// Engine trains limit above which no new trains are sent here. Null means unlimited: the engine stores its maximum value for that case.
+	TrainsLimit *int `json:"trainsLimit,omitempty"`
+	// Trains the engine associates with this stop: stopped here, heading here, or using it as a waypoint. A train can be counted more than once when its braking distance covers the stop more than once.
+	TrainsCount int `json:"trainsCount"`
+	// Engine pathfinder priority; higher values are preferred.
+	Priority int `json:"priority"`
+	// Trains scheduled to stop at this stop, from the engine's get_train_stop_trains.
+	AssignedTrains int `json:"assignedTrains"`
 }
 
 type TrainStopInput struct {
@@ -3692,8 +4554,10 @@ type TrainStopInput struct {
 	Target *EntityRefInput `json:"target"`
 	// New stop name; omitted keeps the current name.
 	Name *string `json:"name,omitempty"`
-	// Maximum trains routed to the stop; 0 routes none.
+	// Maximum trains routed to the stop; 0 routes none. Cannot be combined with clearTrainsLimit.
 	TrainsLimit *int `json:"trainsLimit,omitempty"`
+	// Removes the train limit entirely (engine nil), leaving an unlimited stop. Cannot be combined with trainsLimit.
+	ClearTrainsLimit *bool `json:"clearTrainsLimit,omitempty"`
 	// Stop priority from 0 to 255; higher values are preferred.
 	Priority *int        `json:"priority,omitempty"`
 	Color    *ColorInput `json:"color,omitempty"`
@@ -3703,8 +4567,9 @@ type TrainStopInput struct {
 
 // Train stop name, train limit, priority and color.
 type TrainStopSettings struct {
-	BackerName  string `json:"backerName"`
-	TrainsLimit int    `json:"trainsLimit"`
+	BackerName string `json:"backerName"`
+	// Null means unlimited: the engine stores 4294967295 (maximum) for a stop without a train limit.
+	TrainsLimit *int   `json:"trainsLimit,omitempty"`
 	Priority    int    `json:"priority"`
 	Color       *Color `json:"color,omitempty"`
 }
@@ -3714,17 +4579,24 @@ type TrainWaitCondition struct {
 	RawType     string                 `json:"rawType"`
 	CompareType TrainWaitCompareType   `json:"compareType"`
 	Ticks       *float64               `json:"ticks,omitempty"`
-	Condition   *InserterCondition     `json:"condition,omitempty"`
+	// Station name for the destination and at_station condition types.
+	Station *string `json:"station,omitempty"`
+	// Damage amount for the damage_taken condition type.
+	Damage *int `json:"damage,omitempty"`
+	// Circuit condition for item_count, circuit, fluid_count and fuel_item_count types, using the shared CircuitCondition shape (signals carry the SignalType enum). Null for other condition types; waitConditionRawJSON always carries the engine payload.
+	Condition *CircuitCondition `json:"condition,omitempty"`
 }
 
 type TrainWaitConditionInput struct {
 	Type        TrainWaitConditionType `json:"type"`
 	CompareType *TrainWaitCompareType  `json:"compareType,omitempty"`
 	Ticks       *float64               `json:"ticks,omitempty"`
+	Station     *string                `json:"station,omitempty"`
+	Damage      *int                   `json:"damage,omitempty"`
 	Condition   *SignalConditionInput  `json:"condition,omitempty"`
 }
 
-// Surface and force must be non-empty names of existing objects. Limit is 1 through 1000; offset is zero-based and non-negative. station filters by a station name in the schedule.
+// Surface and force must be non-empty names of existing objects. Limit is 1 through 10000; offset is zero-based and non-negative. station filters by a station name in the schedule.
 type TrainsInput struct {
 	Surface string            `json:"surface"`
 	Force   string            `json:"force"`
@@ -3750,7 +4622,7 @@ type TransferInput struct {
 
 type TransferManyInput struct {
 	Actor *ActorInput `json:"actor"`
-	// 1 through 200 distinct entity references.
+	// 1 through 1000 distinct entity references.
 	Targets   []*EntityRefInput `json:"targets"`
 	Inventory InventoryKind     `json:"inventory"`
 	Direction TransferDirection `json:"direction"`
@@ -3789,6 +4661,12 @@ type TransferTargetResult struct {
 	Available  float64   `json:"available"`
 	Capacity   float64   `json:"capacity"`
 	Moved      float64   `json:"moved"`
+	// Destination inventory bar, or null when the inventory has no bar.
+	Bar *int `json:"bar,omitempty"`
+	// Whether the target entity is marked for deconstruction; a marked entity still accepts items, but nothing will consume them.
+	ToBeDeconstructed bool `json:"toBeDeconstructed"`
+	// Why nothing moved (BAR_LIMITED, MARKED_FOR_DECONSTRUCTION, FILTERED, NO_SOURCE, NO_CAPACITY); null when moved is nonzero.
+	Reason *string `json:"reason,omitempty"`
 }
 
 type TransportLine struct {
@@ -3800,6 +4678,54 @@ type UnlockTechnologiesInput struct {
 	Mode  TechnologyUnlockMode `json:"mode"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
+}
+
+type UpgradeAreaInput struct {
+	Actor   *ActorInput `json:"actor,omitempty"`
+	Force   string      `json:"force"`
+	Surface string      `json:"surface"`
+	// Finite positive dimensions, at most 1024 tiles per side.
+	Area *FactoryAreaInput `json:"area"`
+	// 1 through 1000 entries with non-empty unique from values.
+	Mappings []*UpgradeMappingInput `json:"mappings"`
+	Limit    int                    `json:"limit"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type UpgradeAreaResult struct {
+	Tick    float64 `json:"tick"`
+	Surface string  `json:"surface"`
+	Force   string  `json:"force"`
+	// Entities newly marked for upgrade by this call.
+	Orders int `json:"orders"`
+	// Entities visited and not newly marked: already marked, refused, or unknown target.
+	Skipped int `json:"skipped"`
+	// Upgrade orders canceled by cancelUpgradeArea; zero for upgradeArea.
+	Canceled int               `json:"canceled"`
+	Rows     []*UpgradeAreaRow `json:"rows"`
+	Errors   []*BatchError     `json:"errors"`
+}
+
+// One entity visited by an area upgrade or cancel request.
+type UpgradeAreaRow struct {
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"`
+	Position   *Position `json:"position"`
+	// Upgrade target prototype: the mapping's to value for upgradeArea, the recorded order target for cancelUpgradeArea.
+	Target  string             `json:"target"`
+	Quality string             `json:"quality"`
+	Status  UpgradeOrderStatus `json:"status"`
+	// Engine or lookup message for REFUSED and LOOKUP rows.
+	Message *string `json:"message,omitempty"`
+}
+
+// One prototype substitution for an area upgrade. From matches the entity prototype to replace, To is the target entity prototype, and quality defaults to normal.
+type UpgradeMappingInput struct {
+	From    string  `json:"from"`
+	To      string  `json:"to"`
+	Quality *string `json:"quality,omitempty"`
 }
 
 // One condition selected per call. Exactly one field must be set.
@@ -3930,10 +4856,14 @@ type WorldArea struct {
 	RightBottomY float64 `json:"rightBottomY"`
 }
 
+// A mining drill near a resource entry, or one whose mining area covers part of a patch. status is the engine entity status name (null for a drill that exposes none); coveredTiles and coveredAmount count the patch resource tiles and amount inside this drill's mining area, and are 0 for entry-level distance matches.
 type WorldDrill struct {
-	Name       string    `json:"name"`
-	Position   *Position `json:"position"`
-	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Name          string    `json:"name"`
+	Position      *Position `json:"position"`
+	UnitNumber    *string   `json:"unitNumber,omitempty"`
+	Status        *string   `json:"status,omitempty"`
+	CoveredTiles  int       `json:"coveredTiles"`
+	CoveredAmount float64   `json:"coveredAmount"`
 }
 
 // One-based fluid box index and capacity; name, amount and temperature are null for an empty box.
@@ -3973,7 +4903,7 @@ type WorldLogisticsEntity struct {
 	WorldInventories []*WorldInventory `json:"worldInventories"`
 }
 
-// Area coordinates must be finite; positive dimensions must each be at most 256 tiles. Limit is 1 through 1000; offset is zero-based and non-negative. Type, if non-empty, must be a supported logistics entity type.
+// Area coordinates must be finite; positive dimensions must each be at most 1024 tiles. Limit is 1 through 10000; offset is zero-based and non-negative. Type, if non-empty, must be a supported logistics entity type.
 type WorldLogisticsInput struct {
 	Surface string            `json:"surface"`
 	Force   string            `json:"force"`
@@ -4002,7 +4932,7 @@ type WorldPlacementInput struct {
 	Direction int            `json:"direction"`
 }
 
-// Engine collision/build check only; does not check player reach, inventory or research. When the tile is refused, blockers lists colliding prototype names on that tile, terrain is true when the ground tile itself uses one of the prototype's collision layers, and tile is the ground tile name.
+// Engine build check with manual-placement rules; does not check player reach, inventory or research. When the placement is refused, blockers lists colliding prototype names found anywhere in the footprint, terrain is true when any footprint tile uses one of the prototype's collision layers, and tile is the ground tile name under the position.
 type WorldPlacementResult struct {
 	Tick      float64   `json:"tick"`
 	Surface   string    `json:"surface"`
@@ -4027,7 +4957,7 @@ type WorldResourceEntry struct {
 	NearbyDrills  []*WorldDrill `json:"nearbyDrills"`
 }
 
-// Area has the same bounds and pagination constraints as WorldLogisticsInput. Drill radius is finite and between 0 and 100 tiles. Resource name filters resources only, not obstacles or water. Kinds, when non-empty, keeps only the listed entry kinds (resource, tree, cliff, simple-entity, water) and narrows total; the resource, obstacle and water partition totals stay unfiltered counts for the whole area. GroupPatches clusters matching resource entities into connected patches regardless of the kinds filter.
+// Area has the same bounds and pagination constraints as WorldLogisticsInput. Drill radius is finite and between 0 and 1000 tiles. Resource name filters resources only, not obstacles or water. Kinds, when non-empty, keeps only the listed entry kinds (resource, tree, cliff, simple-entity, water) and narrows total; the resource, obstacle and water partition totals stay unfiltered counts for the whole area. GroupPatches clusters matching resource entities into connected patches regardless of the kinds filter.
 type WorldResourcesInput struct {
 	Surface      string            `json:"surface"`
 	Force        string            `json:"force"`
@@ -4040,7 +4970,7 @@ type WorldResourcesInput struct {
 	Offset       int               `json:"offset"`
 }
 
-// Totals count matching entries before pagination; resource, obstacle and water totals partition them. Patches are connected resource-entity clusters at least one tile apart from each other, sorted by total amount descending.
+// Totals count matching entries before pagination; resource, obstacle and water totals partition them. Patches are connected resource-entity clusters at least one tile apart from each other, sorted by total amount descending (infinite resources sort by yield percent instead, so empty finite amounts never outrank real ore).
 type WorldResourcesPage struct {
 	Tick          float64               `json:"tick"`
 	Surface       string                `json:"surface"`
@@ -4060,36 +4990,46 @@ type AttentionKind string
 const (
 	AttentionKindNoFuel         AttentionKind = "NO_FUEL"
 	AttentionKindNoPower        AttentionKind = "NO_POWER"
+	AttentionKindNoAmmo         AttentionKind = "NO_AMMO"
 	AttentionKindNoIngredients  AttentionKind = "NO_INGREDIENTS"
+	AttentionKindNoResources    AttentionKind = "NO_RESOURCES"
 	AttentionKindOutputFull     AttentionKind = "OUTPUT_FULL"
 	AttentionKindNoRecipe       AttentionKind = "NO_RECIPE"
 	AttentionKindNoResearch     AttentionKind = "NO_RESEARCH"
+	AttentionKindLowTemperature AttentionKind = "LOW_TEMPERATURE"
+	AttentionKindBlocked        AttentionKind = "BLOCKED"
 	AttentionKindEnemy          AttentionKind = "ENEMY"
 	AttentionKindDamaged        AttentionKind = "DAMAGED"
 	AttentionKindGhostBacklog   AttentionKind = "GHOST_BACKLOG"
 	AttentionKindDeconstruction AttentionKind = "DECONSTRUCTION"
 	AttentionKindLowStock       AttentionKind = "LOW_STOCK"
 	AttentionKindFluidShortage  AttentionKind = "FLUID_SHORTAGE"
+	AttentionKindDisabled       AttentionKind = "DISABLED"
 )
 
 var AllAttentionKind = []AttentionKind{
 	AttentionKindNoFuel,
 	AttentionKindNoPower,
+	AttentionKindNoAmmo,
 	AttentionKindNoIngredients,
+	AttentionKindNoResources,
 	AttentionKindOutputFull,
 	AttentionKindNoRecipe,
 	AttentionKindNoResearch,
+	AttentionKindLowTemperature,
+	AttentionKindBlocked,
 	AttentionKindEnemy,
 	AttentionKindDamaged,
 	AttentionKindGhostBacklog,
 	AttentionKindDeconstruction,
 	AttentionKindLowStock,
 	AttentionKindFluidShortage,
+	AttentionKindDisabled,
 }
 
 func (e AttentionKind) IsValid() bool {
 	switch e {
-	case AttentionKindNoFuel, AttentionKindNoPower, AttentionKindNoIngredients, AttentionKindOutputFull, AttentionKindNoRecipe, AttentionKindNoResearch, AttentionKindEnemy, AttentionKindDamaged, AttentionKindGhostBacklog, AttentionKindDeconstruction, AttentionKindLowStock, AttentionKindFluidShortage:
+	case AttentionKindNoFuel, AttentionKindNoPower, AttentionKindNoAmmo, AttentionKindNoIngredients, AttentionKindNoResources, AttentionKindOutputFull, AttentionKindNoRecipe, AttentionKindNoResearch, AttentionKindLowTemperature, AttentionKindBlocked, AttentionKindEnemy, AttentionKindDamaged, AttentionKindGhostBacklog, AttentionKindDeconstruction, AttentionKindLowStock, AttentionKindFluidShortage, AttentionKindDisabled:
 		return true
 	}
 	return false
@@ -4563,8 +5503,10 @@ const (
 	ConnectionConflictKindCollision ConnectionConflictKind = "COLLISION"
 	// A same-name entity sits on the tile but faces another direction.
 	ConnectionConflictKindDirectionMismatch ConnectionConflictKind = "DIRECTION_MISMATCH"
-	// A pipe-like entity outside this run touches the tile, which would merge fluid networks.
+	// A pipe-like entity outside this run touches the tile, which would merge fluid networks. A fluid-port machine (assembler, furnace, refinery, chemical plant, pumpjack, drill, boiler, generator, heat exchanger, tank) counts when its fluidbox pipe connection reaches the tile, or when it exposes fluidboxes but reports no connection yet.
 	ConnectionConflictKindFluidAdjacency ConnectionConflictKind = "FLUID_ADJACENCY"
+	// An existing belt outside this run points into a tile the run would create, so it would side-load foreign items into the new line or flatten a planned corner. Pass allowBeltAdjacency to accept the merge.
+	ConnectionConflictKindBeltAdjacency ConnectionConflictKind = "BELT_ADJACENCY"
 	// The item does not place an entity of the kind's required type.
 	ConnectionConflictKindPrototype ConnectionConflictKind = "PROTOTYPE"
 	// A supplied prototype does not match the kind (for example a furnace with BELT).
@@ -4583,6 +5525,7 @@ var AllConnectionConflictKind = []ConnectionConflictKind{
 	ConnectionConflictKindCollision,
 	ConnectionConflictKindDirectionMismatch,
 	ConnectionConflictKindFluidAdjacency,
+	ConnectionConflictKindBeltAdjacency,
 	ConnectionConflictKindPrototype,
 	ConnectionConflictKindKindMismatch,
 	ConnectionConflictKindReach,
@@ -4592,7 +5535,7 @@ var AllConnectionConflictKind = []ConnectionConflictKind{
 
 func (e ConnectionConflictKind) IsValid() bool {
 	switch e {
-	case ConnectionConflictKindNoPath, ConnectionConflictKindExpansionLimit, ConnectionConflictKindCollision, ConnectionConflictKindDirectionMismatch, ConnectionConflictKindFluidAdjacency, ConnectionConflictKindPrototype, ConnectionConflictKindKindMismatch, ConnectionConflictKindReach, ConnectionConflictKindInventory, ConnectionConflictKindEngine:
+	case ConnectionConflictKindNoPath, ConnectionConflictKindExpansionLimit, ConnectionConflictKindCollision, ConnectionConflictKindDirectionMismatch, ConnectionConflictKindFluidAdjacency, ConnectionConflictKindBeltAdjacency, ConnectionConflictKindPrototype, ConnectionConflictKindKindMismatch, ConnectionConflictKindReach, ConnectionConflictKindInventory, ConnectionConflictKindEngine:
 		return true
 	}
 	return false
@@ -4699,7 +5642,7 @@ type ConnectionRouting string
 const (
 	// One straight or single-bend run; supports BELT, PIPE and POWER_POLE_CHAIN.
 	ConnectionRoutingDirect ConnectionRouting = "DIRECT"
-	// Bounded A* search for BELT and PIPE. Step costs: 1 per new tile, 0.25 per reused existing tile, 0.25 per bend, 2 per underground half. Underground belts pair at an offset of at most the prototype's max underground distance; spans may pass under any entity except another underground belt, linked belt or pipe-to-ground.
+	// Bounded A* search for BELT and PIPE. Step costs: 1 per new tile, 0.25 per reused existing tile, 0.25 per bend, 2 per underground half. Underground belts pair at an offset of at most the prototype's max underground distance; spans may pass under any entity except another underground belt, linked belt or pipe-to-ground. A new underground half may not be placed inside an existing same-name span on the same axis, because it would re-pair with that span's other half and break the existing line. With BELT routing a new tile also refuses a neighbouring belt that points into it unless allowBeltAdjacency is true; the goal tile may still be an existing belt the run side-loads into.
 	ConnectionRoutingAstar ConnectionRouting = "ASTAR"
 )
 
@@ -4874,6 +5817,152 @@ func (e ConstructionOrderState) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// One deterministic defect class. Absence classes compare resolved inserter endpoints against entity types that need them; structural classes come from the belt component, power and ghost reads.
+type DefectKind string
+
+const (
+	// A boiler with no inserter whose drop resolves to it, so it can never be fuelled.
+	DefectKindBoilerNoFuelInserter DefectKind = "BOILER_NO_FUEL_INSERTER"
+	// An assembling machine, furnace, lab, chemical plant or oil refinery with no inserter dropping into it.
+	DefectKindMachineNoInput DefectKind = "MACHINE_NO_INPUT"
+	// An inserter whose pickup resolves to nothing insertable.
+	DefectKindInserterDanglingPickup DefectKind = "INSERTER_DANGLING_PICKUP"
+	// An inserter whose drop resolves to nothing insertable.
+	DefectKindInserterDanglingDrop DefectKind = "INSERTER_DANGLING_DROP"
+	// Two or more inserters pick from the same container or belt tile.
+	DefectKindInserterSharedSource DefectKind = "INSERTER_SHARED_SOURCE"
+	// A machine, boiler, chest or pipe with no engine edge and no inserter touching it.
+	DefectKindOrphanEntity DefectKind = "ORPHAN_ENTITY"
+	// A belt component that no inserter or machine feeds or drains.
+	DefectKindBeltDead DefectKind = "BELT_DEAD"
+	// A component source that nothing drops onto.
+	DefectKindBeltStarveHead DefectKind = "BELT_STARVE_HEAD"
+	// A component sink that nothing picks from.
+	DefectKindBeltStallEnd DefectKind = "BELT_STALL_END"
+	// A component whose belts carry more than one item or quality on one side.
+	DefectKindBeltMixedLane DefectKind = "BELT_MIXED_LANE"
+	// Ghosts exist in the area but no logistic network covers it, so robots cannot build them.
+	DefectKindGhostNoRoboport DefectKind = "GHOST_NO_ROBOPORT"
+	// A generator with no electric network id, so its output goes nowhere.
+	DefectKindProducerUnplugged DefectKind = "PRODUCER_UNPLUGGED"
+)
+
+var AllDefectKind = []DefectKind{
+	DefectKindBoilerNoFuelInserter,
+	DefectKindMachineNoInput,
+	DefectKindInserterDanglingPickup,
+	DefectKindInserterDanglingDrop,
+	DefectKindInserterSharedSource,
+	DefectKindOrphanEntity,
+	DefectKindBeltDead,
+	DefectKindBeltStarveHead,
+	DefectKindBeltStallEnd,
+	DefectKindBeltMixedLane,
+	DefectKindGhostNoRoboport,
+	DefectKindProducerUnplugged,
+}
+
+func (e DefectKind) IsValid() bool {
+	switch e {
+	case DefectKindBoilerNoFuelInserter, DefectKindMachineNoInput, DefectKindInserterDanglingPickup, DefectKindInserterDanglingDrop, DefectKindInserterSharedSource, DefectKindOrphanEntity, DefectKindBeltDead, DefectKindBeltStarveHead, DefectKindBeltStallEnd, DefectKindBeltMixedLane, DefectKindGhostNoRoboport, DefectKindProducerUnplugged:
+		return true
+	}
+	return false
+}
+
+func (e DefectKind) String() string {
+	return string(e)
+}
+
+func (e *DefectKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DefectKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DefectKind", str)
+	}
+	return nil
+}
+
+func (e DefectKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DefectKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DefectKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// CRITICAL stops output or wastes a build, WARNING degrades it, INFO is a structural oddity worth a look.
+type DefectSeverity string
+
+const (
+	DefectSeverityCritical DefectSeverity = "CRITICAL"
+	DefectSeverityWarning  DefectSeverity = "WARNING"
+	DefectSeverityInfo     DefectSeverity = "INFO"
+)
+
+var AllDefectSeverity = []DefectSeverity{
+	DefectSeverityCritical,
+	DefectSeverityWarning,
+	DefectSeverityInfo,
+}
+
+func (e DefectSeverity) IsValid() bool {
+	switch e {
+	case DefectSeverityCritical, DefectSeverityWarning, DefectSeverityInfo:
+		return true
+	}
+	return false
+}
+
+func (e DefectSeverity) String() string {
+	return string(e)
+}
+
+func (e *DefectSeverity) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DefectSeverity(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DefectSeverity", str)
+	}
+	return nil
+}
+
+func (e DefectSeverity) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DefectSeverity) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DefectSeverity) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type DropTarget string
 
 const (
@@ -5040,6 +6129,69 @@ func (e EquipmentTransferDirection) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type FluidProblemKind string
+
+const (
+	// A segment holds more than one fluid.
+	FluidProblemKindMixed FluidProblemKind = "MIXED"
+	// An output fluidbox holds its prototype volume.
+	FluidProblemKindOutputFull FluidProblemKind = "OUTPUT_FULL"
+	// A filtered fluidbox holds a fluid other than its filter.
+	FluidProblemKindFilterMismatch FluidProblemKind = "FILTER_MISMATCH"
+	// An input fluidbox holds no fluid.
+	FluidProblemKindInputEmpty FluidProblemKind = "INPUT_EMPTY"
+)
+
+var AllFluidProblemKind = []FluidProblemKind{
+	FluidProblemKindMixed,
+	FluidProblemKindOutputFull,
+	FluidProblemKindFilterMismatch,
+	FluidProblemKindInputEmpty,
+}
+
+func (e FluidProblemKind) IsValid() bool {
+	switch e {
+	case FluidProblemKindMixed, FluidProblemKindOutputFull, FluidProblemKindFilterMismatch, FluidProblemKindInputEmpty:
+		return true
+	}
+	return false
+}
+
+func (e FluidProblemKind) String() string {
+	return string(e)
+}
+
+func (e *FluidProblemKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = FluidProblemKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid FluidProblemKind", str)
+	}
+	return nil
+}
+
+func (e FluidProblemKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *FluidProblemKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e FluidProblemKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type FluidWriteMode string
 
 const (
@@ -5092,6 +6244,64 @@ func (e *FluidWriteMode) UnmarshalJSON(b []byte) error {
 }
 
 func (e FluidWriteMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// What the reported before/after/capacity describe: one engine fluid segment, one entity's own boxes, or a mix of both when an entity has boxes in both kinds of scope.
+type FluidWriteScope string
+
+const (
+	FluidWriteScopeSegment FluidWriteScope = "SEGMENT"
+	FluidWriteScopeEntity  FluidWriteScope = "ENTITY"
+	FluidWriteScopeMixed   FluidWriteScope = "MIXED"
+)
+
+var AllFluidWriteScope = []FluidWriteScope{
+	FluidWriteScopeSegment,
+	FluidWriteScopeEntity,
+	FluidWriteScopeMixed,
+}
+
+func (e FluidWriteScope) IsValid() bool {
+	switch e {
+	case FluidWriteScopeSegment, FluidWriteScopeEntity, FluidWriteScopeMixed:
+		return true
+	}
+	return false
+}
+
+func (e FluidWriteScope) String() string {
+	return string(e)
+}
+
+func (e *FluidWriteScope) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = FluidWriteScope(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid FluidWriteScope", str)
+	}
+	return nil
+}
+
+func (e FluidWriteScope) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *FluidWriteScope) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e FluidWriteScope) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -5173,6 +6383,123 @@ func (e InventoryKind) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// RECIPE covers recipe- and mining-target-based endpoints; FUEL marks a burner that consumes the item as fuel.
+type ItemFlowRole string
+
+const (
+	ItemFlowRoleRecipe ItemFlowRole = "RECIPE"
+	ItemFlowRoleFuel   ItemFlowRole = "FUEL"
+)
+
+var AllItemFlowRole = []ItemFlowRole{
+	ItemFlowRoleRecipe,
+	ItemFlowRoleFuel,
+}
+
+func (e ItemFlowRole) IsValid() bool {
+	switch e {
+	case ItemFlowRoleRecipe, ItemFlowRoleFuel:
+		return true
+	}
+	return false
+}
+
+func (e ItemFlowRole) String() string {
+	return string(e)
+}
+
+func (e *ItemFlowRole) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ItemFlowRole(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ItemFlowRole", str)
+	}
+	return nil
+}
+
+func (e ItemFlowRole) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ItemFlowRole) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ItemFlowRole) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Lamp circuit color mode, matching defines.control_behavior.lamp.color_mode.
+type LampColorMode string
+
+const (
+	// Take the lamp color from a color signal (engine value color_mapping).
+	LampColorModeColorMapping LampColorMode = "COLOR_MAPPING"
+	// Take red, green and blue from separate signals (engine value components).
+	LampColorModeComponents LampColorMode = "COMPONENTS"
+	// Take a packed RGB value from one signal (engine value packed_rgb).
+	LampColorModePackedRgb LampColorMode = "PACKED_RGB"
+)
+
+var AllLampColorMode = []LampColorMode{
+	LampColorModeColorMapping,
+	LampColorModeComponents,
+	LampColorModePackedRgb,
+}
+
+func (e LampColorMode) IsValid() bool {
+	switch e {
+	case LampColorModeColorMapping, LampColorModeComponents, LampColorModePackedRgb:
+		return true
+	}
+	return false
+}
+
+func (e LampColorMode) String() string {
+	return string(e)
+}
+
+func (e *LampColorMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LampColorMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LampColorMode", str)
+	}
+	return nil
+}
+
+func (e LampColorMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LampColorMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LampColorMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type MachineBlockCategory string
 
 const (
@@ -5184,6 +6511,7 @@ const (
 	MachineBlockCategoryMissingPower       MachineBlockCategory = "MISSING_POWER"
 	MachineBlockCategoryOutputBlocked      MachineBlockCategory = "OUTPUT_BLOCKED"
 	MachineBlockCategoryDisabled           MachineBlockCategory = "DISABLED"
+	MachineBlockCategoryResourceDepleted   MachineBlockCategory = "RESOURCE_DEPLETED"
 	MachineBlockCategoryOther              MachineBlockCategory = "OTHER"
 )
 
@@ -5196,12 +6524,13 @@ var AllMachineBlockCategory = []MachineBlockCategory{
 	MachineBlockCategoryMissingPower,
 	MachineBlockCategoryOutputBlocked,
 	MachineBlockCategoryDisabled,
+	MachineBlockCategoryResourceDepleted,
 	MachineBlockCategoryOther,
 }
 
 func (e MachineBlockCategory) IsValid() bool {
 	switch e {
-	case MachineBlockCategoryNone, MachineBlockCategoryMissingRecipe, MachineBlockCategoryMissingIngredients, MachineBlockCategoryMissingResearch, MachineBlockCategoryMissingFuel, MachineBlockCategoryMissingPower, MachineBlockCategoryOutputBlocked, MachineBlockCategoryDisabled, MachineBlockCategoryOther:
+	case MachineBlockCategoryNone, MachineBlockCategoryMissingRecipe, MachineBlockCategoryMissingIngredients, MachineBlockCategoryMissingResearch, MachineBlockCategoryMissingFuel, MachineBlockCategoryMissingPower, MachineBlockCategoryOutputBlocked, MachineBlockCategoryDisabled, MachineBlockCategoryResourceDepleted, MachineBlockCategoryOther:
 		return true
 	}
 	return false
@@ -5247,7 +6576,7 @@ type MapLayer string
 const (
 	// Built entities, characters, resources, trees, rocks, cliffs and water.
 	MapLayerAll MapLayer = "ALL"
-	// Characters and built factory entities only; natural obstacles and resources are omitted.
+	// Characters, built factory entities, ghosts and enemy-force entities; natural obstacles and resources are omitted.
 	MapLayerFactory MapLayer = "FACTORY"
 	// Resource entities only, with water as terrain.
 	MapLayerResources MapLayer = "RESOURCES"
@@ -5530,6 +6859,62 @@ func (e RecipeDrainMode) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// CURRENT is the recipe the machine holds now; PREVIOUS is an idle furnace's remembered recipe.
+type RecipeSource string
+
+const (
+	RecipeSourceCurrent  RecipeSource = "CURRENT"
+	RecipeSourcePrevious RecipeSource = "PREVIOUS"
+)
+
+var AllRecipeSource = []RecipeSource{
+	RecipeSourceCurrent,
+	RecipeSourcePrevious,
+}
+
+func (e RecipeSource) IsValid() bool {
+	switch e {
+	case RecipeSourceCurrent, RecipeSourcePrevious:
+		return true
+	}
+	return false
+}
+
+func (e RecipeSource) String() string {
+	return string(e)
+}
+
+func (e *RecipeSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RecipeSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RecipeSource", str)
+	}
+	return nil
+}
+
+func (e RecipeSource) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RecipeSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RecipeSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type RelativeSide string
 
 const (
@@ -5655,6 +7040,74 @@ func (e ResearchInsightsStatus) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// Signal types accepted by Factorio 2.0 SignalID. Engine names with a dash use an underscore in the enum.
+type SignalType string
+
+const (
+	SignalTypeItem          SignalType = "ITEM"
+	SignalTypeFluid         SignalType = "FLUID"
+	SignalTypeVirtual       SignalType = "VIRTUAL"
+	SignalTypeEntity        SignalType = "ENTITY"
+	SignalTypeRecipe        SignalType = "RECIPE"
+	SignalTypeSpaceLocation SignalType = "SPACE_LOCATION"
+	SignalTypeAsteroidChunk SignalType = "ASTEROID_CHUNK"
+	SignalTypeQuality       SignalType = "QUALITY"
+)
+
+var AllSignalType = []SignalType{
+	SignalTypeItem,
+	SignalTypeFluid,
+	SignalTypeVirtual,
+	SignalTypeEntity,
+	SignalTypeRecipe,
+	SignalTypeSpaceLocation,
+	SignalTypeAsteroidChunk,
+	SignalTypeQuality,
+}
+
+func (e SignalType) IsValid() bool {
+	switch e {
+	case SignalTypeItem, SignalTypeFluid, SignalTypeVirtual, SignalTypeEntity, SignalTypeRecipe, SignalTypeSpaceLocation, SignalTypeAsteroidChunk, SignalTypeQuality:
+		return true
+	}
+	return false
+}
+
+func (e SignalType) String() string {
+	return string(e)
+}
+
+func (e *SignalType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SignalType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SignalType", str)
+	}
+	return nil
+}
+
+func (e SignalType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SignalType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SignalType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 // Stable cross-domain lifecycle category. Raw engine state remains available beside it.
 type StatusCategory string
 
@@ -5723,7 +7176,7 @@ func (e StatusCategory) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Stock location category. STORED is an entity inventory, IN_TRANSIT is a belt or inserter hand, GROUND is a dropped stack, PLAYER is a connected player's inventory.
+// Stock location category. STORED is an entity inventory, IN_TRANSIT is a belt or inserter hand, GROUND is a dropped stack, PLAYER is a game player's own main inventory whether connected or not, WORKER is a detached character created for courier or builder work.
 type StockCategory string
 
 const (
@@ -5731,6 +7184,7 @@ const (
 	StockCategoryInTransit StockCategory = "IN_TRANSIT"
 	StockCategoryGround    StockCategory = "GROUND"
 	StockCategoryPlayer    StockCategory = "PLAYER"
+	StockCategoryWorker    StockCategory = "WORKER"
 )
 
 var AllStockCategory = []StockCategory{
@@ -5738,11 +7192,12 @@ var AllStockCategory = []StockCategory{
 	StockCategoryInTransit,
 	StockCategoryGround,
 	StockCategoryPlayer,
+	StockCategoryWorker,
 }
 
 func (e StockCategory) IsValid() bool {
 	switch e {
-	case StockCategoryStored, StockCategoryInTransit, StockCategoryGround, StockCategoryPlayer:
+	case StockCategoryStored, StockCategoryInTransit, StockCategoryGround, StockCategoryPlayer, StockCategoryWorker:
 		return true
 	}
 	return false
@@ -5895,39 +7350,72 @@ func (e TrainWaitCompareType) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// Engine defines.wait_condition types for Factorio 2.0.77. OTHER is read-only: it carries a type this build cannot construct.
 type TrainWaitConditionType string
 
 const (
-	TrainWaitConditionTypeTime                TrainWaitConditionType = "TIME"
-	TrainWaitConditionTypeInactivity          TrainWaitConditionType = "INACTIVITY"
-	TrainWaitConditionTypeFull                TrainWaitConditionType = "FULL"
-	TrainWaitConditionTypeEmpty               TrainWaitConditionType = "EMPTY"
-	TrainWaitConditionTypeItemCount           TrainWaitConditionType = "ITEM_COUNT"
-	TrainWaitConditionTypeFluidCount          TrainWaitConditionType = "FLUID_COUNT"
-	TrainWaitConditionTypePassengerPresent    TrainWaitConditionType = "PASSENGER_PRESENT"
-	TrainWaitConditionTypePassengerNotPresent TrainWaitConditionType = "PASSENGER_NOT_PRESENT"
-	TrainWaitConditionTypeRobotsInactive      TrainWaitConditionType = "ROBOTS_INACTIVE"
-	TrainWaitConditionTypeCircuit             TrainWaitConditionType = "CIRCUIT"
-	TrainWaitConditionTypeOther               TrainWaitConditionType = "OTHER"
+	TrainWaitConditionTypeTime                       TrainWaitConditionType = "TIME"
+	TrainWaitConditionTypeFull                       TrainWaitConditionType = "FULL"
+	TrainWaitConditionTypeEmpty                      TrainWaitConditionType = "EMPTY"
+	TrainWaitConditionTypeNotEmpty                   TrainWaitConditionType = "NOT_EMPTY"
+	TrainWaitConditionTypeItemCount                  TrainWaitConditionType = "ITEM_COUNT"
+	TrainWaitConditionTypeCircuit                    TrainWaitConditionType = "CIRCUIT"
+	TrainWaitConditionTypeInactivity                 TrainWaitConditionType = "INACTIVITY"
+	TrainWaitConditionTypeRobotsInactive             TrainWaitConditionType = "ROBOTS_INACTIVE"
+	TrainWaitConditionTypeFluidCount                 TrainWaitConditionType = "FLUID_COUNT"
+	TrainWaitConditionTypePassengerPresent           TrainWaitConditionType = "PASSENGER_PRESENT"
+	TrainWaitConditionTypePassengerNotPresent        TrainWaitConditionType = "PASSENGER_NOT_PRESENT"
+	TrainWaitConditionTypeFuelItemCountAll           TrainWaitConditionType = "FUEL_ITEM_COUNT_ALL"
+	TrainWaitConditionTypeFuelItemCountAny           TrainWaitConditionType = "FUEL_ITEM_COUNT_ANY"
+	TrainWaitConditionTypeFuelFull                   TrainWaitConditionType = "FUEL_FULL"
+	TrainWaitConditionTypeDestinationFullOrNoPath    TrainWaitConditionType = "DESTINATION_FULL_OR_NO_PATH"
+	TrainWaitConditionTypeRequestSatisfied           TrainWaitConditionType = "REQUEST_SATISFIED"
+	TrainWaitConditionTypeRequestNotSatisfied        TrainWaitConditionType = "REQUEST_NOT_SATISFIED"
+	TrainWaitConditionTypeAllRequestsSatisfied       TrainWaitConditionType = "ALL_REQUESTS_SATISFIED"
+	TrainWaitConditionTypeAnyRequestNotSatisfied     TrainWaitConditionType = "ANY_REQUEST_NOT_SATISFIED"
+	TrainWaitConditionTypeAnyRequestZero             TrainWaitConditionType = "ANY_REQUEST_ZERO"
+	TrainWaitConditionTypeAnyPlanetImportZero        TrainWaitConditionType = "ANY_PLANET_IMPORT_ZERO"
+	TrainWaitConditionTypeSpecificDestinationFull    TrainWaitConditionType = "SPECIFIC_DESTINATION_FULL"
+	TrainWaitConditionTypeSpecificDestinationNotFull TrainWaitConditionType = "SPECIFIC_DESTINATION_NOT_FULL"
+	TrainWaitConditionTypeAtStation                  TrainWaitConditionType = "AT_STATION"
+	TrainWaitConditionTypeNotAtStation               TrainWaitConditionType = "NOT_AT_STATION"
+	TrainWaitConditionTypeDamageTaken                TrainWaitConditionType = "DAMAGE_TAKEN"
+	TrainWaitConditionTypeOther                      TrainWaitConditionType = "OTHER"
 )
 
 var AllTrainWaitConditionType = []TrainWaitConditionType{
 	TrainWaitConditionTypeTime,
-	TrainWaitConditionTypeInactivity,
 	TrainWaitConditionTypeFull,
 	TrainWaitConditionTypeEmpty,
+	TrainWaitConditionTypeNotEmpty,
 	TrainWaitConditionTypeItemCount,
+	TrainWaitConditionTypeCircuit,
+	TrainWaitConditionTypeInactivity,
+	TrainWaitConditionTypeRobotsInactive,
 	TrainWaitConditionTypeFluidCount,
 	TrainWaitConditionTypePassengerPresent,
 	TrainWaitConditionTypePassengerNotPresent,
-	TrainWaitConditionTypeRobotsInactive,
-	TrainWaitConditionTypeCircuit,
+	TrainWaitConditionTypeFuelItemCountAll,
+	TrainWaitConditionTypeFuelItemCountAny,
+	TrainWaitConditionTypeFuelFull,
+	TrainWaitConditionTypeDestinationFullOrNoPath,
+	TrainWaitConditionTypeRequestSatisfied,
+	TrainWaitConditionTypeRequestNotSatisfied,
+	TrainWaitConditionTypeAllRequestsSatisfied,
+	TrainWaitConditionTypeAnyRequestNotSatisfied,
+	TrainWaitConditionTypeAnyRequestZero,
+	TrainWaitConditionTypeAnyPlanetImportZero,
+	TrainWaitConditionTypeSpecificDestinationFull,
+	TrainWaitConditionTypeSpecificDestinationNotFull,
+	TrainWaitConditionTypeAtStation,
+	TrainWaitConditionTypeNotAtStation,
+	TrainWaitConditionTypeDamageTaken,
 	TrainWaitConditionTypeOther,
 }
 
 func (e TrainWaitConditionType) IsValid() bool {
 	switch e {
-	case TrainWaitConditionTypeTime, TrainWaitConditionTypeInactivity, TrainWaitConditionTypeFull, TrainWaitConditionTypeEmpty, TrainWaitConditionTypeItemCount, TrainWaitConditionTypeFluidCount, TrainWaitConditionTypePassengerPresent, TrainWaitConditionTypePassengerNotPresent, TrainWaitConditionTypeRobotsInactive, TrainWaitConditionTypeCircuit, TrainWaitConditionTypeOther:
+	case TrainWaitConditionTypeTime, TrainWaitConditionTypeFull, TrainWaitConditionTypeEmpty, TrainWaitConditionTypeNotEmpty, TrainWaitConditionTypeItemCount, TrainWaitConditionTypeCircuit, TrainWaitConditionTypeInactivity, TrainWaitConditionTypeRobotsInactive, TrainWaitConditionTypeFluidCount, TrainWaitConditionTypePassengerPresent, TrainWaitConditionTypePassengerNotPresent, TrainWaitConditionTypeFuelItemCountAll, TrainWaitConditionTypeFuelItemCountAny, TrainWaitConditionTypeFuelFull, TrainWaitConditionTypeDestinationFullOrNoPath, TrainWaitConditionTypeRequestSatisfied, TrainWaitConditionTypeRequestNotSatisfied, TrainWaitConditionTypeAllRequestsSatisfied, TrainWaitConditionTypeAnyRequestNotSatisfied, TrainWaitConditionTypeAnyRequestZero, TrainWaitConditionTypeAnyPlanetImportZero, TrainWaitConditionTypeSpecificDestinationFull, TrainWaitConditionTypeSpecificDestinationNotFull, TrainWaitConditionTypeAtStation, TrainWaitConditionTypeNotAtStation, TrainWaitConditionTypeDamageTaken, TrainWaitConditionTypeOther:
 		return true
 	}
 	return false
@@ -6024,7 +7512,7 @@ func (e TransferDirection) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Type of an underground belt half. Place the entrance as INPUT and the exit as OUTPUT in one call so the engine links them.
+// Type of an underground belt half. Place the entrance as INPUT and the exit as OUTPUT; the engine pairs a facing half of the same tier whenever it appears, in this call or a later tick.
 type UndergroundBeltType string
 
 const (
@@ -6075,6 +7563,72 @@ func (e *UndergroundBeltType) UnmarshalJSON(b []byte) error {
 }
 
 func (e UndergroundBeltType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type UpgradeOrderStatus string
+
+const (
+	// A new upgrade order was recorded.
+	UpgradeOrderStatusMarked UpgradeOrderStatus = "MARKED"
+	// The entity already had an upgrade order; it was left untouched.
+	UpgradeOrderStatusAlreadyMarked UpgradeOrderStatus = "ALREADY_MARKED"
+	// An existing upgrade order was canceled.
+	UpgradeOrderStatusCanceled UpgradeOrderStatus = "CANCELED"
+	// The engine refused the order or the cancellation.
+	UpgradeOrderStatusRefused UpgradeOrderStatus = "REFUSED"
+	// The mapping names an unknown entity or quality prototype.
+	UpgradeOrderStatusLookup UpgradeOrderStatus = "LOOKUP"
+)
+
+var AllUpgradeOrderStatus = []UpgradeOrderStatus{
+	UpgradeOrderStatusMarked,
+	UpgradeOrderStatusAlreadyMarked,
+	UpgradeOrderStatusCanceled,
+	UpgradeOrderStatusRefused,
+	UpgradeOrderStatusLookup,
+}
+
+func (e UpgradeOrderStatus) IsValid() bool {
+	switch e {
+	case UpgradeOrderStatusMarked, UpgradeOrderStatusAlreadyMarked, UpgradeOrderStatusCanceled, UpgradeOrderStatusRefused, UpgradeOrderStatusLookup:
+		return true
+	}
+	return false
+}
+
+func (e UpgradeOrderStatus) String() string {
+	return string(e)
+}
+
+func (e *UpgradeOrderStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = UpgradeOrderStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid UpgradeOrderStatus", str)
+	}
+	return nil
+}
+
+func (e UpgradeOrderStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *UpgradeOrderStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e UpgradeOrderStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -15,7 +15,7 @@ func beltTakeLua(args []string, out io.Writer) (string, error) {
 	fs.SetOutput(out)
 	player := fs.String("player", "", "Player name (alternative to --character)")
 	character := fs.Uint64("character", 0, "Character unit number (alternative to --player)")
-	entity := fs.String("entity", "", "Belt prototype name; only transport-belt is supported")
+	entity := fs.String("entity", "", "Transport belt prototype name: transport-belt, fast-transport-belt, express-transport-belt or turbo-transport-belt")
 	var unitNumber string
 	fs.StringVar(&unitNumber, "unit-number", "", "Belt unit number, alternative to x and y")
 	fs.StringVar(&unitNumber, "unitNumber", "", "Belt unit number, alternative to x and y")
@@ -34,11 +34,11 @@ func beltTakeLua(args []string, out io.Writer) (string, error) {
 	if *quality == "" {
 		return "", errors.New("quality must not be empty")
 	}
-	if *entity != "" && *entity != "transport-belt" {
-		return "", errors.New("beltTake only accepts transport-belt targets")
-	}
-	// beltTake only accepts transport belts, so unit-number lookups scan for that prototype.
-	targetUnit, err := entityTarget("transport-belt", unitNumber, *x, *y)
+	// The prototype name is not restricted here: every transport belt tier has
+	// the same entity type, and the type check below is what keeps out
+	// splitters, loaders and linked belts. A unit-number-only target resolves
+	// through the shared unit-number index instead of a hard-coded name.
+	targetUnit, err := entityTarget(*entity, unitNumber, *x, *y)
 	if err != nil {
 		return "", err
 	}
@@ -51,14 +51,14 @@ else
 end
 local p=c
 `, luaString(*player), *character)
-	prefix += targetLocals(targetUnit, "transport-belt", *x, *y, *surface) + "if surface_name==\"\" then surface_name=c.surface.name end\n" + luaEntityResolve + resolveTargetLua()
+	prefix += targetLocals(targetUnit, *entity, *x, *y, *surface) + "if surface_name==\"\" then surface_name=c.surface.name end\n" + luaEntityResolve + resolveTargetLua()
 	prefix += `if e.surface~=c.surface then fail("belt is on another surface than the actor"); return end
 `
 	return prefix + fmt.Sprintf(`if e.type~="transport-belt" then fail("entity is not a transport belt"); return end
 if %s then fail("belt is out of reach"); return end
 local inv=c.get_main_inventory(); if not inv then fail("character has no main inventory"); return end
 local name=%s; local quality=%s; if not prototypes.quality[quality] then fail("quality not found"); return end; local requested=%d; local capacity=inv.get_insertable_count{name=name,quality=quality}; local remaining=math.min(requested,capacity); local moved=0
-for i=1,2 do if remaining>0 then local removed=e.get_transport_line(i).remove_item{name=name,quality=quality,count=remaining}; if removed>0 then local inserted=inv.insert{name=name,quality=quality,count=removed}; moved=moved+inserted; remaining=remaining-removed; if inserted<removed then c.surface.spill_item_stack{position=c.position,stack={name=name,quality=quality,count=removed-inserted},enable_looted=true,force=c.force}; fail("inventory rejected items; remainder spilled near character"); return end end end end
+for i=1,2 do if remaining>0 then local removed=e.get_transport_line(i).remove_item{name=name,quality=quality,count=remaining}; if removed>0 then local inserted=inv.insert{name=name,quality=quality,count=removed}; moved=moved+inserted; remaining=remaining-removed; if inserted<removed then c.surface.spill_item_stack{position=c.position,stack={name=name,quality=quality,count=removed-inserted},enable_looted=true}; fail("inventory rejected items; remainder spilled near character"); return end end end end
 rcon.print(helpers.table_to_json({position=e.position,item=name,requested=requested,moved=moved,unit_number=e.unit_number}))`, reachViolation("c", "e"), luaString(*item), luaString(*quality), *count), nil
 
 }

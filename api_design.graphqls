@@ -16,7 +16,7 @@ input PositionInput {
   y: FiniteFloat!
 }
 
-"""Address one entity by unit number, or by prototype name and exact center position."""
+"""Address one entity by unit number, or by prototype name and a position inside the entity. The exact centre is not required: a rock or resource tile that does not sit on the tile grid is matched when the named point falls inside its bounding box."""
 input EntityRefInput {
   surface: String = "nauvis"
   entity: String

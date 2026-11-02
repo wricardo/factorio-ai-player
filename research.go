@@ -24,6 +24,13 @@ func researchLua(args []string, out io.Writer) (string, error) {
 local t=f.technologies[%s]; if not t then fail("technology not found"); return end
 if t.researched then fail("technology is already researched"); return end
 if not t.enabled then fail("technology is not enabled"); return end
+-- Trigger technologies (for example automation-science-pack) are never
+-- researched; add_research returns false for them, so name the trigger instead
+-- of reporting an opaque failure.
+if t.prototype.research_trigger then
+  fail("technology is a trigger technology ("..helpers.table_to_json(t.prototype.research_trigger)..") and cannot be researched; it unlocks when its trigger fires")
+  return
+end
 for _,prerequisite in pairs(t.prerequisites) do if not prerequisite.researched then fail("technology prerequisite is not researched"); return end end
 if not f.add_research(t) then fail("could not start research"); return end
 local queue={}

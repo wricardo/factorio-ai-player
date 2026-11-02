@@ -62,14 +62,17 @@ func placeBlueprint(r *Resolver, input PlaceBlueprintInput) (*BlueprintPlaceResu
 	if input.Blueprint == "" {
 		return nil, errors.New("blueprint must not be empty")
 	}
-	if len(input.Blueprint) > 2_000_000 {
-		return nil, errors.New("blueprint exceeds 2000000 characters")
+	if len(input.Blueprint) > maxBlueprintCharacters {
+		return nil, fmt.Errorf("blueprint exceeds %d characters", maxBlueprintCharacters)
 	}
 	if input.Position == nil {
 		return nil, errors.New("position is required")
 	}
 	if input.Direction < 0 || input.Direction > 15 {
 		return nil, errors.New("direction must be between 0 and 15")
+	}
+	if input.Direction%4 != 0 {
+		return nil, errors.New("direction must be 0, 4, 8 or 12; a blueprint only rotates in 90 degree steps")
 	}
 	direction := input.Direction
 	surface := stringOr(input.Surface, "nauvis")
@@ -79,14 +82,23 @@ local f=game.forces[%s]; if not f then fail("force not found"); return end
 local inv=game.create_inventory(1); local stack=inv[1]
 if not stack.set_stack{name="blueprint",count=1} then inv.destroy(); fail("could not create blueprint stack"); return end
 local rc=stack.import_stack(%s)
-if rc~=0 then inv.destroy(); fail("invalid blueprint string: "..rc); return end
-if not stack.is_blueprint_setup() then inv.destroy(); fail("blueprint is not set up"); return end
+if rc~=0 then inv.destroy(); fail("invalid blueprint string: "..tostring(rc)); return end
+-- is_blueprint_setup raises for a blueprint book, so probe it under pcall
+-- instead of leaking the temporary script inventory on that path.
+local ok_setup,is_setup=pcall(function() return stack.is_blueprint_setup() end)
+if not ok_setup then inv.destroy(); fail("blueprint string is not a single blueprint: "..tostring(is_setup)); return end
+if not is_setup then inv.destroy(); fail("blueprint is not set up"); return end
+-- build_blueprint returns only the ghosts it created, so the blueprint's own
+-- entity count is what tells a partial placement from a full one.
+local entity_count=stack.get_blueprint_entity_count()
 local ok,built=pcall(function() return stack.build_blueprint{surface=s,force=f,position={x=%s,y=%s},direction=%d,build_mode=defines.build_mode.normal,raise_built=true} end)
 if not ok then inv.destroy(); fail("could not place blueprint: "..tostring(built)); return end
 local entities={}
 for _,e in ipairs(built) do entities[#entities+1]={name=e.name,type=e.type,position=e.position,unit_number=e.unit_number} end
 inv.destroy()
-rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,ghosts=#built,entities=entities}))`,
+local skipped=entity_count-#built
+if skipped<0 then skipped=0 end
+rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,ghosts=#built,entity_count=entity_count,skipped=skipped,entities=entities}))`,
 		luaString(surface), luaString(force), luaString(input.Blueprint),
 		strconv.FormatFloat(input.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Position.Y, 'g', -1, 64), direction)
 	response, _, err := executeLua(r.addr, r.password, lua)
@@ -97,19 +109,22 @@ rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,gho
 	if err != nil {
 		return nil, err
 	}
-	announceMutation(r, input.Message,
-		fmt.Sprintf("placed %d blueprint ghosts on %s", result.Ghosts, result.Surface))
+	summary := fmt.Sprintf("placed %d of %d blueprint ghosts on %s", result.Ghosts, result.EntityCount, result.Surface)
+	if result.Skipped > 0 {
+		summary = fmt.Sprintf("placed %d of %d blueprint ghosts on %s; %d skipped", result.Ghosts, result.EntityCount, result.Surface, result.Skipped)
+	}
+	announceMutation(r, input.Message, summary)
 	return result, nil
 }
 
 // createBlueprintFromEntities builds a blueprint from explicit blueprint-relative
 // entities and tiles without reading the world.
 func createBlueprintFromEntities(r *Resolver, input CreateBlueprintFromEntitiesInput) (*BlueprintFromEntitiesResult, error) {
-	if len(input.Entities) > 1000 {
-		return nil, errors.New("at most 1000 entities are allowed")
+	if len(input.Entities) > maxBlueprintEntities {
+		return nil, fmt.Errorf("at most %d entities are allowed", maxBlueprintEntities)
 	}
-	if len(input.Tiles) > 2000 {
-		return nil, errors.New("at most 2000 tiles are allowed")
+	if len(input.Tiles) > maxBlueprintTiles {
+		return nil, fmt.Errorf("at most %d tiles are allowed", maxBlueprintTiles)
 	}
 	if len(input.Entities)+len(input.Tiles) == 0 {
 		return nil, errors.New("at least one entity or tile is required")

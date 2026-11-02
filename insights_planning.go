@@ -20,8 +20,8 @@ func itemFlowQuery(r *Resolver, input ItemFlowInput) (*ItemFlow, error) {
 	if input.Force == "" || input.Surface == "" || input.Item == "" {
 		return nil, errors.New("force, surface and item are required")
 	}
-	if input.Limit < 1 || input.Limit > 1000 || input.Offset < 0 {
-		return nil, errors.New("limit must be 1..1000 and offset non-negative")
+	if input.Limit < 1 || input.Limit > maxPageSize || input.Offset < 0 {
+		return nil, fmt.Errorf("limit must be 1..%d and offset non-negative", maxPageSize)
 	}
 	area, err := planningAreaLua(input.Area)
 	if err != nil {
@@ -37,13 +37,21 @@ local producers,consumers={},{}
 local function yield(p)
   return (p.amount or ((p.amount_min or 0)+(p.amount_max or 0))/2)*(p.probability or 1)
 end
-local function endpoint(e,kind,role,rate,reason,recipe,quality,target)
+local function quality_name(quality)
+  if quality==nil then return nil end
+  local ok,name=pcall(function() return quality.name end)
+  if ok then return name end
+  return nil
+end
+local function endpoint(e,kind,role,inv_role,rate,basis,reason,recipe,quality,target,recipe_source)
   local obj={unitNumber=e.unit_number,name=e.name,type=e.type,surface=surface.name,force=force.name,
     position=e.position,status=statuses[e.status] or "unknown",recipe=recipe,recipeQuality=quality,
+    recipeSource=recipe_source,role=role,rateBasis=basis,
     miningTarget=target,materialType=kind,bufferedItems={},theoreticalRatePerSecond=rate,rateUnavailableReason=reason}
   if kind=="item" then
     local inv
-    if role=="output" then inv=e.get_output_inventory()
+    if inv_role=="output" then inv=e.get_output_inventory()
+    elseif inv_role=="fuel" then inv=e.get_fuel_inventory()
     elseif e.type=="assembling-machine" or e.type=="furnace" or e.type=="rocket-silo" then inv=e.get_inventory(defines.inventory.crafter_input) end
     if inv then for _,s in pairs(inv.get_contents()) do if s.name==item then
       obj.bufferedItems[#obj.bufferedItems+1]={name=s.name,quality=s.quality,count=s.count}
@@ -61,6 +69,15 @@ local function endpoint(e,kind,role,rate,reason,recipe,quality,target)
   end
   return obj
 end
+local function furnace_recipe(e)
+  local recipe,quality=e.get_recipe()
+  if recipe then return recipe,quality,"CURRENT" end
+  if e.type=="furnace" then
+    local previous=e.previous_recipe
+    if previous then return previous.name,previous.quality,"PREVIOUS" end
+  end
+  return nil,nil,nil
+end
 local entities=surface.find_entities_filtered{force=force,area=area,type={"assembling-machine","furnace","rocket-silo","mining-drill"}}
 for _,e in pairs(entities) do
   if e.type=="mining-drill" then
@@ -73,21 +90,44 @@ for _,e in pairs(entities) do
       else reason="MINING_TIME_UNAVAILABLE" end
       local output=0; local kind
       for _,p in pairs(m.products or {}) do if p.name==item then output=output+yield(p); kind=p.type end end
-      if kind then producers[#producers+1]=endpoint(e,kind,"output",rate and rate*output,reason,nil,nil,target.name) end
+      if kind then producers[#producers+1]=endpoint(e,kind,"RECIPE","output",rate and rate*output,nil,reason,nil,nil,target.name,nil) end
       if m.required_fluid==item then
-        consumers[#consumers+1]=endpoint(e,"fluid","input",rate and rate*(m.fluid_amount or 0)/10,reason,nil,nil,target.name)
+        consumers[#consumers+1]=endpoint(e,"fluid","RECIPE","input",rate and rate*(m.fluid_amount or 0)/10,nil,reason,nil,nil,target.name,nil)
       end
     end
   else
-    local recipe,quality=e.get_recipe()
+    local recipe,quality,source=furnace_recipe(e)
     if recipe then
-      local rate,reason
-      if recipe.energy>0 then rate=e.crafting_speed/recipe.energy else reason="RECIPE_ENERGY_NOT_POSITIVE" end
+      local rate,basis,reason
+      if recipe.energy>0 then
+        rate=e.crafting_speed/recipe.energy
+        if source=="PREVIOUS" then basis="IDLE_PREVIOUS_RECIPE_POTENTIAL" end
+      else reason="RECIPE_ENERGY_NOT_POSITIVE" end
       local output,input_amount,output_kind,input_kind=0,0,nil,nil
       for _,p in pairs(recipe.products) do if p.name==item then output=output+yield(p); output_kind=p.type end end
       for _,p in pairs(recipe.ingredients) do if p.name==item then input_amount=input_amount+p.amount; input_kind=p.type end end
-      if output_kind then producers[#producers+1]=endpoint(e,output_kind,"output",rate and rate*output,reason,recipe.name,quality and quality.name) end
-      if input_kind then consumers[#consumers+1]=endpoint(e,input_kind,"input",rate and rate*input_amount,reason,recipe.name,quality and quality.name) end
+      if output_kind then producers[#producers+1]=endpoint(e,output_kind,"RECIPE","output",rate and rate*output,basis,reason,recipe.name,quality_name(quality),nil,source) end
+      if input_kind then consumers[#consumers+1]=endpoint(e,input_kind,"RECIPE","input",rate and rate*input_amount,basis,reason,recipe.name,quality_name(quality),nil,source) end
+    end
+  end
+end
+local item_prototype=prototypes.item[item]
+if item_prototype and item_prototype.fuel_category then
+  local fuel_category, fuel_value = item_prototype.fuel_category, item_prototype.fuel_value or 0
+  for _,e in pairs(surface.find_entities_filtered{force=force,area=area}) do
+    local ok_burner,burner=pcall(function() return e.burner end)
+    if ok_burner and burner then
+      local ok_prototype,burner_prototype=pcall(function() return e.prototype.burner_prototype end)
+      if ok_prototype and burner_prototype and burner_prototype.fuel_categories[fuel_category] then
+        local rate,basis,reason
+        local usage=e.prototype.get_max_energy_usage(e.quality)
+        local effectivity=burner_prototype.effectivity
+        if fuel_value>0 and effectivity>0 and usage>0 then
+          rate=usage*60*(1+e.consumption_bonus)/(fuel_value*effectivity)
+          basis="FUEL_UPPER_BOUND"
+        else reason="FUEL_ENERGY_UNAVAILABLE" end
+        consumers[#consumers+1]=endpoint(e,"item","FUEL","fuel",rate,basis,reason,nil,nil,nil,nil)
+      end
     end
   end
 end
@@ -103,7 +143,7 @@ rcon.print(helpers.table_to_json{tick=game.tick,force=force.name,surface=surface
   producerPageInfo={total=#producers,limit=limit,offset=offset,hasMore=#producers>offset+limit},
   consumerPageInfo={total=#consumers,limit=limit,offset=offset,hasMore=#consumers>offset+limit},
   producers=page(producers),consumers=page(consumers),
-  rateAssumptions="Theoretical expected base yields at current crafting/mining speed; excludes productivity, quality upgrades, downtime, power/fuel/ingredient shortages, output blocking and depletion. Not actual throughput. Mining uses current target only; fluid mining input uses engine fluid_amount / 10."})
+  rateAssumptions="Theoretical expected base yields at current crafting/mining speed; excludes productivity, quality upgrades, downtime, power/fuel/ingredient shortages, output blocking and depletion. Not actual throughput. Mining uses current target only; fluid mining input uses engine fluid_amount / 10. Furnaces fall back to previous_recipe when get_recipe() is nil, so PREVIOUS rows show the potential rate of an idle furnace, not observed output. FUEL rows estimate burner fuel consumption per second from get_max_energy_usage()*60*(1+consumption_bonus)/(fuel_value*effectivity) at full duty, an upper bound that ignores idle time and fuel-burning carry-over."})
 `, luaString(input.Force), luaString(input.Surface), luaString(input.Item), area, input.Limit, input.Offset)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
@@ -142,14 +182,24 @@ type planningStock struct {
 }
 
 type planningSnapshot struct {
-	Tick                     float64          `json:"tick"`
-	Force                    string           `json:"force"`
-	Surface                  string           `json:"surface"`
-	Recipes                  []planningRecipe `json:"bomRecipes"`
-	Stock                    []planningStock  `json:"bomStock"`
-	Mined                    []planningRef    `json:"bomMined"`
-	StockTruncated           bool             `json:"stockTruncated"`
-	RecipeCatalogueTruncated bool             `json:"recipeCatalogueTruncated"`
+	Tick                     float64                `json:"tick"`
+	Force                    string                 `json:"force"`
+	Surface                  string                 `json:"surface"`
+	Recipes                  []planningRecipe       `json:"bomRecipes"`
+	LockedRecipes            []planningLockedRecipe `json:"bomLockedRecipes"`
+	Stock                    []planningStock        `json:"bomStock"`
+	Mined                    []planningRef          `json:"bomMined"`
+	Gathered                 []planningRef          `json:"bomGathered"`
+	StockTruncated           bool                   `json:"stockTruncated"`
+	RecipeCatalogueTruncated bool                   `json:"recipeCatalogueTruncated"`
+}
+
+// planningLockedRecipe is a force recipe that exists but is not researched. Only
+// its outputs matter: they let the planner distinguish a research gate from a
+// missing recipe without offering the locked recipe as a plan step.
+type planningLockedRecipe struct {
+	Name     string             `json:"name"`
+	Products []planningQuantity `json:"bomProducts"`
 }
 
 type planningMaterial struct {
@@ -219,8 +269,8 @@ func validatePlanningOptions(options planningOptions) error {
 	if math.IsNaN(options.Amount) || math.IsInf(options.Amount, 0) || options.Amount <= 0 || options.Amount > 1e12 {
 		return errors.New("amount must be finite, positive and no greater than 1e12")
 	}
-	if options.MaxDepth < 1 || options.MaxDepth > 128 || options.MaxExpansions < 1 || options.MaxExpansions > 10000 {
-		return errors.New("maxDepth must be 1..128 and maxExpansions 1..10000")
+	if options.MaxDepth < 1 || options.MaxDepth > 512 || options.MaxExpansions < 1 || options.MaxExpansions > maxPlanExpansions {
+		return fmt.Errorf("maxDepth must be 1..512 and maxExpansions 1..%d", maxPlanExpansions)
 	}
 	return nil
 }
@@ -287,7 +337,7 @@ func planBillOfMaterials(snapshot planningSnapshot, options planningOptions) (*p
 		StockTruncated: snapshot.StockTruncated, RecipeCatalogueTruncated: snapshot.RecipeCatalogueTruncated,
 		Materials: []*planningMaterial{}, Steps: []*planningStep{}, RawRequirements: []*planningRequirement{},
 		SeedRequirements: []*planningRequirement{}, Unresolved: []*planningRequirement{}, Warnings: []string{},
-		Assumptions: "Enabled recipes only; exact-name recipe preferred, then lexicographic name. Deterministic depth-first allocation, stock and coproduct surplus shared once; not a globally optimal recipe/stock schedule. Integer crafts, expected base yields, no productivity or quality upgrades. Item ingredients/products use requested quality; fluids use normal. Raw resources are not mined by this plan. No machine, energy, transport, temperature feasibility or immediate craftability claim. Factory stock excludes players, ground items, fuel, installed modules and equipment; player stock is main inventory only. Returned catalysts require initial seed stock and are not consumed twice."}
+		Assumptions: "Enabled, non-hidden recipes only; recycling and parameter recipes are excluded, so a plan never synthesises a product from its own recycling recipe. Exact-name recipe preferred, then lexicographic name; research-locked recipes are reported as RECIPE_NOT_RESEARCHED instead of being used. Deterministic depth-first allocation, stock and coproduct surplus shared once; not a globally optimal recipe/stock schedule. Integer crafts, expected base yields, no productivity or quality upgrades. Item ingredients/products use requested quality; fluids use normal. Raw resources are not mined or gathered by this plan. No machine, energy, transport, temperature feasibility or immediate craftability claim. Factory stock excludes players, ground items, fuel, installed modules and equipment; player stock is main inventory only. Returned catalysts require initial seed stock and are not consumed twice."}
 	if snapshot.StockTruncated {
 		result.Warnings = append(result.Warnings, "Factory stock scan truncated; available stock is a lower bound.")
 	}
@@ -357,6 +407,18 @@ func planBillOfMaterials(snapshot planningSnapshot, options planningOptions) (*p
 	for _, ref := range snapshot.Mined {
 		mined[ref.key()] = true
 	}
+	gathered := map[string]bool{}
+	for _, ref := range snapshot.Gathered {
+		gathered[ref.key()] = true
+	}
+	locked := map[string]bool{}
+	for _, recipe := range snapshot.LockedRecipes {
+		for _, product := range recipe.Products {
+			if product.Amount > 0 {
+				locked[product.key()] = true
+			}
+		}
+	}
 	active := map[string]bool{}
 	raw, unresolved, seeds := map[string]*planningRequirement{}, map[string]*planningRequirement{}, map[string]*planningRequirement{}
 	addRequirement := func(dest map[string]*planningRequirement, ref planningRef, amount float64, reason string) {
@@ -416,13 +478,18 @@ func planBillOfMaterials(snapshot planningSnapshot, options planningOptions) (*p
 		}
 		if chosen == nil {
 			reason := "NO_ENABLED_RECIPE"
-			if mined[ref.key()] {
+			switch {
+			case mined[ref.key()]:
 				reason = "MINED_RAW"
-			} else if ref.MaterialType == "fluid" {
+			case gathered[ref.key()]:
+				reason = "GATHERED_RAW"
+			case ref.MaterialType == "fluid":
 				reason = "RAW_FLUID"
+			case locked[ref.key()]:
+				reason = "RECIPE_NOT_RESEARCHED"
 			}
 			addRequirement(raw, ref, amount, reason)
-			if reason == "NO_ENABLED_RECIPE" {
+			if reason == "NO_ENABLED_RECIPE" || reason == "RECIPE_NOT_RESEARCHED" {
 				result.Complete = false
 				addRequirement(unresolved, ref, amount, reason)
 			}
@@ -575,8 +642,8 @@ func billOfMaterialsQuery(r *Resolver, input BillOfMaterialsInput) (*BillOfMater
 		}
 		options.Overrides[override.Item] = override.Recipe
 	}
-	if len(options.Overrides) > 1000 {
-		return nil, errors.New("at most 1000 recipe overrides allowed")
+	if len(options.Overrides) > maxPlanRecipes {
+		return nil, fmt.Errorf("at most %d recipe overrides allowed", maxPlanRecipes)
 	}
 	player := ""
 	if input.Stock.Player != nil {
@@ -604,11 +671,25 @@ local item,quality,source,player_name,area=%s,%s,%s,%s,%s
 if not prototypes.quality[quality] then fail("quality not found"); return end
 if not prototypes.item[item] and not prototypes.fluid[item] then fail("item/fluid prototype not found"); return end
 if prototypes.item[item] and prototypes.fluid[item] then fail("ambiguous item/fluid prototype name"); return end
-local result={tick=game.tick,force=force.name,surface=surface.name,bomRecipes={},bomStock={},bomMined={},stockTruncated=false,recipeCatalogueTruncated=false}
-local names={}; for name,recipe in pairs(force.recipes) do if recipe.enabled then names[#names+1]=name end end
-table.sort(names)
-if #names>5000 then result.recipeCatalogueTruncated=true end
-for i=1,math.min(#names,5000) do
+local result={tick=game.tick,force=force.name,surface=surface.name,bomRecipes={},bomLockedRecipes={},bomStock={},bomMined={},bomGathered={},stockTruncated=false,recipeCatalogueTruncated=false}
+-- Hidden, recycling and parameter recipes are never plan steps: enabled recycling
+-- recipes outnumber real ones and would answer arbitrary items with nonsense plans.
+local function catalogue_recipe(recipe)
+  if recipe.hidden then return false end
+  local category=recipe.category
+  if string.sub(category,1,9)=="recycling" then return false end
+  if category=="parameters" or category=="parameter" then return false end
+  return true
+end
+local names,locked={},{}
+for name,recipe in pairs(force.recipes) do
+  if catalogue_recipe(recipe) then
+    if recipe.enabled then names[#names+1]=name else locked[#locked+1]=name end
+  end
+end
+table.sort(names); table.sort(locked)
+if #names>20000 or #locked>20000 then result.recipeCatalogueTruncated=true end
+for i=1,math.min(#names,20000) do
   local recipe=force.recipes[names[i]]
   local entry={name=recipe.name,bomIngredients={},bomProducts={}}
   for _,p in pairs(recipe.ingredients) do
@@ -622,13 +703,35 @@ for i=1,math.min(#names,5000) do
   end
   result.bomRecipes[#result.bomRecipes+1]=entry
 end
-local mined={}
-for _,prototype in pairs(prototypes.entity) do if prototype.type=="resource" then
-  for _,p in pairs(prototype.mineable_properties.products or {}) do
-    local key=p.type.."\0"..p.name
-    if not mined[key] then mined[key]=true;result.bomMined[#result.bomMined+1]={item=p.name,materialType=p.type} end
+-- Locked recipes carry only their outputs: an item that has one is research-gated,
+-- not recipe-less, so the planner must report RECIPE_NOT_RESEARCHED instead of
+-- falling back to an unrelated recipe.
+for i=1,math.min(#locked,20000) do
+  local recipe=force.recipes[locked[i]]
+  local entry={name=recipe.name,bomProducts={}}
+  for _,p in pairs(recipe.products) do
+    local amount=p.amount or ((p.amount_min or 0)+(p.amount_max or 0))/2
+    entry.bomProducts[#entry.bomProducts+1]={item=p.name,materialType=p.type,amount=amount*(p.probability or 1)}
   end
-end end
+  result.bomLockedRecipes[#result.bomLockedRecipes+1]=entry
+end
+local mined,gathered={},{}
+for _,prototype in pairs(prototypes.entity) do
+  local t=prototype.type
+  local is_resource=t=="resource"
+  local is_gathered=t=="tree" or t=="plant" or t=="simple-entity" or t=="fish" or t=="asteroid-chunk"
+  if is_resource or is_gathered then
+    local seen=is_resource and mined or gathered
+    for _,p in pairs(prototype.mineable_properties.products or {}) do
+      local key=p.type.."\0"..p.name
+      if not seen[key] then
+        seen[key]=true
+        if is_resource then result.bomMined[#result.bomMined+1]={item=p.name,materialType=p.type}
+        else result.bomGathered[#result.bomGathered+1]={item=p.name,materialType=p.type} end
+      end
+    end
+  end
+end
 local totals={}
 local function record(name,kind,q,amount)
   if kind=="item" and q~=quality then return end
@@ -653,10 +756,10 @@ else
     if a.position.y~=b.position.y then return a.position.y<b.position.y end
     return (a.unit_number or 0)<(b.unit_number or 0)
   end)
-  if #entities>10000 then result.stockTruncated=true end
+  if #entities>50000 then result.stockTruncated=true end
   local belts={['transport-belt']=true,['underground-belt']=true,splitter=true,loader=true,['loader-1x1']=true,['linked-belt']=true}
   local comparisons,belt_limit=0,false
-  for i=1,math.min(#entities,10000) do
+  for i=1,math.min(#entities,50000) do
     local e=entities[i];local seen={}
     local function inventory(inv)
       if inv then local index=inv.index;if index and seen[index] then return end;if index then seen[index]=true end;contents(inv) end
@@ -672,7 +775,7 @@ else
     if belts[e.type] and not belt_limit then
       local kept=stock_belt_lines(e,function()
         comparisons=comparisons+1
-        if comparisons>1000000 then belt_limit=true;result.stockTruncated=true;return false end
+        if comparisons>20000000 then belt_limit=true;result.stockTruncated=true;return false end
         return true
       end)
       for _,entry in ipairs(kept) do contents(entry.line) end
@@ -706,4 +809,123 @@ rcon.print(helpers.table_to_json(result))
 		return nil, err
 	}
 	return &result, nil
+}
+
+// itemBalanceScanLimit bounds each itemFlow list inside itemBalance. A larger
+// page than this cannot be represented, so truncation is reported instead.
+const itemBalanceScanLimit = maxPageSize
+
+// itemBalanceQuery answers "is this item short, and who starves" by composing
+// three existing reads: itemFlow for configured producers and consumers, the
+// force flow statistics for the observed rates, and the item-filtered stock
+// scan. Each read is its own RCON call, so the sections have different ticks.
+func itemBalanceQuery(r *Resolver, input ItemBalanceInput) (*ItemBalance, error) {
+	if input.Force == "" || input.Surface == "" || input.Item == "" {
+		return nil, errors.New("force, surface and item are required")
+	}
+	switch input.Window {
+	case ProductionWindowOneMinute, ProductionWindowTenMinutes, ProductionWindowOneHour:
+	default:
+		return nil, fmt.Errorf("invalid production window %q", input.Window)
+	}
+	flow, err := itemFlowQuery(r, ItemFlowInput{Force: input.Force, Surface: input.Surface, Item: input.Item,
+		Area: input.Area, Limit: itemBalanceScanLimit, Offset: 0})
+	if err != nil {
+		return nil, fmt.Errorf("item flow: %w", err)
+	}
+	production, err := factoryProductionQuery(r, &FactoryOverviewInput{Surface: input.Surface, Force: input.Force,
+		Window: input.Window, ItemNames: []string{input.Item}})
+	if err != nil {
+		return nil, fmt.Errorf("production: %w", err)
+	}
+	item := input.Item
+	stock, err := stockQuery(r, &StockInput{Surface: input.Surface, Force: input.Force, Area: input.Area, Item: &item,
+		Limit: 1, TotalsLimit: 1000, ItemsLimit: 1})
+	if err != nil {
+		return nil, fmt.Errorf("stock: %w", err)
+	}
+	balance := &ItemBalance{Tick: flow.Tick, Force: flow.Force, Surface: flow.Surface, Item: flow.Item,
+		Window: input.Window, Producers: flow.Producers, Consumers: flow.Consumers,
+		StarvedConsumers: []*ItemFlowEndpoint{}, Stock: &ItemBalanceStock{ByCategory: []*ItemBalanceCategory{}},
+		Truncated: (flow.ProducerPageInfo != nil && flow.ProducerPageInfo.HasMore) ||
+			(flow.ConsumerPageInfo != nil && flow.ConsumerPageInfo.HasMore),
+		Assumptions: "producedPerMinute and consumedPerMinute are observed flow statistics for the whole force and surface, while theoretical supply and demand sum per-machine potentials that assume continuous full-duty operation, so a burner FUEL rate is an upper bound and an idle furnace contributes its previous-recipe potential. Stock uses the stock inventory scope and excludes fuel, modules, equipment and fluids; a fluid item therefore reports no stock. Producers and consumers are capped at 1000 rows each and truncated reports a cut list. One call makes three reads at different ticks."}
+	if row := productionItemRow(production, input.Item); row != nil {
+		balance.ProducedPerMinute = row.ProducedPerMinute
+		balance.ConsumedPerMinute = row.ConsumedPerMinute
+	}
+	balance.Net = balance.ProducedPerMinute - balance.ConsumedPerMinute
+	for _, endpoint := range flow.Producers {
+		if endpoint != nil && endpoint.TheoreticalRatePerSecond != nil {
+			balance.TheoreticalSupply += *endpoint.TheoreticalRatePerSecond * 60
+		}
+	}
+	for _, endpoint := range flow.Consumers {
+		if endpoint == nil {
+			continue
+		}
+		if endpoint.TheoreticalRatePerSecond != nil {
+			balance.TheoreticalDemand += *endpoint.TheoreticalRatePerSecond * 60
+		}
+		if itemBalanceStarved(endpoint) {
+			balance.StarvedConsumers = append(balance.StarvedConsumers, endpoint)
+		}
+	}
+	categories := map[string]float64{}
+	for _, total := range stock.Totals {
+		if total == nil {
+			continue
+		}
+		categories[total.Category] += total.Count
+		balance.Stock.Total += total.Count
+	}
+	names := make([]string, 0, len(categories))
+	for name := range categories {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		balance.Stock.ByCategory = append(balance.Stock.ByCategory, &ItemBalanceCategory{Category: name, Count: categories[name]})
+	}
+	return balance, nil
+}
+
+// productionItemRow finds the flow-statistics row for one item or fluid.
+func productionItemRow(production *FactoryProduction, item string) *ProductionItem {
+	if production == nil {
+		return nil
+	}
+	for _, row := range production.Items {
+		if row != nil && row.Item == item {
+			return row
+		}
+	}
+	for _, row := range production.Fluids {
+		if row != nil && row.Item == item {
+			return row
+		}
+	}
+	return nil
+}
+
+// itemBalanceStarved reports a consumer that is not getting enough of the
+// requested item, never one that is blocked on something else. A burner is
+// starved when its fuel inventory holds none of the item or when the engine
+// reports no_fuel; a recipe consumer when the engine reports missing
+// ingredients or fuel. Depletion, power, output and disabled statuses describe
+// other faults, so an entity blocked on those only counts when its own
+// inventory for this item is empty.
+func itemBalanceStarved(endpoint *ItemFlowEndpoint) bool {
+	if endpoint == nil {
+		return false
+	}
+	status := endpoint.Status
+	category := diagnosticBlocked(&status, nil).Category
+	switch endpoint.Role {
+	case ItemFlowRoleFuel:
+		return len(endpoint.BufferedItems) == 0 || category == MachineBlockCategoryMissingFuel
+	case ItemFlowRoleRecipe:
+		return category == MachineBlockCategoryMissingIngredients || category == MachineBlockCategoryMissingFuel
+	}
+	return false
 }

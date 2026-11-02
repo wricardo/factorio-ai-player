@@ -1,10 +1,10 @@
 extend type Query {
-  """Reads static engine prototype data for one prototype name, so it can size a build, learn stack sizes and fuel values, or check reach distances without probing tiles. Both the item and entity prototype are returned when both exist under the name; when only the item exists and it places an entity, entity describes that place result, and item.placeResult names that entity. A name with neither prototype fails the query with prototype not found, and an empty name is rejected. Missing optional engine fields observe engine semantics rather than errors: boxes, inserter offsets and crafting categories are absent or empty for prototypes that do not have them, and maxHealth, wireReach, supplyArea, craftingSpeed and beltSpeed are null when the engine exposes no normal-quality value. Values are static prototype data, never live entity state, so the call does not depend on the save's tick or any entity existing."""
+  """Reads static engine prototype data for one prototype name, so it can size a build, learn stack sizes and fuel values, or check reach distances without probing tiles. Both the item and entity prototype are returned when both exist under the name; when only the item exists and it places an entity, entity describes that place result, and item.placeResult names that entity. A name with neither prototype fails the query with prototype not found, and an empty name is rejected. Missing optional engine fields observe engine semantics rather than errors: boxes, inserter offsets and crafting categories are absent or empty for prototypes that do not have them, and maxHealth, wireReach, supplyArea, craftingSpeed, beltSpeed, miningRadius, miningSpeed, energyUsageWatts and moduleSlots are null when the engine exposes no normal-quality value. Values are static prototype data, never live entity state, so the call does not depend on the save's tick or any entity existing."""
   prototype(name: String!): Prototype!
 }
 
 extend type Mutation {
-  """Place one item as an entity beside an existing anchor, computing the position from both bounding boxes so callers never guess footprints or coordinates. relativeTo resolves by unit number, or by name plus position when the prototype does not support unit-number lookup, and must be on the requested surface and on the actor's force. The anchor's bounding box and the new prototype's footprint (width and height swapped for east and west directions) give a centered position on the requested side, then deterministic half-tile nudges of up to one tile are tried in a fixed order; only positions that keep at least gap tiles (0 through 16) from the anchor on that side and pass the engine placement check are accepted, and a target with no such position fails the call. direction must be a cardinal engine direction (0, 4, 8 or 12), quality defaults to normal, and one item is removed from the actor's main inventory before creation and restored if creation fails. Reach is enforced on the chosen position when reach enforcement is enabled, the mutation raises built events, and any refusal fails as a GraphQL error leaving inventory and world unchanged. On success the generated notification is printed unless message overrides it."""
+  """Place one item as an entity beside an existing anchor, computing the position from both bounding boxes so callers never guess footprints or coordinates. relativeTo resolves by unit number, or by name plus position when the prototype does not support unit-number lookup, and must be on the requested surface and on the actor's force. The anchor's bounding box and the new prototype's footprint (width and height swapped for east and west directions) give a centered position on the requested side, then deterministic half-tile nudges of up to one tile are tried in a fixed order; only positions that keep at least gap tiles (0 through 16) from the anchor on that side, hold no collidable entity, and pass the engine placement check are accepted, and a target with no such position fails the call; an occupied tile is skipped rather than stacked because create_entity ignores collision boxes. When the engine raises after committing the entity, the call reports that entity instead of refunding the item. direction must be a cardinal engine direction (0, 4, 8 or 12), quality defaults to normal, and one item is removed from the actor's main inventory before creation and restored if creation fails. Reach is enforced on the chosen position when reach enforcement is enabled, the mutation raises built events, and any refusal fails as a GraphQL error leaving inventory and world unchanged. On success the generated notification is printed unless message overrides it."""
   placeNextTo(input: PlaceNextToInput!): PlaceNextToResult!
 }
 
@@ -54,6 +54,16 @@ type EntityPrototype {
   supplyArea: Float
   """Crafting speed at normal quality when the entity crafts."""
   craftingSpeed: Float
+  """Mining radius in tiles for mining drills, measured from the entity center; null when the prototype does not mine."""
+  miningRadius: Float
+  """Mining speed at normal quality for mining drills and characters; null otherwise."""
+  miningSpeed: Float
+  """Resource categories this drill or character can mine, sorted; empty when the prototype has none."""
+  resourceCategories: [String!]!
+  """Theoretical maximum electric energy usage at normal quality in watts (engine joules per tick times 60); null when the prototype consumes no energy."""
+  energyUsageWatts: Float
+  """Module inventory size; null when the prototype has no module slots."""
+  moduleSlots: Int
   craftingCategories: [String!]!
   fluidBoxCount: Int!
   mineable: Boolean!

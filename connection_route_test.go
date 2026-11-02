@@ -431,3 +431,92 @@ func TestRouteAStarIsDeterministic(t *testing.T) {
 		t.Fatalf("stop: %v", first.stop)
 	}
 }
+
+// A new underground half must not land inside an existing same-name span on the
+// same axis: the engine would re-pair it with the span's other half and silently
+// break the existing line. Surface belts over a span stay legal.
+func TestRouteAStarRejectsHalvesInsideExistingSpan(t *testing.T) {
+	build := func() (*routeGrid, routeParams) {
+		grid := newRouteGrid(0, 0, 5, 1)
+		grid.openTunnel = make([]bool, 5)
+		// Only the span exit at tile 2 can be placed on the surface layer; the
+		// rest of the route is walkable.
+		grid.open[0], grid.open[3], grid.open[4] = true, true, true
+		grid.openTunnel[0], grid.openTunnel[2] = true, true
+		grid.spanX = make([]bool, 5)
+		grid.spanX[2] = true
+		return grid, routeParams{fromX: 0, fromY: 0, toX: 4, toY: 0, allowTunnel: true, maxTunnel: 2, maxExpanded: 50000}
+	}
+	grid, params := build()
+	if result := routeAStar(grid, params); result.stop != ConnectionStopReasonNoPath {
+		t.Fatalf("a half inside an existing span must be refused, got %+v", result)
+	}
+	// The same span on the perpendicular axis does not re-pair, so it is allowed.
+	grid, params = build()
+	grid.spanX[2] = false
+	grid.spanY = make([]bool, 5)
+	grid.spanY[2] = true
+	result := routeAStar(grid, params)
+	if result.stop != ConnectionStopReasonFound {
+		t.Fatalf("a perpendicular span must stay usable, got %+v", result)
+	}
+	tunnels := 0
+	for _, step := range result.steps {
+		if step.tunnel != "" {
+			tunnels++
+		}
+	}
+	if tunnels != 2 {
+		t.Fatalf("expected one underground pair, got %+v", result.steps)
+	}
+}
+
+// A foreign belt pointing into a new BELT tile side-loads its items into the
+// run. The search must refuse that tile unless the caller accepts the merge.
+func TestRouteAStarRejectsForeignBeltFeed(t *testing.T) {
+	build := func() (*routeGrid, routeParams) {
+		grid := newRouteGrid(0, 0, 5, 1)
+		for x := 0; x < 5; x++ {
+			grid.open[x] = true
+		}
+		grid.feed = make([]bool, 5)
+		// A foreign belt points into the middle tile, which is otherwise open and
+		// the only way through.
+		grid.feed[2] = true
+		return grid, routeParams{fromX: 0, fromY: 0, toX: 4, toY: 0, maxExpanded: 50000}
+	}
+	grid, params := build()
+	if result := routeAStar(grid, params); result.stop != ConnectionStopReasonNoPath {
+		t.Fatalf("a fed tile must be refused by default, got %+v", result)
+	}
+	grid, params = build()
+	params.allowBeltAdjacency = true
+	result := routeAStar(grid, params)
+	if result.stop != ConnectionStopReasonFound {
+		t.Fatalf("allowBeltAdjacency must accept the merge, got %+v", result)
+	}
+	// Pipes do not move items, so the feed check never applies to them.
+	grid, params = build()
+	params.pipe = true
+	if result := routeAStar(grid, params); result.stop != ConnectionStopReasonFound {
+		t.Fatalf("pipe routes must ignore belt feeds, got %+v", result)
+	}
+}
+
+// The heuristic scale must divide by maxTunnel+1: the entrance and exit costs are
+// two moves apart, so a chain otherwise looks cheaper per tile than it is.
+func TestRouteTunnelScaleIsAdmissible(t *testing.T) {
+	for _, maxTunnel := range []int{2, 4, 6, 8} {
+		scale := routeTunnelScale(maxTunnel)
+		perTile := 2 * routeCostTunnel / float64(maxTunnel+1)
+		if scale != perTile {
+			t.Fatalf("maxTunnel=%d scale=%g want %g", maxTunnel, scale, perTile)
+		}
+		if scale > 2*routeCostTunnel/float64(maxTunnel) {
+			t.Fatalf("scale must not exceed the per-tile tunnel cost")
+		}
+	}
+	if scale := routeTunnelScale(1); scale != 0 {
+		t.Fatalf("tunnels need an offset of 2 or more, got %g", scale)
+	}
+}

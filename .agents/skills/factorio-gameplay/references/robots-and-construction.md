@@ -5,11 +5,13 @@ Condensed from the project's robot-mall, roboport-expansion, safe-teardown and d
 ## 1. Blueprints and ghosts
 
 - `createBlueprint(area)` exports blueprintable entities (`includeModules/includeFuel` default on; tiles/trains/station names off). `createBlueprintFromEntities` builds a string from explicit blueprint-relative entities (name, position, direction, quality, recipe, mirror). Strings limited to 2,000,000 chars.
-- `placeBlueprint` places **entity ghosts only**; it consumes no items. Position is the top-left corner of the blueprint; rotate with `direction`.
-- Query `ghosts(area<=256)` for backlog; entries carry `placementAlternatives { name count available missing }` and `buildable` (observed stock only; it reserves nothing and ignores robot coverage and reach).
+- `placeBlueprint` places **entity ghosts only**; it consumes no items. Position is the top-left corner of the blueprint; rotate with `direction`, which must be 0, 4, 8 or 12 (a blueprint only turns in 90° steps, anything else is rejected before RCON). The result reports `ghosts`, the blueprint's `entityCount`, and `skipped` when the engine refused entities.
+- `placeGhosts(entities:[{name,position,direction?,quality?,recipe?,recipeQuality?}], tiles:[{name,x,y}])` plans the same ghosts directly at absolute map positions with no blueprint string: up to 1000 entities and 2000 tiles per call, no items consumed, no reach or collision check. It is the primitive for laying out a build plan; `ghosts` then reads the backlog (omit `area` for the whole surface).
+- Query `ghosts` for backlog; omit `area` to count the whole surface, or supply a box of at most 1024 tiles per side. Entries carry `placementAlternatives { name count available missing }` and `buildable` (observed stock only; it reserves nothing and ignores robot coverage and reach).
 - Real construction needs: roboport coverage, construction robots, materials in the logistic network, power. Poll `ghosts` and `constructionOrders` until backlog is gone and entities inspect correctly.
-- `buildGhosts` revives ghosts without items or robots (sandbox/admin shortcut; modes `REVIVE`/`SILENT`). Do not use in normal play.
+- `buildGhosts` revives ghosts without items or robots (sandbox/admin shortcut; modes `REVIVE` default and `SILENT`). Do not use in normal play. `missing` is the prototype cost of ghosts that could not be revived (usually a blocked tile, not absent stock) and `collidedItems` lists ground items the revived entities displaced.
 - Destroyed entities leave **both** a remnant corpse (name contains `remnant`) and an entity ghost; the ghost list is the exact rebuild list.
+- `upgradeArea(area, mappings:[{from,to,quality?}])` marks tier upgrades through `order_upgrade` (up to 1000 mappings; the 2.0 planner item cannot carry mappings), reporting `MARKED`/`ALREADY_MARKED`/`LOOKUP`/`REFUSED` rows; `cancelUpgradeArea` reverses them. `constructionOrders(state:UPGRADE)` lists what is queued.
 
 ## 2. Roboport network expansion
 
@@ -45,16 +47,16 @@ Direction rule: inserter direction points to pickup (`12` = pickup west). Use fa
 
 Never box-delete by name over a broad area.
 
-1. **Map:** `machines(type)` gives positions; `entities(area,name)` gives unit numbers; `factoryGraph(area<=256)` gives machines+belts+inserters+edges in one snapshot.
+1. **Map:** `machines(type)` gives positions; `entities(area,name)` gives unit numbers; `factoryGraph(area<=1024)` gives machines+belts+inserters+edges in one snapshot.
 2. **Prove ownership of each belt line:** `beltRun` per seed; dedicated when `boundaryEdges` is empty and sources/sinks are only inserters touching removed machines. Closed loops fed by chests are infrastructure, not removable bus.
-3. **Remove in layers:** machines (`removeMany` with `{entity, unitNumber}`; non-minable script-placed ones: `deconstructArea(instant:true, names:[...])`, which spills contents and never voids items); feeds (`deconstructArea` over a box verified by a `belts(area)` count first); inserters/chests; second pass for dead inserters (`dropPosition` hits nothing).
+3. **Remove in layers:** machines (`removeMany` with `{entity, unitNumber}`; non-minable script-placed ones: `deconstructArea(instant:true, names:[...])`, which spills contents and never voids items); feeds (`deconstructArea` over a box verified by a `belts(area)` count first); inserters/chests; second pass for dead inserters (`dropPosition` hits nothing). `deconstructArea` scans the force plus neutral, so trees, rocks, cliffs and ground items are selectable there too (characters and ghosts never are).
 4. **Verify:** same census returns only poles/ground items; `production(window)` for removed items is 0; `stock` shows recovered items.
 5. **Concurrency:** re-query before each boxed removal; unexpected new unit numbers are someone else's work: never delete them.
 
 ## 5. Repair and rebuild after damage
 
-1. `safety(damagedLimit)` for damaged entities; `ghosts(area)` for destroyed ones (neutral rocks are collateral).
+1. `safety(damagedLimit)` for damaged entities; `ghosts` for destroyed ones, bounded by an area when the damage is local (neutral rocks are collateral).
 2. Rebuild with real items: batch same-item `placeMany`; placing the entity fulfils the ghost and clears the remnant.
-3. Repair packs are actor-inventory only. `craft repair-pack` (2 gears + 2 circuits). `repair` needs `target:{unitNumber, entity}` (+ `count`); one pack heals ~300 HP (base durability).
+3. Repair packs are actor-inventory only. `craft repair-pack` (2 gears + 2 circuits). `repair` needs `target:{unitNumber, entity}` (+ `count`); a normal pack restores 600 HP (durability 300 × repair speed 2).
 4. Verify: `ghosts` -> 0, `safety damaged` -> 0 for player entities, machines leave `no_power` (a destroyed pole is the common cause), pumpjacks leave `waiting_for_space_in_destination`.
 5. If spawners survive and defences are absent, rebuilding is temporary: report the gap (see `combat-and-defense.md`).

@@ -1,30 +1,35 @@
 extend type Query {
   """
   Electric networks that have at least one pole of the selected force inside the optional area, aggregated by engine
-  network id, sorted ascending by that numeric id and paginated with limit 1..1000 and a zero-based offset; pageInfo
+  network id, sorted ascending by that numeric id and paginated with limit 1..10000 and a zero-based offset; pageInfo
   totals count the matching networks. polesInArea counts only the selected force's poles inside the area, while
-  productionWatts and consumptionWatts are one-minute averages for the entire network — including parts outside the
-  area — converted from joules per tick to watts at 60 ticks per second. satisfaction is always null because the
-  runtime API does not expose current network satisfaction; per-entity detail is available from powerConsumers. Only
-  networkId is accepted as a filter here: it keeps that single network, whereas status, connectedToProducingNetwork
-  and onlyIssues describe individual entities and are rejected rather than silently ignored. Empty or unknown
-  surface/force, invalid limit/offset or networkId, or any consumer-only filter produce a GraphQL error; omitting area
-  scans the whole surface, and an empty networks list means no pole of the force matched.
+  productionWatts and consumptionWatts are averages for the entire network — including parts outside the area — over the
+  selected window, converted from joules per tick to watts at 60 ticks per second. Generator flow statistics record
+  production equal to demand, so maxProductionWatts is the summed get_max_energy_production of generators, burner
+  generators, solar panels and fusion generators of the force inside the area and is the capacity measure; satisfaction
+  is consumptionWatts divided by maxProductionWatts when that capacity is positive, an observed-load ratio rather than
+  engine power satisfaction, and is null when no producer is in the area. Accumulators report stored charge and buffer
+  capacity from the same area scan, and lowPowerConsumers counts entities on each network reporting low_power inside the
+  area. Only networkId and window are accepted as filters here: status, connectedToProducingNetwork and onlyIssues
+  describe individual entities and are rejected rather than silently ignored. Empty or unknown surface/force, invalid
+  limit/offset, networkId, window or any consumer-only filter produce a GraphQL error; omitting area scans the whole
+  surface, and an empty networks list means no pole of the force matched.
   """
   electricNetworks(input: PowerInsightsInput = {}): ElectricNetworkPage!
   """
   Electric energy-source entities plus power infrastructure (generators, burner generators, solar panels, boilers,
   reactors, heat interfaces, fusion reactors and fusion generators) of the selected force inside the optional area,
-  sorted by type, name, position and unit number and paginated with limit 1..1000 and a zero-based offset. Each row
+  sorted by type, name, position and unit number and paginated with limit 1..10000 and a zero-based offset. Each row
   carries the engine entity status name, electric network id, the connectedToProducingNetwork predicate (false does not
-  necessarily mean no network), current stored energy, buffer capacity, drain, temperature, remaining burning fuel and
-  every occupied fluid box; fields the prototype does not expose are null. Optional filters are evaluated before
-  pagination, so pageInfo totals reflect the full filtered set: an exact engine status name (unknown names are an
-  error), connectedToProducingNetwork where entities the predicate does not apply to never match, networkId matching
-  the entity's network, and onlyIssues selecting no_power, low_power, not_plugged_in_electric_network,
-  not_connected_to_electric_network or connectedToProducingNetwork false. All values are instantaneous at the snapshot
-  tick, not averages, and no game state is changed. Invalid surface/force, limit/offset, networkId or status produce a
-  GraphQL error; an empty powerEntities list means nothing matched.
+  necessarily mean no network), current stored energy, buffer capacity, drain, temperature, remaining burning fuel,
+  burner fuel inventory with estimated seconds of fuel and every occupied fluid box; fields the prototype does not
+  expose are null. Optional filters are evaluated before pagination, so pageInfo totals reflect the full filtered set: an
+  exact engine status name (unknown names are an error), connectedToProducingNetwork where entities the predicate does
+  not apply to never match, networkId matching the entity's network, and onlyIssues selecting no_power, low_power,
+  not_plugged_in_electric_network or connectedToProducingNetwork false, plus burners, boilers, generators and other
+  burner infrastructure whose fuel inventory is empty. All values are instantaneous at the snapshot tick, not averages,
+  and no game state is changed. Invalid surface/force, limit/offset, networkId or status produce a GraphQL error; an
+  empty powerEntities list means nothing matched.
   """
   powerConsumers(input: PowerInsightsInput = {}): PowerEntityPage!
 }
@@ -35,17 +40,19 @@ input PowerInsightsInput {
   force: String! = "player"
   """Optional finite bounds; left/top must not exceed right/bottom. Omit to scan the surface."""
   area: FactoryAreaInput
-  """Page size from 1 through 1000."""
+  """Page size from 1 through 10000."""
   limit: Int! = 100
   """Zero-based, non-negative page offset."""
   offset: Int! = 0
+  """electricNetworks only: flow-statistics window for productionWatts and consumptionWatts; null means ONE_MINUTE. powerConsumers ignores it, because its entity rows are instantaneous, so passing a window there is documented as a no-op rather than an error."""
+  window: ProductionWindow
   """powerConsumers only: exact Factorio entity status name such as no_power; unknown names are an error. electricNetworks rejects it."""
   status: String
   """powerConsumers only: keep entities whose connectedToProducingNetwork equals this value. Entities where the predicate does not apply (null) never match. electricNetworks rejects it."""
   connectedToProducingNetwork: Boolean
   """Keep one electric network by its positive engine id. For powerConsumers it matches the entity's networkId; entities without a network never match. For electricNetworks it keeps that single network."""
   networkId: ID
-  """powerConsumers only: keep entities that report no_power, low_power, not_plugged_in_electric_network or not_connected_to_electric_network, or whose connectedToProducingNetwork is false. Default false leaves behavior unchanged. electricNetworks rejects true."""
+  """powerConsumers only: keep entities that report no_power, low_power or not_plugged_in_electric_network, or whose connectedToProducingNetwork is false, or whose burner fuel inventory is empty. Default false leaves behavior unchanged. electricNetworks rejects true."""
   onlyIssues: Boolean! = false
 }
 
@@ -61,11 +68,19 @@ type ElectricNetworkInsight {
   id: ID!
   "Number of selected force's poles in the area; not a whole-network count."
   polesInArea: Int!
-  "Average production over the past minute, watts at 60 ticks/second. Includes the entire network."
+  "Average production over the selected window, watts at 60 ticks/second. Includes the entire network."
   productionWatts: Float!
-  "Average consumption over the past minute, watts at 60 ticks/second. Includes the entire network."
+  "Average consumption over the selected window, watts at 60 ticks/second. Includes the entire network."
   consumptionWatts: Float!
-  "Current satisfaction is not exposed by the runtime API."
+  "Summed theoretical maximum production of generators, burner generators, solar panels and fusion generators of the force inside the area, in watts. A lower bound for the whole network and not observed output."
+  maxProductionWatts: Float!
+  "Stored energy of accumulators on this network inside the area, in joules."
+  accumulatorChargeJoules: Float!
+  "Buffer capacity of those accumulators, in joules."
+  accumulatorCapacityJoules: Float!
+  "Entities on this network inside the area whose engine status is low_power."
+  lowPowerConsumers: Int!
+  "consumptionWatts divided by maxProductionWatts when capacity is positive; null when no producer is in the area. An observed-load ratio, not engine power satisfaction."
   satisfaction: Float
 }
 
@@ -84,7 +99,7 @@ type PowerEntityInsight {
   unitNumber: UnitNumber
   status: String
   networkId: ID
-  "Engine predicate: connected to a network containing at least one power-producing entity; false does not necessarily mean no network."
+  """Engine predicate: connected to a network containing at least one power-producing entity; false does not necessarily mean no network. Meaningful only for consumers: a generator is not a consumer of its own network, so read networkId to decide whether a producer is grid-connected."""
   connectedToProducingNetwork: Boolean
   "Current stored entity energy in joules, when available."
   energyJoules: Float
@@ -96,6 +111,10 @@ type PowerEntityInsight {
   temperatureCelsius: Float
   "Remaining energy in the currently burning fuel, in joules."
   burningFuelJoules: Float
+  "Burner fuel inventory stacks; empty for non-burners and for burners whose fuel inventory is empty."
+  fuel: [InventoryStack!]!
+  "Seconds until a burner's fuel runs out: stored fuel energy plus remaining burning fuel divided by current max energy usage. Null for non-burners or when usage is zero."
+  estimatedSecondsOfFuel: Float
   "Fluid box contents; each entry is one occupied box."
   powerFluids: [PowerFluidInsight!]!
 }

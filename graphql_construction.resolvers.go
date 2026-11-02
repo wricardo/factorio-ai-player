@@ -15,6 +15,21 @@ func (r *mutationResolver) BuildGhosts(ctx context.Context, input BuildGhostsInp
 	return setActorResult(result, input.Actor, err)
 }
 
+// PlaceGhosts is the resolver for the placeGhosts field.
+func (r *mutationResolver) PlaceGhosts(ctx context.Context, input PlaceGhostsInput) (*GhostPlacementResult, error) {
+	return placeGhosts(r.Resolver, input)
+}
+
+// UpgradeArea is the resolver for the upgradeArea field.
+func (r *mutationResolver) UpgradeArea(ctx context.Context, input UpgradeAreaInput) (*UpgradeAreaResult, error) {
+	return upgradeArea(r.Resolver, input)
+}
+
+// CancelUpgradeArea is the resolver for the cancelUpgradeArea field.
+func (r *mutationResolver) CancelUpgradeArea(ctx context.Context, input CancelUpgradeAreaInput) (*UpgradeAreaResult, error) {
+	return cancelUpgradeArea(r.Resolver, input)
+}
+
 // LogisticNetworks is the resolver for the logisticNetworks field.
 func (r *queryResolver) LogisticNetworks(ctx context.Context, input *LogisticNetworksInput) (*LogisticNetworkPage, error) {
 	return logisticNetworks(r.Resolver, input)

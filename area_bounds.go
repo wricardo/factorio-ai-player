@@ -30,13 +30,26 @@ func (f areaBoundFlags) bounds() areaBounds {
 }
 
 func (a areaBounds) validate() error {
+	if err := a.validateShape(); err != nil {
+		return err
+	}
+	if a.RightBottomX-a.LeftTopX > maxAreaTiles || a.RightBottomY-a.LeftTopY > maxAreaTiles {
+		return areaLimitError()
+	}
+	return nil
+}
+
+// validateShape checks finiteness and positive dimensions without capping the
+// size, for reads that scan linearly and therefore gain nothing from a cap,
+// such as whole-surface entity listings and counts.
+func (a areaBounds) validateShape() error {
 	for _, coord := range []float64{a.LeftTopX, a.LeftTopY, a.RightBottomX, a.RightBottomY} {
 		if math.IsNaN(coord) || math.IsInf(coord, 0) {
 			return errors.New("area coordinates must be finite")
 		}
 	}
-	if a.LeftTopX >= a.RightBottomX || a.LeftTopY >= a.RightBottomY || a.RightBottomX-a.LeftTopX > 256 || a.RightBottomY-a.LeftTopY > 256 {
-		return errors.New("area must have positive dimensions no greater than 256 tiles")
+	if a.LeftTopX >= a.RightBottomX || a.LeftTopY >= a.RightBottomY {
+		return errors.New("area must have positive dimensions")
 	}
 	return nil
 }

@@ -5,7 +5,7 @@ extend type Query {
   name, unlocksRecipe (technologies with an unlock-recipe effect for that recipe), and status ALL, RESEARCHED,
   AVAILABLE (enabled, unresearched and all prerequisites researched), LOCKED (unresearched but not available,
   including disabled) or IN_PROGRESS; available does not assert that labs, science packs or trigger conditions are
-  satisfied. Technologies are sorted by name and paginated with limit 1..1000 and a zero-based offset, while
+  satisfied. Technologies are sorted by name and paginated with limit 1..10000 and a zero-based offset, while
   pageInfo.total counts every match; progress and currentTechnology are null without an active research, and
   researchQueue may include the current research in engine order. Each technology carries level, savedProgress, sorted
   prerequisites and science ingredients, researchUnitCount already multiplied by the technology cost multiplier,
@@ -25,7 +25,7 @@ input ResearchInsightsInput {
   unlocksRecipe: String
   """Filters may overlap: an in-progress technology can also be available."""
   status: ResearchInsightsStatus! = ALL
-  """Page size from 1 through 1000."""
+  """Page size from 1 through 10000."""
   limit: Int! = 100
   """Zero-based, non-negative offset into technologies sorted by name."""
   offset: Int! = 0

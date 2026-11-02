@@ -1,21 +1,21 @@
 extend type Query {
-  """Read one bounded weakly connected belt component from a seed belt addressed by unitNumber or exact center position (surface defaults to nauvis). The traversal follows directed engine belt connections only, including underground-belt partners, linked-belt neighbours and transport-line connections, across surfaces; line connections are collapsed to entity edges, so no lane routing or item flow is implied. maxEntities (1 through 1000) caps the nodes; when it is hit, truncated is true and boundaryEdges holds the omitted connected belts. sources and sinks are structural terminals with no engine predecessor/successor, including connections checked beyond the returned set, and are never a stall diagnosis. inserters lists every inserter on the involved surfaces whose resolved pickup or drop target is a returned belt, using the engine target when present and the entity under the geometric arm position otherwise. A seed that is not a belt at that position, or a position holding multiple belts, is a GraphQL error; contents are one snapshot."""
-  beltRun(target: EntityRefInput!, maxEntities: Int! = 1000): BeltRun!
-  """Walk one linear belt stretch from the seed belt covering a shared entity reference (unitNumber or exact center position; surface defaults to nauvis) and total the items on each side. The walk follows engine belt connections in both directions and collapses underground and linked-belt pairs into one hop, so a tunnel never breaks the stretch; it stops at a merge (two predecessors), a split (two successors, including splitters), a surface boundary, a revisited belt, or maxEntities (1 through 1000, default 1000). Every lane carries the engine transport-line name and the side derived from it, so underground tunnel lines keep their side; unrecognised names report side unknown. Totals sum the contents of every belt in the stretch, counting each entity's transport lines once and deduplicating an engine line object that one entity exposes twice; contents are one snapshot of in-transit items, not measured flow, so a stalled stretch can hold a large total with no flow. Forward boundary ends are classified with an 8-tile lookahead as MISSING_BELT, BLOCKED, HEAD_ON, UNPAIRED_UNDERGROUND or NATURAL_END, while merges, splits, loops, truncation and backward boundaries are NOT_APPLICABLE. A merge or split is a structural stop, not a diagnosis of a jam; a seed position holding no belt or multiple belts is a GraphQL error."""
+  """Read one bounded weakly connected belt component from a seed belt addressed by unitNumber or exact center position (surface defaults to nauvis). The traversal follows directed engine belt connections only, including underground-belt partners, linked-belt neighbours and transport-line connections, across surfaces; line connections are collapsed to entity edges, so no lane routing or item flow is implied. maxEntities (1 through 10000) caps the nodes; when it is hit, truncated is true and boundaryEdges holds the omitted connected belts. sources and sinks are structural terminals with no engine predecessor/successor, including connections checked beyond the returned set, and are never a stall diagnosis. inserters lists every inserter on the involved surfaces whose resolved pickup or drop target is a returned belt, using the engine target when present and the entity under the geometric arm position otherwise. A seed that is not a belt at that position, or a position holding multiple belts, is a GraphQL error; contents are one snapshot. Transport-line connections extend traversal but are not structural edges: they join belts along one internal line, often tens of tiles apart, so they are emitted with kind line only when includeLineLinks is true and never define sources or sinks. inserters is read from one bounded scan over the component's bounding box padded by 2.5 tiles, so long-handed inserters outside it still count."""
+  beltRun(target: EntityRefInput!, maxEntities: Int! = 1000, includeLineLinks: Boolean! = false): BeltRun!
+  """Walk one linear belt stretch from the seed belt covering a shared entity reference (unitNumber or exact center position; surface defaults to nauvis) and total the items on each side. The walk follows engine belt connections in both directions and collapses underground and linked-belt pairs into one hop, so a tunnel never breaks the stretch; it stops at a merge (two predecessors), a split (two successors, including splitters), a surface boundary, a revisited belt, or maxEntities (1 through 10000, default 1000). Every lane carries the engine transport-line name and the side derived from it, so underground tunnel lines keep their side; unrecognised names report side unknown. Totals sum every transport line every entity in the stretch exposes, so an underground entrance's tunnel lines and a splitter's split lines count in addition to its surface lanes; contents are one snapshot of in-transit items, not measured flow, so a stalled stretch can hold a large total with no flow. Forward boundary ends are classified with an 8-tile lookahead as MISSING_BELT, BLOCKED, HEAD_ON, UNPAIRED_UNDERGROUND or NATURAL_END, while merges, splits, loops, truncation and backward boundaries are NOT_APPLICABLE. A merge or split is a structural stop, not a diagnosis of a jam; a seed position holding no belt or multiple belts is a GraphQL error. inserters lists every inserter whose pickup or drop resolves to a belt in the stretch, with the engine inserter status, so a stall and its consumers come back together; each forward boundary end also reports the downstream entity occupying its expected tile, with that entity's status."""
   beltStretch(target: EntityRefInput!, maxEntities: Int! = 1000): BeltStretch!
-  """One engine snapshot of selected-force machines, belts, chests, inserters and fluid entities intersecting an area, plus every nearby inserter targeting those entities. force scopes the returned machines (assembling machines, furnaces, mining drills, labs, rocket silos), belts, containers and fluid-network entities; inserters are scanned 1.5 tiles beyond the area and kept when they are in the area or their resolved pickup/drop target is a returned node, so idle or unpowered wired inserters still report endpoints (engine target first, else the entity under the geometric pickup/drop position). Belt nodes already carry direction and per-line contents in lanes, so topology and what each lane holds come back together; belts(input) is only needed for paged transport-belt contents and beltComponents for area-wide component classification. Area dimensions must be positive and at most 256 tiles per side; surface and force must be non-empty and exist. Edges cover belt, underground, linked, loader, pickup, drop and fluid connections, with boundaryEdges holding the subset crossing the returned node set and retaining actual outside endpoints; no distance-based connections are inferred. There is no pagination, adjacency guessing or rate estimate, and the whole graph is read at one tick."""
-  factoryGraph(area: FactoryAreaInput!, force: String! = "player", surface: String! = "nauvis"): FactoryGraph!
-  """Geometric adjacency of selected-force entities inside an area, verified against engine connections. Nodes are every selected-force entity intersecting the area except characters, units, robots and spider legs, corpses, items and ghosts; pairs are unordered, each listed once, and only cover returned nodes, with gap the shortest bounding-box distance in tiles and connection the engine connection kind (belt, underground, linked, loader, pickup, drop, fluid) or empty when the pair is only touching or near, the usual misaligned pipe, boiler or inserter case. tolerance (0 to 4 tiles, default 0.5) bounds how far apart bounding boxes may be, and limit (1 to 2000, default 1000) bounds both nodes and pairs; truncated is true when either bound dropped results. Area dimensions must be positive and at most 64 tiles per side; surface and force must be non-empty and exist. Geometric adjacency never proves items or fluid will move; tracing flow still needs factoryGraph edges, beltRun or fluidNetwork."""
-  adjacency(area: FactoryAreaInput!, force: String! = "player", surface: String! = "nauvis", tolerance: Float! = 0.5, limit: Int! = 1000): AdjacencyGraph!
+  """One engine snapshot of selected-force machines, belts, chests, inserters and fluid entities intersecting an area, plus every nearby inserter targeting those entities. force scopes the returned machines (assembling machines, furnaces, mining drills, labs, rocket silos), belts, containers and fluid-network entities; inserters are scanned 2.5 tiles beyond the area (enough for long-handed arms) and kept when they are in the area or their resolved pickup/drop target is a returned node, so idle or unpowered wired inserters still report endpoints (engine target first, else the entity under the geometric pickup/drop position). Belt nodes already carry direction and per-line contents in lanes, so topology and what each lane holds come back together; belts(input) is only needed for paged transport-belt contents and beltComponents for area-wide component classification. Area dimensions must be positive and at most 1024 tiles per side; surface and force must be non-empty and exist. Edges cover belt, underground, linked, loader, pickup, drop and fluid connections, with boundaryEdges holding the subset crossing the returned node set and retaining actual outside endpoints; no distance-based connections are inferred. There is no pagination, adjacency guessing or rate estimate, and the whole graph is read at one tick. compact emits nodes once and edges as endpoint keys instead of repeating every endpoint object: compactEdges and compactBoundaryEdges hold from/to keys in the form surface:unitNumber, or surface:type:name:x:y when the entity has no unit number, and machines, belts, chests, inserters, fluidEntities, edges and boundaryEdges are empty because the node type already identifies each node. compactInserters pairs inserter keys with pickup and drop keys, so an inserter's wiring stays available without repeating endpoints. It roughly halves a large payload and keeps a small graph cheap. Internal transport-line links are traversal only unless includeLineLinks is true, in which case they appear as kind line edges and are counted in boundaryEdges when they leave the area."""
+  factoryGraph(area: FactoryAreaInput!, force: String! = "player", surface: String! = "nauvis", compact: Boolean! = false, includeLineLinks: Boolean! = false): FactoryGraph!
+  """Geometric adjacency of selected-force entities inside an area, verified against engine connections. Nodes are every selected-force entity intersecting the area except characters, units, robots and spider legs, corpses, items and ghosts; pairs are unordered, each listed once, and only cover returned nodes, with gap the shortest bounding-box distance in tiles and connection the engine connection kind (belt, underground, linked, loader, pickup, drop, fluid) or empty when the pair is only touching or near, the usual misaligned pipe, boiler or inserter case. tolerance (0 to 4 tiles, default 0.5) bounds how far apart bounding boxes may be, and limit (1 to 2000, default 1000) bounds both nodes and pairs; truncated is true when either bound dropped results. kinds, when non-empty, keeps only those engine entity types as nodes, so a fluid or belt wiring audit can exclude poles, trees and inserters whose geometry overlaps without connecting; an unknown type is an error and at most 20 types are accepted. onlyUnconnected drops every pair the engine reports as connected, so limit then bounds only the suspicious pairs. Both filters apply before the pair limit, so a filtered call reaches further before truncation. Area dimensions must be positive and at most 64 tiles per side; surface and force must be non-empty and exist. Geometric adjacency never proves items or fluid will move; tracing flow still needs factoryGraph edges, beltRun or fluidNetwork."""
+  adjacency(area: FactoryAreaInput!, force: String! = "player", surface: String! = "nauvis", tolerance: Float! = 0.5, limit: Int! = 1000, kinds: [String!] = [], onlyUnconnected: Boolean! = false): AdjacencyGraph!
 }
 
 extend type InspectionLogistics {
   surface: String!
-  """Belt components reached from this inspection's actual inserter pickup/drop targets, read together in a new snapshot. Seeds already returned by a previous component are skipped; truncated components can overlap. Each traversal is bounded to maxEntities (1 through 1000). A changed or removed parent target is an error."""
-  beltRuns(maxEntities: Int! = 1000): [BeltRun!]! @goField(forceResolver: true)
+  """Belt components reached from this inspection's actual inserter pickup/drop targets, read together in a new snapshot. Seeds already returned by a previous component are skipped; truncated components can overlap. Each traversal is bounded to maxEntities (1 through 10000). A changed or removed parent target is an error."""
+  beltRuns(maxEntities: Int! = 1000, includeLineLinks: Boolean! = false): [BeltRun!]! @goField(forceResolver: true)
 }
 
-"""Directed structural connection, not measured item flow. kind is belt, underground, linked, loader, pickup, drop, or fluid. boundary means at least one endpoint lies outside the returned node set. Transport-line connections are collapsed to entity edges; splitter priorities and lane routing do not imply measured throughput. Fluid edges follow directed engine pipe connections, including pipes, boilers, pumps, offshore pumps, heat exchangers, storage tanks and fluid-consuming machines."""
+"""Directed structural connection, not measured item flow. kind is belt, underground, linked, loader, pickup, drop, fluid, or line. boundary means at least one endpoint lies outside the returned node set. A line edge is an internal transport-line link that can join belts along one line rather than adjacent tiles; it appears only for queries that ask for includeLineLinks, and it never feeds sources or sinks. Splitter priorities and lane routing do not imply measured throughput. Fluid edges follow directed engine pipe connections between pipes, boilers, pumps, offshore pumps, heat exchangers, storage tanks and fluid machines; a fluid-port machine is detected through its fluidbox pipe connections."""
 type TopologyEdge {
   from: LogisticsEndpoint!
   to: LogisticsEndpoint!
@@ -25,7 +25,7 @@ type TopologyEdge {
   flowDirection: String
 }
 
-"""One bounded weakly connected belt component. Sources/sinks have no engine belt predecessor/successor, including checked connections beyond the traversal boundary. They are structural terminals, never stalled/dead-end diagnoses. Inserters are actual engine pickup/drop targets touching returned belts. Nodes can span surfaces through linked belts. Boundary edges describe omitted connected belts when truncated."""
+"""One bounded weakly connected belt component. Sources/sinks have no engine belt predecessor/successor, including checked connections beyond the traversal boundary. They are structural terminals, never stalled/dead-end diagnoses. Inserters are actual engine pickup/drop targets touching returned belts. Nodes can span surfaces through linked belts. Boundary edges describe omitted connected belts when truncated. Transport-line links only extend traversal unless includeLineLinks asked for them."""
 type BeltRun {
   tick: Float!
   surface: String!
@@ -46,15 +46,42 @@ type FactoryGraph {
   surface: String!
   force: String!
   area: WorldArea!
+  """Every supported node in the area, each with its engine type, so nodes alone identifies machines, belts, chests, inserters and fluid entities. This is the only entity list that stays populated when compact is true."""
   nodes: [LogisticsEndpoint!]!
+  """Supported machines in the area. Empty when compact is true; filter nodes by type instead."""
   machines: [LogisticsEndpoint!]!
+  """Belt entities in the area. Empty when compact is true; filter nodes by type instead."""
   belts: [LogisticsEndpoint!]!
+  """Chest entities in the area. Empty when compact is true; filter nodes by type instead."""
   chests: [LogisticsEndpoint!]!
+  """Inserter wiring with resolved endpoints. Empty when compact is true; read compactInserters instead."""
   inserters: [ConnectedInserter!]!
-  """Fluid-network entities in the area: offshore pumps, pipes, pipe-to-ground, pumps, boilers, generators, heat exchangers and storage tanks."""
+  """Fluid-network entities in the area: offshore pumps, pipes, pipe-to-ground, pumps, boilers, generators, heat exchangers and storage tanks. Empty when compact is true; filter nodes by type instead, otherwise a compact call reports zero fluid entities even when the area holds them."""
   fluidEntities: [LogisticsEndpoint!]!
   edges: [TopologyEdge!]!
   boundaryEdges: [TopologyEdge!]!
+  """Compact mode only: every edge as endpoint keys. Empty otherwise."""
+  compactEdges: [CompactTopologyEdge!]!
+  """Compact mode only: boundary edges as endpoint keys. Empty otherwise."""
+  compactBoundaryEdges: [CompactTopologyEdge!]!
+  """Compact mode only: inserter wiring as endpoint keys. Empty otherwise."""
+  compactInserters: [CompactInserter!]!
+}
+
+"""One edge with endpoint keys instead of repeated endpoint objects. Keys are surface:unitNumber, or surface:type:name:x:y for entities without a unit number. Match them against the node fields to recover the full endpoint."""
+type CompactTopologyEdge {
+  from: String!
+  to: String!
+  kind: String!
+  boundary: Boolean!
+  flowDirection: String
+}
+
+"""One inserter and the keys of its resolved pickup and drop entities; null keys mean the arm touches nothing insertable on that side."""
+type CompactInserter {
+  inserter: String!
+  pickup: String
+  drop: String
 }
 
 """Geometric adjacency inside an area, with engine verification. Nodes are all selected-force entities intersecting the area except characters, units, robots, corpses, items and ghosts. Pairs are unordered, each listed once, and only cover returned nodes; duplicate or self pairs never appear. Tracing item or fluid flow still needs factoryGraph edges, beltRun or fluidNetwork."""
@@ -92,6 +119,8 @@ type BeltStretch {
   right: BeltStretchTotal!
   """Items on transport lines the engine reports without a left/right name. Empty for ordinary belts, underground belts and splitters."""
   unknown: BeltStretchTotal!
+  """Inserters whose pickup or drop resolves to a belt in the stretch, read from one scan over the stretch bounds padded by 2.5 tiles. Each entry carries the engine inserter status, so a full stretch plus an idle or blocked consumer is one call. Structural wiring only: it does not measure whether the arm actually moved items."""
+  inserters: [ConnectedInserter!]!
 }
 
 """One belt entity in a stretch, with the engine transport lines it exposes. direction is the engine direction code; lanes are 1-indexed as returned by LuaEntity.get_transport_line."""
@@ -125,6 +154,8 @@ type BeltStretchEnd {
   """True when reason is MISSING_BELT, BLOCKED, HEAD_ON or UNPAIRED_UNDERGROUND: the line evidently should continue but does not connect."""
   gap: Boolean!
   reason: BeltEndReason!
+  """Entity occupying the expected tile or the first tile between the stretch and the next aligned belt: the consumer waiting at a heading, normally a machine, chest, or the belt that continues the line. Null when nothing occupies those tiles. Its status distinguishes a blocked consumer (for example waiting_for_space_in_destination or output_full) from an empty approach."""
+  downstream: LogisticsEndpoint
 }
 
 """Why a boundary end is or is not a gap. Only forward boundaries are classified; the lookahead is 8 tiles."""
@@ -143,7 +174,7 @@ enum BeltEndReason {
   UNPAIRED_UNDERGROUND
 }
 
-"""Total in-transit items on one side of a stretch, summed over every belt in it with duplicate line objects of a single entity counted once. mixed is true when at least one belt in the stretch carries more than one prototype or quality combination on that side, which is the lane-contamination signal; different belts carrying different single items do not set it."""
+"""Total in-transit items on one side of a stretch, summed over every transport line every entity in the stretch exposes. An underground entrance reports its surface lanes and its tunnel contents as separate lines that share one internal line, and a splitter reports its split lines, so all of them are counted here; identity deduplication would silently drop the tunnel. mixed is true when at least one belt in the stretch carries more than one prototype or quality combination on that side, which is the lane-contamination signal; different belts carrying different single items do not set it."""
 type BeltStretchTotal {
   side: String!
   items: [InventoryStack!]!
@@ -152,7 +183,7 @@ type BeltStretchTotal {
 }
 
 extend type Query {
-  """Find every belt component in one area in a single snapshot and classify each as fed, drained or dead. Unlike beltRun, which walks one component from a seed, this groups all belts in the area at once, so a whole-base audit is one call instead of one seed call per component plus client-side grouping; because it is a read-only analysis it also accepts areas up to 1024 tiles per side, beyond the 256-tile cap on entity paging queries. Only belts of the requested force and surface are grouped; connections that leave the area are omitted, so border belts consequently report as sources or sinks. maxEntities (1 through 5000) bounds each component walk; a truncated component omits its unfound belts and, because links to omitted belts are invisible, can also be misclassified as dead. Components are sorted dead first, then by belt count descending, then by position; deadOnly filters before pagination, and limit (1 to 100) plus zero-based offset page the result while pageInfo.total counts matching components before pagination. dead means no inserter pickup or drop target, no machine drop target and no container-backed loader touches the component, which is structural, not a stall measurement. Belt nodes carry direction and transport-line contents, and contents are in-transit stock summed per prototype and quality, not measured flow."""
+  """Find every belt component in one area in a single snapshot and classify each as fed, drained or dead. Unlike beltRun, which walks one component from a seed, this groups all belts in the area at once, so a whole-base audit is one call instead of one seed call per component plus client-side grouping; because it is a read-only analysis it also accepts areas up to 1024 tiles per side, beyond the 1024-tile cap on entity paging queries. Only belts of the requested force and surface are grouped; connections that leave the area are omitted, so border belts consequently report as sources or sinks. maxEntities (1 through 5000) bounds each component walk; a truncated component omits its unfound belts and, because links to omitted belts are invisible, can also be misclassified as dead. Components are sorted dead first, then by belt count descending, then by position; deadOnly filters before pagination, and limit (1 to 100) plus zero-based offset page the result while pageInfo.total counts matching components before pagination. dead means no inserter pickup or drop target, no machine drop target and no container-backed loader touches the component, which is structural, not a stall measurement. Belt nodes carry direction and transport-line contents, and contents are in-transit stock summed per prototype and quality, not measured flow."""
   beltComponents(input: BeltComponentsInput!): BeltComponentPage!
 }
 
@@ -163,14 +194,16 @@ input BeltComponentsInput {
   force: String! = "player"
   """Area bounds; each side may be up to 1024 tiles for this read-only analysis."""
   area: FactoryAreaInput!
-  """Per-component traversal bound, 1 through 5000. A component that hits it is truncated and its unfound belts stay out of that component."""
+  """Per-component traversal bound, 1 through 20000. A component that hits it is truncated and its unfound belts stay out of that component."""
   maxEntities: Int! = 1000
   """Keep only dead components: no inserter pickup or drop target and no machine drop target touches any belt in the component."""
   deadOnly: Boolean! = false
-  """Components returned after sorting, 1 through 100."""
+  """Components returned after sorting, 1 through 1000."""
   limit: Int! = 100
   """Zero-based offset into the sorted component list."""
   offset: Int! = 0
+  """Also emit internal transport-line links as edges with kind line. Off by default because those links join belts along one line rather than adjacent tiles, so they inflate the payload and the boundary between components."""
+  includeLineLinks: Boolean! = false
 }
 
 """One snapshot of every belt component in an area, with contents aggregated per component. Contents are in-transit stock, not measured flow."""
@@ -188,7 +221,7 @@ type BeltComponentPage {
   components: [BeltComponent!]!
 }
 
-"""One weakly connected belt component inside the requested area. Sources have no incoming engine belt connection and sinks no outgoing one, both restricted to belts found in the area, so a component cut by the area border reports border belts as sources or sinks and its outside edges as boundary edges. dead means nothing feeds or drains the component: no inserter has a pickup or drop target on any of its belts and no machine drops onto them. That is a structural signal, not a stall measurement."""
+"""One weakly connected belt component inside the requested area. Sources have no incoming engine belt connection and sinks no outgoing one, both restricted to belts found in the area, so a component cut by the area border reports border belts as sources or sinks and its outside edges as boundary edges. dead means nothing feeds or drains the component: no inserter has a pickup or drop target on any of its belts and no machine drops onto them. Inserters and machines are scanned 2.5 tiles beyond the area, so an arm or drill centred outside the area that reaches a belt inside it counts and does not report a working component as dead. That is a structural signal, not a stall measurement."""
 type BeltComponent {
   """Position of this component in the sorted, filtered result list. Stable only within one response."""
   id: ID!
@@ -209,4 +242,8 @@ type BeltComponent {
   stallEnds: [LogisticsEndpoint!]!
   """Source belts that no inserter drops onto and no machine drops onto, so nothing feeds the run there."""
   starveHeads: [LogisticsEndpoint!]!
+  """True when at least one belt in this component carries more than one prototype or quality combination on one side (left, right or unknown), the same rule as BeltStretchTotal.mixed. Different belts carrying different single items do not set it, and splitters or underground belts report their extra lines through the side they belong to."""
+  mixed: Boolean!
+  """Belt tiles of this component that two or more inserters pick from, counted from resolved pickup targets. Each such tile is contention: the arms share one source."""
+  sharedPickupSources: Int!
 }

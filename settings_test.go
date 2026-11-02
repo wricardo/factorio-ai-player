@@ -41,36 +41,49 @@ func TestCircuitFieldKeys(t *testing.T) {
 		t.Fatal("enabled maps to the read-only disabled flag and must not be writable")
 	}
 	seen := map[string]bool{}
-	for _, field := range append(append([]circuitField{}, circuitBooleanFields...), circuitConditionFields...) {
-		if seen[field.name] {
-			t.Fatalf("duplicate circuit field %q", field.name)
+	for _, fields := range [][]circuitField{circuitBooleanFields, circuitIntFields, circuitSignalFields, circuitConditionFields} {
+		for _, field := range fields {
+			if seen[field.name] {
+				t.Fatalf("duplicate circuit field %q", field.name)
+			}
+			seen[field.name] = true
+			if len(field.keys) == 0 {
+				t.Fatalf("field %q has no engine keys", field.name)
+			}
 		}
-		seen[field.name] = true
-		if len(field.keys) == 0 {
-			t.Fatalf("field %q has no engine keys", field.name)
+	}
+	// The 2.0 fields the API review found missing must be writable.
+	for _, name := range []string{
+		"circuitConditionEnabled", "exclusiveModeOfOperation", "handReadMode", "stackControlSignal",
+		"contentsReadMode", "readRecipeFinished", "recipeFinishedSignal", "workingSignal",
+		"includeInCrafting", "includeFuel", "setTrainsLimit", "readTrainsCount", "setPriority",
+		"redSignal", "greenSignal", "blueSignal", "rgbSignal",
+	} {
+		if !seen[name] {
+			t.Fatalf("field %q must be writable through setCircuitBehavior", name)
 		}
+	}
+	if got := circuitFieldKeys["colorMode"]; len(got) != 1 || got[0] != "color_mode" {
+		t.Fatalf("colorMode keys = %v", got)
 	}
 }
 
 func TestValidateCircuitInts(t *testing.T) {
-	mode := 3
-	if err := validateCircuitInts(map[string]*int{"colorMode": &mode}); err == nil {
-		t.Fatal("colorMode outside 0..2 must fail")
-	}
-	mode = 2
-	if err := validateCircuitInts(map[string]*int{"colorMode": &mode}); err != nil {
-		t.Fatalf("colorMode 2 rejected: %v", err)
-	}
 	negative := -1
-	if err := validateCircuitInts(map[string]*int{"siloReadMode": &negative}); err == nil {
+	if err := validateCircuitInts(map[string]*int{"handReadMode": &negative}); err == nil {
 		t.Fatal("a negative read mode must fail")
+	}
+	mode := 0
+	if err := validateCircuitInts(map[string]*int{"exclusiveModeOfOperation": &mode}); err != nil {
+		t.Fatalf("zero is a valid exclusive mode: %v", err)
 	}
 }
 
 func TestConditionLuaSecondSignalAndQuality(t *testing.T) {
+	fluid := SignalTypeFluid
 	lua, err := conditionLua(SignalConditionInput{
 		Comparator:   ">=",
-		FirstSignal:  &SignalInput{Type: stringPointer("fluid"), Name: "steam", Quality: stringPointer("uncommon")},
+		FirstSignal:  &SignalInput{Type: &fluid, Name: "steam", Quality: stringPointer("uncommon")},
 		SecondSignal: &SignalInput{Name: "iron-plate"},
 	})
 	if err != nil {
@@ -180,7 +193,7 @@ func TestSetCircuitBehaviorRejectsReadOnlyEnabled(t *testing.T) {
 }
 
 func TestLogisticSectionStatementsLimitAndOrder(t *testing.T) {
-	slot := []*LogisticSectionInput{{Slots: []*LogisticRequestInput{{Index: 1, Name: "iron-plate", Max: 5}}}}
+	slot := []*LogisticSectionInput{{Slots: []*LogisticRequestInput{{Index: 1, Name: "iron-plate", Max: intPointer(5)}}}}
 	var sections []*LogisticSectionInput
 	for range maxLogisticSections {
 		sections = append(sections, slot[0])
@@ -198,3 +211,391 @@ func TestLogisticSectionStatementsLimitAndOrder(t *testing.T) {
 }
 
 func strPtr(value string) *string { return &value }
+
+func intPointer(value int) *int { return &value }
+
+func TestCircuitApplyLuaProbesKeyExistence(t *testing.T) {
+	// The apply prelude must probe each candidate key and surface the engine
+	// message, so a rejected value is not reported as a missing feature.
+	if !strings.Contains(circuitControlApplyLua, "local function field_exists(key)") {
+		t.Fatal("apply must probe key existence before assigning")
+	}
+	if !strings.Contains(circuitControlApplyLua, `fail(name..": "..tostring(err))`) {
+		t.Fatal("apply must fail with the engine message once a key exists")
+	}
+	if strings.Count(circuitControlApplyLua, "is not supported by this control behavior") != 1 {
+		t.Fatal("the unsupported message must be reserved for the no-candidate-key case")
+	}
+	probe := strings.Index(circuitControlApplyLua, "field_exists(key)")
+	assign := strings.Index(circuitControlApplyLua, "control[key]=value")
+	if probe < 0 || assign < 0 || probe > assign {
+		t.Fatalf("apply must probe before assigning:\n%s", circuitControlApplyLua)
+	}
+}
+
+func TestSignalTypeName(t *testing.T) {
+	for kind, name := range map[SignalType]string{
+		SignalTypeItem:          "item",
+		SignalTypeFluid:         "fluid",
+		SignalTypeVirtual:       "virtual",
+		SignalTypeEntity:        "entity",
+		SignalTypeRecipe:        "recipe",
+		SignalTypeSpaceLocation: "space-location",
+		SignalTypeAsteroidChunk: "asteroid-chunk",
+		SignalTypeQuality:       "quality",
+	} {
+		value := kind
+		got, err := signalTypeName(&value)
+		if err != nil || got != name {
+			t.Fatalf("%s: got %q err %v, want %q", kind, got, err, name)
+		}
+	}
+	if got, err := signalTypeName(nil); err != nil || got != "item" {
+		t.Fatalf("an omitted type must default to item, got %q err %v", got, err)
+	}
+	invalid := SignalType("virtual-signal")
+	if _, err := signalTypeName(&invalid); err == nil || !strings.Contains(err.Error(), "virtual-signal") {
+		t.Fatalf("an unknown signal type must be rejected with its value, got %v", err)
+	}
+	if _, err := signalLua(SignalInput{Name: "signal-A", Type: &invalid}); err == nil {
+		t.Fatal("signalLua must reject an unknown signal type")
+	}
+}
+
+func TestLampColorModeName(t *testing.T) {
+	for mode, name := range map[LampColorMode]string{
+		LampColorModeColorMapping: "color_mapping",
+		LampColorModeComponents:   "components",
+		LampColorModePackedRgb:    "packed_rgb",
+	} {
+		value := mode
+		got, err := lampColorModeName(&value)
+		if err != nil || got != name {
+			t.Fatalf("%s: got %q err %v, want %q", mode, got, err, name)
+		}
+	}
+	if got, err := lampColorModeName(nil); err != nil || got != "" {
+		t.Fatalf("an omitted mode must stay unset, got %q err %v", got, err)
+	}
+	invalid := LampColorMode("2")
+	if _, err := lampColorModeName(&invalid); err == nil {
+		t.Fatal("a numeric color mode must be rejected")
+	}
+}
+
+func TestSetLampSettingsWritesDefinesColorMode(t *testing.T) {
+	fake := newFakeRCON(t, `{"tick":9,"surface":"nauvis","force":"player","name":"lamp","position":{"x":1.5,"y":2.5},"lamp":{"color":{"r":0,"g":0,"b":0,"a":1},"alwaysOn":false,"useColors":true,"colorMode":"COMPONENTS"}}`)
+	mode := LampColorModeComponents
+	result, err := setLampSettings(fake.resolver, LampSettingsInput{
+		Actor:     &ActorInput{Player: strPtr("wricardo")},
+		Target:    &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("1")},
+		ColorMode: &mode,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lua := fake.commands()[0]
+	if !strings.Contains(lua, "control.color_mode=defines.control_behavior.lamp.color_mode["+luaString("components")+"]") {
+		t.Fatalf("colorMode must be written through the engine defines:\n%s", lua)
+	}
+	if result.Lamp == nil || result.Lamp.ColorMode != LampColorModeComponents {
+		t.Fatalf("lamp section = %+v", result.Lamp)
+	}
+}
+
+func TestSetContainerBarAllowedSlots(t *testing.T) {
+	response := `{"tick":9,"surface":"nauvis","force":"player","name":"wooden-chest","position":{"x":1.5,"y":2.5},"container":{"inventory":"chest","bar":4,"allowedSlots":3,"capacity":16}}`
+	fake := newFakeRCON(t, response)
+	allowed := 3
+	result, err := setContainerBar(fake.resolver, ContainerBarInput{
+		Actor:        &ActorInput{Player: strPtr("wricardo")},
+		Target:       &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("202")},
+		AllowedSlots: &allowed,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lua := fake.commands()[0]
+	if !strings.Contains(lua, "local allowed_slots=3") || !strings.Contains(lua, "e.set_inventory_bar(index,(3+1))") {
+		t.Fatalf("allowedSlots must be written as the engine bar index:\n%s", lua)
+	}
+	if result.Container == nil || result.Container.Bar != 4 || result.Container.AllowedSlots == nil || *result.Container.AllowedSlots != 3 {
+		t.Fatalf("container section = %+v", result.Container)
+	}
+
+	unlimited := newFakeRCON(t, `{"tick":9,"surface":"nauvis","force":"player","name":"wooden-chest","position":{"x":1.5,"y":2.5},"container":{"inventory":"chest","bar":0,"capacity":16}}`)
+	page, err := setContainerBar(unlimited.resolver, ContainerBarInput{
+		Actor:  &ActorInput{Player: strPtr("wricardo")},
+		Target: &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("202")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lua := unlimited.commands()[0]; !strings.Contains(lua, "e.set_inventory_bar(index,nil)") {
+		t.Fatalf("a null allowedSlots must clear the engine bar:\n%s", lua)
+	}
+	if page.Container == nil || page.Container.AllowedSlots != nil {
+		t.Fatalf("an unlimited container must report a null allowedSlots, got %+v", page.Container)
+	}
+
+	negative := -1
+	if _, err := setContainerBar(&Resolver{}, ContainerBarInput{
+		Actor:        &ActorInput{Player: strPtr("wricardo")},
+		Target:       &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("1")},
+		AllowedSlots: &negative,
+	}); err == nil {
+		t.Fatal("a negative allowedSlots must fail")
+	}
+	tooLarge := 65537
+	if _, err := setContainerBar(&Resolver{}, ContainerBarInput{
+		Actor:        &ActorInput{Player: strPtr("wricardo")},
+		Target:       &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("1")},
+		AllowedSlots: &tooLarge,
+	}); err == nil {
+		t.Fatal("an oversized allowedSlots must fail")
+	}
+}
+
+func TestLogisticSectionStatementsInfiniteMax(t *testing.T) {
+	check, writes, err := logisticSectionStatements([]*LogisticSectionInput{{Slots: []*LogisticRequestInput{
+		{Index: 1, Name: "iron-plate", Min: intPointer(200)},
+	}}}, "p", "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(writes, ",max=") {
+		t.Fatalf("an infinite request must omit the engine max:\n%s", writes)
+	}
+	if !strings.Contains(writes, "min=200") || !strings.Contains(writes, "slot 1: ") {
+		t.Fatalf("the slot write must keep min and surface the engine message:\n%s", writes)
+	}
+	if !strings.Contains(check, "prototypes.item[") {
+		t.Fatalf("the prototype check must still run before any write:\n%s", check)
+	}
+	if _, _, err := logisticSectionStatements([]*LogisticSectionInput{{Slots: []*LogisticRequestInput{
+		{Index: 1, Name: "iron-plate", Min: intPointer(5), Max: intPointer(4)},
+	}}}, "p", "s"); err == nil {
+		t.Fatal("max below min must fail")
+	}
+	if _, _, err := logisticSectionStatements([]*LogisticSectionInput{{Slots: []*LogisticRequestInput{
+		{Index: 1, Name: "iron-plate", Min: intPointer(-1)},
+	}}}, "p", "s"); err == nil {
+		t.Fatal("a negative min must fail")
+	}
+}
+
+func TestSetTrainStopClearLimit(t *testing.T) {
+	yes := true
+	limit := 3
+	if _, err := setTrainStop(&Resolver{}, TrainStopInput{
+		Actor:            &ActorInput{Player: strPtr("wricardo")},
+		Target:           &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("1")},
+		TrainsLimit:      &limit,
+		ClearTrainsLimit: &yes,
+	}); err == nil {
+		t.Fatal("clearTrainsLimit must not combine with trainsLimit")
+	}
+	fake := newFakeRCON(t, `{"tick":9,"surface":"nauvis","force":"player","name":"train-stop","position":{"x":1.5,"y":2.5},"trainStop":{"backerName":"iron-drop","priority":0}}`)
+	result, err := setTrainStop(fake.resolver, TrainStopInput{
+		Actor:            &ActorInput{Player: strPtr("wricardo")},
+		Target:           &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("1")},
+		ClearTrainsLimit: &yes,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lua := fake.commands()[0]; !strings.Contains(lua, "e.trains_limit=nil") {
+		t.Fatalf("clearing the limit must write nil:\n%s", lua)
+	}
+	if result.TrainStop == nil || result.TrainStop.TrainsLimit != nil {
+		t.Fatalf("an unlimited stop must decode to a null trainsLimit, got %+v", result.TrainStop)
+	}
+	if summary := trainStopSettingsSummary(result); !strings.Contains(summary, "unlimited") {
+		t.Fatalf("summary = %q, want an unlimited note", summary)
+	}
+}
+
+func TestSetInserterSettingsFilterUseFlag(t *testing.T) {
+	response := `{"tick":9,"surface":"nauvis","force":"player","name":"inserter","position":{"x":1.5,"y":2.5},"inserter":{"tick":9,"filterSlotCount":5,"filterSlots":[],"useFilters":false,"stackSizeOverride":0,"active":true,"pickupFromLeftLane":true,"pickupFromRightLane":true}}`
+	empty := newFakeRCON(t, response)
+	if _, err := setInserterSettings(empty.resolver, InserterSettingsInput{
+		Actor:   &ActorInput{Player: strPtr("wricardo")},
+		Target:  &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("1")},
+		Filters: []*InserterFilterInput{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if lua := empty.commands()[0]; !strings.Contains(lua, "e.use_filters=false") {
+		t.Fatalf("an empty filter list must switch filter use off:\n%s", lua)
+	}
+
+	one := newFakeRCON(t, response)
+	if _, err := setInserterSettings(one.resolver, InserterSettingsInput{
+		Actor:  &ActorInput{Player: strPtr("wricardo")},
+		Target: &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("1")},
+		Filters: []*InserterFilterInput{
+			{Index: 1, Name: "iron-plate"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if lua := one.commands()[0]; !strings.Contains(lua, "e.use_filters=true") {
+		t.Fatalf("a listed filter must switch filter use on:\n%s", lua)
+	}
+}
+
+func TestSetConstantCombinatorLua(t *testing.T) {
+	check, writes, err := constantCombinatorSectionStatements([]*ConstantCombinatorSectionInput{{
+		Active:     boolPointer(true),
+		Multiplier: floatPointer(2),
+		Group:      strPtr("smelting"),
+		Slots: []*ConstantCombinatorSlotInput{
+			{Index: 1, Signal: &SignalInput{Name: "signal-A", Type: signalTypePointer(SignalTypeVirtual)}, Count: 5},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"behavior.add_section()", "section.active=true", "section.multiplier=2", "section.group=" + luaString("smelting"),
+		"{value={type=" + luaString("virtual") + ",name=" + luaString("signal-A") + ",quality=" + luaString("normal") + "},min=5}",
+	} {
+		if !strings.Contains(writes, want) {
+			t.Fatalf("constant combinator write missing %q:\n%s", want, writes)
+		}
+	}
+	if !strings.Contains(check, "prototypes.quality["+luaString("normal")+"]") {
+		t.Fatalf("quality prototypes must be checked first:\n%s", check)
+	}
+
+	for name, sections := range map[string][]*ConstantCombinatorSectionInput{
+		"zero slot index": {{Slots: []*ConstantCombinatorSlotInput{{Index: 0, Signal: &SignalInput{Name: "signal-A"}, Count: 1}}}},
+		"missing signal":  {{Slots: []*ConstantCombinatorSlotInput{{Index: 1, Count: 1}}}},
+		"blank name":      {{Slots: []*ConstantCombinatorSlotInput{{Index: 1, Signal: &SignalInput{Name: "  "}, Count: 1}}}},
+		"negative count":  {{Slots: []*ConstantCombinatorSlotInput{{Index: 1, Signal: &SignalInput{Name: "signal-A"}, Count: -1}}}},
+	} {
+		if _, _, err := constantCombinatorSectionStatements(sections); err == nil {
+			t.Fatalf("%s: expected a validation error", name)
+		}
+	}
+
+	fake := newFakeRCON(t, `{"tick":9,"surface":"nauvis","force":"player","name":"constant-combinator","position":{"x":1.5,"y":2.5},"constantCombinator":{"enabled":true,"sections":[{"index":1,"active":true,"multiplier":1,"group":"","slots":[{"index":1,"signal":{"type":"VIRTUAL","name":"signal-A"},"count":5}]}]}}`)
+	enabled := true
+	result, err := setConstantCombinator(fake.resolver, SetConstantCombinatorInput{
+		Actor:   &ActorInput{Player: strPtr("wricardo")},
+		Target:  &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("5")},
+		Enabled: &enabled,
+		Sections: []*ConstantCombinatorSectionInput{{
+			Slots: []*ConstantCombinatorSlotInput{{Index: 1, Signal: &SignalInput{Name: "signal-A", Type: signalTypePointer(SignalTypeVirtual)}, Count: 5}},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lua := fake.commands()[0]
+	if !strings.Contains(lua, "behavior.enabled=true") || !strings.Contains(lua, "for index=behavior.sections_count,1,-1 do behavior.remove_section(index) end") {
+		t.Fatalf("replacing sections must enable and clear first:\n%s", lua)
+	}
+	if result.ConstantCombinator == nil || len(result.ConstantCombinator.Sections) != 1 || len(result.ConstantCombinator.Sections[0].Slots) != 1 {
+		t.Fatalf("constantCombinator = %+v", result.ConstantCombinator)
+	}
+	if _, err := setConstantCombinator(&Resolver{}, SetConstantCombinatorInput{
+		Actor:  &ActorInput{Player: strPtr("wricardo")},
+		Target: &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("5")},
+	}); err == nil {
+		t.Fatal("an empty request must be rejected")
+	}
+	clear := true
+	if _, err := setConstantCombinator(&Resolver{}, SetConstantCombinatorInput{
+		Actor:         &ActorInput{Player: strPtr("wricardo")},
+		Target:        &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("5")},
+		ClearSections: &clear,
+		Sections:      []*ConstantCombinatorSectionInput{{}},
+	}); err == nil {
+		t.Fatal("clearSections must not combine with sections")
+	}
+}
+
+func TestEntitySettingsQueryValidation(t *testing.T) {
+	area := &FactoryAreaInput{LeftTopX: 0, LeftTopY: 0, RightBottomX: 10, RightBottomY: 10}
+	valid := EntitySettingsInput{Surface: "nauvis", Force: "player", Area: area, Limit: 50}
+	for name, mutate := range map[string]func(*EntitySettingsInput){
+		"empty surface": func(in *EntitySettingsInput) { in.Surface = " " },
+		"empty force":   func(in *EntitySettingsInput) { in.Force = "" },
+		"missing area":  func(in *EntitySettingsInput) { in.Area = nil },
+		"inverted area": func(in *EntitySettingsInput) {
+			in.Area = &FactoryAreaInput{LeftTopX: 1, RightBottomX: 0, RightBottomY: 1}
+		},
+		"zero limit":        func(in *EntitySettingsInput) { in.Limit = 0 },
+		"excess limit":      func(in *EntitySettingsInput) { in.Limit = maxPageSize + 1 },
+		"unknown inventory": func(in *EntitySettingsInput) { in.Inventory = strPtr("cargo") },
+		"blank name":        func(in *EntitySettingsInput) { in.Names = []string{"iron-chest", " "} },
+		"blank type":        func(in *EntitySettingsInput) { in.Types = []string{""} },
+	} {
+		input := valid
+		mutate(&input)
+		if _, err := entitySettingsQuery(nil, input); err == nil {
+			t.Fatalf("%s: expected a validation error", name)
+		}
+	}
+	if got := luaStringList(nil); got != "nil" {
+		t.Fatalf("an empty filter must render as nil, got %s", got)
+	}
+	want := "{" + luaString("iron-chest") + "," + luaString("steel-chest") + "}"
+	if got := luaStringList([]string{"iron-chest", "steel-chest"}); got != want {
+		t.Fatalf("filter list = %s, want %s", got, want)
+	}
+}
+
+func TestFactoryDecodeSettingsReviewFields(t *testing.T) {
+	result, err := factoryDecode[SettingsResult](`{"tick":12,"surface":"nauvis","force":"player","name":"wooden-chest","position":{"x":1.5,"y":2.5},
+"container":{"inventory":"chest","bar":4,"allowedSlots":3,"capacity":16},
+"logistic":{"sections":[{"index":1,"active":true,"multiplier":1,"group":"","slots":[{"index":1,"name":"iron-plate","min":200},{"index":3,"name":"copper-plate","quality":"normal","min":1,"max":9}]}]},
+"trainStop":{"backerName":"iron-drop","priority":4},
+"circuit":{"behaviorType":1,"circuitCondition":{"comparator":">","constant":5,"firstSignal":{"type":"ITEM","name":"iron-plate"}},
+  "handReadMode":1,"stackControlSignal":{"type":"VIRTUAL","name":"signal-A"},"contentsReadMode":2,
+  "readRecipeFinished":true,"workingSignal":{"type":"VIRTUAL","name":"signal-B"},"includeFuel":true,
+  "setTrainsLimit":true,"trainsCountSignal":{"type":"VIRTUAL","name":"signal-C"},"setPriority":false,
+  "redSignal":{"type":"VIRTUAL","name":"signal-D"},"colorMode":"COMPONENTS",
+  "circuitConditionEnabled":true,"exclusiveModeOfOperation":2},
+"constantCombinator":{"enabled":true,"sections":[{"index":1,"active":true,"multiplier":1,"group":"","slots":[{"index":1,"signal":{"type":"VIRTUAL","name":"signal-A"},"count":5}]}]}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Container == nil || result.Container.AllowedSlots == nil || *result.Container.AllowedSlots != 3 {
+		t.Fatalf("container = %+v", result.Container)
+	}
+	if result.TrainStop == nil || result.TrainStop.TrainsLimit != nil {
+		t.Fatalf("an absent trainsLimit must decode to null, got %+v", result.TrainStop)
+	}
+	slots := result.Logistic.Sections[0].Slots
+	if len(slots) != 2 || slots[0].Max != nil || slots[0].Min != 200 {
+		t.Fatalf("an infinite slot must keep a null max, got %+v", slots)
+	}
+	if slots[1].Index != 3 || slots[1].Max == nil || *slots[1].Max != 9 {
+		t.Fatalf("slot gaps must be preserved and finite maxima decoded, got %+v", slots[1])
+	}
+	circuit := result.Circuit
+	if circuit == nil || circuit.HandReadMode == nil || *circuit.HandReadMode != 1 || circuit.ContentsReadMode == nil || *circuit.ContentsReadMode != 2 {
+		t.Fatalf("circuit modes = %+v", circuit)
+	}
+	if circuit.CircuitCondition == nil || circuit.CircuitCondition.Constant == nil || *circuit.CircuitCondition.Constant != 5 {
+		t.Fatalf("circuitCondition = %+v", circuit.CircuitCondition)
+	}
+	if circuit.StackControlSignal == nil || circuit.StackControlSignal.Name != "signal-A" || circuit.StackControlSignal.Type != SignalTypeVirtual {
+		t.Fatalf("stackControlSignal = %+v", circuit.StackControlSignal)
+	}
+	if circuit.ColorMode == nil || *circuit.ColorMode != LampColorModeComponents || circuit.ExclusiveModeOfOperation == nil || *circuit.ExclusiveModeOfOperation != 2 {
+		t.Fatalf("lamp/container circuit fields = %+v", circuit)
+	}
+	if result.ConstantCombinator == nil || !result.ConstantCombinator.Enabled {
+		t.Fatalf("constantCombinator = %+v", result.ConstantCombinator)
+	}
+	if result.ConstantCombinator.Sections[0].Slots[0].Count != 5 {
+		t.Fatalf("constant combinator slot = %+v", result.ConstantCombinator.Sections[0].Slots[0])
+	}
+}
+
+func boolPointer(value bool) *bool { return &value }
+
+func signalTypePointer(value SignalType) *SignalType { return &value }

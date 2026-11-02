@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Unattended ticket runner for factorio-ai-player.
+  Install:   cp scripts/tickets/sh.omp.tickets.plist ~/Library/LaunchAgents/sh.omp.tickets.plist
+             launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/sh.omp.tickets.plist
+  Pause:     launchctl bootout gui/$(id -u)/sh.omp.tickets
+  Logs:      ~/.cache/factorio-ai-player-tickets/logs/run-YYYY-MM-DD.log (runner)
+             ~/.cache/factorio-ai-player-tickets/logs/launchd.out|err.log (launchd)
+  Lock:      ~/.cache/factorio-ai-player-tickets/lock (mkdir lock; overlapping fires exit 0)
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>sh.omp.tickets</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/wricardo/go/src/github.com/wricardo/factorio-ai-player/scripts/tickets/run.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/wricardo/go/src/github.com/wricardo/factorio-ai-player</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/wricardo/.local/bin:/Users/wricardo/go/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>1800</integer>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>/Users/wricardo/.cache/factorio-ai-player-tickets/logs/launchd.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/wricardo/.cache/factorio-ai-player-tickets/logs/launchd.err.log</string>
+</dict>
+</plist>

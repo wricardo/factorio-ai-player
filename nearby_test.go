@@ -13,11 +13,11 @@ func TestNearbyPaginationUsesDeterministicTotalOrder(t *testing.T) {
 		t.Skip("Lua interpreter not installed")
 	}
 	entities := `{
-  {name="b",type="tree",position={x=1,y=0}},
-  {name="a",type="tree",position={x=0,y=1}},
-  {name="a",type="tree",position={x=0,y=-1},unit_number=5},
-  {name="a",type="tree",position={x=-1,y=0},unit_number=5},
-  {name="z",type="container",position={x=0,y=0},unit_number=9}
+  {name="b",type="tree",position={x=1,y=0},force={name="player"}},
+  {name="a",type="tree",position={x=0,y=1},force={name="player"}},
+  {name="a",type="tree",position={x=0,y=-1},unit_number=5,force={name="player"}},
+  {name="a",type="tree",position={x=-1,y=0},unit_number=5,force={name="player"}},
+  {name="z",type="container",position={x=0,y=0},unit_number=9,force={name="player"}}
 }`
 	tests := []struct {
 		order string
@@ -36,7 +36,10 @@ func TestNearbyPaginationUsesDeterministicTotalOrder(t *testing.T) {
 				}
 				harness := fmt.Sprintf(`local source=%s
 local expected={%s}
-game={tick=10,surfaces={nauvis={name="nauvis",find_entities_filtered=function() return source end}}}
+game={tick=10,surfaces={nauvis={name="nauvis",find_entities_filtered=function(filter)
+  if filter.force~=nil then assert(filter.force=="player", "force filter passed to the engine") end
+  return source
+end}}}
 helpers={table_to_json=function(value)
   assert(value.page_info.total==5)
   assert(value.page_info.offset==%d)
@@ -46,12 +49,14 @@ helpers={table_to_json=function(value)
   for i,e in ipairs(value.entities) do
     local key=e.name..":"..e.position.x..":"..e.position.y..":"..tostring(e.unit_number)
     assert(key==expected[i], "row "..i.." got "..key.." want "..expected[i])
+    assert(e.tick==10, "row "..i.." must carry the page tick")
+    assert(e.force=="player", "row "..i.." must carry its force")
   end
   return "ok"
 end}
 rcon={print=function(value) assert(value=="ok") end}
 `, entities, strings.Join(expected, ","), offset, offset+2 < len(tc.want))
-				out, err := exec.Command(luaBin, "-e", harness+nearbyLua("nauvis", 0, 0, 10, "", "", tc.order, offset, 2)).CombinedOutput()
+				out, err := exec.Command(luaBin, "-e", harness+nearbyLua("nauvis", 0, 0, 10, "", "", "player", tc.order, offset, 2)).CombinedOutput()
 				if err != nil {
 					t.Fatalf("offset %d: %v\n%s", offset, err, out)
 				}

@@ -27,7 +27,7 @@ local function entity(unit,ids)
   e.fluidbox=fb
   local capacities={[10]=300,[20]=200}
   local amounts={[10]=150,[20]=25}
-  for i=1,#ids do fb[i]={name="water",amount=amounts[ids[i]]} end
+  for i=1,#ids do fb[i]={name="water",amount=amounts[ids[i]],temperature=100+ids[i]} end
   fb.get_capacity=function(index) return capacities[ids[index]] end
   fb.get_fluid_segment_id=function(index) return ids[index] end
   fb.get_fluid_segment_contents=function(index) return {water=amounts[ids[index]]} end
@@ -76,6 +76,12 @@ setmetatable(dry.fluidbox,{__len=function() return 1 end})
 local empty=traverse(dry,100)
 assert(empty.visitedBoxes==1 and empty.totalAmount==0 and empty.totalCapacity==50)
 assert(#empty.fluidSegments==1 and #empty.fluidSegments[1].segmentFluids==0)
+local members=0
+for _,segment in ipairs(upstream.fluidSegments) do members=members+#segment.members end
+assert(members==3,"every visited box must be listed as a segment member")
+assert(upstream.fluidSegments[1].temperature==110,"segment temperature must come from the member boxes")
+assert(upstream.fluidSegments[1].members[1].unitNumber=="1" and upstream.fluidSegments[1].members[1].boxIndex==1)
+assert(#both.fluidSegments==2 and both.fluidSegments[2].temperature==120)
 `
 	cmd := exec.Command(interpreter, "-")
 	cmd.Stdin = strings.NewReader(fixture + operationsStockLua + operationsFluidNetworkLua + checks)
@@ -112,5 +118,124 @@ assert(#missing_packs(lab,research)==0)
 	cmd.Stdin = strings.NewReader(fixture + operationsScienceLua + checks)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("missing science: %v\n%s", err, out)
+	}
+}
+
+// ghostsQuery must send no area at all when the caller omits it, so the engine
+// scans the whole surface, and must keep the bounded form byte-for-byte when an
+// area is given. The scripted RCON stands in for the engine; the engine-level
+// "no area means every entity" rule is 2.0.77 behavior, so these tests pin the
+// request shape and the decoded page instead.
+func TestGhostsAreaIsOptional(t *testing.T) {
+	const wholeSurface = `{"tick":105,"surface":"nauvis","force":"player","pageInfo":{"total":3,"limit":10,"offset":0,"hasMore":false},"ghostEntries":[{"id":"1:unit:1","kind":"entity-ghost","name":"transport-belt","quality":"normal","position":{"x":1.5,"y":1.5},"placementAlternatives":[],"requestedMaterials":[],"buildable":true}]}`
+	r, recorder := serveScriptedRCON(t, []scriptRule{{"storage_stock(area,false)", wholeSurface}})
+	page, err := ghostsQuery(r, &GhostsInput{Surface: "nauvis", Force: "player", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Area != nil {
+		t.Fatalf("whole-surface page must report a null area: %+v", page.Area)
+	}
+	if page.PageInfo == nil || page.PageInfo.Total != 3 || len(page.GhostEntries) != 1 {
+		t.Fatalf("whole-surface page: %+v", page)
+	}
+	if got := recorder.seen("local area,limit,offset=nil,10,0"); got != 1 {
+		t.Fatalf("whole-surface scan must pass a nil area, saw %d calls", got)
+	}
+	if got := recorder.seen("local area,limit,offset={{"); got != 0 {
+		t.Fatalf("whole-surface scan must not invent bounds, saw %d bounded calls", got)
+	}
+
+	bounded, boundedRecorder := serveScriptedRCON(t, []scriptRule{{"storage_stock(area,false)", wholeSurface}})
+	area := &FactoryAreaInput{LeftTopX: 0, LeftTopY: 0, RightBottomX: 10, RightBottomY: 10}
+	if _, err := ghostsQuery(bounded, &GhostsInput{Surface: "nauvis", Force: "player", Area: area, Limit: 10}); err != nil {
+		t.Fatal(err)
+	}
+	if got := boundedRecorder.seen("local area,limit,offset={{0,0},{10,10}},10,0"); got != 1 {
+		t.Fatalf("bounded scan must keep the existing area literal, saw %d calls", got)
+	}
+}
+
+func TestGhostsValidation(t *testing.T) {
+	r, recorder := serveScriptedRCON(t, nil)
+	tooWide := &FactoryAreaInput{LeftTopX: 0, LeftTopY: 0, RightBottomX: maxAreaTiles + 1, RightBottomY: 10}
+	cases := []struct {
+		name  string
+		input *GhostsInput
+		want  string
+	}{
+		{"nil input", nil, "surface, force, and input are required"},
+		{"empty surface", &GhostsInput{Force: "player", Limit: 10}, "surface, force, and input are required"},
+		{"area too wide", &GhostsInput{Surface: "nauvis", Force: "player", Area: tooWide, Limit: 10}, "no greater than 1024"},
+		{"zero limit", &GhostsInput{Surface: "nauvis", Force: "player"}, "limit must be between 1 and 10000"},
+		{"high limit", &GhostsInput{Surface: "nauvis", Force: "player", Limit: maxPageSize + 1}, "limit must be between 1 and 10000"},
+		{"negative offset", &GhostsInput{Surface: "nauvis", Force: "player", Limit: 10, Offset: -1}, "offset must be non-negative"},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ghostsQuery(r, test.input)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error=%v, want %q", err, test.want)
+			}
+		})
+	}
+	if got := len(recorder.commands); got != 0 {
+		t.Fatalf("invalid ghost reads must fail before any RCON call, saw %d", got)
+	}
+}
+
+// The ghost body must hand its whole-surface scope to find_entities_filtered by
+// omitting the area key, and still bound both the scan and the page when a box
+// is supplied. A fake surface returns ghosts inside and outside the box so the
+// totals prove the difference.
+func TestOperationsGhostsAreaFilter(t *testing.T) {
+	interpreter, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("Lua interpreter not installed")
+	}
+	fixture := `
+defines={inventory={chest=1}}
+game={tick=50}
+local surface={name="nauvis",index=1}
+local force={name="player"}
+local ghost_filter
+local ghosts={
+  {type="entity-ghost",unit_number=1,name="entity-ghost",ghost_name="transport-belt",quality={name="normal"},position={x=1.5,y=1.5},item_requests={},ghost_prototype={items_to_place_this={{name="transport-belt",count=1}}},surface=surface},
+  {type="entity-ghost",unit_number=2,name="entity-ghost",ghost_name="inserter",quality={name="normal"},position={x=100.5,y=100.5},item_requests={},ghost_prototype={items_to_place_this={{name="inserter",count=1}}},surface=surface},
+}
+local function inside(e,area)
+  if not area then return true end
+  return e.position.x>=area[1][1] and e.position.x<=area[2][1] and e.position.y>=area[1][2] and e.position.y<=area[2][2]
+end
+surface.find_entities_filtered=function(filter)
+  if filter.type and type(filter.type)=="table" and filter.type[1]=="entity-ghost" then
+    ghost_filter=filter
+    local out={}
+    for _,e in ipairs(ghosts) do if inside(e,filter.area) then out[#out+1]=e end end
+    return out
+  end
+  return {}
+end
+helpers={table_to_json=function(value) observed=value; return "ok" end}
+rcon={print=function() end}
+local function run(area,limit,offset)
+`
+	checks := `
+  return {filter=ghost_filter,total=#matches,entries=entries}
+end
+local whole=run(nil,10,0)
+assert(whole.filter.area==nil,"whole-surface scan must omit the area key")
+assert(whole.total==2 and #whole.entries==2,"whole-surface scan must see ghosts outside any box")
+assert(whole.entries[1].buildable==false ,"no stock means unbuildable")
+local paged=run(nil,1,1)
+assert(paged.total==2 and #paged.entries==1,"whole-surface total must count every ghost while the page stays bounded")
+local boxed=run({{0,0},{10,10}},10,0)
+assert(boxed.filter.area~=nil,"supplied area must reach the engine filter")
+assert(boxed.total==1 and #boxed.entries==1,"a box must only match ghosts inside it")
+`
+	cmd := exec.Command(interpreter, "-")
+	cmd.Stdin = strings.NewReader(fixture + operationsStockLua + operationsGhostsLua + checks)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("ghost area filter: %v\n%s", err, out)
 	}
 }

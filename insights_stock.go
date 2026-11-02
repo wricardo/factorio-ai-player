@@ -40,6 +40,8 @@ func stockCategoryName(category *StockCategory) (string, error) {
 		return "ground", nil
 	case StockCategoryPlayer:
 		return "player", nil
+	case StockCategoryWorker:
+		return "worker", nil
 	default:
 		return "", fmt.Errorf("unknown stock category %q", *category)
 	}
@@ -53,8 +55,8 @@ func stockQuery(r *Resolver, input *StockInput) (*StockPage, error) {
 	if input.Surface == "" || input.Force == "" {
 		return nil, fmt.Errorf("surface and force are required")
 	}
-	if input.Limit < 1 || input.Limit > 1000 || input.TotalsLimit < 1 || input.TotalsLimit > 1000 || input.ItemsLimit < 1 || input.ItemsLimit > 1000 {
-		return nil, fmt.Errorf("limit, totalsLimit and itemsLimit must be between 1 and 1000")
+	if input.Limit < 1 || input.Limit > maxPageSize || input.TotalsLimit < 1 || input.TotalsLimit > maxPageSize || input.ItemsLimit < 1 || input.ItemsLimit > maxPageSize {
+		return nil, pageLimitError("limit, totalsLimit and itemsLimit")
 	}
 	if input.Offset < 0 || input.TotalsOffset < 0 || input.ItemsOffset < 0 {
 		return nil, fmt.Errorf("offset, totalsOffset and itemsOffset must be non-negative")
@@ -84,7 +86,7 @@ func stockQuery(r *Resolver, input *StockInput) (*StockPage, error) {
 		}
 		area = fmt.Sprintf("{{%s,%s},{%s,%s}}", strconv.FormatFloat(values[0], 'g', -1, 64), strconv.FormatFloat(values[1], 'g', -1, 64), strconv.FormatFloat(values[2], 'g', -1, 64), strconv.FormatFloat(values[3], 'g', -1, 64))
 	}
-	lua := luaFail + stockBeltLineLua + fmt.Sprintf(`
+	lua := luaFail + luaOutputInventoryHelper + stockBeltLineLua + fmt.Sprintf(`
 local surface_name, force_name, item, category_filter = %s, %s, %s, %s
 local area, limit, offset, totals_limit, totals_offset, items_limit, items_offset = %s, %d, %d, %d, %d, %d, %d
 local surface = game.surfaces[surface_name]
@@ -95,7 +97,7 @@ local function in_area(p)
   return not area or (p.x >= area[1][1] and p.y >= area[1][2] and p.x <= area[2][1] and p.y <= area[2][2])
 end
 local entries, totals_by_key, items_by_key = {}, {}, {}
-local function record(category, name, kind, player, pos, inventory, contents)
+local function record(category, name, kind, player, pos, inventory, contents, unit)
   if category_filter ~= "" and category ~= category_filter then return end
   for _, stack in pairs(contents) do
     if item == "" or stack.name == item then
@@ -115,7 +117,7 @@ local function record(category, name, kind, player, pos, inventory, contents)
       end
       item_total.count = item_total.count + stack.count
       entries[#entries+1] = {category=category, entityName=name, entityType=kind, player=player,
-        position={x=pos.x,y=pos.y}, inventoryKind=inventory,
+        unitNumber=unit and tostring(unit), position={x=pos.x,y=pos.y}, inventoryKind=inventory,
         stack={name=stack.name, quality=quality, count=stack.count}}
     end
   end
@@ -151,17 +153,18 @@ for _, entity in ipairs(entities) do
         local index = inv.index
         if index and seen[index] then return end
         if index then seen[index] = true end
-        record("stored", entity.name, entity.type, nil, entity.position, kind, inv.get_contents())
+        record("stored", entity.name, entity.type, nil, entity.position, kind, inv.get_contents(), entity.unit_number)
       end
     end
     if list then
       for _, spec in ipairs(list) do inventory(entity.get_inventory(spec[2]), spec[1]) end
     end
-    if entity.type == "mining-drill" then inventory(entity.get_output_inventory(), "output") end
+    -- output_inventory is nil for burner drills, whose coal belongs to fuel.
+    if entity.type == "mining-drill" then inventory(output_inventory(entity), "output") end
     if entity.type == "inserter" then
       local stack = entity.held_stack
       if stack and stack.valid_for_read then
-        record("in-transit", entity.name, entity.type, nil, entity.position, "held", {{name=stack.name, quality=stack.quality.name, count=stack.count}})
+        record("in-transit", entity.name, entity.type, nil, entity.position, "held", {{name=stack.name, quality=stack.quality.name, count=stack.count}}, entity.unit_number)
       end
     end
     inventory(entity.get_fuel_inventory(), "fuel")
@@ -170,12 +173,12 @@ for _, entity in ipairs(entities) do
       local overflow = false
       local kept = stock_belt_lines(entity, function()
         line_comparisons = line_comparisons + 1
-        if line_comparisons > 1000000 then overflow = true; return false end
+        if line_comparisons > 20000000 then overflow = true; return false end
         return true
       end)
-      if overflow then fail("stock belt scan exceeds 1000000 line comparisons; restrict area"); return end
+      if overflow then fail("stock belt scan exceeds 20000000 line comparisons; restrict area"); return end
       for _, entry in ipairs(kept) do
-        record("in-transit", entity.name, entity.type, nil, entity.position, "line-"..entry.index, entry.line.get_contents())
+        record("in-transit", entity.name, entity.type, nil, entity.position, "line-"..entry.index, entry.line.get_contents(), entity.unit_number)
       end
     end
   end
@@ -183,7 +186,7 @@ end
 for _, entity in pairs(surface.find_entities_filtered{type="item-entity", area=area}) do
   local stack = entity.stack
   if in_area(entity.position) and stack and stack.valid_for_read then
-    record("ground", entity.name, entity.type, nil, entity.position, "ground", {{name=stack.name, quality=stack.quality.name, count=stack.count}})
+    record("ground", entity.name, entity.type, nil, entity.position, "ground", {{name=stack.name, quality=stack.quality.name, count=stack.count}}, entity.unit_number)
   end
 end
 for _, player in pairs(game.players) do
@@ -192,7 +195,15 @@ for _, player in pairs(game.players) do
   local s = character and character.surface or player.physical_surface
   if player.force == force and s == surface and in_area(p) then
     local inv = character and character.get_main_inventory() or player.get_main_inventory()
-    if inv then record("player", character and character.name or "player", "player", player.name, p, "main", inv.get_contents()) end
+    if inv then record("player", character and character.name or "player", "player", player.name, p, "main", inv.get_contents(), character and character.unit_number) end
+  end
+end
+-- Detached characters (courier and builder workers) hold real items but control
+-- no player, so the player loop above cannot see them.
+for _, character in pairs(surface.find_entities_filtered{type="character", force=force, area=area}) do
+  if character.valid and not character.player then
+    local inv = character.get_main_inventory()
+    if inv then record("worker", character.name, "character", nil, character.position, "main", inv.get_contents(), character.unit_number) end
   end
 end
 table.sort(entries, function(a,b)

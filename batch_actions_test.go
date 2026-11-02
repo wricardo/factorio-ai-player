@@ -38,16 +38,27 @@ func TestFuelManyPartialSuccess(t *testing.T) {
 		`local item=` + luaString("coal") + `; local quality=` + luaString("normal"),
 		`{surface=` + luaString("nauvis") + `,unit=41,name=` + luaString("stone-furnace"),
 		`local count=5`,
-		`fuel.get_insertable_count(stack)<count`,
+		// countPerTarget mode leaves topUpTo disabled and asks for the count.
+		`local top_up=-1`,
+		`local requested=count`,
+		// topUpTo mode asks for the shortfall against the target's own fuel.
+		`requested=top_up-fuel.get_item_count(stack)`,
+		`skipped=skipped+1`,
+		`elseif inv.get_item_count(stack)<requested then fail_at(i,"INVENTORY","actor lacks requested fuel"`,
+		`elseif fuel.get_insertable_count(stack)<requested then fail_at(i,"INVENTORY","fuel inventory cannot accept requested items"`,
 		`if inserted<removed then inv.insert{`,
 		`if false then fail_at(i,"REACH"`,
+		// one unit->entity index per surface and prototype name, not per target
+		`local function find_batch_entity(ref)`,
+		`local key=ref.surface..string.char(31)..ref.name`,
+		`local e,err=find_batch_entity(ref)`,
 	} {
 		if !strings.Contains(lua, want) {
 			t.Fatalf("fuelMany Lua missing %q\n%s", want, lua)
 		}
 	}
-	if strings.Count(lua, "locate_entity(") < 2 {
-		t.Fatalf("every target must resolve through the shared lookup:\n%s", lua)
+	if strings.Count(lua, "find_batch_entity(") < 2 {
+		t.Fatalf("every target must resolve through the cached batch lookup:\n%s", lua)
 	}
 }
 
@@ -105,7 +116,7 @@ func TestTransferManyDecodeAndLua(t *testing.T) {
 // would apply an action twice to one entity.
 func TestBatchActionValidation(t *testing.T) {
 	r := &Resolver{addr: "127.0.0.1:1", password: "password"}
-	many := make([]*EntityRefInput, batchMaxTargets+1)
+	many := make([]*EntityRefInput, maxBatchTargets+1)
 	for i := range many {
 		many[i] = &EntityRefInput{UnitNumber: new("5")}
 	}
@@ -121,11 +132,11 @@ func TestBatchActionValidation(t *testing.T) {
 		{"no targets", func() error {
 			_, err := fuelMany(r, FuelManyInput{Actor: actor, Item: "coal", CountPerTarget: 1})
 			return err
-		}, "targets must contain between 1 and 200"},
+		}, "targets must contain between 1 and 1000"},
 		{"too many targets", func() error {
 			_, err := transferMany(r, TransferManyInput{Actor: actor, Targets: many, Inventory: InventoryKindChest, Direction: TransferDirectionToEntity, Item: "iron-plate", CountPerTarget: 1})
 			return err
-		}, "targets must contain between 1 and 200"},
+		}, "targets must contain between 1 and 1000"},
 		{"duplicate unit", func() error {
 			_, err := fuelMany(r, FuelManyInput{Actor: actor, Targets: batchRefs("5", "6", "5"), Item: "coal", CountPerTarget: 1})
 			return err

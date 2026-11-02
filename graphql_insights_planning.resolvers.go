@@ -18,3 +18,8 @@ func (r *queryResolver) ItemFlow(ctx context.Context, input ItemFlowInput) (*Ite
 func (r *queryResolver) BillOfMaterials(ctx context.Context, input BillOfMaterialsInput) (*BillOfMaterials, error) {
 	return billOfMaterialsQuery(r.Resolver, input)
 }
+
+// ItemBalance is the resolver for the itemBalance field.
+func (r *queryResolver) ItemBalance(ctx context.Context, input ItemBalanceInput) (*ItemBalance, error) {
+	return itemBalanceQuery(r.Resolver, input)
+}

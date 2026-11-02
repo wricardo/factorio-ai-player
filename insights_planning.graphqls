@@ -1,39 +1,67 @@
 extend type Query {
   """
   Configured producers and consumers of one item or fluid for a force on a surface, from a single-tick snapshot of
-  assembling machines, furnaces, rocket silos and mining drills, optionally bounded by area and sorted by name,
-  position and unit number. Producers are machines whose current recipe or mining target yields the item; consumers
-  are machines whose recipe or mining target consumes it. Limit (1..1000) and zero-based offset slice each list
-  independently but with the same window, and producerPageInfo/consumerPageInfo each count their full pre-pagination
-  match set. Rates are theoretical expected base yields at
-  current machine speed — crafting_speed/recipe energy times the expected product amount, or mining_speed times
-  (1+speed_bonus)/mining_time — excluding productivity, quality upgrades, downtime, power or fuel shortages, blocked
-  output and depletion, so they are not observed throughput; infinite resources and uncomputable cases return null
-  theoreticalRatePerSecond with rateUnavailableReason. bufferedItems counts only the matching item in that role's
-  inventory (crafter input for consumers, output inventory for producers), never whole-machine or factory stock;
-  bufferedFluidAmount sums only role-compatible fluidbox contents and is null for items. status is the engine entity
-  status name; empty or unknown force/surface names, an item name that is neither an item nor fluid prototype, or
-  out-of-range limit/offset produce a GraphQL error, and empty lists mean no machine matched in the area.
+  assembling machines, furnaces, rocket silos and mining drills plus every burner entity, optionally bounded by area and
+  sorted by name, position and unit number. Producers are machines whose current, or for furnaces previous, recipe or
+  mining target yields the item; consumers are machines whose recipe or mining target consumes it, plus burner entities
+  that use the item as fuel. Limit (1..10000) and zero-based offset slice each list independently but with the same
+  window, and producerPageInfo/consumerPageInfo each count their full pre-pagination match set. Rates are theoretical
+  expected base yields at current machine speed — crafting_speed/recipe energy times the expected product amount, or
+  mining_speed times (1+speed_bonus)/mining_time — excluding productivity, quality upgrades, downtime, power or fuel
+  shortages, blocked output and depletion, so they are not observed throughput; infinite resources and uncomputable
+  cases return null theoreticalRatePerSecond with rateUnavailableReason. role marks RECIPE endpoints (recipe or mining
+  target based) and FUEL endpoints (burner fuel consumption); FUEL rows use
+  max_energy_usage*60*(1+consumption_bonus)/(fuel_value*effectivity) at full duty, an upper bound, and set rateBasis
+  FUEL_UPPER_BOUND. Furnaces whose current recipe is unset fall back to previous_recipe, reported with recipeSource
+  PREVIOUS and rateBasis IDLE_PREVIOUS_RECIPE_POTENTIAL because the reported rate is the idle furnace's potential, not
+  observed output; furnaces with neither recipe cannot be matched to an item and are absent. bufferedItems counts only
+  the matching item in that role's inventory (crafter input for recipe consumers, fuel inventory for FUEL consumers,
+  output inventory for producers), never whole-machine or factory stock; bufferedFluidAmount sums only role-compatible
+  fluidbox contents and is null for items. status is the engine entity status name; empty or unknown force/surface
+  names, an item name that is neither an item nor fluid prototype, or out-of-range limit/offset produce a GraphQL error,
+  and empty lists mean no machine matched in the area.
   """
   itemFlow(input: ItemFlowInput!): ItemFlow!
   """
   Deterministic recursive material plan for one item, quality and amount, computed in Go from a single snapshot of the
-  force's enabled recipe catalogue and an explicit stock source. FACTORY stock sums inventories of containers,
-  crafting machines (input, output, modules, trash and dump), furnaces, silos, labs, cargo wagons, car and spider
-  trunks, inserter hands, belt and loader lines and all fluidboxes inside the optional area, capped at 10000 entities
-  and 5000 enabled recipes; PLAYER stock is the named player's main inventory only, must exist on the requested force
-  and surface, and forbids area. Truncated stock, a truncated recipe catalogue or an unresolved recipe cycle makes
-  complete false, belt-line deduplication stops after one million comparisons with stockTruncated set, and mined raw
-  resources are not consumed by the plan. Recipes are matched by output item with exact-name recipes preferred over
-  lexicographic order, may be overridden per item (at most 1000, duplicates rejected), and are expanded depth-first
-  with maxDepth 1..128 and maxExpansions 1..10000; an exhausted expansion budget is reported as explicit unresolved
-  demand. availableStock/allocatedStock are one shared pool, so materials, steps, rawRequirements, seedRequirements
-  (catalysts needing initial stock) and unresolved together are an expected-value plan, not a globally optimal
-  schedule or a craftability, machine, energy or transport claim; probabilistic yields become expected values flagged
-  by probabilistic. Invalid amount (non-finite, non-positive or above 1e12), missing or inconsistent stock source,
-  unknown quality, unknown or ambiguous item/fluid prototype, or invalid override produce a GraphQL error.
+  force's recipe catalogue and an explicit stock source. FACTORY stock sums inventories of containers, crafting machines
+  (input, output, modules, trash and dump), furnaces, silos, labs, cargo wagons, car and spider trunks, inserter hands,
+  belt and loader lines and all fluidboxes inside the optional area, capped at 50000 entities and 20000 recipes; PLAYER
+  stock is the named player's main inventory only, must exist on the requested force and surface, and forbids area.
+  Truncated stock, a truncated recipe catalogue or an unresolved recipe cycle makes complete false, belt-line
+  deduplication stops after one million comparisons with stockTruncated set, and mined, gathered or fluid raw materials
+  are not consumed by the plan. The catalogue keeps enabled, non-hidden recipes only: recycling and parameter recipes are
+  excluded so a plan never satisfies demand with an item's own recycling recipe, and recipes that exist but are not
+  researched are reported as RECIPE_NOT_RESEARCHED instead of being planned. Recipes are matched by output item with
+  exact-name recipes preferred over lexicographic order, may be overridden per item (at most 1000, duplicates rejected),
+  and are expanded depth-first with maxDepth 1..512 and maxExpansions 1..100000; an exhausted expansion budget is
+  reported as explicit unresolved demand. availableStock/allocatedStock are one shared pool, so materials, steps,
+  rawRequirements, seedRequirements (catalysts needing initial stock) and unresolved together are an expected-value
+  plan, not a globally optimal schedule or a craftability, machine, energy or transport claim; probabilistic yields
+  become expected values flagged by probabilistic. Invalid amount (non-finite, non-positive or above 1e12), missing or
+  inconsistent stock source, unknown quality, unknown or ambiguous item/fluid prototype, or invalid override produce a
+  GraphQL error.
   """
   billOfMaterials(input: BillOfMaterialsInput!): BillOfMaterials!
+  """
+  One-call answer to "is this item short, and who starves", composing three reads: itemFlow for configured producers and
+  consumers of the item, the item and fluid flow statistics for the requested window, and the same item-filtered stock
+  scan as stock. producedPerMinute/consumedPerMinute are observed force flow statistics for the whole surface over the
+  window, not this factory block; theoreticalSupply/theoreticalDemand sum the itemFlow theoretical rates of every
+  producer and consumer and are potentials, not measurements; net is observed production minus observed consumption and
+  can differ in sign and magnitude from theoretical demand minus supply. stock totals every counted factory, ground,
+  belt and player inventory row for the item, grouped by stock category, and ignores fuel, modules and equipment exactly
+  like stock. producers and consumers come from the itemFlow scan without its pagination arguments: they are capped at
+  1000 rows each and truncated is true when either list was cut, so partial lists never look complete.
+  starvedConsumers holds only consumers that are short of this item: FUEL consumers whose fuel inventory holds none of
+  it, even if they are still burning stored fuel, or that report no_fuel, and RECIPE consumers reporting missing
+  ingredients or fuel. A consumer blocked on an unrelated condition (depleted resources, no power, full output,
+  disabled) is never listed just for that status, so a drill with coal in its fuel inventory cannot appear as starved. Burner FUEL rates are upper bounds
+  and idle furnaces contribute their previous-recipe potential, so theoretical demand can exceed observed consumption.
+  Empty, unknown or ambiguous force/surface/item names, an invalid window, or invalid area bounds produce a GraphQL
+  error; the query reads only engine state and emits no notification.
+  """
+  itemBalance(input: ItemBalanceInput!): ItemBalance!
 }
 
 input ItemFlowInput {
@@ -57,6 +85,11 @@ type ItemFlow {
   rateAssumptions: String!
 }
 
+"""RECIPE covers recipe- and mining-target-based endpoints; FUEL marks a burner that consumes the item as fuel."""
+enum ItemFlowRole { RECIPE FUEL }
+"""CURRENT is the recipe the machine holds now; PREVIOUS is an idle furnace's remembered recipe."""
+enum RecipeSource { CURRENT PREVIOUS }
+
 type ItemFlowEndpoint {
   unitNumber: UnitNumber
   name: String!
@@ -65,17 +98,72 @@ type ItemFlowEndpoint {
   force: String!
   position: Position!
   status: String!
+  """RECIPE for recipe or mining-target matches, FUEL for burner fuel consumption."""
+  role: ItemFlowRole!
   recipe: String
   recipeQuality: String
+  """CURRENT when the machine holds this recipe now, PREVIOUS when an idle furnace only remembers it, null for mining or fuel endpoints."""
+  recipeSource: RecipeSource
   miningTarget: String
   materialType: String!
-  """Matching item stacks in only this role's input/output inventory; never whole-factory stock."""
+  """Matching item stacks in only this role's input/output/fuel inventory; never whole-factory stock."""
   bufferedItems: [InventoryStack!]!
   """Matching fluid in role-compatible fluidboxes; null for items."""
   bufferedFluidAmount: Float
   """Expected units/second at current speed, excluding productivity and quality upgrades. Null when uncomputable, including infinite mining resources."""
   theoreticalRatePerSecond: Float
+  """Why the rate is an approximation rather than an instantaneous expectation: FUEL_UPPER_BOUND for burner fuel at full duty, IDLE_PREVIOUS_RECIPE_POTENTIAL for an idle furnace's remembered recipe. Null when the rate is the plain theoretical expectation."""
+  rateBasis: String
   rateUnavailableReason: String
+}
+
+"""Surface and force must be non-empty names of existing objects; item must be exactly one item or fluid prototype."""
+input ItemBalanceInput {
+  force: String! = "player"
+  surface: String! = "nauvis"
+  item: String!
+  """Flow-statistics window; ONE_MINUTE, TEN_MINUTES or ONE_HOUR."""
+  window: ProductionWindow! = ONE_MINUTE
+  """Optional finite bounds; left/top must not exceed right/bottom. Omit to scan the surface."""
+  area: FactoryAreaInput
+}
+
+type ItemBalance {
+  tick: Float!
+  force: String!
+  surface: String!
+  item: String!
+  window: ProductionWindow!
+  """Observed production for the whole surface and force over the window, from flow statistics."""
+  producedPerMinute: Float!
+  """Observed consumption for the whole surface and force over the window, from flow statistics."""
+  consumedPerMinute: Float!
+  """Sum of itemFlow producer rates times 60: a potential, not measured supply."""
+  theoreticalSupply: Float!
+  """Sum of itemFlow consumer rates times 60: a potential upper bound, not measured demand."""
+  theoreticalDemand: Float!
+  """producedPerMinute minus consumedPerMinute, from observed statistics only."""
+  net: Float!
+  stock: ItemBalanceStock!
+  producers: [ItemFlowEndpoint!]!
+  consumers: [ItemFlowEndpoint!]!
+  """Consumers that are short of this item specifically: FUEL consumers whose fuel inventory holds none of it or that report no_fuel, and RECIPE consumers reporting missing ingredients or fuel. Consumers blocked on an unrelated condition such as no_minable_resources, no_power or full_output are excluded unless their own inventory for this item is empty."""
+  starvedConsumers: [ItemFlowEndpoint!]!
+  """True when producers or consumers were cut at the 1000-row scan limit, so the lists are partial."""
+  truncated: Boolean!
+  assumptions: String!
+}
+
+type ItemBalanceStock {
+  """Sum of every counted stock row for the item, independent of pagination."""
+  total: Float!
+  byCategory: [ItemBalanceCategory!]!
+}
+
+type ItemBalanceCategory {
+  """Stock category name: stored, in-transit, ground, player or worker."""
+  category: String!
+  count: Float!
 }
 
 enum BOMStockSource { FACTORY PLAYER }
@@ -83,7 +171,7 @@ input BOMStockInput {
   source: BOMStockSource!
   """Required only for PLAYER. Main inventory only, same force and surface required."""
   player: String
-  """Optional FACTORY scan bounds, at most 256 tiles per side."""
+  """Optional FACTORY scan bounds, at most 1024 tiles per side."""
   area: FactoryAreaInput
 }
 input BOMRecipeOverrideInput { item: String! recipe: String! }
@@ -96,9 +184,9 @@ input BillOfMaterialsInput {
   quality: String! = "normal"
   stock: BOMStockInput!
   recipeOverrides: [BOMRecipeOverrideInput!]
-  """1..128 dependency levels."""
+  """1..512 dependency levels."""
   maxDepth: Int! = 64
-  """1..10000 recursive allocations. Exhaustion is explicit unresolved demand."""
+  """1..100000 recursive allocations. Exhaustion is explicit unresolved demand."""
   maxExpansions: Int! = 2000
 }
 
@@ -157,5 +245,6 @@ type BOMRequirement {
   materialType: String!
   quality: String!
   amount: Float!
+  """MINED_RAW (resource entity), GATHERED_RAW (tree, plant, simple-entity, fish or asteroid-chunk), RAW_FLUID (fluid with no recipe), RECIPE_NOT_RESEARCHED (a non-hidden recipe exists but is disabled), NO_ENABLED_RECIPE (nothing enabled produces it), or an explicit plan bound such as RECIPE_CYCLE, EXPANSION_LIMIT, CATALYST_SEED_MISSING, FLUID_TEMPERATURE_NOT_PLANNED, INVALID_RECIPE_YIELD or NUMERIC_BOUND_EXCEEDED."""
   reason: String!
 }

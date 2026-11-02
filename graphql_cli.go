@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -126,14 +127,32 @@ func runGraphQLOperation(c *cli.Context, exec *gqlcli.InlineExecutor, out io.Wri
 		return err
 	}
 	if errs, ok := result["errors"].([]interface{}); ok && len(errs) > 0 {
-		messages := make([]string, 0, len(errs))
-		for _, entry := range errs {
-			if e, ok := entry.(map[string]interface{}); ok {
-				messages = append(messages, fmt.Sprint(e["message"]))
+		// A nested failure keeps every sibling that did resolve, so print the
+		// partial data before failing; dropping it turns one bad row into a
+		// lost page.
+		if partial, ok := graphqlPartialData(result); ok {
+			if err := writeGraphQLResult(c, out, partial); err != nil {
+				return err
 			}
 		}
-		return fmt.Errorf("GraphQL: %s", strings.Join(messages, "; "))
+		return fmt.Errorf("GraphQL: %s", graphqlErrorSummary(errs))
 	}
+	return writeGraphQLResult(c, out, result)
+}
+
+// graphqlPartialData returns the data document to print when a response also
+// carries errors. A null data field means nothing resolved, so there is nothing
+// to print and the caller only reports the errors.
+func graphqlPartialData(result map[string]interface{}) (map[string]interface{}, bool) {
+	data, ok := result["data"]
+	if !ok || data == nil {
+		return nil, false
+	}
+	return map[string]interface{}{"data": data}, true
+}
+
+// writeGraphQLResult formats and writes a response document as requested.
+func writeGraphQLResult(c *cli.Context, out io.Writer, result map[string]interface{}) error {
 	formatter, err := gqlcli.NewFormatterRegistry().Get(c.String("format"))
 	if err != nil {
 		return err
@@ -147,6 +166,46 @@ func runGraphQLOperation(c *cli.Context, exec *gqlcli.InlineExecutor, out io.Wri
 	}
 	_, err = fmt.Fprintln(out, text)
 	return err
+}
+
+// graphqlErrorSummary renders one message per error, each prefixed with its
+// response path so a failure names the field or list row that failed instead of
+// an unattributed message.
+func graphqlErrorSummary(errs []interface{}) string {
+	messages := make([]string, 0, len(errs))
+	for _, entry := range errs {
+		e, ok := entry.(map[string]interface{})
+		if !ok {
+			messages = append(messages, fmt.Sprint(entry))
+			continue
+		}
+		message := fmt.Sprint(e["message"])
+		if path := graphqlErrorPath(e["path"]); path != "" {
+			message = path + ": " + message
+		}
+		messages = append(messages, message)
+	}
+	return strings.Join(messages, "; ")
+}
+
+// graphqlErrorPath renders an error path array as GraphQL-style segments.
+func graphqlErrorPath(value interface{}) string {
+	items, ok := value.([]interface{})
+	if !ok || len(items) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		switch v := item.(type) {
+		case string:
+			parts = append(parts, v)
+		case float64:
+			parts = append(parts, strconv.Itoa(int(v)))
+		default:
+			parts = append(parts, fmt.Sprint(v))
+		}
+	}
+	return strings.Join(parts, ".")
 }
 
 func listGraphQLTypes(c *cli.Context, exec *gqlcli.InlineExecutor, out io.Writer) error {

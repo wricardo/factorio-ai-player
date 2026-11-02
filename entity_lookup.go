@@ -16,6 +16,10 @@ func entityByUnitNumber(r *Resolver, unitNumber, surface string) (*Entity, error
 	return entityByRef(r, EntityRefInput{UnitNumber: &unitNumber, Surface: &surface})
 }
 
+// entityLua reads one entity by unit number or by name and center position.
+// The unit-number fallback excludes entity types that never carry a unit
+// number, so the scan does not build a table of every tree, rock, resource and
+// item-on-ground on the surface.
 func entityLua(args []string, out io.Writer) (string, error) {
 	fs := flag.NewFlagSet("entity", flag.ContinueOnError)
 	fs.SetOutput(out)
@@ -34,17 +38,14 @@ func entityLua(args []string, out io.Writer) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf(luaFail+`local unit,name,surface_name=%d,%s,%s
+	return fmt.Sprintf(luaFail+luaUnitNumberEntityTypes+`local unit,name,surface_name=%d,%s,%s
 local position={x=%s,y=%s}
 local e
 if unit~=0 then
   e=game.get_entity_by_unit_number(unit)
   if not e then
     local s=game.surfaces[surface_name]; if not s then fail("surface not found"); return end
-    local filter={}; if name~="" then filter.name=name end
-    for _,candidate in pairs(s.find_entities_filtered(filter)) do
-      if candidate.unit_number==unit then e=candidate; break end
-    end
+    e=find_entity_by_unit_number(s,unit,name)
   end
   if e and name~="" and e.name~=name then fail("entity name does not match unit number"); return end
 else

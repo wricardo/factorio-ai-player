@@ -312,10 +312,10 @@ func TestSetNameTagLua(t *testing.T) {
 
 func TestSetArithmeticCombinatorParameters(t *testing.T) {
 	fake := newFakeRCON(t,
-		`{"tick":16,"surface":"nauvis","name":"arithmetic-combinator","position":{"x":2.5,"y":3.5},"combinator_parameters":{"arithmetic":{"first_signal":{"type":"item","name":"iron-plate","quality":"normal"},"second_constant":2,"operation":"*","output_signal":{"type":"virtual","name":"signal-A"}}}}`,
+		`{"tick":16,"surface":"nauvis","name":"arithmetic-combinator","position":{"x":2.5,"y":3.5},"combinator_parameters":{"arithmetic":{"first_signal":{"type":"ITEM","name":"iron-plate","quality":"normal"},"second_constant":2,"operation":"*","output_signal":{"type":"VIRTUAL","name":"signal-A"}}}}`,
 		`""`,
 	)
-	item, virtual := "item", "virtual"
+	item, virtual := SignalTypeItem, SignalTypeVirtual
 	result, err := setCombinatorParameters(fake.resolver, SetCombinatorParametersInput{
 		Actor:  &ActorInput{Character: new("4")},
 		Target: &EntityRefInput{Entity: new("arithmetic-combinator"), Position: &PositionInput{X: 2.5, Y: 3.5}},
@@ -342,12 +342,12 @@ func TestSetArithmeticCombinatorParameters(t *testing.T) {
 
 func TestSetCombinatorParametersGraphQLSurface(t *testing.T) {
 	fake := newFakeRCON(t,
-		`{"tick":16,"surface":"nauvis","force":"player","name":"arithmetic-combinator","position":{"x":2.5,"y":3.5},"combinator_parameters":{"arithmetic":{"first_signal":{"type":"item","name":"iron-plate"},"second_constant":2,"operation":"*","output_signal":{"type":"virtual","name":"signal-A"}}}}`,
+		`{"tick":16,"surface":"nauvis","force":"player","name":"arithmetic-combinator","position":{"x":2.5,"y":3.5},"combinator_parameters":{"arithmetic":{"first_signal":{"type":"ITEM","name":"iron-plate"},"second_constant":2,"operation":"*","output_signal":{"type":"VIRTUAL","name":"signal-A"}}}}`,
 		`""`,
 	)
 	server := httptest.NewServer(newGraphQLHandler(newGraphQLSchema(fake.resolver.addr, "password")))
 	defer server.Close()
-	body := `{"query":"mutation { setCombinatorParameters(input: {actor: {character: \"4\"}, target: {entity: \"arithmetic-combinator\", position: {x: 2.5, y: 3.5}}, parameters: {arithmetic: {firstSignal: {name: \"iron-plate\"}, secondConstant: 2, operation: \"*\", outputSignal: {type: \"virtual\", name: \"signal-A\"}}}}) { tick surface force actor { player character } name combinatorParameters { arithmetic { operation secondConstant firstSignal { type name } outputSignal { type name } } } } }"}`
+	body := `{"query":"mutation { setCombinatorParameters(input: {actor: {character: \"4\"}, target: {entity: \"arithmetic-combinator\", position: {x: 2.5, y: 3.5}}, parameters: {arithmetic: {firstSignal: {name: \"iron-plate\"}, secondConstant: 2, operation: \"*\", outputSignal: {type: VIRTUAL, name: \"signal-A\"}}}}) { tick surface force actor { player character } name combinatorParameters { arithmetic { operation secondConstant firstSignal { type name } outputSignal { type name } } } } }"}`
 	reply, err := http.Post(server.URL+graphqlPath, "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)

@@ -1,5 +1,5 @@
 extend type Mutation {
-  """Drops items from the acting character's main inventory either as a ground stack or into a transport belt's line at a position, so belt lines can be seeded without an inserter. The actor must have a main inventory, item and quality (default normal) must exist as prototypes, count must be an integer from 1 through 4294967295 and no larger than the inventory holds, and the actor must be standing on the named surface; the position snaps to the containing tile's centre before any reach or placement decision. A GROUND drop refuses a tile occupied by a belt, splitter, loader or linked belt instead of letting the belt swallow the stack, spills with allow_belts disabled, and treats an empty spill result as a hard failure, so a failed drop leaves the actor inventory untouched. A BELT drop requires a transport-belt or linked-belt on that tile, uses its insert specification and can_insert_at check, inserts into line 1 or 2 and returns that line (0 for ground drops); if the belt rejects the stack the items are returned to the actor. Reach uses build distance and is enforced only when FACTORIO_ENFORCE_REACH is on. The result reports the snapped position, requested and moved counts, and success announces a generated summary unless message overrides it."""
+  """Drops items from the acting character's main inventory either as a ground stack or into a transport belt's line at a position, so belt lines can be seeded without an inserter. The actor must have a main inventory, item and quality (default normal) must exist as prototypes, count must be an integer from 1 through 4294967295 and no larger than the inventory holds, and the actor must be standing on the named surface; the position snaps to the containing tile's centre before any reach or placement decision. A GROUND drop refuses a tile occupied by a belt, splitter, loader or linked belt instead of letting the belt swallow the stack, spills the whole stack as one item-on-ground entity with allow_belts disabled and no force, so the dropped items are never marked for deconstruction, and treats an empty spill result as a hard failure, so a failed drop leaves the actor inventory untouched; groundPositions reports the items actually created. A BELT drop requires a transport-belt or linked-belt on that tile, uses its insert specification, and inserts one item at a time into line 1 or 2 because the engine caps one insert_at call at a single belt stack: moved is the count the line really accepted, remaining counts the items that stayed in the inventory, and a tile that accepts nothing is a hard failure. Reach uses build distance and is enforced only when FACTORIO_ENFORCE_REACH is on. Success announces a generated summary unless message overrides it."""
   dropItem(input: DropItemInput!): DropItemResult!
 }
 
@@ -30,8 +30,13 @@ type DropItemResult {
   item: String!
   quality: String!
   requested: Float!
+  """Items the belt really accepted, or the whole stack for a ground drop."""
   moved: Float!
+  """Items that did not move and therefore stayed in the actor's inventory."""
+  remaining: Float!
   position: Position!
+  """Item-on-ground entities created by a ground drop; empty for a belt drop."""
+  groundPositions: [Position!]!
   """Transport line (1 or 2) that received the items; zero for a ground drop."""
   line: Int!
 }

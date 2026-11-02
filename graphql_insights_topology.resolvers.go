@@ -10,14 +10,14 @@ import (
 )
 
 // BeltRuns is the resolver for the beltRuns field.
-func (r *inspectionLogisticsResolver) BeltRuns(ctx context.Context, obj *InspectionLogistics, maxEntities int) ([]*BeltRun, error) {
-	return inspectionBeltRuns(r.Resolver, obj, maxEntities)
+func (r *inspectionLogisticsResolver) BeltRuns(ctx context.Context, obj *InspectionLogistics, maxEntities int, includeLineLinks bool) ([]*BeltRun, error) {
+	return inspectionBeltRuns(r.Resolver, obj, maxEntities, includeLineLinks)
 }
 
 // BeltRun is the resolver for the beltRun field.
-func (r *queryResolver) BeltRun(ctx context.Context, target EntityRefInput, maxEntities int) (*BeltRun, error) {
+func (r *queryResolver) BeltRun(ctx context.Context, target EntityRefInput, maxEntities int, includeLineLinks bool) (*BeltRun, error) {
 	surface, _, unitNumber, x, y := entityRefFields(&target)
-	return beltRunQuery(r.Resolver, stringValueOr(surface, "nauvis"), x, y, unitNumber, maxEntities)
+	return beltRunQuery(r.Resolver, stringValueOr(surface, "nauvis"), x, y, unitNumber, maxEntities, includeLineLinks)
 }
 
 // BeltStretch is the resolver for the beltStretch field.
@@ -27,13 +27,13 @@ func (r *queryResolver) BeltStretch(ctx context.Context, target EntityRefInput, 
 }
 
 // FactoryGraph is the resolver for the factoryGraph field.
-func (r *queryResolver) FactoryGraph(ctx context.Context, area FactoryAreaInput, force string, surface string) (*FactoryGraph, error) {
-	return factoryGraphQuery(r.Resolver, &area, force, surface)
+func (r *queryResolver) FactoryGraph(ctx context.Context, area FactoryAreaInput, force string, surface string, compact bool, includeLineLinks bool) (*FactoryGraph, error) {
+	return factoryGraphQuery(r.Resolver, &area, force, surface, compact, includeLineLinks)
 }
 
 // Adjacency is the resolver for the adjacency field.
-func (r *queryResolver) Adjacency(ctx context.Context, area FactoryAreaInput, force string, surface string, tolerance float64, limit int) (*AdjacencyGraph, error) {
-	return adjacencyQuery(r.Resolver, &area, force, surface, tolerance, limit)
+func (r *queryResolver) Adjacency(ctx context.Context, area FactoryAreaInput, force string, surface string, tolerance float64, limit int, kinds []string, onlyUnconnected bool) (*AdjacencyGraph, error) {
+	return adjacencyQuery(r.Resolver, &area, force, surface, tolerance, limit, kinds, onlyUnconnected)
 }
 
 // BeltComponents is the resolver for the beltComponents field.

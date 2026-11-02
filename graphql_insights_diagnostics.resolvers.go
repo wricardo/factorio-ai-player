@@ -9,11 +9,6 @@ import (
 	"context"
 )
 
-// Diagnostics is the resolver for the diagnostics field.
-func (r *factoryMachineResolver) Diagnostics(ctx context.Context, obj *FactoryMachine) (*MachineDiagnostics, error) {
-	return machineDiagnosticsQuery(r.Resolver, obj)
-}
-
 // InserterSettings is the resolver for the inserterSettings field.
 func (r *logisticsEndpointResolver) InserterSettings(ctx context.Context, obj *LogisticsEndpoint) (*InserterSettings, error) {
 	return inserterSettingsQuery(r.Resolver, obj)

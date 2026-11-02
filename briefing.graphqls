@@ -1,6 +1,63 @@
 extend type Query {
-  """One bounded, read-only attention snapshot for one surface and force. It composes the existing production, machine, power, research (force-wide), safety, construction-order/ghost, and stock reads, each in its own RCON call, so every section reports the tick it was read at and sections can differ by a few ticks; nothing is stored and no strategy is recommended. Validation runs before any read: surface and force must be non-empty and name existing objects, area when given must have positive dimensions of at most 256 tiles per side and bounds every spatial section, window must be a valid ProductionWindow, attentionLimit is 1..100, and watchItems holds at most 20 distinct items with finite positive minima. Sections needing omitted inputs are skipped and named in warnings (ghosts need an area, stock needs watchItems), as are bounded scans: machine attention covers the first 3000 machines, power sums the first 1000 networks, and ghostsBuildable the first 1000 ghosts, with null ghost counts when no area was given. Any section error aborts the whole query instead of returning a partial briefing. attention is sorted by severity, then kind, position, and entity name, and cut to attentionLimit, while attentionTotal and attentionCounts report the full scan; per-entity kinds carry entity, position, and unit number while aggregate kinds carry only a count, stockouts list watched items below their minimum with actorHas filled only when an actor was given, and a null stockTick marks the skipped stock section."""
+  """One bounded, read-only attention snapshot for one surface and force. It composes the existing production, status-alert, power, research (force-wide), safety, construction-order/ghost, and stock reads, each in its own RCON call, so every section reports the tick it was read at and sections can differ by a few ticks; nothing is stored and no strategy is recommended. Validation runs before any read: surface and force must be non-empty and name existing objects, area when given must have positive dimensions of at most 1024 tiles per side and bounds every spatial section; when area is omitted the ghost backlog is read over the whole surface rather than skipped, window must be a valid ProductionWindow, attentionLimit is 1..100, and watchItems holds at most 20 distinct items with finite positive minima. Machine attention now comes from one factoryAlerts scan over every status-bearing force entity (crafting machines, boilers, generators, steam engines, inserters, turrets, reactors, radars, mining drills, labs, and so on), so inserter, turret and boiler faults surface too and there is no machine-count cap; the scan lists at most 1000 unhealthy rows while attentionCounts and attentionTotal always cover the whole scan, and that limit is named in warnings when it bites. Sections needing omitted inputs are skipped and named in warnings (stock needs watchItems), and bounded scans are named too: power sums the first 1000 networks and ghostsBuildable the first 1000 ghosts. watchItems costs one stock scan and one actor inventory read regardless of how many items are watched. Any section error aborts the whole query instead of returning a partial briefing. attention is sorted by severity, then kind, position, and entity name, and cut to attentionLimit, while attentionTotal and attentionCounts report the full scan; per-entity kinds carry entity, position, and unit number while aggregate kinds carry only a count, stockouts list watched items below their minimum with actorHas filled only when an actor was given, and a null stockTick marks the skipped stock section. ENEMY attention is classified only inside an explicit area: without one the surface-wide hostile count is named in warnings instead of being counted as CRITICAL attention."""
   factoryBriefing(input: FactoryBriefingInput!): FactoryBriefing!
+  """One-call status scan of every status-bearing entity of one force, returning only the unhealthy rows plus crafting-machine summaries. surface and force must be non-empty and name existing objects; area optionally bounds the scan (positive dimensions of at most 1024 tiles per side); kinds, when non-empty, keeps only those AttentionKinds that this status scan can produce (kinds owned by other reads, such as ENEMY, NO_RESEARCH, GHOST_BACKLOG, DECONSTRUCTION and LOW_STOCK, are rejected instead of silently matching nothing); limit is 1 through 10000 and caps the rows, not the counts. Every defines.entity_status value is either classified as a healthy/transient state (working, normal, charging, waiting for a train, and similar) or mapped to an AttentionKind, so boilers with no_fuel, unpowered inserters, turrets with no_ammo, depleted drills (no_minable_resources), reactors with full_burnt_result_output, radars without power and every other status-bearing type are covered in one Lua scan instead of paged crafting-machine reads. Rows are ordered by severity, then kind, then distance from basePosition (the area center, or the force spawn when no area is given) and carry the raw engine status, name, type, position, unit number, direction and a short suggestedAction; attentionCounts reports per-kind counts over the whole scan and total is the pre-limit row count. scanned counts status-bearing entities visited. This is a read: nothing is stored, repaired or changed."""
+  factoryAlerts(input: FactoryAlertsInput!): FactoryAlerts!
+}
+
+"""Surface and force must name existing objects. area, when given, must have positive dimensions of at most 1024 tiles per side and bounds the scan. kinds keeps only the listed kinds. limit is 1 through 10000 and caps the rows returned, while attentionCounts and total always cover the whole scan."""
+input FactoryAlertsInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  area: FactoryAreaInput
+  kinds: [AttentionKind!] = []
+  limit: Int! = 100
+}
+
+"""One unhealthy entity. status is the raw engine defines.entity_status name, direction is the engine direction code when the entity exposes one, and suggestedAction is a short next step for its kind. kind and severity match the briefing classification."""
+type FactoryAlert {
+  kind: AttentionKind!
+  severity: AttentionSeverity!
+  status: String!
+  name: String!
+  type: String!
+  position: Position!
+  unitNumber: UnitNumber
+  direction: Int
+  suggestedAction: String!
+  """Cause refined beyond the engine status: DESTINATION_BAR_LIMITED when an inserter waits for space in a drop target whose bar leaves no usable slot; null when the status alone explains the block."""
+  cause: String
+  """Drop target read for a waiting inserter; null when the entity is not an inserter, the status is not waiting_for_space_in_destination, or the target exposes no container inventory."""
+  destination: AlertDestination
+}
+
+"""Container an inserter waits to fill."""
+type AlertDestination {
+  name: String!
+  type: String!
+  unitNumber: UnitNumber
+  position: Position!
+  """Inventory bar index; 0 means no slot is barred."""
+  bar: Int!
+  """Slots still free for items: bar-1 when bar>0, otherwise the inventory size."""
+  usableSlots: Int!
+}
+
+type FactoryAlerts {
+  tick: Float!
+  surface: String!
+  force: String!
+  area: WorldArea
+  """Status-bearing entities the scan visited, healthy or not."""
+  scanned: Int!
+  """Unhealthy entities found before the limit cut."""
+  total: Int!
+  """Rows ordered by severity, kind, distance from the area center (or force spawn) and position; cut to limit."""
+  alerts: [FactoryAlert!]!
+  """Per-kind counts over the whole scan, independent of limit and kinds."""
+  attentionCounts: [AttentionCount!]!
+  """Crafting-machine summaries on the shared MachineSummary shape; machines outside those types appear only in alerts."""
+  machines: [MachineSummary!]!
 }
 
 """One item whose factory-wide stock must stay at or above a minimum."""
@@ -10,7 +67,7 @@ input BriefingWatchItemInput {
   minimum: FiniteFloat! = 1
 }
 
-"""Surface and force must name existing objects. area, when given, must have positive dimensions of at most 256 tiles per side and bounds machines, power networks, safety, ghosts, construction orders and stock; omit it to scan the whole surface (ghosts are then skipped). attentionLimit is 1 through 100. watchItems holds at most 20 distinct items."""
+"""Surface and force must name existing objects. area, when given, must have positive dimensions of at most 1024 tiles per side and bounds machines, power networks, safety, ghosts, construction orders and stock; omit it to scan the whole surface, including the whole ghost backlog. attentionLimit is 1 through 1000. watchItems holds at most 100 distinct items."""
 input FactoryBriefingInput {
   surface: String! = "nauvis"
   force: String! = "player"
@@ -25,16 +82,21 @@ input FactoryBriefingInput {
 enum AttentionKind {
   NO_FUEL
   NO_POWER
+  NO_AMMO
   NO_INGREDIENTS
+  NO_RESOURCES
   OUTPUT_FULL
   NO_RECIPE
   NO_RESEARCH
+  LOW_TEMPERATURE
+  BLOCKED
   ENEMY
   DAMAGED
   GHOST_BACKLOG
   DECONSTRUCTION
   LOW_STOCK
   FLUID_SHORTAGE
+  DISABLED
 }
 
 """Classification of an attention kind, not a recommended action: CRITICAL stops output or threatens loss, WARNING degrades it, INFO is queued work."""
@@ -68,14 +130,24 @@ type BriefingResearch {
   queue: [String!]!
 }
 
-"""Sums over every electric network represented by a pole in the scope. productionWatts and consumptionWatts are the engine's one-minute averages."""
+"""Sums over every electric network represented by a pole in the scope. productionWatts and consumptionWatts are the engine's one-minute averages. capacityWatts is the summed theoretical maximum production of the networks' generators (a lower bound for the whole networks, not observed output), so headroom is visible; satisfaction is consumptionWatts divided by capacityWatts and is 0 when the area exposes no generating capacity, so a value near 1 means the observed load is at the observed capacity and a value above 1 means demand outruns it. accumulatorChargeJoules and accumulatorCapacityJoules sum the stored energy and buffer capacity of accumulators on those networks, and lowPowerConsumers counts entities on them whose engine status is low_power."""
 type BriefingPower {
   networks: Int!
   productionWatts: Float!
   consumptionWatts: Float!
+  """Summed theoretical maximum production of the networks' generators in watts; 0 when the area exposes no producers."""
+  capacityWatts: Float!
+  """consumptionWatts / capacityWatts; 0 when capacityWatts is 0, above 1 when observed load exceeds observed capacity."""
+  satisfaction: Float!
+  """Summed accumulator stored energy in joules."""
+  accumulatorChargeJoules: Float!
+  """Summed accumulator buffer capacity in joules."""
+  accumulatorCapacityJoules: Float!
+  """Entities on those networks whose engine status is low_power."""
+  lowPowerConsumers: Int!
 }
 
-"""Ghost counts are null when no area was given. ghostsBuildable counts ghosts whose placement material is in observed stock in the area, over the first 1000 ghosts."""
+"""Ghosts of the force in the section's scope: the whole surface when no area was given, otherwise the area. ghostsBuildable counts ghosts whose placement material is in observed stock in the same scope, over the first 1000 ghosts."""
 type BriefingConstruction {
   ghosts: Int
   ghostsBuildable: Int
@@ -105,6 +177,7 @@ type FactoryBriefing {
   """Null when no watchItems were supplied."""
   stockTick: Float
   production: [ProductionItem!]!
+  """Crafting-machine summaries from the same factoryAlerts status scan (assembling machines, furnaces, mining drills, labs, rocket silos). Every other status-bearing type appears in attention instead."""
   machines: [MachineSummary!]!
   """Highest severity first, then by kind, position and name; cut to attentionLimit."""
   attention: [AttentionItem!]!

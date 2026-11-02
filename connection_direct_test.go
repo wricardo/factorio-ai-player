@@ -1,0 +1,176 @@
+package main
+
+import (
+	"os/exec"
+	"strings"
+	"testing"
+)
+
+// directPlanHarness runs the DIRECT plan Lua against a fake surface so the
+// side-load, belt-feed and fluid-port rules are executed, not just grepped. The
+// live integration suite stays responsible for the real engine API surface.
+func directPlanHarness(t *testing.T, kind ConnectionKind, item string, from, to *PositionInput, allowBeltAdjacency bool, fixture string, assertion string) {
+	t.Helper()
+	lua, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("standalone Lua interpreter not installed")
+	}
+	body := fixture + connectionLuaPreamble("nauvis", "player", item, from, to, kind, ConnectionBendAuto, false, allowBeltAdjacency) + connectionLuaHelpers + assertion
+	cmd := exec.Command(lua, "-")
+	cmd.Stdin = strings.NewReader(body)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("direct plan harness: %v\n%s", err, output)
+	}
+}
+
+// The fixture surface answers tile queries from a list of entities, exactly like
+// the engine does for the DIRECT checks.
+const directPlanFixture = `
+local world,blocked={},{}
+local function box(cx,cy,size)
+  local half=(size or 1)/2
+  return {left_top={x=cx-half,y=cy-half},right_bottom={x=cx+half,y=cy+half}}
+end
+local function belt(x,y,direction,name)
+  local e={valid=true,type="transport-belt",name=name or "transport-belt",direction=direction,bounding_box=box(x,y)}
+  world[#world+1]=e
+  return e
+end
+local function fluid_port(x,y,kind,connections)
+  local e={valid=true,type=kind,name=kind,direction=0,bounding_box=box(x,y,2)}
+  local fluidbox={true}
+  fluidbox.get_pipe_connections=function() return connections end
+  e.fluidbox=fluidbox
+  world[#world+1]=e
+  return e
+end
+local surface={name="nauvis",index=1}
+surface.find_entities_filtered=function(spec)
+  local out={}
+  local x1,y1,x2,y2
+  if spec.area then
+    local a=spec.area
+    if a.left_top then x1,y1,x2,y2=a.left_top.x,a.left_top.y,a.right_bottom.x,a.right_bottom.y
+    else x1,y1,x2,y2=a[1][1],a[1][2],a[2][1],a[2][2] end
+  elseif spec.position then
+    x1,y1,x2,y2=spec.position.x,spec.position.y,spec.position.x,spec.position.y
+  end
+  for _,e in ipairs(world) do
+    local bb=e.bounding_box
+    -- Strict overlap: an entity whose box only touches the query edge is not in
+    -- the tile, which is how the engine answers tile-sized area queries.
+    if bb.left_top.x<x2 and bb.right_bottom.x>x1 and bb.left_top.y<y2 and bb.right_bottom.y>y1 then out[#out+1]=e end
+  end
+  return out
+end
+surface.can_place_entity=function(spec)
+  local key=tostring(math.floor(spec.position.x))..":"..tostring(math.floor(spec.position.y))
+  return blocked[key]~=true
+end
+surface.get_tile=function() return {valid=true,name="grass-1",prototype={collision_mask={layers={}}}} end
+defines={build_check_type={manual="manual",script="script",player="player"}}
+game={tick=1,surfaces={nauvis=surface},forces={player={name="player"}}}
+local function place_result(kind)
+  return {place_result={type=kind,name=kind}}
+end
+prototypes={item={["transport-belt"]=place_result("transport-belt"),["pipe"]=place_result("pipe"),["medium-electric-pole"]=place_result("electric-pole")}}
+captured=nil
+helpers={table_to_json=function() return "" end}
+rcon={print=function(text) captured=text end}
+`
+
+const directPlanCapture = `
+rcon.print(helpers.table_to_json{possible=(#chosen.conflicts==0),needed=chosen.needed,steps=chosen.steps,conflicts=chosen.conflicts})
+`
+
+// Connecting a new run into the side of an existing belt is a normal side-load,
+// so the goal tile keeps its own direction instead of reporting a mismatch.
+func TestDirectPlanSideLoadsGoalBelt(t *testing.T) {
+	fixture := directPlanFixture + `
+belt(2.5,0.5,0,"transport-belt")
+`
+	assertion := directPlanCapture + `
+assert(#chosen.conflicts==0,"side-loading must not conflict: "..tostring(chosen.conflicts[1] and chosen.conflicts[1].kind))
+local last=chosen.steps[#chosen.steps]
+assert(last.existing,"the goal belt must be reused")
+assert(last.direction==0,"the goal keeps its own direction, got "..tostring(last.direction))
+`
+	y := 0.0
+	directPlanHarness(t, ConnectionKindBelt, "transport-belt", &PositionInput{X: 0, Y: y}, &PositionInput{X: 2, Y: y}, false, fixture, assertion)
+}
+
+// A goal belt facing the arrival head-on can never connect, so it stays a typed
+// mismatch instead of being silently reused.
+func TestDirectPlanRejectsHeadOnGoalBelt(t *testing.T) {
+	fixture := directPlanFixture + `
+belt(2.5,0.5,12,"transport-belt")
+`
+	assertion := directPlanCapture + `
+assert(#chosen.conflicts==1 and chosen.conflicts[1].kind=="DIRECTION_MISMATCH",tostring(chosen.conflicts[1] and chosen.conflicts[1].kind))
+`
+	y := 0.0
+	directPlanHarness(t, ConnectionKindBelt, "transport-belt", &PositionInput{X: 0, Y: y}, &PositionInput{X: 2, Y: y}, false, fixture, assertion)
+}
+
+// A foreign belt pointing into a new route tile side-loads its own items, so the
+// plan refuses that tile unless the caller accepts the merge.
+func TestDirectPlanRejectsForeignBeltFeed(t *testing.T) {
+	fixture := directPlanFixture + `
+-- A belt above the middle tile, facing south into it.
+belt(1.5,-0.5,8,"transport-belt")
+`
+	y := 0.0
+	assertion := directPlanCapture + `
+local found=false
+for _,conflict in ipairs(chosen.conflicts) do
+  if conflict.kind=="BELT_ADJACENCY" then found=true end
+end
+assert(found,"a foreign belt feeding the route must be reported")
+assert(chosen.needed>0)
+`
+	directPlanHarness(t, ConnectionKindBelt, "transport-belt", &PositionInput{X: 0, Y: y}, &PositionInput{X: 2, Y: y}, false, fixture, assertion)
+
+	allowed := `
+local found=false
+for _,conflict in ipairs(chosen.conflicts) do
+  if conflict.kind=="BELT_ADJACENCY" then found=true end
+end
+assert(not found,"allowBeltAdjacency must accept the merge")
+`
+	directPlanHarness(t, ConnectionKindBelt, "transport-belt", &PositionInput{X: 0, Y: y}, &PositionInput{X: 2, Y: y}, true, fixture, allowed+directPlanCapture)
+}
+
+// A machine with a fluid port next to a pipe route joins that network, so the
+// plan reports FLUID_ADJACENCY even though the entity type is not pipe-like.
+func TestDirectPlanDetectsFluidPortMachines(t *testing.T) {
+	fixture := directPlanFixture + `
+-- Not a pipe-like type: only its fluidbox says it joins a fluid network.
+fluid_port(1.5,-0.5,"custom-port-machine",{})
+`
+	assertion := directPlanCapture + `
+local found=false
+for _,conflict in ipairs(chosen.conflicts) do
+  if conflict.kind=="FLUID_ADJACENCY" then found=true end
+end
+assert(found,"a fluid-port machine must count as pipe-like")
+`
+	y := 0.0
+	directPlanHarness(t, ConnectionKindPipe, "pipe", &PositionInput{X: 0, Y: y}, &PositionInput{X: 2, Y: y}, false, fixture, assertion)
+}
+
+// The fluid-port predicate follows the engine's connection targets: a port that
+// reports connections to other tiles is not pipe-like on this one.
+func TestDirectPlanFluidPortPrecision(t *testing.T) {
+	fixture := directPlanFixture + `
+fluid_port(1.5,-0.5,"custom-port-machine",{{target_position={x=1.5,y=-1.5}}})
+`
+	assertion := directPlanCapture + `
+local found=false
+for _,conflict in ipairs(chosen.conflicts) do
+  if conflict.kind=="FLUID_ADJACENCY" then found=true end
+end
+assert(not found,"a port connected elsewhere must not conflict")
+`
+	y := 0.0
+	directPlanHarness(t, ConnectionKindPipe, "pipe", &PositionInput{X: 0, Y: y}, &PositionInput{X: 2, Y: y}, false, fixture, assertion)
+}

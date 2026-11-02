@@ -10,8 +10,11 @@ import (
 // the force's construction robots (which leaves ghosts) and canceling those
 // orders. Unlike remove and removeMany these mutations do not mine anything,
 // need no reach, and return counts of orders placed or canceled. Area requests
-// use the engine's deconstruct_area, which applies the force's deconstruction
-// planner semantics, and per-entity requests order_deconstruction.
+// select targets with find_entities_filtered across the requested force AND the
+// neutral force (trees, rocks, cliffs and ground items belong to neutral), then
+// order_deconstruction per entity. Characters and ghosts are never targets: the
+// engine cannot deconstruct them, so they are skipped before any order is
+// attempted instead of surfacing as per-target ENGINE errors.
 
 // deconstructArea marks every deconstructible entity in the area for
 // deconstruction by the force's construction robots.
@@ -52,8 +55,8 @@ func deconstructionArea(r *Resolver, input DeconstructAreaInput, cancel bool) (*
 	if input.Limit != nil {
 		limit = *input.Limit
 	}
-	if limit < 1 || limit > 1000 {
-		return nil, errors.New("limit must be between 1 and 1000")
+	if limit < 1 || limit > maxPageSize {
+		return nil, pageLimitError("limit")
 	}
 	instant := input.Instant != nil && *input.Instant
 	if instant && cancel {
@@ -90,8 +93,8 @@ func deconstructionArea(r *Resolver, input DeconstructAreaInput, cancel bool) (*
 // deconstructionFilter validates the optional prototype-name or entity-type
 // filters used to select area targets.
 func deconstructionFilter(values []string, field string) ([]string, error) {
-	if len(values) > 200 {
-		return nil, fmt.Errorf("%s must contain at most 200 entries", field)
+	if len(values) > maxBatchTargets {
+		return nil, fmt.Errorf("%s must contain at most %d entries", field, maxBatchTargets)
 	}
 	filtered := make([]string, 0, len(values))
 	for i, value := range values {
@@ -118,8 +121,8 @@ func deconstructionEntities(r *Resolver, input DeconstructEntitiesInput, cancel 
 	if err != nil {
 		return nil, err
 	}
-	if len(input.Targets) < 1 || len(input.Targets) > 200 {
-		return nil, errors.New("targets must contain between 1 and 200 entries")
+	if len(input.Targets) < 1 || len(input.Targets) > maxBatchTargets {
+		return nil, fmt.Errorf("targets must contain between 1 and %d entries", maxBatchTargets)
 	}
 	surface := stringValueOr(input.Targets[0].Surface, "nauvis")
 	if _, err := deconstructionSurface(surface); err != nil {
@@ -277,12 +280,14 @@ end
 `
 
 // deconstructionAreaLua marks, cancels, or instantly removes the entities an
-// area request selects. Filters and the limit are applied by
-// find_entities_filtered before any order is placed. Instant mode mines each
-// reachable target as the actor; targets it cannot mine have their inventories
-// and placement item spilled onto the ground before being destroyed, so instant
-// removal never voids contents. Recovered items report the actor inventory
-// delta plus everything spilled.
+// area request selects. Targets are selected from the requested force and the
+// neutral force (trees, rocks, cliffs, ground items), names/types filters are
+// applied by find_entities_filtered, characters and ghosts are always skipped,
+// and the limit bounds processed targets. Instant mode mines each reachable
+// target as the actor; targets it cannot mine have their inventories, belt lane
+// contents, inserter hand and placement item spilled onto the ground before
+// being destroyed, so instant removal never voids contents. Recovered items
+// report the actor inventory delta plus everything spilled.
 func deconstructionAreaLua(options deconstructionAreaOptions) string {
 	names, types := "nil", "nil"
 	if len(options.Names) > 0 {
@@ -295,11 +300,26 @@ func deconstructionAreaLua(options deconstructionAreaOptions) string {
 local s=game.surfaces[surface_name]; if not s then fail("surface not found"); return end
 local f=game.forces[force_name]; if not f then fail("force not found"); return end
 local names,types=%s,%s
+-- Trees, rocks, cliffs and ground items belong to the neutral force, so the
+-- scan covers the requested force and neutral (once) instead of missing them.
+local forces={f}
+local neutral=game.forces.neutral
+if neutral and neutral~=f then forces[#forces+1]=neutral end
+local function deconstruction_skippable(e)
+  return e.type=="character" or e.type=="entity-ghost" or e.type=="tile-ghost"
+end
+-- limit bounds processed targets, so skipping characters and ghosts never
+-- consumes the quota and never becomes a per-target engine error.
 local function targets()
-  local filter={area=area,force=f,skip_fog_of_war=true,limit=limit}
+  local filter={area=area,force=forces,skip_fog_of_war=true}
   if names then filter.name=names end
   if types then filter.type=types end
-  return s.find_entities_filtered(filter)
+  local list={}
+  for _,e in ipairs(s.find_entities_filtered(filter)) do
+    if e.valid and not deconstruction_skippable(e) then list[#list+1]=e end
+    if #list>=limit then break end
+  end
+  return list
 end
 `, luaString(options.Surface), luaString(options.Force), options.Bounds.lua(), options.Limit, names, types)
 	if options.Instant {
@@ -325,27 +345,72 @@ local control=actor or player_object
 local before=inv and deconstruction_inventory_counts(inv) or {}
 local spilled={}
 local spill_position=nil
+local function spill_quality(quality)
+  if type(quality)=="table" then return quality.name end
+  return quality or "normal"
+end
 -- Destroying an entity that still holds items voids them. Targets the actor
 -- cannot mine are emptied onto the ground first so instant removal never
--- destroys containers, modules, fuel, or the entity's own placement item.
+-- destroys containers, modules, fuel, belt lane contents, an inserter's held
+-- item, or the entity's own placement item. Items already committed to a
+-- machine's crafting progress are not exposed by the engine API and cannot be
+-- recovered.
 local function spill_stack(name,count,quality)
   if not name or not count or count<=0 or not spill_position then return end
+  local quality_name=spill_quality(quality)
   local ok=pcall(function()
-    s.spill_item_stack{position=spill_position,stack={name=name,count=count,quality=quality or "normal"},enable_looted=false,force=f,allow_belts=false}
+    local params={position=spill_position,stack={name=name,count=count,quality=quality_name},enable_looted=false,allow_belts=false}
+    -- Spilling with a force marks the item for deconstruction, and without
+    -- robots those orders never complete, so only pass it where a logistic
+    -- network of the force actually covers the position.
+    local ok_cover,cover=pcall(function() return s.find_logistic_network_by_position(spill_position,f) end)
+    if ok_cover and cover then params.force=f end
+    s.spill_item_stack(params)
   end)
   if ok then
-    deconstruction_add_item(spilled,name,quality or "normal",count)
+    deconstruction_add_item(spilled,name,quality_name,count)
   end
+end
+local function spill_inventory(target_inventory)
+  local ok_contents,contents=pcall(function() return target_inventory.get_contents() end)
+  if not ok_contents or type(contents)~="table" then return end
+  if contents[1]~=nil then
+    for _,item in pairs(contents) do spill_stack(item.name,item.count,item.quality) end
+  else
+    for name,count in pairs(contents) do spill_stack(name,count,"normal") end
+  end
+  target_inventory.clear()
 end
 local function spill_entity(e)
   spill_position=e.position
   for _,kind in pairs(defines.inventory) do
     local okinv,target_inventory=pcall(function() return e.get_inventory(kind) end)
     if okinv and target_inventory and not target_inventory.is_empty() then
-      for _,item in ipairs(target_inventory.get_contents()) do
-        spill_stack(item.name,item.count,item.quality)
+      spill_inventory(target_inventory)
+    end
+  end
+  -- Belt, underground belt and splitter lane contents are not inventories.
+  local ok_lines,line_count=pcall(function() return e.get_max_transport_line_index() end)
+  if ok_lines and type(line_count)=="number" then
+    for index=1,line_count do
+      local ok_line,line=pcall(function() return e.get_transport_line(index) end)
+      if ok_line and line then
+        local ok_contents,contents=pcall(function() return line.get_contents() end)
+        if ok_contents then
+          for _,item in pairs(contents or {}) do spill_stack(item.name,item.count,item.quality) end
+        end
       end
-      target_inventory.clear()
+    end
+  end
+  -- An inserter's held item is a LuaItemStack, not an inventory.
+  local held=nil
+  local ok_held,held_value=pcall(function() return e.held_stack end)
+  if ok_held then held=held_value end
+  if held then
+    local ok_read,readable=pcall(function() return held.valid_for_read end)
+    if ok_read and readable then
+      spill_stack(held.name,held.count,held.quality)
+      pcall(function() held.clear() end)
     end
   end
   local proto=e.prototype

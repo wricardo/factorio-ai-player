@@ -6,7 +6,130 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+// topologyModInterface is the compiled-once topology library in the
+// factorio_ai_navigation mod. Sending a remote.call with its arguments replaces
+// reshipping ~17.6 KB of helper Lua, which cost about 0.87 s of compile per
+// topology query. The inline fallback below stays byte-identical to the mod file
+// (TestTopologyModPreludeParity) so an old save without the interface still works.
+const (
+	topologyModInterface = "factorio_ai_topology"
+	topologyModProtocol  = 3
+)
+
+// topologyInterfaceState memoizes whether this save has the compiled topology mod.
+// The probe is one tiny RCON command; caching it keeps ~0.87 s of Lua compile off
+// every later query instead of shipping the inline prelude and returning early.
+type topologyInterfaceState struct {
+	once      sync.Once
+	available bool
+}
+
+var (
+	topologyInterface         topologyInterfaceState
+	topologyInterfaceOverride *bool
+)
+
+// topologyOpCache memoizes whether the loaded mod exposes one operation, so a
+// filtered call pays the probe once per process instead of once per query.
+var topologyOpCache sync.Map
+
+func topologyOpAvailable(r *Resolver, op string) bool {
+	if cached, ok := topologyOpCache.Load(op); ok {
+		return cached.(bool)
+	}
+	lua := luaFail + fmt.Sprintf(`local interface=remote.interfaces[%s]
+if interface and interface[%s] then rcon.print(helpers.table_to_json{supported=1})
+else rcon.print(helpers.table_to_json{supported=0}) end`,
+		luaString(topologyModInterface), luaString(op))
+	supported := false
+	if response, _, err := executeLua(r.addr, r.password, lua); err == nil {
+		if result, derr := factoryDecode[struct {
+			Supported int `json:"supported"`
+		}](response); derr == nil {
+			supported = result.Supported == 1
+		}
+	}
+	topologyOpCache.Store(op, supported)
+	return supported
+}
+
+// resetTopologyInterfaceCache clears the memoized capability, for tests.
+func resetTopologyInterfaceCache() {
+	topologyInterface = topologyInterfaceState{}
+	topologyOpCache = sync.Map{}
+}
+
+func probeTopologyInterface(r *Resolver) bool {
+	lua := luaFail + fmt.Sprintf(`local interface=remote.interfaces[%s]
+if interface and interface["version"] and remote.call(%s,"version")==%d then
+  rcon.print(helpers.table_to_json{topology=1})
+else
+  rcon.print(helpers.table_to_json{topology=0})
+end`, luaString(topologyModInterface), luaString(topologyModInterface), topologyModProtocol)
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
+		return false
+	}
+	result, err := factoryDecode[struct {
+		Topology int `json:"topology"`
+	}](response)
+	if err != nil {
+		return false
+	}
+	return result.Topology == 1
+}
+
+// topologyModAvailable reports whether the mod interface can serve this process.
+// The probe runs at most once per process; a failed probe falls back to the inline
+// implementation, which is always correct.
+func topologyModAvailable(r *Resolver) bool {
+	if topologyInterfaceOverride != nil {
+		return *topologyInterfaceOverride
+	}
+	topologyInterface.once.Do(func() { topologyInterface.available = probeTopologyInterface(r) })
+	return topologyInterface.available
+}
+
+// topologyRemoteChunk is the whole command when the mod interface is present: the
+// remote call plus shape guards. The inline prelude and body stay out of the
+// chunk so Lua compiles a few hundred bytes instead of ~17 KB.
+func topologyRemoteChunk(op string, args []string) string {
+	return fmt.Sprintf(`local interface=remote.interfaces[%s]
+if not interface or not interface[%s] then fail(%s); return end
+local ok,result=pcall(function() return remote.call(%s,%s,%s) end)
+if not ok then fail(tostring(result)); return end
+if type(result)~="table" then fail(%s); return end
+if result.error~=nil then fail(tostring(result.error)); return end
+rcon.print(helpers.table_to_json(result))`,
+		luaString(topologyModInterface), luaString(op),
+		luaString("factorio_ai_topology "+op+" is not loaded in this save"),
+		luaString(topologyModInterface), luaString(op), strings.Join(args, ","),
+		luaString("factorio_ai_topology "+op+" returned no payload"))
+}
+
+// topologyChunk assembles one topology RCON command on exactly one path: the
+// compiled-mod call when the interface is available, otherwise the inline
+// prelude and body. Choosing in Go is what removes the compile cost; an early
+// return inside a single chunk would still pay it.
+func topologyChunk(r *Resolver, op string, args []string, locals, body string) string {
+	return topologyChunkWithOp(r, op, args, locals, body, false)
+}
+
+// topologyChunkWithOp picks the compiled-mod call or the inline fallback. When
+// requireOp is set, the mod must actually expose op: an older mod that ignores
+// extra arguments would otherwise answer silently with unfiltered data, so a
+// missing op falls back to the inline implementation instead.
+func topologyChunkWithOp(r *Resolver, op string, args []string, locals, body string, requireOp bool) string {
+	if topologyModAvailable(r) && (!requireOp || topologyOpAvailable(r, op)) {
+		return luaFail + topologyRemoteChunk(op, args)
+	}
+	return luaFail + transportLineLua + topologyCommonLua + "\n" + locals + body + "\nrcon.print(helpers.table_to_json(payload))"
+}
+
+func topologyNumber(v float64) string { return strconv.FormatFloat(v, 'g', -1, 64) }
 
 func topologyBeltParams(surface string, x, y float64, maxEntities int) error {
 	if surface == "" {
@@ -15,8 +138,8 @@ func topologyBeltParams(surface string, x, y float64, maxEntities int) error {
 	if math.IsNaN(x) || math.IsInf(x, 0) || math.IsNaN(y) || math.IsInf(y, 0) {
 		return errors.New("belt coordinates must be finite")
 	}
-	if maxEntities < 1 || maxEntities > 1000 {
-		return errors.New("maxEntities must be between 1 and 1000")
+	if maxEntities < 1 || maxEntities > maxBeltTraversal {
+		return limitError("maxEntities", maxBeltTraversal)
 	}
 	return nil
 }
@@ -38,12 +161,16 @@ local function transport_line_side(name)
 end
 `
 
-// topologyCommonLua only follows engine connection objects. Entity-level edges
-// deliberately do not claim lane routing, measured flow, or stalled machinery.
+// topologyCommonLua holds the shared belt topology helpers: engine endpoints, the
+// inserter-target fallback, structural belt connections, the component walk, the
+// linear stretch walk and the end classification. It follows transportLineLua.
 const topologyCommonLua = `
 local belt_types={"transport-belt","underground-belt","splitter","loader","loader-1x1","linked-belt"}
 local belt_set={}; for _,t in ipairs(belt_types) do belt_set[t]=true end
-local statuses={}; for k,v in pairs(defines.entity_status) do statuses[v]=k end
+local statuses={}
+if defines.entity_status then
+  for k,v in pairs(defines.entity_status) do statuses[v]=k end
+end
 local function valid(e) return e and e.valid end
 local function is_belt(e) return valid(e) and belt_set[e.type] end
 local function key(e)
@@ -83,41 +210,103 @@ end
 -- run since placement or since losing power, so an idle-but-wired inserter
 -- reads as dead. Resolve the entity under the arm's geometric pickup/drop
 -- position as a fallback: wiring is then reported independently of activity.
-local target_types={["assembling-machine"]=true,furnace=true,["mining-drill"]=true,lab=true,["rocket-silo"]=true,container=true,["logistic-container"]=true,["linked-container"]=true,["infinity-container"]=true}
-for _,t in ipairs(belt_types) do target_types[t]=true end
+-- Any entity with an inventory or a burner is insertable, so boilers, reactors,
+-- burner generators, wagons, turrets, roboports and beacons resolve too.
+local function insertable(c)
+  if not valid(c) then return false end
+  -- An inserter picks from and drops onto belts as well as into inventories.
+  if belt_set[c.type] then return true end
+  local ok_index,index=pcall(function() return c.get_max_inventory_index() end)
+  if ok_index and type(index)=="number" and index>0 then return true end
+  local ok_burner,burner=pcall(function() return c.burner end)
+  return ok_burner and burner~=nil
+end
 local function position_target(e,pos)
   if not valid(e) or type(pos)~="table" then return nil end
   local ok,found=pcall(function() return e.surface.find_entities_filtered{position=pos,force=e.force,limit=16} end)
   if not ok or not found then return nil end
+  table.sort(found,function(a,b)
+    if a.type~=b.type then return a.type<b.type end
+    if a.name~=b.name then return a.name<b.name end
+    return (a.unit_number or 0)<(b.unit_number or 0)
+  end)
   for _,c in pairs(found) do
-    if valid(c) and c~=e and target_types[c.type] then return c end
+    if valid(c) and c~=e and insertable(c) then return c end
   end
   return nil
 end
+-- An arm position is not the target's centre: a working inserter that drops onto
+-- the belt at (29.5, 30.5) reports a drop position of (29.5, 30.699), because the
+-- engine offsets the reached point by about 0.2 tiles along the arm. The entity
+-- an arm reaches is the one on the tile containing that position, which is also
+-- the tile the item lands on. A surface point search is not that rule: it answers
+-- per collision box, and live 2.0 returns nothing at all for the belts an idle
+-- arm points at, so every resolver that already holds the belts of its snapshot
+-- indexes them by tile once instead of probing the surface per arm.
+local function tile_key(x,y)
+  return tostring(math.floor(x))..":"..tostring(math.floor(y))
+end
+local function belt_tile_index(entities)
+  local index={}
+  for _,e in pairs(entities) do
+    if is_belt(e) then
+      local ok,bb=pcall(function() return e.bounding_box end)
+      if ok and bb then
+        -- Belts sit inset inside their tile while a splitter spans two tiles, so
+        -- the index follows the box instead of assuming one tile.
+        for x=math.floor(bb.left_top.x),math.floor(bb.right_bottom.x-0.001) do
+          for y=math.floor(bb.left_top.y),math.floor(bb.right_bottom.y-0.001) do
+            local k=x..":"..y
+            if not index[k] then index[k]=e end
+          end
+        end
+      end
+    end
+  end
+  return index
+end
+local function belt_at_tile(index,pos)
+  if not index or type(pos)~="table" then return nil end
+  return index[tile_key(pos.x,pos.y)]
+end
 local engine_targets={}
-local function resolved_target(e,kind,pos_name)
+local function resolved_target(e,kind,pos_name,belt_index)
   local ok,target=pcall(function() return e[kind] end)
   if ok and valid(target) then return target end
   local ok_pos,pos=pcall(function() return e[pos_name] end)
   if not ok_pos then return nil end
+  local belt=belt_at_tile(belt_index,pos)
+  if valid(belt) then return belt end
   return position_target(e,pos)
 end
-local function inserter_targets(e)
+local function inserter_targets(e,belt_index)
   local k=key(e)
-  local cached=engine_targets[k]
+  -- The pair is memoized per snapshot: a different belt index answers different
+  -- questions, so it takes its own entry instead of reusing this one.
+  local cache_key=k
+  if belt_index then cache_key=k.."|"..tostring(belt_index) end
+  local cached=engine_targets[cache_key]
   if not cached then
-    cached={resolved_target(e,"pickup_target","pickup_position"),resolved_target(e,"drop_target","drop_position")}
-    engine_targets[k]=cached
+    cached={resolved_target(e,"pickup_target","pickup_position",belt_index),resolved_target(e,"drop_target","drop_position",belt_index)}
+    engine_targets[cache_key]=cached
   end
   return cached[1],cached[2]
 end
-local function connected_inserter(e)
-  local p,d=inserter_targets(e)
+local function connected_inserter(e,belt_index)
+  local p,d=inserter_targets(e,belt_index)
   return {inserter=endpoint(e),pickup=endpoint(p),drop=endpoint(d)}
 end
 -- Machines that drop onto an entity (mining drills) have the same staleness.
-local function machine_drop_target(e)
-  return resolved_target(e,"drop_target","drop_position")
+local function machine_drop_target(e,belt_index)
+  return resolved_target(e,"drop_target","drop_position",belt_index)
+end
+-- This prelude is compiled once at mod load, so the memo tables above outlive
+-- the state they describe: an inserter rotated after a read kept its old
+-- direction and its old pickup/drop pair forever. Every remote interface call
+-- clears them, which keeps the per-call dedupe without cross-call staleness.
+local function reset_topology_caches()
+  endpoint_cache={}
+  engine_targets={}
 end
 local fluid_types={"offshore-pump","pipe","pipe-to-ground","pump","boiler","generator","fusion-generator","heat-exchanger","storage-tank"}
 local fluid_set={}; for _,t in ipairs(fluid_types) do fluid_set[t]=true end
@@ -148,6 +337,10 @@ local function edge_kind(a,b)
   if a.type=="linked-belt" and a.linked_belt_type=="input" and a.linked_belt_neighbour==b then return "linked" end
   return "belt"
 end
+-- Structural connections only: tile-adjacent engine belt neighbours plus
+-- underground and linked partners. The owner of an internal transport line can
+-- be any belt along that line, so line links are traversal-only and never claim
+-- a structural feed.
 local function belt_connections(e)
   local result,seen={},{}
   local function add(a,b)
@@ -156,8 +349,10 @@ local function belt_connections(e)
     if not seen[k] then seen[k]=true; result[#result+1]={a=a,b=b,kind=edge_kind(a,b)} end
   end
   local neighbours=e.belt_neighbours
-  for _,n in pairs(neighbours.inputs) do add(n,e) end
-  for _,n in pairs(neighbours.outputs) do add(e,n) end
+  if neighbours then
+    for _,n in pairs(neighbours.inputs) do add(n,e) end
+    for _,n in pairs(neighbours.outputs) do add(e,n) end
+  end
   if e.type=="underground-belt" then
     local n=e.neighbours
     if valid(n) then if e.belt_to_ground_type=="input" then add(e,n) else add(n,e) end end
@@ -165,14 +360,36 @@ local function belt_connections(e)
     local n=e.linked_belt_neighbour
     if valid(n) then if e.linked_belt_type=="input" then add(e,n) else add(n,e) end end
   end
-  for i=1,e.get_max_transport_line_index() do
-    local line=e.get_transport_line(i)
-    for _,n in pairs(line.input_lines) do add(n.owner,e) end
-    for _,n in pairs(line.output_lines) do add(e,n.owner) end
+  table.sort(result,function(a,b)
+    local ka,kb=key(a.a)..">"..key(a.b),key(b.a)..">"..key(b.b)
+    if ka~=kb then return ka<kb end
+    return a.kind<b.kind
+  end)
+  return result
+end
+-- Transport-line links. They join belts that can be tens of tiles apart, so they
+-- extend traversal (and are edges only when the caller asks for kind "line") but
+-- never define sources or sinks.
+local function belt_line_connections(e)
+  local result,seen={},{}
+  local function add(a,b)
+    if not is_belt(a) or not is_belt(b) or key(a)==key(b) then return end
+    local k=key(a)..">"..key(b)
+    if not seen[k] then seen[k]=true; result[#result+1]={a=a,b=b,kind="line"} end
+  end
+  local ok,index=pcall(function() return e.get_max_transport_line_index() end)
+  if not ok or type(index)~="number" then return result end
+  for i=1,index do
+    local ok_line,line=pcall(function() return e.get_transport_line(i) end)
+    if ok_line and line then
+      for _,n in pairs(line.input_lines) do add(n.owner,e) end
+      for _,n in pairs(line.output_lines) do add(e,n.owner) end
+    end
   end
   table.sort(result,function(a,b)
     local ka,kb=key(a.a)..">"..key(a.b),key(b.a)..">"..key(b.b)
-    return ka<kb
+    if ka~=kb then return ka<kb end
+    return a.kind<b.kind
   end)
   return result
 end
@@ -198,23 +415,84 @@ local function belt_at(surface_name,x,y)
   if #matches>1 then return nil,"multiple belts at position" end
   return matches[1]
 end
-local function belt_run(seed,limit)
-  local queue,members={seed},{[key(seed)]=true}
-  local raw,inputs,outputs,surfaces={},{},{},{}
+-- Bounding boxes are kept as tile ranges so one padded entity scan can serve a
+-- whole component instead of every seed scanning the surface again.
+local function expand_box(box,e)
+  local x=math.floor(e.position.x)+0.5
+  local y=math.floor(e.position.y)+0.5
+  if not box then return {surface=e.surface,left=x,right=x,top=y,bottom=y} end
+  if x<box.left then box.left=x end
+  if x>box.right then box.right=x end
+  if y<box.top then box.top=y end
+  if y>box.bottom then box.bottom=y end
+  return box
+end
+local function box_area(box,pad)
+  return {{box.left-pad,box.top-pad},{box.right+pad,box.bottom+pad}}
+end
+local function scan_inserters(surface,area)
+  local list={}
+  for _,e in pairs(surface.find_entities_filtered{area=area,type="inserter"}) do
+    if valid(e) then list[#list+1]=e end
+  end
+  table.sort(list,less)
+  return list
+end
+local function inserters_for_members(members,candidates)
+  local result={}
+  local belt_index=belt_tile_index(members)
+  for _,e in ipairs(candidates) do
+    local p,d=inserter_targets(e,belt_index)
+    if (valid(p) and members[key(p)]) or (valid(d) and members[key(d)]) then result[#result+1]=connected_inserter(e,belt_index) end
+  end
+  return result
+end
+local function sort_connected_inserters(list)
+  table.sort(list,function(a,b)
+    local x,y=a.inserter,b.inserter
+    if x.surface~=y.surface then return x.surface<y.surface end
+    if x.position.x~=y.position.x then return x.position.x<y.position.x end
+    if x.position.y~=y.position.y then return x.position.y<y.position.y end
+    return (x.unitNumber or "0")<(y.unitNumber or "0")
+  end)
+  return list
+end
+-- One inserter scan for the whole component, padded by 2.5 tiles so long-handed
+-- inserters just outside the component still count.
+local function component_inserters(members,order)
+  local list,boxes={},{}
+  for _,e in ipairs(order) do boxes[e.surface.index]=expand_box(boxes[e.surface.index],e) end
+  for _,box in pairs(boxes) do
+    local candidates=scan_inserters(box.surface,box_area(box,2.5))
+    for _,inserter in ipairs(inserters_for_members(members,candidates)) do list[#list+1]=inserter end
+  end
+  return sort_connected_inserters(list)
+end
+local function belt_run(seed,limit,include_line_links,defer_inserters)
+  local queue,members={seed},{[key(seed)]=seed}
+  local raw,inputs,outputs={},{},{}
   local cursor,truncated=1,false
   while cursor<=#queue do
     local e=queue[cursor]; cursor=cursor+1
-    surfaces[e.surface.index]=e.surface
-    for _,link in ipairs(belt_connections(e)) do
+    local structural=belt_connections(e)
+    for _,link in ipairs(structural) do
       raw[#raw+1]=link
       inputs[key(link.b)]=true; outputs[key(link.a)]=true
+    end
+    local line_links=belt_line_connections(e)
+    if include_line_links then
+      for _,link in ipairs(line_links) do raw[#raw+1]=link end
+    end
+    local function visit(link)
       local n=link.a
       if key(n)==key(e) then n=link.b end
       local k=key(n)
       if not members[k] then
-        if #queue<limit then members[k]=true; queue[#queue+1]=n else truncated=true end
+        if #queue<limit then members[k]=n; queue[#queue+1]=n else truncated=true end
       end
     end
+    for _,link in ipairs(structural) do visit(link) end
+    for _,link in ipairs(line_links) do visit(link) end
   end
   table.sort(queue,less)
   local nodes,sources,sinks={},{},{}
@@ -223,17 +501,11 @@ local function belt_run(seed,limit)
     if not inputs[key(e)] then sources[#sources+1]=obj end
     if not outputs[key(e)] then sinks[#sinks+1]=obj end
   end
-  local inserter_entities={}
-  for _,surface in pairs(surfaces) do
-    for _,e in pairs(surface.find_entities_filtered{type="inserter"}) do
-      local p,d=inserter_targets(e)
-      if (valid(p) and members[key(p)]) or (valid(d) and members[key(d)]) then inserter_entities[#inserter_entities+1]=e end
-    end
-  end
-  table.sort(inserter_entities,less)
-  local inserters={}; for _,e in ipairs(inserter_entities) do inserters[#inserters+1]=connected_inserter(e) end
+  local inserters={}
+  if not defer_inserters then inserters=component_inserters(members,queue) end
   local edges,boundary=collect_edges(members,raw)
-  return {tick=game.tick,surface=seed.surface.name,seed=endpoint(seed),maxEntities=limit,truncated=truncated,nodes=nodes,edges=edges,boundaryEdges=boundary,sources=sources,sinks=sinks,inserters=inserters},members
+  local payload={tick=game.tick,surface=seed.surface.name,seed=endpoint(seed),maxEntities=limit,truncated=truncated,nodes=nodes,edges=edges,boundaryEdges=boundary,sources=sources,sinks=sinks,inserters=inserters}
+  return payload,members
 end
 -- A linear walk must only follow tile-adjacent engine connections. Line
 -- connections describe internal transport lines, whose owner can be a belt far
@@ -314,8 +586,12 @@ local function classify_forward_end(e,entry)
     if i==1 then
       if #belts>0 then
         blocker=belts[1].name
+        entry.downstream=endpoint(belts[1])
         if belts[1].direction==(e.direction+8)%16 then entry.reason="HEAD_ON"; entry.gap=true; entry.blocker=blocker; return end
-      elseif #others>0 then blocker=others[1].name end
+      elseif #others>0 then
+        blocker=others[1].name
+        entry.downstream=endpoint(others[1])
+      end
     elseif blocker==nil and #others>0 then
       blocker=others[1].name
     end
@@ -382,10 +658,10 @@ local function belt_stretch(seed,limit)
     local max_index=1
     local ok,value=pcall(function() return e.get_max_transport_line_index() end)
     if ok and type(value)=="number" and value>=1 then max_index=value end
-    -- get_contents reports only the items carried by this entity's tile line,
-    -- and line_equals spans a whole internal line across tiles, so deduplication
-    -- must stay inside one entity. Summing all tiles is the stretch total.
-    local entity_lines={}
+    -- get_contents reports only the items carried by this entity's tile line.
+    -- An underground entrance reports its surface lanes and its tunnel contents
+    -- as additional lines that share one internal line, so every line this
+    -- entity exposes is counted; identity would silently drop the tunnel.
     for index=1,max_index do
       local line=e.get_transport_line(index)
       local name=transport_line_name(index)
@@ -394,13 +670,8 @@ local function belt_stretch(seed,limit)
       local side=transport_line_side(name)
       node.lanes[#node.lanes+1]={index=index,lineName=name,side=side,items=items}
       if #items>1 then mixed[side]=true end
-      local duplicate=false
-      for _,prior in ipairs(entity_lines) do
-        if line.line_equals(prior.line) then duplicate=true; break end
-      end
-      if not duplicate then entity_lines[#entity_lines+1]={line=line,side=transport_line_side(name)} end
+      lines[#lines+1]={line=line,side=side}
     end
-    for _,entry in ipairs(entity_lines) do lines[#lines+1]=entry end
     nodes[#nodes+1]=node
   end
   local totals={left={},right={},unknown={}}
@@ -425,11 +696,140 @@ local function belt_stretch(seed,limit)
     table.sort(items,function(a,b) if a.name~=b.name then return a.name<b.name end return a.quality<b.quality end)
     return {side=side,items=items,itemCount=counts[side],mixed=mixed[side]}
   end
-  return {tick=game.tick,surface=seed.surface.name,seed=endpoint(seed),maxEntities=limit,truncated=truncated,nodes=nodes,ends=ends,left=total("left"),right=total("right"),unknown=total("unknown")}
-end
-`
+  local members={}
+  for _,e in ipairs(ordered) do members[key(e)]=e end
+  return {tick=game.tick,surface=seed.surface.name,seed=endpoint(seed),maxEntities=limit,truncated=truncated,nodes=nodes,ends=ends,inserters=component_inserters(members,ordered),left=total("left"),right=total("right"),unknown=total("unknown")}
+end`
 
-func beltRunQuery(r *Resolver, surface string, inputX, inputY *float64, unitNumber *string, maxEntities int) (*BeltRun, error) {
+const beltRunCallLua = `
+local seed,err=belt_at(surface_name,seed_x,seed_y)
+if not seed then fail(err); return end
+local payload=belt_run(seed,limit,include_line_links)`
+
+const beltStretchCallLua = `
+local seed,err=belt_at(surface_name,seed_x,seed_y)
+if not seed then fail(err); return end
+local payload=belt_stretch(seed,limit)`
+
+const beltRunsCallLua = `
+local runs,covered={},{}
+for _,request in ipairs(requests) do
+  local seed,err=belt_at(request.surface,request.x,request.y)
+  if not seed then fail("inspection belt target changed: "..err); return end
+  if seed.name~=request.name or (request.unit and tostring(seed.unit_number)~=request.unit) then fail("inspection belt target changed"); return end
+  if not covered[key(seed)] then
+    local run,members=belt_run(seed,limit,include_line_links,true)
+    for k,_ in pairs(members) do covered[k]=true end
+    runs[#runs+1]={run=run,members=members}
+  end
+end
+local bounds={}
+for _,entry in ipairs(runs) do
+  for _,e in pairs(entry.members) do bounds[e.surface.index]=expand_box(bounds[e.surface.index],e) end
+end
+for _,box in pairs(bounds) do
+  local candidates=scan_inserters(box.surface,box_area(box,2.5))
+  for _,entry in ipairs(runs) do
+    for _,inserter in ipairs(inserters_for_members(entry.members,candidates)) do
+      entry.run.inserters[#entry.run.inserters+1]=inserter
+    end
+  end
+end
+local output={}
+for _,entry in ipairs(runs) do
+  sort_connected_inserters(entry.run.inserters)
+  output[#output+1]=entry.run
+end
+local payload={beltRuns=output}`
+
+const factoryGraphCallLua = `
+local surface=game.surfaces[surface_name]
+if not surface then fail("surface not found"); return end
+local force=game.forces[force_name]
+if not force then fail("force not found"); return end
+local area_result={leftTopX=area[1][1],leftTopY=area[1][2],rightBottomX=area[2][1],rightBottomY=area[2][2]}
+local machine_set={ ["assembling-machine"]=true,furnace=true,["mining-drill"]=true,lab=true,["rocket-silo"]=true }
+local chest_set={container=true,["logistic-container"]=true,["linked-container"]=true,["infinity-container"]=true}
+local types={"assembling-machine","furnace","mining-drill","lab","rocket-silo","inserter","container","logistic-container","linked-container","infinity-container"}
+for _,t in ipairs(belt_types) do types[#types+1]=t end
+for _,t in ipairs(fluid_types) do types[#types+1]=t end
+local entities=surface.find_entities_filtered{area=area,force=force,type=types}
+table.sort(entities,less)
+local members={}; for _,e in ipairs(entities) do members[key(e)]=true end
+-- Arms resolve their belt by the tile they reach, so the belt set of this
+-- snapshot is indexed once instead of probing the surface per arm.
+local belt_index=belt_tile_index(entities)
+local nodes,machines,belts,chests,fluids,raw={},{},{},{},{},{}
+for _,e in ipairs(entities) do
+  local obj=endpoint(e); nodes[#nodes+1]=obj
+  if machine_set[e.type] then
+    machines[#machines+1]=obj
+    local target=machine_drop_target(e,belt_index)
+    if valid(target) then raw[#raw+1]={a=e,b=target,kind="drop"} end
+  elseif chest_set[e.type] then chests[#chests+1]=obj
+  elseif is_fluid(e) then
+    fluids[#fluids+1]=obj
+    for _,link in ipairs(fluid_links(e)) do raw[#raw+1]=link end
+  elseif is_belt(e) then
+    belts[#belts+1]=obj
+    for _,link in ipairs(belt_connections(e)) do raw[#raw+1]=link end
+    if include_line_links then
+      for _,link in ipairs(belt_line_connections(e)) do raw[#raw+1]=link end
+    end
+    if e.type=="loader" or e.type=="loader-1x1" then
+      local container=e.loader_container
+      if valid(container) then
+        if e.loader_type=="input" then raw[#raw+1]={a=e,b=container,kind="loader"}
+        else raw[#raw+1]={a=container,b=e,kind="loader"} end
+      end
+    end
+  end
+end
+-- Inserters stand at most one tile from every node they touch, so the scan
+-- area covers one expanding tile instead of the whole surface.
+local inserter_scan={{area[1][1]-2.5,area[1][2]-2.5},{area[2][1]+2.5,area[2][2]+2.5}}
+local inserter_entities={}
+for _,e in pairs(surface.find_entities_filtered{area=inserter_scan,type="inserter"}) do
+  local p,d=inserter_targets(e,belt_index)
+  if members[key(e)] or (valid(p) and members[key(p)]) or (valid(d) and members[key(d)]) then inserter_entities[#inserter_entities+1]=e end
+end
+table.sort(inserter_entities,less)
+local inserters={}
+for _,e in ipairs(inserter_entities) do
+  inserters[#inserters+1]=connected_inserter(e,belt_index)
+  local p,d=inserter_targets(e,belt_index)
+  if valid(p) then raw[#raw+1]={a=p,b=e,kind="pickup"} end
+  if valid(d) then raw[#raw+1]={a=e,b=d,kind="drop"} end
+end
+local edges,boundary=collect_edges(members,raw)
+local payload={tick=game.tick,surface=surface.name,force=force.name,area=area_result,nodes=nodes,machines=machines,belts=belts,chests=chests,inserters=inserters,fluidEntities=fluids,edges=edges,boundaryEdges=boundary}
+if compact then
+  -- Nodes once, edges as endpoint keys, and no repeated entity lists: the node
+  -- type already says which nodes are machines, belts, chests or fluid entities.
+  local function endpoint_key(obj)
+    if not obj then return nil end
+    if obj.unitNumber then return obj.surface..":"..tostring(obj.unitNumber) end
+    return obj.surface..":"..obj.type..":"..obj.name..":"..tostring(obj.position.x)..":"..tostring(obj.position.y)
+  end
+  local function compact_edge(edge)
+    return {from=endpoint_key(edge.from),to=endpoint_key(edge.to),kind=edge.kind,boundary=edge.boundary,flowDirection=edge.flowDirection}
+  end
+  local function compact_inserter(entry)
+    return {inserter=endpoint_key(entry.inserter),pickup=endpoint_key(entry.pickup),drop=endpoint_key(entry.drop)}
+  end
+  local compact_edges,compact_boundary,compact_inserters={},{},{}
+  for _,edge in ipairs(edges) do compact_edges[#compact_edges+1]=compact_edge(edge) end
+  for _,edge in ipairs(boundary) do compact_boundary[#compact_boundary+1]=compact_edge(edge) end
+  for _,entry in ipairs(inserters) do compact_inserters[#compact_inserters+1]=compact_inserter(entry) end
+  payload={tick=game.tick,surface=surface.name,force=force.name,area=area_result,nodes=nodes,machines={},belts={},chests={},inserters={},fluidEntities={},edges={},boundaryEdges={}}
+  -- Empty lists are omitted instead of encoded as {}, so a compact graph with no
+  -- edges or inserters decodes without relying on response normalization.
+  if #compact_edges>0 then payload.compactEdges=compact_edges end
+  if #compact_boundary>0 then payload.compactBoundaryEdges=compact_boundary end
+  if #compact_inserters>0 then payload.compactInserters=compact_inserters end
+end`
+
+func beltRunQuery(r *Resolver, surface string, inputX, inputY *float64, unitNumber *string, maxEntities int, includeLineLinks bool) (*BeltRun, error) {
 	surface, x, y, err := resolveBeltAddress(r, surface, unitNumber, inputX, inputY)
 	if err != nil {
 		return nil, err
@@ -437,11 +837,10 @@ func beltRunQuery(r *Resolver, surface string, inputX, inputY *float64, unitNumb
 	if err := topologyBeltParams(surface, x, y, maxEntities); err != nil {
 		return nil, err
 	}
-	lua := luaFail + transportLineLua + topologyCommonLua + fmt.Sprintf(`
-local seed,err=belt_at(%s,%s,%s)
-if not seed then fail(err); return end
-local result=belt_run(seed,%d)
-rcon.print(helpers.table_to_json(result))`, luaString(surface), strconv.FormatFloat(x, 'g', -1, 64), strconv.FormatFloat(y, 'g', -1, 64), maxEntities)
+	lua := topologyChunk(r, "belt_run",
+		[]string{luaString(surface), topologyNumber(x), topologyNumber(y), strconv.Itoa(maxEntities), luaBool(includeLineLinks)},
+		fmt.Sprintf("local surface_name,seed_x,seed_y,limit,include_line_links=%s,%s,%s,%d,%t\n", luaString(surface), topologyNumber(x), topologyNumber(y), maxEntities, includeLineLinks),
+		beltRunCallLua)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
@@ -449,8 +848,9 @@ rcon.print(helpers.table_to_json(result))`, luaString(surface), strconv.FormatFl
 	return factoryDecode[BeltRun](response)
 }
 
-// beltStretchQuery walks one linear stretch and totals items per side, using
-// engine transport-line identity so underground tunnel contents count once.
+// beltStretchQuery walks one linear stretch and totals items per side, counting
+// every transport line the engine exposes on each entity, so underground tunnel
+// contents and splitter split lines are not dropped.
 func beltStretchQuery(r *Resolver, surface string, inputX, inputY *float64, unitNumber *string, maxEntities int) (*BeltStretch, error) {
 	surface, x, y, err := resolveBeltAddress(r, surface, unitNumber, inputX, inputY)
 	if err != nil {
@@ -459,11 +859,10 @@ func beltStretchQuery(r *Resolver, surface string, inputX, inputY *float64, unit
 	if err := topologyBeltParams(surface, x, y, maxEntities); err != nil {
 		return nil, err
 	}
-	lua := luaFail + transportLineLua + topologyCommonLua + fmt.Sprintf(`
-local seed,err=belt_at(%s,%s,%s)
-if not seed then fail(err); return end
-local result=belt_stretch(seed,%d)
-rcon.print(helpers.table_to_json(result))`, luaString(surface), strconv.FormatFloat(x, 'g', -1, 64), strconv.FormatFloat(y, 'g', -1, 64), maxEntities)
+	lua := topologyChunk(r, "belt_stretch",
+		[]string{luaString(surface), topologyNumber(x), topologyNumber(y), strconv.Itoa(maxEntities)},
+		fmt.Sprintf("local surface_name,seed_x,seed_y,limit=%s,%s,%s,%d\n", luaString(surface), topologyNumber(x), topologyNumber(y), maxEntities),
+		beltStretchCallLua)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
@@ -471,7 +870,7 @@ rcon.print(helpers.table_to_json(result))`, luaString(surface), strconv.FormatFl
 	return factoryDecode[BeltStretch](response)
 }
 
-func inspectionBeltRuns(r *Resolver, obj *InspectionLogistics, maxEntities int) ([]*BeltRun, error) {
+func inspectionBeltRuns(r *Resolver, obj *InspectionLogistics, maxEntities int, includeLineLinks bool) ([]*BeltRun, error) {
 	if obj == nil {
 		return nil, errors.New("inspection logistics is required")
 	}
@@ -497,26 +896,16 @@ func inspectionBeltRuns(r *Resolver, obj *InspectionLogistics, maxEntities int) 
 			if e.UnitNumber != nil {
 				unit = luaString(*e.UnitNumber)
 			}
-			fmt.Fprintf(&seeds, "{surface=%s,x=%s,y=%s,name=%s,unit=%s},", luaString(e.Surface), strconv.FormatFloat(e.Position.X, 'g', -1, 64), strconv.FormatFloat(e.Position.Y, 'g', -1, 64), luaString(e.Name), unit)
+			fmt.Fprintf(&seeds, "{surface=%s,x=%s,y=%s,name=%s,unit=%s},", luaString(e.Surface), topologyNumber(e.Position.X), topologyNumber(e.Position.Y), luaString(e.Name), unit)
 		}
 	}
 	if seeds.Len() == 0 {
 		return []*BeltRun{}, nil
 	}
-	lua := luaFail + transportLineLua + topologyCommonLua + fmt.Sprintf(`
-local seeds={%s}
-local runs,covered={},{}
-for _,request in ipairs(seeds) do
-  local seed,err=belt_at(request.surface,request.x,request.y)
-  if not seed then fail("inspection belt target changed: "..err); return end
-  if seed.name~=request.name or (request.unit and tostring(seed.unit_number)~=request.unit) then fail("inspection belt target changed"); return end
-  if not covered[key(seed)] then
-    local run,members=belt_run(seed,%d)
-    runs[#runs+1]=run
-    for k,_ in pairs(members) do covered[k]=true end
-  end
-end
-rcon.print(helpers.table_to_json{beltRuns=runs})`, seeds.String(), maxEntities)
+	lua := topologyChunk(r, "belt_runs",
+		[]string{"{" + seeds.String() + "}", strconv.Itoa(maxEntities), luaBool(includeLineLinks)},
+		fmt.Sprintf("local requests,limit,include_line_links={%s},%d,%t\n", seeds.String(), maxEntities, includeLineLinks),
+		beltRunsCallLua)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
@@ -538,70 +927,21 @@ func topologyBeltType(entityType string) bool {
 	return false
 }
 
-func factoryGraphQuery(r *Resolver, area *FactoryAreaInput, force, surface string) (*FactoryGraph, error) {
+// factoryGraphQuery reads one area snapshot. Compact mode emits nodes once and
+// edges as endpoint keys, dropping the repeated machine/belt/chest/inserter/fluid
+// lists and the fully duplicated edge endpoints.
+func factoryGraphQuery(r *Resolver, area *FactoryAreaInput, force, surface string, compact, includeLineLinks bool) (*FactoryGraph, error) {
 	if surface == "" || force == "" {
 		return nil, errors.New("surface and force are required")
 	}
-	areaLua, areaResult, err := worldAreaLua(area, 1, 0)
+	areaLua, _, err := worldAreaLua(area, 1, 0)
 	if err != nil {
 		return nil, err
 	}
-	lua := luaFail + transportLineLua + topologyCommonLua + fmt.Sprintf(`
-local surface=game.surfaces[%s]
-if not surface then fail("surface not found"); return end
-local force=game.forces[%s]
-if not force then fail("force not found"); return end
-local area,area_result=%s,%s
-`, luaString(surface), luaString(force), areaLua, areaResult) + `
-local machine_set={ ["assembling-machine"]=true,furnace=true,["mining-drill"]=true,lab=true,["rocket-silo"]=true }
-local chest_set={container=true,["logistic-container"]=true,["linked-container"]=true,["infinity-container"]=true}
-local types={"assembling-machine","furnace","mining-drill","lab","rocket-silo","inserter","container","logistic-container","linked-container","infinity-container"}
-for _,t in ipairs(belt_types) do types[#types+1]=t end
-for _,t in ipairs(fluid_types) do types[#types+1]=t end
-local entities=surface.find_entities_filtered{area=area,force=force,type=types}
-table.sort(entities,less)
-local members={}; for _,e in ipairs(entities) do members[key(e)]=true end
-local nodes,machines,belts,chests,fluids,raw={},{},{},{},{},{}
-for _,e in ipairs(entities) do
-  local obj=endpoint(e); nodes[#nodes+1]=obj
-  if machine_set[e.type] then
-    machines[#machines+1]=obj
-    local target=machine_drop_target(e)
-    if valid(target) then raw[#raw+1]={a=e,b=target,kind="drop"} end
-  elseif chest_set[e.type] then chests[#chests+1]=obj
-  elseif is_fluid(e) then
-    fluids[#fluids+1]=obj
-    for _,link in ipairs(fluid_links(e)) do raw[#raw+1]=link end
-  elseif is_belt(e) then
-    belts[#belts+1]=obj
-    for _,link in ipairs(belt_connections(e)) do raw[#raw+1]=link end
-    if e.type=="loader" or e.type=="loader-1x1" then
-      local container=e.loader_container
-      if valid(container) then
-        if e.loader_type=="input" then raw[#raw+1]={a=e,b=container,kind="loader"}
-        else raw[#raw+1]={a=container,b=e,kind="loader"} end
-      end
-    end
-  end
-end
--- Inserters stand at most one tile from every node they touch, so the scan
--- area covers one expanding tile instead of the whole surface.
-local inserter_scan={{area[1][1]-1.5,area[1][2]-1.5},{area[2][1]+1.5,area[2][2]+1.5}}
-local inserter_entities={}
-for _,e in pairs(surface.find_entities_filtered{area=inserter_scan,type="inserter"}) do
-  local p,d=inserter_targets(e)
-  if members[key(e)] or (valid(p) and members[key(p)]) or (valid(d) and members[key(d)]) then inserter_entities[#inserter_entities+1]=e end
-end
-table.sort(inserter_entities,less)
-local inserters={}
-for _,e in ipairs(inserter_entities) do
-  inserters[#inserters+1]=connected_inserter(e)
-  local p,d=inserter_targets(e)
-  if valid(p) then raw[#raw+1]={a=p,b=e,kind="pickup"} end
-  if valid(d) then raw[#raw+1]={a=e,b=d,kind="drop"} end
-end
-local edges,boundary=collect_edges(members,raw)
-rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,area=area_result,nodes=nodes,machines=machines,belts=belts,chests=chests,inserters=inserters,fluidEntities=fluids,edges=edges,boundaryEdges=boundary})`
+	lua := topologyChunk(r, "factory_graph",
+		[]string{luaString(surface), luaString(force), areaLua, luaBool(compact), luaBool(includeLineLinks)},
+		fmt.Sprintf("local surface_name,force_name,compact,include_line_links=%s,%s,%t,%t\nlocal area=%s\n", luaString(surface), luaString(force), compact, includeLineLinks, areaLua),
+		factoryGraphCallLua)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

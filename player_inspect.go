@@ -29,14 +29,14 @@ func playerInspectLua(command string, args []string, out io.Writer) (string, err
 	}
 	prefix := luaFail
 	if *player != "" {
-		prefix += fmt.Sprintf(`local p=game.get_player(%s); if not p then fail("player not found"); return end; local c=p.character; local subject={player=p.name}; `, luaString(*player))
+		prefix += fmt.Sprintf(`local p=game.get_player(%s); if not p then fail("player not found"); return end; local c=p.character; local owner=p; local subject={player=p.name}; `, luaString(*player))
 	} else {
-		prefix += fmt.Sprintf(`local p=game.get_entity_by_unit_number(%d); if not p or not p.valid then fail("character not found"); return end; if p.type~="character" then fail("entity is not a character"); return end; local c=p; local subject={character=p.unit_number}; `, *character)
+		prefix += fmt.Sprintf(`local p=game.get_entity_by_unit_number(%d); if not p or not p.valid then fail("character not found"); return end; if p.type~="character" then fail("entity is not a character"); return end; local c=p; local owner=p.player; local subject={character=p.unit_number}; if owner then subject.player=owner.name end; `, *character)
 	}
 	prefix += `subject.surface=p.surface.name; subject.force=p.force.name; `
 	switch command {
 	case "player":
-		return prefix + `subject.tick=game.tick; subject.force=p.force.name; subject.surface=p.surface.name; subject.position=p.position; subject.has_character=c~=nil; if c then subject.character=c.unit_number; subject.health=c.health end; if subject.player then subject.connected=p.connected; subject.controller_type=p.controller_type end; ` + luaActorGear + `; rcon.print(helpers.table_to_json(subject))`, nil
+		return prefix + `subject.tick=game.tick; subject.force=p.force.name; subject.surface=p.surface.name; subject.position=p.position; subject.has_character=c~=nil; if c then subject.character=c.unit_number; subject.health=c.health end; if owner then subject.connected=owner.connected; subject.controller_type=owner.controller_type end; ` + luaActorGear + `; rcon.print(helpers.table_to_json(subject))`, nil
 	case "inventory":
 		return prefix + `local inv=p.get_main_inventory(); if not inv then fail("subject has no main inventory"); return end; local items=inv.get_contents(); subject.tick=game.tick; subject.inventory="main"; subject.items=items; subject.item_entries=#items; rcon.print(helpers.table_to_json(subject))`, nil
 	case "queue":

@@ -25,7 +25,7 @@ func TestTopologyBeltParams(t *testing.T) {
 		{"infinite y", "nauvis", 0, math.Inf(-1), 1, false},
 		{"zero limit", "nauvis", 0, 0, 0, false},
 		{"negative limit", "nauvis", 0, 0, -1, false},
-		{"excess limit", "nauvis", 0, 0, 1001, false},
+		{"excess limit", "nauvis", 0, 0, maxBeltTraversal + 1, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -102,13 +102,18 @@ l.linked_belt_type="input"; r.linked_belt_type="output"; l.linked_belt_neighbour
 local linked=belt_run(r,10)
 assert(#linked.nodes==2 and #linked.edges==1 and linked.edges[1].kind=="linked")
 assert(linked.edges[1].from.unitNumber==12 and linked.edges[1].to.unitNumber==13)
--- Engine transport-line links also establish directed connectivity.
+-- Engine transport-line links extend traversal only: their owner can be any belt
+-- along the same line, so they never become structural edges or terminals.
 local t,tl=entity(20)
 local z,zl=entity(21)
 tl.output_lines={zl}; zl.input_lines={tl}
 local transport=belt_run(z,10)
-assert(#transport.nodes==2 and #transport.edges==1)
-assert(transport.edges[1].from.unitNumber==20 and transport.edges[1].to.unitNumber==21)
+assert(#transport.nodes==2,"line links must still extend traversal")
+assert(#transport.edges==0,"line links are not structural edges")
+assert(#transport.sources==2 and #transport.sinks==2,"line links never define terminals, so both belts stay structural ends")
+local line_edges=belt_run(z,10,true)
+assert(#line_edges.edges==1 and line_edges.edges[1].kind=="line","line edges are opt-in")
+assert(line_edges.edges[1].from.unitNumber==20 and line_edges.edges[1].to.unitNumber==21)
 local isolated=belt_run(unrelated,10)
 assert(#isolated.nodes==1 and not isolated.truncated and #isolated.edges==0)
 assert(#isolated.sources==1 and #isolated.sinks==1)
@@ -185,7 +190,13 @@ lanes(e,{{items={{name="iron-plate",quality="normal",count=1}}},{items={}}})
 connect(d,e)
 local splitter=entity("splitter",4,6)
 connect(e,splitter)
--- One entity exposing the same internal line twice must be counted once.
+-- An underground entrance reports its tunnel lines as extra lines that share the
+-- surface line identity; both must be counted, because the identity dedupe used
+-- to drop the tunnel contents.
+local tunnel_total=entity("underground-belt",0,30)
+tunnel_total.belt_to_ground_type="input"
+lanes(tunnel_total,{{items={}},{items={{name="coal",quality="normal",count=2}},identity="tunnel"},{
+  items={}},{items={{name="coal",quality="normal",count=8}},identity="tunnel"}})
 local dup=entity("transport-belt",9,9)
 lanes(dup,{{items={{name="stone",quality="normal",count=2}},identity="dup"},{items={{name="stone",quality="normal",count=1}},identity="dup"}})
 `
@@ -209,8 +220,11 @@ local bounded=belt_stretch(a,2)
 assert(bounded.truncated and #bounded.nodes==2)
 local from_exit=belt_stretch(d,10)
 assert(#from_exit.nodes==5 and from_exit.nodes[1].position.x==0)
+-- Every line an entity exposes is summed, even when identities repeat.
 local duplicated=belt_stretch(dup,10)
-assert(duplicated.left.itemCount==2 and duplicated.right.itemCount==0)
+assert(duplicated.left.itemCount==2 and duplicated.right.itemCount==1,"every exposed line must count, got left "..tostring(duplicated.left.itemCount).." right "..tostring(duplicated.right.itemCount))
+local tunneled=belt_stretch(tunnel_total,10)
+assert(tunneled.right.itemCount==10,"tunnel contents must count, got "..tostring(tunneled.right.itemCount))
 
 -- Forward boundary classification: the splitter end and the backward start of
 -- the stretch above are not classified.
@@ -290,21 +304,22 @@ func TestBeltStretchEndClassification(t *testing.T) {
 		return fmt.Sprintf(`{"position":{"x":%g,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":false,"reason":"NOT_APPLICABLE"%s}`, x, extra)
 	}
 	cases := []struct {
-		name      string
-		end       string
-		reason    BeltEndReason
-		gap       bool
-		blocker   string
-		hasTarget bool
-		targetX   float64
+		name       string
+		end        string
+		reason     BeltEndReason
+		gap        bool
+		blocker    string
+		hasTarget  bool
+		targetX    float64
+		downstream string
 	}{
-		{"natural end", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":false,"reason":"NATURAL_END","expectedTarget":{"x":3.5,"y":0.5}}`, BeltEndReasonNaturalEnd, false, "", true, 3.5},
-		{"natural end into a machine", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":false,"reason":"NATURAL_END","blocker":"stone-furnace","expectedTarget":{"x":3.5,"y":0.5}}`, BeltEndReasonNaturalEnd, false, "stone-furnace", true, 3.5},
-		{"missing belt", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":true,"reason":"MISSING_BELT","expectedTarget":{"x":3.5,"y":0.5}}`, BeltEndReasonMissingBelt, true, "", true, 3.5},
-		{"blocked by a tree", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":true,"reason":"BLOCKED","blocker":"tree-01","expectedTarget":{"x":3.5,"y":0.5}}`, BeltEndReasonBlocked, true, "tree-01", true, 3.5},
-		{"head on", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":true,"reason":"HEAD_ON","blocker":"transport-belt","expectedTarget":{"x":3.5,"y":0.5}}`, BeltEndReasonHeadOn, true, "transport-belt", true, 3.5},
-		{"unpaired underground", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":true,"reason":"UNPAIRED_UNDERGROUND","expectedTarget":{"x":3.5,"y":0.5}}`, BeltEndReasonUnpairedUnderground, true, "", true, 3.5},
-		{"backward boundary", end(0.5, ``), BeltEndReasonNotApplicable, false, "", false, 0},
+		{"natural end", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":false,"reason":"NATURAL_END","expectedTarget":{"x":3.5,"y":0.5}}`, BeltEndReasonNaturalEnd, false, "", true, 3.5, ""},
+		{"natural end into a machine", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":false,"reason":"NATURAL_END","blocker":"stone-furnace","expectedTarget":{"x":3.5,"y":0.5},"downstream":{"name":"stone-furnace","type":"furnace","surface":"nauvis","position":{"x":3.5,"y":0.5},"status":"waiting_for_space_in_destination","lanes":{}}}`, BeltEndReasonNaturalEnd, false, "stone-furnace", true, 3.5, "stone-furnace"},
+		{"missing belt", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":true,"reason":"MISSING_BELT","expectedTarget":{"x":3.5,"y":0.5}}`, BeltEndReasonMissingBelt, true, "", true, 3.5, ""},
+		{"blocked by a tree", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":true,"reason":"BLOCKED","blocker":"tree-01","expectedTarget":{"x":3.5,"y":0.5}}`, BeltEndReasonBlocked, true, "tree-01", true, 3.5, ""},
+		{"head on", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":true,"reason":"HEAD_ON","blocker":"transport-belt","expectedTarget":{"x":3.5,"y":0.5}}`, BeltEndReasonHeadOn, true, "transport-belt", true, 3.5, ""},
+		{"unpaired underground", `{"position":{"x":2.5,"y":0.5},"unitNumber":9,"kind":"boundary","targets":{},"gap":true,"reason":"UNPAIRED_UNDERGROUND","expectedTarget":{"x":3.5,"y":0.5}}`, BeltEndReasonUnpairedUnderground, true, "", true, 3.5, ""},
+		{"backward boundary", end(0.5, ``), BeltEndReasonNotApplicable, false, "", false, 0, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -327,6 +342,12 @@ func TestBeltStretchEndClassification(t *testing.T) {
 			}
 			if tc.hasTarget != (got.ExpectedTarget != nil) || (tc.hasTarget && got.ExpectedTarget.X != tc.targetX) {
 				t.Fatalf("expectedTarget: %+v", got.ExpectedTarget)
+			}
+			if (tc.downstream == "") != (got.Downstream == nil) || (got.Downstream != nil && got.Downstream.Name != tc.downstream) {
+				t.Fatalf("downstream: %+v want %q", got.Downstream, tc.downstream)
+			}
+			if got.Downstream != nil && got.Downstream.Status != nil && *got.Downstream.Status != "waiting_for_space_in_destination" {
+				t.Fatalf("downstream status: %v", *got.Downstream.Status)
 			}
 			lua := <-commands
 			for _, want := range []string{
@@ -381,6 +402,8 @@ local function ent(id,kind,name,cx,cy,size)
   local e={valid=true,unit_number=id,type=kind,name=name or kind,surface=surface,force=force,
     position={x=cx,y=cy},
     bounding_box={left_top={x=cx-half,y=cy-half},right_bottom={x=cx+half,y=cy+half}}}
+  -- Inventory entities and burners are insertable; a pipe is neither.
+  if kind=="container" or kind=="logistic-container" then e.get_max_inventory_index=function() return 1 end end
   world[#world+1]=e
   return e
 end
@@ -398,6 +421,19 @@ live.drop_position={x=0.5,y=0.5}
 live.drop_target=steel
 -- No positions at all: nothing resolved, nothing invented.
 local bare=ent(22,"inserter","inserter",-5.5,-5.5)
+-- A boiler is insertable through its burner, so an idle boiler-feed inserter
+-- resolves even without any inventory.
+local boiler=ent(40,"boiler","boiler",0.5,15.5,2)
+boiler.burner={}
+local boiler_inserter=ent(41,"inserter","inserter",0.5,13.5)
+boiler_inserter.pickup_position={x=0.5,y=12.5}
+boiler_inserter.drop_position={x=0.5,y=15.0}
+-- A cargo wagon is insertable through its inventory.
+local wagon=ent(42,"cargo-wagon","cargo-wagon",25.5,0.5,2)
+wagon.get_max_inventory_index=function() return 1 end
+local wagon_inserter=ent(43,"inserter","inserter",25.5,2.5)
+wagon_inserter.pickup_position={x=25.5,y=1.5}
+wagon_inserter.drop_position={x=25.5,y=0.5}
 -- A drill whose engine drop target is nil falls back to its drop position.
 local drill=ent(30,"mining-drill","burner-mining-drill",13.5,-8.5,3)
 drill.drop_position={x=15.5,y=-8.5}
@@ -413,10 +449,273 @@ assert(from_engine.pickup==nil,"empty pickup position must stay nil")
 local empty=connected_inserter(bare)
 assert(empty.pickup==nil and empty.drop==nil,"no positions must resolve nothing")
 assert(machine_drop_target(drill)==drill_chest,"drill drop must resolve geometrically")
+local boiler_wired=connected_inserter(boiler_inserter)
+assert(boiler_wired.drop and boiler_wired.drop.type=="boiler","a burner entity is insertable, got "..tostring(boiler_wired.drop and boiler_wired.drop.type))
+local wagon_wired=connected_inserter(wagon_inserter)
+assert(wagon_wired.drop and wagon_wired.drop.type=="cargo-wagon","an inventory entity is insertable")
 `
 	cmd := exec.Command(lua, "-")
 	cmd.Stdin = strings.NewReader(fixture + transportLineLua + topologyCommonLua + assertions)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("inserter target fallback regression: %v\n%s", err, output)
+	}
+}
+
+// One bounded inserter scan must serve a component: the scan area is the member
+// bounding box padded by 2.5 tiles, never the whole surface, and long-handed
+// inserters just outside the component still count.
+func TestTopologyBoundedInserterScan(t *testing.T) {
+	lua, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("standalone Lua interpreter not installed")
+	}
+	fixture := `
+defines={entity_status={},transport_line={left_line=1,right_line=2}}
+local surface={index=1,name="nauvis"}
+surface.force={name="player"}
+local inserter_queries={}
+local function box(cx,cy,size)
+  local half=(size or 1)/2
+  return {left_top={x=cx-half,y=cy-half},right_bottom={x=cx+half,y=cy+half}}
+end
+local function belt(x,y)
+  local e={valid=true,unit_number=math.floor(x*10)+math.floor(y*10)+10,type="transport-belt",name="transport-belt",
+    surface=surface,position={x=x,y=y},direction=4,bounding_box=box(x,y),belt_neighbours={inputs={},outputs={}}}
+  e.lines={{}}
+  e.get_max_transport_line_index=function() return 1 end
+  e.get_transport_line=function() return {owner=e,input_lines={},output_lines={},get_contents=function() return {} end} end
+  return e
+end
+local a=belt(0.5,0.5)
+local b=belt(1.5,0.5)
+a.belt_neighbours.outputs[1]=b
+b.belt_neighbours.inputs[1]=a
+-- One tile above the component: outside a full-surface scan's component box, but
+-- inside the padded one.
+local inserter={valid=true,unit_number=90,type="inserter",name="inserter",surface=surface,
+  force=surface.force,position={x=0.5,y=-0.5},direction=0,bounding_box=box(0.5,-0.5),
+  pickup_position={x=0.5,y=0.5},drop_position={x=0.5,y=-1.5}}
+surface.find_entities_filtered=function(spec)
+  if spec.type=="inserter" then
+    inserter_queries[#inserter_queries+1]=spec.area
+    local out={}
+    if spec.area then
+      local bb=inserter.bounding_box
+      if bb.left_top.x<=spec.area[2][1] and bb.right_bottom.x>=spec.area[1][1]
+        and bb.left_top.y<=spec.area[2][2] and bb.right_bottom.y>=spec.area[1][2] then out[#out+1]=inserter end
+    end
+    return out
+  end
+  local out={}
+  if spec.position then
+    for _,e in ipairs({a,b}) do
+      local bb=e.bounding_box
+      if spec.position.x>=bb.left_top.x and spec.position.x<=bb.right_bottom.x
+        and spec.position.y>=bb.left_top.y and spec.position.y<=bb.right_bottom.y then out[#out+1]=e end
+    end
+  end
+  return out
+end
+game={tick=1,surfaces={nauvis=surface}}
+`
+	assertions := `
+local run=belt_run(a,10)
+assert(#run.inserters==1,"the padded scan must reach the inserter, got "..#run.inserters)
+assert(#inserter_queries==1,"one bounded scan per surface, got "..#inserter_queries)
+local area=inserter_queries[1]
+assert(area~=nil,"the inserter scan must be area bounded")
+assert(area[1][1]<=-2 and area[2][1]>=2.5,"scan must be padded by 2.5 tiles, got "..area[1][1]..".."..area[2][1])
+assert(area[2][1]-area[1][1]<=10,"scan must stay bounded to the component")
+`
+	cmd := exec.Command(lua, "-")
+	cmd.Stdin = strings.NewReader(fixture + transportLineLua + topologyCommonLua + assertions)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("bounded inserter scan regression: %v\n%s", err, output)
+	}
+}
+
+// A stretch must return the inserters touching it and the consumer waiting at its
+// forward end, so one call explains why items stop.
+func TestTopologyBeltStretchInsertersAndDownstream(t *testing.T) {
+	lua, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("standalone Lua interpreter not installed")
+	}
+	fixture := `
+defines={entity_status={waiting_for_space_in_destination=6},transport_line={left_line=1,right_line=2}}
+local surface={index=1,name="nauvis"}
+local function box(cx,cy,size)
+  local half=(size or 1)/2
+  return {left_top={x=cx-half,y=cy-half},right_bottom={x=cx+half,y=cy+half}}
+end
+local belt={valid=true,unit_number=11,type="transport-belt",name="transport-belt",surface=surface,
+  position={x=0.5,y=0.5},direction=4,bounding_box=box(0.5,0.5),belt_neighbours={inputs={},outputs={}}}
+belt.lines={{}}
+belt.get_max_transport_line_index=function() return 1 end
+belt.get_transport_line=function() return {owner=belt,input_lines={},output_lines={},get_contents=function() return {} end} end
+-- The consumer sits on the tile the belt outputs into.
+local chest={valid=true,unit_number=12,type="container",name="iron-chest",surface=surface,force={name="player"},
+  position={x=1.5,y=0.5},bounding_box=box(1.5,0.5),status=defines.entity_status.waiting_for_space_in_destination or 6,
+  get_max_inventory_index=function() return 1 end}
+local inserter={valid=true,unit_number=13,type="inserter",name="inserter",surface=surface,force={name="player"},
+  position={x=0.5,y=-0.5},direction=0,bounding_box=box(0.5,-0.5),
+  pickup_position={x=0.5,y=-1.0},drop_position={x=0.5,y=0.5}}
+surface.find_entities_filtered=function(spec)
+  local out={}
+  local function push(e)
+    local bb=e.bounding_box
+    if spec.position then
+      if spec.position.x>=bb.left_top.x and spec.position.x<=bb.right_bottom.x
+        and spec.position.y>=bb.left_top.y and spec.position.y<=bb.right_bottom.y then out[#out+1]=e end
+      return
+    end
+    local a=spec.area
+    local x1,y1,x2,y2
+    if a.left_top then x1,y1,x2,y2=a.left_top.x,a.left_top.y,a.right_bottom.x,a.right_bottom.y
+    else x1,y1,x2,y2=a[1][1],a[1][2],a[2][1],a[2][2] end
+    if bb.left_top.x<=x2 and bb.right_bottom.x>=x1 and bb.left_top.y<=y2 and bb.right_bottom.y>=y1 then out[#out+1]=e end
+  end
+  for _,e in ipairs({belt,chest,inserter}) do
+    if not spec.type or spec.type==e.type then push(e) end
+  end
+  return out
+end
+game={tick=1,surfaces={nauvis=surface}}
+`
+	assertions := `
+local stretch=belt_stretch(belt,10)
+assert(#stretch.nodes==1)
+assert(#stretch.inserters==1,"the inserter dropping onto the stretch must be listed, got "..#stretch.inserters)
+assert(stretch.inserters[1].drop.unitNumber==11,"the inserter must report the belt as its drop")
+local forward=stretch.ends[#stretch.ends]
+assert(forward.downstream~=nil,"a blocked consumer must be reported")
+assert(forward.downstream.name=="iron-chest","downstream entity "..tostring(forward.downstream.name))
+assert(forward.downstream.status~=nil,"downstream status must travel with the entity")
+`
+	cmd := exec.Command(lua, "-")
+	cmd.Stdin = strings.NewReader(fixture + transportLineLua + topologyCommonLua + assertions)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("stretch inserter/downstream regression: %v\n%s", err, output)
+	}
+}
+
+// Compact mode must decode keys-only edges and inserters, and must ask the mod
+// for compact output in its fast path.
+func TestFactoryGraphCompactDecode(t *testing.T) {
+	response := `{"tick":7,"surface":"nauvis","force":"player","area":{"leftTopX":0,"leftTopY":0,"rightBottomX":8,"rightBottomY":8},
+"nodes":[{"name":"transport-belt","type":"transport-belt","surface":"nauvis","position":{"x":0.5,"y":0.5},"unitNumber":"11","lanes":{}}],
+"machines":{},"belts":{},"chests":{},"inserters":{},"fluidEntities":{},"edges":{},"boundaryEdges":{},
+"compactEdges":[{"from":"nauvis:11","to":"nauvis:12","kind":"belt","boundary":false}],
+"compactBoundaryEdges":[{"from":"nauvis:12","to":"nauvis:13","kind":"drop","boundary":true}],
+"compactInserters":[{"inserter":"nauvis:14","pickup":"nauvis:11","drop":"nauvis:12"}]}`
+	r, commands := serveLuaOnce(t, response)
+	graph, err := factoryGraphQuery(r, &FactoryAreaInput{RightBottomX: 8, RightBottomY: 8}, "player", "nauvis", true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(graph.CompactEdges) != 1 || graph.CompactEdges[0].From != "nauvis:11" || graph.CompactEdges[0].To != "nauvis:12" || graph.CompactEdges[0].Kind != "belt" {
+		t.Fatalf("compact edges: %#v", graph.CompactEdges)
+	}
+	if len(graph.CompactBoundaryEdges) != 1 || !graph.CompactBoundaryEdges[0].Boundary {
+		t.Fatalf("compact boundary edges: %#v", graph.CompactBoundaryEdges)
+	}
+	if len(graph.CompactInserters) != 1 || graph.CompactInserters[0].Drop == nil || *graph.CompactInserters[0].Drop != "nauvis:12" {
+		t.Fatalf("compact inserters: %#v", graph.CompactInserters)
+	}
+	if len(graph.Edges) != 0 || len(graph.Machines) != 0 || len(graph.CompactInserters) != 1 {
+		t.Fatalf("compact mode must not repeat entity lists: %+v", graph)
+	}
+	// An empty compact graph omits the key-only arrays instead of encoding them as
+	// {}, so it decodes without response normalization and still returns [].
+	emptyResponse := `{"tick":7,"surface":"nauvis","force":"player","area":{"leftTopX":0,"leftTopY":0,"rightBottomX":8,"rightBottomY":8},
+"nodes":{},"machines":{},"belts":{},"chests":{},"inserters":{},"fluidEntities":{},"edges":{},"boundaryEdges":{}}`
+	emptyRunner, _ := serveLuaOnce(t, emptyResponse)
+	emptyGraph, err := factoryGraphQuery(emptyRunner, &FactoryAreaInput{RightBottomX: 8, RightBottomY: 8}, "player", "nauvis", true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(emptyGraph.CompactEdges) != 0 || len(emptyGraph.CompactBoundaryEdges) != 0 || len(emptyGraph.CompactInserters) != 0 {
+		t.Fatalf("empty compact lists must decode as empty: %+v", emptyGraph)
+	}
+	lua := <-commands
+	for _, want := range []string{
+		"local surface_name,force_name,compact,include_line_links=" + luaString("nauvis") + "," + luaString("player") + ",true,false",
+		"if compact then",
+	} {
+		if !strings.Contains(lua, want) {
+			t.Fatalf("compact request missing %q\n%s", want, lua)
+		}
+	}
+}
+
+// Inspection belt runs traverse every component first and share one padded
+// inserter scan across the seeds, then attach the matching arms per component.
+func TestTopologyBeltRunsShareOneInserterScan(t *testing.T) {
+	lua, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("standalone Lua interpreter not installed")
+	}
+	fixture := `
+defines={entity_status={},transport_line={left_line=1,right_line=2}}
+local surface={index=1,name="nauvis"}
+local scans=0
+local function box(cx,cy)
+  return {left_top={x=cx-0.5,y=cy-0.5},right_bottom={x=cx+0.5,y=cy+0.5}}
+end
+local function belt(x,y)
+  local e={valid=true,unit_number=math.floor(x*100+y*10+7),type="transport-belt",name="transport-belt",
+    surface=surface,position={x=x,y=y},direction=4,bounding_box=box(x,y),belt_neighbours={inputs={},outputs={}}}
+  e.get_max_transport_line_index=function() return 1 end
+  e.get_transport_line=function() return {owner=e,input_lines={},output_lines={},get_contents=function() return {} end} end
+  return e
+end
+local first=belt(0.5,0.5)
+local second=belt(20.5,20.5)
+local arms={
+  {valid=true,unit_number=901,type="inserter",name="inserter",surface=surface,position={x=0.5,y=-0.5},
+   direction=0,bounding_box=box(0.5,-0.5),drop_position={x=0.5,y=0.5}},
+  {valid=true,unit_number=902,type="inserter",name="inserter",surface=surface,position={x=20.5,y=19.5},
+   direction=0,bounding_box=box(20.5,19.5),drop_position={x=20.5,y=20.5}},
+}
+surface.find_entities_filtered=function(spec)
+  local out={}
+  if spec.type=="inserter" then
+    scans=scans+1
+    if spec.area then
+      for _,e in ipairs(arms) do
+        local bb=e.bounding_box
+        if bb.left_top.x<=spec.area[2][1] and bb.right_bottom.x>=spec.area[1][1]
+          and bb.left_top.y<=spec.area[2][2] and bb.right_bottom.y>=spec.area[1][2] then out[#out+1]=e end
+      end
+    end
+    return out
+  end
+  if spec.position then
+    for _,e in ipairs({first,second}) do
+      local bb=e.bounding_box
+      if spec.position.x>=bb.left_top.x and spec.position.x<=bb.right_bottom.x
+        and spec.position.y>=bb.left_top.y and spec.position.y<=bb.right_bottom.y then out[#out+1]=e end
+    end
+  end
+  return out
+end
+game={tick=1,surfaces={nauvis=surface}}
+`
+	assertions := `
+local requests,limit,include_line_links={
+  {surface="nauvis",x=0.5,y=0.5,name="transport-belt",unit=tostring(first.unit_number)},
+  {surface="nauvis",x=20.5,y=20.5,name="transport-belt",unit=tostring(second.unit_number)},
+},10,false
+` + beltRunsCallLua + `
+assert(#payload.beltRuns==2,"both components must be returned, got "..#payload.beltRuns)
+assert(scans==1,"one shared inserter scan, got "..scans)
+for _,run in ipairs(payload.beltRuns) do
+  assert(#run.inserters==1,"each run must get its own arm, got "..#run.inserters)
+end
+`
+	cmd := exec.Command(lua, "-")
+	cmd.Stdin = strings.NewReader(fixture + transportLineLua + topologyCommonLua + assertions)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("shared inserter scan regression: %v\n%s", err, output)
 	}
 }

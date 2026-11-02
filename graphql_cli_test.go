@@ -80,7 +80,7 @@ func TestGraphQLRejectsEmptyResearchTechnology(t *testing.T) {
 
 func TestClearAreaRejectsInvalidBoundsBeforeRCON(t *testing.T) {
 	tests := []string{
-		`mutation { clearArea(input:{area:{leftTopX:0,leftTopY:0,rightBottomX:257,rightBottomY:1}}) { treesRemoved } }`,
+		`mutation { clearArea(input:{area:{leftTopX:0,leftTopY:0,rightBottomX:1025,rightBottomY:1}}) { treesRemoved } }`,
 		`mutation { clearArea(input:{area:{leftTopX:0,leftTopY:0,rightBottomX:0,rightBottomY:1}}) { treesRemoved } }`,
 		`mutation { clearArea(input:{area:{leftTopX:2,leftTopY:0,rightBottomX:1,rightBottomY:1}}) { treesRemoved } }`,
 	}
@@ -95,7 +95,7 @@ func TestClearAreaRejectsInvalidBoundsBeforeRCON(t *testing.T) {
 
 func TestBatchAreaMutationsValidateBoundsBeforeRCON(t *testing.T) {
 	invalid := []string{
-		`mutation { harvestArea(input:{actor:{character:"7"},area:{leftTopX:0,leftTopY:0,rightBottomX:257,rightBottomY:1}}) { treesMined } }`,
+		`mutation { harvestArea(input:{actor:{character:"7"},area:{leftTopX:0,leftTopY:0,rightBottomX:1025,rightBottomY:1}}) { treesMined } }`,
 		`mutation { pickupArea(input:{actor:{character:"7"},area:{leftTopX:0,leftTopY:0,rightBottomX:0,rightBottomY:1}}) { stacksFound } }`,
 	}
 	for _, mutation := range invalid {
@@ -223,8 +223,8 @@ func TestObservationQueriesRejectInvalidBounds(t *testing.T) {
 	}{
 		{`{ stock(input:{limit:0}) { locationPageInfo { total } } }`, "limit"},
 		{`{ electricNetworks(input:{offset:-1}) { pageInfo { total } } }`, "offset"},
-		{`{ worldResources(input:{area:{leftTopX:0,leftTopY:0,rightBottomX:257,rightBottomY:1}}) { pageInfo { total } } }`, "area"},
-		{`{ safety(input:{enemyLimit:1001}) { tick } }`, "limit"},
+		{`{ worldResources(input:{area:{leftTopX:0,leftTopY:0,rightBottomX:1025,rightBottomY:1}}) { pageInfo { total } } }`, "area"},
+		{`{ safety(input:{enemyLimit:10001}) { tick } }`, "limit"},
 		{`{ itemRecipes(input:{item:"iron-plate",offset:-1}) { pageInfo { total } } }`, "offset"},
 	}
 	for _, tt := range tests {

@@ -15,7 +15,7 @@ func engineStatus(raw string) *EngineStatus {
 		terminal = false
 	case "COMPLETE", "COMPLETED", "SUCCEEDED", "ARRIVED", "FINISHED":
 		category = StatusCategorySucceeded
-	case "FAILED", "INVALIDATED", "TIMED_OUT", "TARGET_MISSING", "NO_PATH":
+	case "FAILED", "INVALIDATED", "TIMED_OUT", "TARGET_MISSING", "NO_PATH", "CHARACTER_MISSING":
 		category = StatusCategoryFailed
 	case "CANCELLED", "CANCELED":
 		category = StatusCategoryCancelled

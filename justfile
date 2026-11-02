@@ -28,7 +28,12 @@ navigation-install:
     #!/usr/bin/env bash
     set -euo pipefail
     mod_dir="${FACTORIO_MOD_DIR:-$HOME/Library/Application Support/factorio/mods}"
-    target="$mod_dir/factorio_ai_navigation_1.0.0"
+    version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' mods/factorio_ai_navigation/info.json | head -1)"
+    if [[ -z "$version" ]]; then
+        echo "Could not read the mod version from mods/factorio_ai_navigation/info.json." >&2
+        exit 1
+    fi
+    target="$mod_dir/factorio_ai_navigation_$version"
     mkdir -p "$mod_dir"
     if [[ -e "$target" || -L "$target" ]]; then
         echo "Navigation mod already exists at $target; refusing to overwrite." >&2

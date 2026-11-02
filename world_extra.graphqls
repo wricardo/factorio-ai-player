@@ -3,8 +3,10 @@ extend type Query {
   surfaces(force: String! = "player"): SurfacePage!
   """Reads the signals currently visible on one entity's red (the default) or green circuit network, together with that entity's red and green connection counts. The target is located by unitNumber, or by prototype name plus an exact centre-position match (within 0.001 tiles), on its own surface field (default nauvis); no actor or reach check is involved, and an entity resolvable only by unit-number scan needs its prototype name supplied. connected is false when the entity exposes no network of the requested colour, in which case signals is empty while both connection counts are still reported; ambiguous centre matches and unknown entities are GraphQL errors. Signals are sorted by type, name, quality (unqualified first), and value, and quality is null for virtual and fluid signals. One unpaginated snapshot at the reported tick, so a large network returns every signal in a single response."""
   circuitNetwork(input: CircuitNetworkInput!): CircuitNetworkSignals!
-  """Lists the named force's custom map chart tags on one surface, ordered by tag number, optionally restricted to an area that must have finite coordinates and positive dimensions. surface and force must be non-empty and exist; limit is 1..1000 and offset is zero-based, with pageInfo reporting the total and hasMore for the filtered set. Each tag carries its force-unique tagNumber, position, text (empty when unset), and icon when one was set. One snapshot at the reported tick, with no actor or reach check."""
+  """Lists the named force's custom map chart tags on one surface, ordered by tag number, optionally restricted to an area that must have finite coordinates and positive dimensions. surface and force must be non-empty and exist; limit is 1..10000 and offset is zero-based, with pageInfo reporting the total and hasMore for the filtered set. Each tag carries its force-unique tagNumber, position, text (empty when unset), and icon when one was set. One snapshot at the reported tick, with no actor or reach check."""
   chartTags(input: ChartTagsInput!): ChartTagPage!
+  """Lists the circuit networks reachable from the entities inside an area, grouped by the engine's network id, in one Lua chunk. surface and force default to nauvis and player and must exist; area is required, limit (1..5000, default 500) caps how many entities are scanned and memberLimit (1..10000, default 100) caps the member connectors reported per network with truncated set when more exist. Entities are found on the given force only, and power (copper) connectors are ignored. Each network reports its networkId, wire color, the whole network's signals sorted by type, name, quality and value, and the member connectors with entity name, type, unit number, position and connector id. No actor or reach check applies."""
+  circuitNetworks(input: CircuitNetworksInput!): CircuitNetworkPage!
 }
 
 extend type Mutation {
@@ -14,7 +16,7 @@ extend type Mutation {
   removeChartTag(input: RemoveChartTagInput!): ChartTagMutationResult!
 }
 
-"""List custom chart tags, optionally restricted to an area. limit is 1 through 1000 and offset is zero-based."""
+"""List custom chart tags, optionally restricted to an area. limit is 1 through 10000 and offset is zero-based."""
 input ChartTagsInput {
   surface: String! = "nauvis"
   force: String! = "player"
@@ -43,19 +45,13 @@ input RemoveChartTagInput {
   message: String
 }
 
-"""Signal icon shown beside a custom chart tag."""
-type ChartTagIcon {
-  type: String!
-  name: String!
-  quality: String
-}
-
 """One force-visible custom marker in map view."""
 type ChartTag {
   tagNumber: ID!
   position: Position!
   text: String!
-  icon: ChartTagIcon
+  """Icon signal, using the shared SignalID shape; type is item when the engine stores none."""
+  icon: SignalID
 }
 
 type ChartTagPage {
@@ -88,10 +84,12 @@ type SurfacePage {
   surfaces: [SurfaceInfo!]!
 }
 
-"""Read one entity's red or green circuit network."""
+"""Read one entity's red or green circuit network, optionally through a specific wire connector."""
 input CircuitNetworkInput {
   target: EntityRefInput!
   color: WireColor! = RED
+  """Engine wire connector id, for example circuit_red, circuit_green, combinator_output_red. Defaults to circuit_<color>, which on a combinator is the input connector; pass combinators' output connector to read the network the combinator drives."""
+  connector: String
 }
 
 type CircuitNetworkSignals {
@@ -100,16 +98,60 @@ type CircuitNetworkSignals {
   name: String
   unitNumber: UnitNumber
   color: WireColor!
-  """True when the entity exposes a network of that color."""
+  """Engine connector the network was read through."""
+  connector: String!
+  """True when the entity exposes a network through that connector."""
   connected: Boolean!
-  redConnections: Int!
-  greenConnections: Int!
+  """Engine network id; equal ids mean the same network. Null when not connected."""
+  networkId: Int
+  """Engine connected_circuit_count: how many circuits are attached to that network, not how many wires this entity has. Null when not connected."""
+  networkCircuitCount: Int
   signals: [CircuitSignal!]!
 }
 
-"""One circuit signal; quality is null for virtual and fluid signals."""
+"""List circuit networks in an area and the entities attached to them."""
+input CircuitNetworksInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  area: FactoryAreaInput!
+  """Maximum entities scanned, 1 through 50000."""
+  limit: Int! = 500
+  """Maximum members reported per network, 1 through 10000."""
+  memberLimit: Int! = 100
+}
+
+type CircuitNetworkMember {
+  name: String!
+  """Entity type, for example arithmetic-combinator."""
+  entityType: String!
+  unitNumber: UnitNumber
+  position: Position!
+  """Engine wire connector the entity attaches to the network with."""
+  connector: String!
+}
+
+"""One circuit network with its signals and member connectors. Signals cover the whole network, so a network extending past the queried area reports signals from outside it."""
+type CircuitNetworkEntry {
+  networkId: Int!
+  color: WireColor
+  signals: [CircuitSignal!]!
+  members: [CircuitNetworkMember!]!
+  """True when the network has more members than memberLimit."""
+  truncated: Boolean!
+}
+
+type CircuitNetworkPage {
+  tick: Float!
+  surface: String!
+  force: String!
+  """Networks sorted by network id."""
+  networks: [CircuitNetworkEntry!]!
+  scannedEntities: Int!
+}
+
+"""One circuit signal; quality is null for virtual and fluid signals. type uses the same SignalType enum as SignalInput."""
 type CircuitSignal {
-  type: String!
+  type: SignalType!
   name: String!
   quality: String
   value: Float!

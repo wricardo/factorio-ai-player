@@ -11,9 +11,13 @@ import (
 // of every technology. Every call reports the resulting force research state.
 
 // researchStateLua appends the current research state from `f` into `state`.
+// In 2.0 the first research_queue entry is the running technology, so the
+// queue repeats current_research; tick is read in the same snapshot so callers
+// can order the result against later research reads.
 const researchStateLua = `
 local research_queue={}
 for _,queued in pairs(f.research_queue) do research_queue[#research_queue+1]=queued.name end
+state.tick=game.tick
 state.current_research=f.current_research and f.current_research.name or nil
 state.research_queue=research_queue
 `
@@ -37,7 +41,16 @@ if t.researched then fail("technology is already researched"); return end
 if not t.enabled then fail("technology is not enabled"); return end
 local queue_ok,queue_result=pcall(function() return f.add_research(t) end)
 if not queue_ok then fail(tostring(queue_result)); return end
-if not queue_result then fail("could not queue "..t.name); return end
+if not queue_result then
+  local missing={}
+  for _,prerequisite in pairs(t.prerequisites or {}) do
+    if not prerequisite.researched then missing[#missing+1]=prerequisite.name end
+  end
+  table.sort(missing)
+  if #missing>0 then fail("could not queue "..t.name..": unmet prerequisites "..table.concat(missing, ", ")); return end
+  fail("could not queue "..t.name)
+  return
+end
 local state={force=f.name,technology=t.name,started=true}
 ` + researchStateLua + `
 rcon.print(helpers.table_to_json(state))
@@ -63,14 +76,19 @@ func queueResearch(r *Resolver, in QueueResearchInput) (*ResearchState, error) {
 }
 
 // clearResearchQueueLua validates the input and builds the clear mutation Lua.
+// In 2.0 writing an empty research_queue cancels the running technology, so the
+// write keeps exactly that technology queued and reports the state read after
+// the write instead of the state captured before it.
 func clearResearchQueueLua(in ResearchQueueInput) (string, error) {
 	if strings.TrimSpace(in.Force) == "" {
 		return "", errors.New("force must not be empty")
 	}
-	lua := luaFail + researchForceLua(in.Force) + `local current=f.current_research
-local queue_ok,queue_error=pcall(function() f.research_queue={} end)
+	lua := luaFail + researchForceLua(in.Force) + `local keep={}
+if f.current_research then keep[1]=f.current_research.name end
+local queue_ok,queue_error=pcall(function() f.research_queue=keep end)
 if not queue_ok then fail("cannot clear the research queue: "..tostring(queue_error)); return end
-local state={force=f.name,technology=current and current.name or "",started=current~=nil}
+local remaining=f.current_research
+local state={force=f.name,technology=remaining and remaining.name or "",started=remaining~=nil}
 ` + researchStateLua + `
 rcon.print(helpers.table_to_json(state))
 `

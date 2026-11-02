@@ -5,29 +5,66 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 )
 
-func adjacencyParams(area *FactoryAreaInput, force, surface string, tolerance float64, limit int) error {
+// maxAdjacencyKinds bounds the entity-type filter so a caller cannot turn one
+// adjacency read into an unbounded number of engine scans.
+const maxAdjacencyKinds = 20
+
+func adjacencyParams(area *FactoryAreaInput, force, surface string, tolerance float64, limit int, kinds []string) error {
 	if surface == "" || force == "" {
 		return errors.New("surface and force are required")
 	}
 	if math.IsNaN(tolerance) || math.IsInf(tolerance, 0) || tolerance < 0 || tolerance > 4 {
 		return errors.New("tolerance must be finite and between 0 and 4 tiles")
 	}
-	if limit < 1 || limit > 2000 {
-		return errors.New("limit must be between 1 and 2000")
+	if limit < 1 || limit > maxPageSize {
+		return pageLimitError("limit")
+	}
+	if len(kinds) > maxAdjacencyKinds {
+		return fmt.Errorf("kinds accepts at most %d entity types", maxAdjacencyKinds)
+	}
+	for _, kind := range kinds {
+		if strings.TrimSpace(kind) == "" {
+			return errors.New("kinds entries must be non-empty engine entity type names")
+		}
 	}
 	return nil
+}
+
+// adjacencyKindsLua renders the type filter as a Lua table literal.
+func adjacencyKindsLua(kinds []string) string {
+	if len(kinds) == 0 {
+		return "{}"
+	}
+	parts := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		parts = append(parts, luaString(kind))
+	}
+	return "{" + strings.Join(parts, ",") + "}"
 }
 
 // adjacencyLua reports geometric neighbours, then verifies each pair against
 // engine connection objects so touching yet unconnected entities stay visible.
 // Geometry alone never claims item or fluid movement.
 const adjacencyLua = `
+local surface=game.surfaces[surface_name]
+if not surface then fail("surface not found"); return end
+local force=game.forces[force_name]
+if not force then fail("force not found"); return end
+local area_result={leftTopX=area[1][1],leftTopY=area[1][2],rightBottomX=area[2][1],rightBottomY=area[2][2]}
 local skip={character=true,unit=true,["spider-unit"]=true,["construction-robot"]=true,["logistic-robot"]=true,["combat-robot"]=true,["spider-leg"]=true,corpse=true,["item-entity"]=true,["entity-ghost"]=true,["tile-ghost"]=true,["item-request-proxy"]=true}
+local kind_set={}
+for _,kind in ipairs(kind_list) do
+  local ok,found=pcall(function() return surface.find_entities_filtered{area=area,type=kind,limit=1} end)
+  if not ok then fail("unknown entity type in kinds: "..kind); return end
+  kind_set[kind]=true
+end
+local filter_kinds=#kind_list>0
 local candidates={}
 for _,e in pairs(surface.find_entities_filtered{area=area,force=force}) do
-  if valid(e) and not skip[e.type] then candidates[#candidates+1]=e end
+  if valid(e) and not skip[e.type] and (not filter_kinds or kind_set[e.type]) then candidates[#candidates+1]=e end
 end
 table.sort(candidates,less)
 local truncated=false
@@ -39,6 +76,10 @@ if #candidates>max_nodes then
 end
 local members={}
 for _,e in ipairs(candidates) do members[key(e)]=true end
+-- An inserter edge is decided by the tile its arm reaches, because the arm
+-- position carries a sub-tile offset and a point search does not answer for
+-- belts. Indexing the scanned belts once keeps the pair rule exact.
+local belt_index=belt_tile_index(candidates)
 local nodes={}
 for _,e in ipairs(candidates) do nodes[#nodes+1]=endpoint(e) end
 local function gap(a,b)
@@ -61,12 +102,12 @@ local function belt_pair(a,b)
 end
 local function inserter_pair(a,b)
   if a.type=="inserter" then
-    local pickup,drop=inserter_targets(a)
+    local pickup,drop=inserter_targets(a,belt_index)
     if pickup==b then return "pickup" end
     if drop==b then return "drop" end
   end
   if b.type=="inserter" then
-    local pickup,drop=inserter_targets(b)
+    local pickup,drop=inserter_targets(b,belt_index)
     if pickup==a then return "pickup" end
     if drop==a then return "drop" end
   end
@@ -101,9 +142,15 @@ for i=1,#candidates do
           local g=gap(a,b)
           if g<=tolerance+1e-6 then
             seen[dedupe]=true
-            if full then truncated=true; break end
-            pair_list[#pair_list+1]={a=endpoint(a),b=endpoint(b),connection=connection_kind(a,b),gap=math.floor(g*1000+0.5)/1000}
-            if #pair_list>=max_pairs then full=true end
+            local kind=connection_kind(a,b)
+            if only_unconnected and kind~="" then
+              -- Connected pairs are skipped before the limit so limit bounds
+              -- only the suspicious rows.
+            else
+              if full then truncated=true; break end
+              pair_list[#pair_list+1]={a=endpoint(a),b=endpoint(b),connection=kind,gap=math.floor(g*1000+0.5)/1000}
+              if #pair_list>=max_pairs then full=true end
+            end
           end
         end
       end
@@ -123,32 +170,43 @@ table.sort(pair_list,function(p,q)
   if endpoint_less(q.a,p.a) then return false end
   return endpoint_less(p.b,q.b)
 end)
-rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,area=area_result,
-  tolerance=tolerance,limit=max_nodes,truncated=truncated,nodes=nodes,pairs=pair_list})
+local payload={tick=game.tick,surface=surface.name,force=force.name,area=area_result,
+  tolerance=tolerance,limit=max_nodes,truncated=truncated,nodes=nodes,pairs=pair_list}
 `
 
-func adjacencyQuery(r *Resolver, area *FactoryAreaInput, force, surface string, tolerance float64, limit int) (*AdjacencyGraph, error) {
-	if err := adjacencyParams(area, force, surface, tolerance, limit); err != nil {
+func adjacencyQuery(r *Resolver, area *FactoryAreaInput, force, surface string, tolerance float64, limit int, kinds []string, onlyUnconnected bool) (*AdjacencyGraph, error) {
+	if err := adjacencyParams(area, force, surface, tolerance, limit, kinds); err != nil {
 		return nil, err
 	}
-	areaLua, areaResult, err := worldAreaBoundsLua(area, 64)
+	areaLua, _, err := worldAreaBoundsLua(area, maxAreaTiles)
 	if err != nil {
 		return nil, err
 	}
-	lua := luaFail + transportLineLua + topologyCommonLua + fmt.Sprintf(`
-local surface=game.surfaces[%s]
-if not surface then fail("surface not found"); return end
-local force=game.forces[%s]
-if not force then fail("force not found"); return end
-local area,area_result=%s,%s
-local tolerance=%s
-local max_nodes=%d
-local max_pairs=%d
-`, luaString(surface), luaString(force), areaLua, areaResult,
-		strconv.FormatFloat(tolerance, 'g', -1, 64), limit, limit) + adjacencyLua
+	args := []string{
+		luaString(surface), luaString(force), areaLua, topologyNumber(tolerance),
+		strconv.Itoa(limit), strconv.Itoa(limit), adjacencyKindsLua(kinds), luaBool(onlyUnconnected),
+	}
+	lua := topologyChunkWithOp(r, adjacencyOperation(kinds, onlyUnconnected), args,
+		fmt.Sprintf(`
+local surface_name,force_name,tolerance,max_nodes,max_pairs=%s,%s,%s,%d,%d
+local kind_list=%s
+local only_unconnected=%t
+local area=%s
+`, luaString(surface), luaString(force), topologyNumber(tolerance), limit, limit, adjacencyKindsLua(kinds), onlyUnconnected, areaLua),
+		adjacencyLua, len(kinds) > 0 || onlyUnconnected)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
 	}
 	return factoryDecode[AdjacencyGraph](response)
+}
+
+// adjacencyOperation names the remote op for the requested filters. Filtered
+// calls use a distinct op so an older mod that ignores the extra arguments
+// cannot answer them with unfiltered data.
+func adjacencyOperation(kinds []string, onlyUnconnected bool) string {
+	if len(kinds) > 0 || onlyUnconnected {
+		return "adjacency_filtered"
+	}
+	return "adjacency"
 }

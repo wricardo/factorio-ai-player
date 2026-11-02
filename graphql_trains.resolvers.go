@@ -31,3 +31,8 @@ func (r *mutationResolver) SetDirection(ctx context.Context, input SetDirectionI
 func (r *queryResolver) Trains(ctx context.Context, input *TrainsInput) (*TrainPage, error) {
 	return trainsQuery(r.Resolver, input)
 }
+
+// TrainStops is the resolver for the trainStops field.
+func (r *queryResolver) TrainStops(ctx context.Context, surface string, force string) ([]*TrainStop, error) {
+	return trainStopsQuery(r.Resolver, surface, force)
+}

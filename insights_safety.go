@@ -35,8 +35,8 @@ func safetySnapshotLua(input *SafetyInput) (string, error) {
 		{"damaged", input.DamagedLimit, input.DamagedOffset},
 		{"alert", input.AlertLimit, input.AlertOffset},
 	} {
-		if page.limit < 1 || page.limit > 1000 {
-			return "", fmt.Errorf("%s limit must be between 1 and 1000", page.name)
+		if page.limit < 1 || page.limit > maxPageSize {
+			return "", fmt.Errorf("%s limit must be between 1 and %d", page.name, maxPageSize)
 		}
 		if page.offset < 0 {
 			return "", fmt.Errorf("%s offset must be non-negative", page.name)
@@ -82,6 +82,19 @@ end
 local status_names, alert_names = {}, {}
 for k,v in pairs(defines.entity_status) do status_names[v]=k end
 for k,v in pairs(defines.alert_type) do alert_names[v]=k end
+-- One reference point for ordering threats: the scan area center when bounded,
+-- otherwise the force's spawn.
+local base_position
+if area then
+  base_position={x=(area[1][1]+area[2][1])/2,y=(area[1][2]+area[2][2])/2}
+else
+  local ok,spawn=pcall(function() return force.get_spawn_position(surface) end)
+  base_position=(ok and spawn) or {x=0,y=0}
+end
+local function distance_to_base(position)
+  local dx,dy=position.x-base_position.x,position.y-base_position.y
+  return math.sqrt(dx*dx+dy*dy)
+end
 local pollutant=surface.pollutant_type
 local function pollution(pos)
   return {position=pos, amount=surface.get_pollution(pos), pollutant=pollutant and pollutant.name or nil}
@@ -91,13 +104,24 @@ local function entity_data(e)
   local status=e.status
   return {name=e.name,type=e.type,force=e.force.name,position=e.position,unitNumber=e.unit_number,
     health=health,maxHealth=health and e.max_health or nil,status=status and status_names[status] or nil,
-    statusCode=status,pollution=pollution(e.position)}
+    statusCode=status,pollution=pollution(e.position),distance=distance_to_base(e.position)}
+end
+-- Engine-side force filtering: the surface scan only walks enemy forces for
+-- threats and the selected force plus its friends for damage, instead of
+-- testing every tree, rock and resource tile afterwards.
+local enemy_forces,friend_forces={},{}
+for _,candidate in pairs(game.forces) do
+  if force.is_enemy(candidate) then enemy_forces[#enemy_forces+1]=candidate.name end
+  if candidate==force or force.is_friend(candidate) then friend_forces[#friend_forces+1]=candidate.name end
 end
 local enemies, damaged = {}, {}
-for _, e in pairs(surface.find_entities_filtered{area=area}) do
-  local ef=e.force
-  if force.is_enemy(ef) then enemies[#enemies+1]=e end
-  if (ef == force or force.is_friend(ef)) and e.health and e.health < e.max_health then damaged[#damaged+1]=e end
+if #enemy_forces>0 then
+  for _, e in pairs(surface.find_entities_filtered{area=area,force=enemy_forces}) do enemies[#enemies+1]=e end
+end
+if #friend_forces>0 then
+  for _, e in pairs(surface.find_entities_filtered{area=area,force=friend_forces}) do
+    if e.health and e.health < e.max_health then damaged[#damaged+1]=e end
+  end
 end
 local function entity_less(a,b)
   if a.type ~= b.type then return a.type < b.type end
@@ -107,8 +131,15 @@ local function entity_less(a,b)
   if a.force.name ~= b.force.name then return a.force.name < b.force.name end
   return (a.unit_number or 0) < (b.unit_number or 0)
 end
-local function entity_page(matches, limit, offset)
-  table.sort(matches,entity_less)
+-- Threats are ranked by distance to the base, so the nearest danger fills the
+-- page first instead of whichever prototype sorts first alphabetically.
+local function enemy_less(a,b)
+  local da,db=distance_to_base(a.position),distance_to_base(b.position)
+  if da~=db then return da<db end
+  return entity_less(a,b)
+end
+local function entity_page(matches, limit, offset, less)
+  table.sort(matches,less or entity_less)
   local out={}
   for i=offset+1,math.min(#matches,offset+limit) do out[#out+1]=entity_data(matches[i]) end
   return {entities=out,pageInfo={total=#matches,limit=limit,offset=offset,hasMore=#matches>offset+limit}}
@@ -181,9 +212,9 @@ table.sort(kill_counts,function(a,b)
   if a.name~=b.name then return a.name<b.name end
   return a.count<b.count
 end)
-rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,
+rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=force.name,basePosition=base_position,
  pollution=pollution_position and pollution(pollution_position) or nil,
- enemies=entity_page(enemies,enemy_limit,enemy_offset),damaged=entity_page(damaged,damaged_limit,damaged_offset),
+ enemies=entity_page(enemies,enemy_limit,enemy_offset,enemy_less),damaged=entity_page(damaged,damaged_limit,damaged_offset),
  playerAlerts={available=available,unavailableReason=reason,player=player_name,pageInfo={total=#alerts,limit=alert_limit,offset=alert_offset,hasMore=#alerts>alert_offset+alert_limit},alerts=alert_page},
  evolutionFactor=evolution_factor,evolutionByTime=evolution_by_time,evolutionByPollution=evolution_by_pollution,
  evolutionByKills=evolution_by_kills,totalPollution=total_pollution,killCounts=kill_counts}))

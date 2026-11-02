@@ -29,9 +29,49 @@ func TestNearestPlacementFound(t *testing.T) {
 		`local prototype=` + luaString("stone-furnace") + `; local direction=4`,
 		`local ox,oy,radius=3.25,-4.5,12`,
 		`local avoid_resources,avoid_water,min_gap,need_power,need_water_adjacent=true,true,2,true,true`,
+		`local require_resource,min_resource_tiles=nil,0`,
+		`local build_check=defines.build_check_type.manual`,
 		`if direction==4 or direction==12 then w,h=h,w end`,
 		`table.sort(candidates`,
-		`surface.can_place_entity{name=prototype,position=c,direction=direction,force=force}`,
+		`surface.can_place_entity{name=prototype,position=c,direction=direction,force=force,build_check_type=build_check}`,
+		`supply_scan_margin=math.max(supply_scan_margin,supply_area_of(pole_proto))`,
+		`local function supply_distance(pole)`,
+		`return supply_area_of(pole.prototype)`,
+		`area=box(c,supply_scan_margin)`,
+	} {
+		if !strings.Contains(lua, want) {
+			t.Fatalf("nearestPlacement Lua missing %q\n%s", want, lua)
+		}
+	}
+}
+
+// A drill search that requires ore must count the resource inside the drill's
+// mining area and report the covered tiles and amount on the winner, so siting a
+// drill never needs a separate worldResources plus probe round trip.
+func TestNearestPlacementRequiresResource(t *testing.T) {
+	r, commands := serveLuaOnce(t, `{"tick":10,"surface":"nauvis","force":"player","prototype":"electric-mining-drill","direction":0,"found":true,"position":{"x":19.5,"y":39.5},"distance":0.707,"blockers":{},"terrain":false,"tile":"grass-1","expanded":1,"resourceTiles":7,"resourceAmount":140000}`)
+	minTiles := 4
+	result, err := nearestPlacementQuery(r, &NearestPlacementInput{
+		Surface: "nauvis", Force: "player", Prototype: "electric-mining-drill",
+		Origin: &PositionInput{X: 20, Y: 40}, MaxRadius: 8,
+		RequireResource: new("iron-ore"), MinResourceTiles: &minTiles,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Found || result.ResourceTiles != 7 || result.ResourceAmount != 140000 {
+		t.Fatalf("resource coverage: %+v", result)
+	}
+	lua := <-commands
+	for _, want := range []string{
+		`local require_resource,min_resource_tiles=` + luaString("iron-ore") + `,4`,
+		`local mining_radius=nil`,
+		`local ok_read,value=pcall(function()`,
+		`local radius=proto.mining_drill_radius`,
+		`return proto.get_mining_drill_radius("normal")`,
+		`surface.find_entities_filtered{area=mining_box(c),type="resource",name=require_resource}`,
+		`if covered<min_resource_tiles then return false end`,
+		`resourceTiles=found_tiles,resourceAmount=found_amount`,
 	} {
 		if !strings.Contains(lua, want) {
 			t.Fatalf("nearestPlacement Lua missing %q\n%s", want, lua)
@@ -68,7 +108,8 @@ func TestNearestPlacementValidation(t *testing.T) {
 	valid := func() *NearestPlacementInput {
 		return &NearestPlacementInput{Surface: "nauvis", Force: "player", Prototype: "stone-furnace", Origin: &PositionInput{X: 0, Y: 0}, MaxRadius: 8}
 	}
-	negative, huge := -1.0, 17.0
+	negative, huge := -1.0, nearestPlacementMaxGap+1
+	positive, negativeTiles, hugeTiles := 5, -1, nearestPlacementMaxResourceTiles+1
 	cases := []struct {
 		name   string
 		mutate func(*NearestPlacementInput)
@@ -79,10 +120,19 @@ func TestNearestPlacementValidation(t *testing.T) {
 		{"empty prototype", func(in *NearestPlacementInput) { in.Prototype = "" }, "surface, force and prototype are required"},
 		{"missing origin", func(in *NearestPlacementInput) { in.Origin = nil }, "origin is required"},
 		{"direction", func(in *NearestPlacementInput) { in.Direction = 16 }, "direction must be between 0 and 15"},
-		{"zero radius", func(in *NearestPlacementInput) { in.MaxRadius = 0 }, "maxRadius must be greater than 0 and at most 64"},
-		{"huge radius", func(in *NearestPlacementInput) { in.MaxRadius = 65 }, "maxRadius must be greater than 0 and at most 64"},
-		{"negative gap", func(in *NearestPlacementInput) { in.MinDistanceFromEntities = &negative }, "minDistanceFromEntities must be between 0 and 16"},
-		{"huge gap", func(in *NearestPlacementInput) { in.MinDistanceFromEntities = &huge }, "minDistanceFromEntities must be between 0 and 16"},
+		{"zero radius", func(in *NearestPlacementInput) { in.MaxRadius = 0 }, "maxRadius must be greater than 0 and at most 512"},
+		{"huge radius", func(in *NearestPlacementInput) { in.MaxRadius = nearestPlacementMaxRadius + 1 }, "maxRadius must be greater than 0 and at most 512"},
+		{"negative gap", func(in *NearestPlacementInput) { in.MinDistanceFromEntities = &negative }, "minDistanceFromEntities must be between 0 and 64"},
+		{"huge gap", func(in *NearestPlacementInput) { in.MinDistanceFromEntities = &huge }, "minDistanceFromEntities must be between 0 and 64"},
+		{"min tiles without resource", func(in *NearestPlacementInput) { in.MinResourceTiles = &positive }, "minResourceTiles requires requireResource"},
+		{"negative min tiles", func(in *NearestPlacementInput) {
+			in.RequireResource = new("iron-ore")
+			in.MinResourceTiles = &negativeTiles
+		}, "minResourceTiles must be between 1 and 10000"},
+		{"huge min tiles", func(in *NearestPlacementInput) {
+			in.RequireResource = new("iron-ore")
+			in.MinResourceTiles = &hugeTiles
+		}, "minResourceTiles must be between 1 and 10000"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

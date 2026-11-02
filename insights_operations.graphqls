@@ -13,16 +13,17 @@ extend type Query {
   """
   scienceBudget(force: String! = "player", surface: String! = "nauvis"): ScienceBudget!
   """
-  Ghosts of the selected force (entity-ghost, tile-ghost and item-request-proxy) inside a required finite area of at
-  most 256 tiles per side, sorted by entity id and paginated with limit 1..1000 and a zero-based offset; pageInfo.total
-  counts all matches in the area. Material availability is a separate scan of container, logistic-container and
-  infinity-container chest contents plus character main inventories of that force in the same area — belts, ground
-  items, logistic networks and reach are not consulted, so buildable only means observed local stock covers one
-  placement alternative plus every item_request. Entity and tile ghosts list each items_to_place_this entry as an
-  alternative, not an additive requirement, while requestedMaterials (including modules and qualities) is additive;
-  item-request proxies are buildable purely from their requests and take name/quality from a valid proxy_target.
-  Availability is computed per entry with no reservation or sharing, so the same stock may satisfy several entries and
-  a buildable backlog for the area as a whole is not implied. A missing area, out-of-range dimensions, invalid
+  Ghosts of the selected force (entity-ghost, tile-ghost and item-request-proxy) inside an optional finite area of at
+  most 1024 tiles per side, sorted by entity id and paginated with limit 1..10000 and a zero-based offset; pageInfo.total
+  counts all matches in that scope. Omit area to scan the whole surface, matching entities, entityCount and
+  factoryAlerts; a supplied area keeps the 1024-tile cap. Material availability is a separate scan of container,
+  logistic-container and infinity-container chest contents plus character main inventories of that force in the same
+  scope — belts, ground items, logistic networks and reach are not consulted, so buildable only means observed local
+  stock covers one placement alternative plus every item_request. Entity and tile ghosts list each items_to_place_this
+  entry as an alternative, not an additive requirement, while requestedMaterials (including modules and qualities) is
+  additive; item-request proxies are buildable purely from their requests and take name/quality from a valid
+  proxy_target. Availability is computed per entry with no reservation or sharing, so the same stock may satisfy several
+  entries and a buildable backlog for the scope as a whole is not implied. Out-of-range area dimensions, invalid
   limit/offset or unknown surface/force name produce a GraphQL error; an empty ghostEntries list means no ghosts matched.
   """
   ghosts(input: GhostsInput!): GhostsPage!
@@ -76,8 +77,8 @@ type MissingSciencePack {
 input GhostsInput {
   surface: String! = "nauvis"
   force: String! = "player"
-  """Finite positive dimensions, at most 256 tiles per side."""
-  area: FactoryAreaInput!
+  """Optional finite positive dimensions, at most 1024 tiles per side. Omit to scan the whole surface."""
+  area: FactoryAreaInput
   limit: Int! = 100
   offset: Int! = 0
 }
@@ -86,7 +87,8 @@ type GhostsPage {
   tick: Float!
   surface: String!
   force: String!
-  area: WorldArea!
+  """Bounds that scoped this read; null when area was omitted and the whole surface was scanned."""
+  area: WorldArea
   pageInfo: PageInfo!
   """Independent per-entry availability. Same stock can satisfy multiple entries; no reservations or promise that whole backlog can be built."""
   ghostEntries: [GhostBacklogEntry!]!
@@ -118,7 +120,7 @@ type GhostMaterial {
 type FluidNetwork {
   tick: Float!
   surface: String!
-  """Hard bound on visited fluidbox nodes, from 1 to 10000."""
+  """Hard bound on visited fluidbox nodes, from 1 to 50000."""
   maxBoxes: Int!
   visitedBoxes: Int!
   truncated: Boolean!
@@ -136,5 +138,14 @@ type FluidNetwork {
 type FluidNetworkEntity { id: ID! unitNumber: UnitNumber name: String! type: String! surface: String! force: String! position: Position! }
 type FluidNetworkBox { id: ID! entityId: ID! index: Int! segmentId: ID! }
 type FluidNetworkConnection { fromBoxId: ID! toBoxId: ID! flowDirection: String! connectionType: String! }
-type FluidNetworkSegment { id: ID! engineSegmentId: ID capacity: Float! segmentFluids: [FluidNetworkAmount!]! }
+type FluidNetworkSegment {
+  id: ID!
+  engineSegmentId: ID
+  capacity: Float!
+  segmentFluids: [FluidNetworkAmount!]!
+  """Highest temperature among visited member boxes of this segment; null when the segment holds no fluid or no member box was visited."""
+  temperature: Float
+  """Visited boxes belonging to this segment. The traversal may not reach every box of the engine segment, so this is the observed membership, not the full segment."""
+  members: [FluidBoxMember!]!
+}
 type FluidNetworkAmount { name: String! amount: Float! }

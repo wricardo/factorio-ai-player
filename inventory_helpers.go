@@ -1,5 +1,21 @@
 package main
 
+// luaOutputInventoryHelper resolves an entity's own output inventory. Factorio
+// hands back the burner fuel inventory from get_output_inventory() when an
+// entity keeps no separate output buffer (burner mining drills), so reading it
+// unguarded reports the drill's coal fuel as an "output" stack while inspect()
+// reports the same stack as fuel. A nil result means "no output inventory of
+// its own"; callers still read the fuel inventory on their own.
+const luaOutputInventoryHelper = `local function output_inventory(entity)
+  if not entity then return nil end
+  local ok, output = pcall(function() return entity.get_output_inventory() end)
+  if not ok or output == nil then return nil end
+  local ok_fuel, fuel = pcall(function() return entity.get_fuel_inventory() end)
+  if ok_fuel and fuel and (output == fuel or (output.index ~= nil and output.index == fuel.index)) then return nil end
+  return output
+end
+`
+
 // luaInventoryHelpers defines get_inv and inventories(entity), the typed inventory
 // lookup shared by inspect, transfer and transferMany. A key is the lowercase
 // underscore form of an InventoryKind.

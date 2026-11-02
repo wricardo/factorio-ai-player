@@ -1,12 +1,12 @@
 extend type Query {
-  """Renders a compact textual map of one required area (positive dimensions, at most 256 tiles per side) for headless clients that cannot take screenshots. The area is downsampled by cellSize = max(ceil(width / maxColumns), ceil(height / maxRows)), where maxRows and maxColumns are 1 through 64 (32 by default), so the grid never exceeds those bounds and cellSize exceeds 1 exactly when downsampling happened; truncated mirrors that. Each cell shows the highest-priority entity whose center falls in it, or water when the cell's anchor tile carries a pumpable fluid, or `.` when empty. Priority is character, machine, inserter, belt, pipe or fluid entity, pole, chest, resource, tree, rock, cliff, then everything else; ties are broken by prototype name, x, y, then unit number. Built entities are limited to the selected force while natural entities are included regardless of force; layer FACTORY keeps only chest rank and above, and RESOURCES keeps only resource entities, with water as terrain. legend maps every emitted character back to prototype name, type, first entity unit number, and cell count, plus `.` for empty and `~` for water; at most 64 distinct prototype characters exist and further prototypes collapse into one `?` row named other. Output is one snapshot with no pagination, and an invalid surface, force, area or dimension fails the query."""
+  """Renders a compact textual map of one required area (positive dimensions, at most 1024 tiles per side) for headless clients that cannot take screenshots. The area is downsampled by cellSize = max(ceil(width / maxColumns), ceil(height / maxRows)), where maxRows and maxColumns are 1 through 64 (32 by default), so the grid never exceeds those bounds and cellSize exceeds 1 exactly when downsampling happened; truncated mirrors that. Every cell covered by an entity's footprint (tile_width by tile_height, width and height swapped for east and west directions, ghosts sized by the prototype they will become) shows that entity, so a 3x3 machine fills 9 cells instead of 1, and the highest-priority entity of a cell wins. A cell with no entity shows water when its anchor tile carries a pumpable fluid, or `.` when empty. Priority is character, crafting machine, inserter, enemy-force entity, belt, pipe or fluid entity, pole, chest, ghost, resource, tree, rock, cliff, then a default rank for every other type (radars, lamps, walls, gates, turrets, accumulators, solar panels, roboports, beacons, combinators, rails, train stops, vehicles, modded entities) so nothing is dropped; incidental entities (dropped items, corpses, effects, projectiles) are not drawn. Ties are broken by prototype name, x, y, then unit number. Built entities are limited to the selected force, ghosts are always drawn, enemy-force entities are drawn, and natural entities are included regardless of force; layer FACTORY keeps everything that is not natural terrain or resource, and RESOURCES keeps only resource entities, with water as terrain. legend maps every emitted character back to prototype name, type, first entity unit number, and cell count, plus `.` for empty and `~` for water; the alphabet has 87 characters and never uses `.`, `?` or `~`, and further prototypes collapse into one `?` row named other. Output is one snapshot with no pagination, and an invalid surface, force, area or dimension fails the query."""
   mapArea(input: MapAreaInput!): MapArea!
 }
 
 enum MapLayer {
   """Built entities, characters, resources, trees, rocks, cliffs and water."""
   ALL
-  """Characters and built factory entities only; natural obstacles and resources are omitted."""
+  """Characters, built factory entities, ghosts and enemy-force entities; natural obstacles and resources are omitted."""
   FACTORY
   """Resource entities only, with water as terrain."""
   RESOURCES
@@ -15,11 +15,11 @@ enum MapLayer {
 input MapAreaInput {
   surface: String! = "nauvis"
   force: String! = "player"
-  """Area bounds match the other world scans: positive dimensions of at most 256 tiles per side."""
+  """Area bounds match the other world scans: positive dimensions of at most 1024 tiles per side."""
   area: FactoryAreaInput!
-  """Maximum output rows, 1 through 64."""
+  """Maximum output rows, 1 through 256."""
   maxRows: Int! = 32
-  """Maximum output columns, 1 through 64."""
+  """Maximum output columns, 1 through 256."""
   maxColumns: Int! = 32
   layer: MapLayer! = ALL
 }

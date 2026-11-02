@@ -33,17 +33,32 @@ type shootStartResponse struct {
 	Player    string           `json:"player"`
 	Character string           `json:"character"`
 	Surface   string           `json:"surface"`
+	Force     string           `json:"force"`
 	Target    *PlacedEntity    `json:"target"`
 	Position  *Position        `json:"position"`
 	Ammo      float64          `json:"ammo"`
 	Job       *actionJobStatus `json:"job"`
 }
 
+// Firing spends rounds from the magazine held in the stack, and the item count
+// only drops when a magazine empties. Counting rounds keeps short bursts
+// visible: (count-1)*magazine_size + ammo.
 const shootAmmoLua = `local function shoot_ammo_count(c)
   local inv=c.get_inventory(defines.inventory.character_ammo)
   if not inv then return 0 end
   local total=0
-  for _,item in pairs(inv.get_contents()) do total=total+item.count end
+  for i=1,#inv do
+    local stack=inv[i]
+    if stack and stack.valid_for_read then
+      local proto=prototypes.item[stack.name]
+      local size=proto and proto.magazine_size
+      if size then
+        total=total+(stack.count-1)*size+(stack.is_ammo and stack.ammo or size)
+      else
+        total=total+stack.count
+      end
+    end
+  end
   return total
 end
 `
@@ -55,8 +70,8 @@ func shootAction(ctx context.Context, r *Resolver, in ShootInput) (*ShootResult,
 	if in.Actor == nil || in.Actor.Player == nil || strings.TrimSpace(*in.Actor.Player) == "" || in.Actor.Character != nil {
 		return nil, errors.New("shoot actor must select one player")
 	}
-	if in.Count < 1 || in.Count > 100 {
-		return nil, errors.New("count must be between 1 and 100 shooting ticks")
+	if in.Count < 1 || in.Count > maxBatchTargets {
+		return nil, fmt.Errorf("count must be between 1 and %d shooting ticks", maxBatchTargets)
 	}
 	if in.Target == nil {
 		return nil, errors.New("target is required")
@@ -106,6 +121,7 @@ func shootAction(ctx context.Context, r *Resolver, in ShootInput) (*ShootResult,
 		result := &ShootResult{
 			Tick:      job.UpdatedTick,
 			Player:    *in.Actor.Player,
+			Force:     start.Force,
 			Character: &start.Character,
 			AmmoUsed:  used,
 			Target:    start.Target,

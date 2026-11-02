@@ -98,47 +98,14 @@ func productionLua(command string, args []string, out io.Writer) (string, error)
 if %s~="" then p=game.get_player(%s); if not p then fail("player not found"); return end
 else p=game.get_entity_by_unit_number(%d); if not p or p.type~="character" then fail("character not found"); return end end
 `, luaString(*player), luaString(*player), *character) +
-		targetLocals(targetUnit, *entity, *x, *y, *surface) + luaEntityResolve + resolveTargetLua() + luaInventoryHelpers
+		targetLocals(targetUnit, *entity, *x, *y, *surface) + luaEntityResolve + luaInventoryHelpers
 	if command == "inspect" {
-		return prefix + entityMetaFieldsLua + `local result={name=e.name,type=e.type,position=e.position,surface=s.name,force=e.force.name,health=e.health,max_health=e.max_health,inventories={}}
-for name,inv in pairs(inventories(e)) do result.inventories[name]=inv.get_contents() end
-for name,value in pairs(entity_meta_fields(e)) do result[name]=value end
-local ok_direction,direction=pcall(function() return e.direction end); if ok_direction and direction then result.direction=direction end
-if e.status then
-  result.status=e.status
-  for name,value in pairs(defines.entity_status) do if value==e.status then result.status_name=name; break end end
-end
-if e.type=="furnace" or e.type=="assembling-machine" or e.type=="rocket-silo" then
-  local recipe=e.get_recipe(); if recipe then result.recipe=recipe.name end
-  result.crafting_progress=e.crafting_progress
-end
-if e.type=="transport-belt" then
-  result.transport_lines={e.get_transport_line(1).get_contents(),e.get_transport_line(2).get_contents()}
-end
-local ok_marked,marked=pcall(function() return e.to_be_deconstructed() end); result.to_be_deconstructed=ok_marked and marked or false
-if e.type=="inserter" then
-  result.pickup_position=e.pickup_position
-  result.drop_position=e.drop_position
-  result.held_stack=e.held_stack.valid_for_read and {name=e.held_stack.name,count=e.held_stack.count} or nil
-end
-if e.type=="mining-drill" then
-  result.mining_progress=e.mining_progress
-  local target=e.mining_target
-  if target then result.mining_target={name=target.name,position=target.position,amount=target.amount} end
-  local resources={}
-  for _,resource in pairs(s.find_entities_filtered{area=e.mining_area,type="resource"}) do
-    resources[#resources+1]={name=resource.name,position=resource.position,amount=resource.amount}
-  end
-  result.mining_resources=resources
-end
-local stats=e.force.get_item_production_statistics(s)
-if stats then result.force_item_production={produced=stats.input_counts,consumed=stats.output_counts} end
-local fluids={}
-for name,amount in pairs(e.get_fluid_contents()) do fluids[#fluids+1]={name=name,amount=amount} end
-table.sort(fluids,function(a,b) return a.name<b.name end)
-result.fluids=fluids
-rcon.print(helpers.table_to_json(result))`, nil
+		// Inspection is read-only, so it resolves neutral and enemy entities
+		// instead of demanding the actor's force the way transfer does.
+		return prefix + resolveTargetAnyForceLua() + entityMetaFieldsLua + luaInspectSnapshot +
+			"rcon.print(helpers.table_to_json(inspect_snapshot(e,s)))\n", nil
 	}
+	prefix += resolveTargetLua()
 	if *inventoryKind != "" {
 		if *inventory != "" {
 			return "", errors.New("give exactly one of inventory or inventoryKind")
@@ -169,7 +136,7 @@ rcon.print(helpers.table_to_json(result))`, nil
 		outputDirection = "TO_ACTOR"
 	}
 	prefix += `local c; if p.object_name=="LuaEntity" then c=p else c=p.character; if not c then fail("player has no character"); return end end; if c.surface~=s or ` + reachViolation("c", "e") + ` then fail("entity is out of reach"); return end` + "\n"
-	return prefix + fmt.Sprintf(`local target_name=%s; target_name=string.gsub(target_name,"-","_"); local target=inventories(e)[target_name]; if not target then fail("entity does not have requested inventory"); return end
+	return prefix + luaTransferStateLua + fmt.Sprintf(`local target_name=%s; target_name=string.gsub(target_name,"-","_"); local target=inventories(e)[target_name]; if not target then fail("entity does not have requested inventory"); return end
 local player_inventory=p.get_main_inventory(); if not player_inventory then fail("player has no main inventory"); return end
 local source,destination=player_inventory,target
 if %s=="to-player" then source,destination=target,player_inventory end
@@ -197,5 +164,7 @@ for i=1,#source do
     end
   end
 end
-rcon.print(helpers.table_to_json({entity=e.name,position=e.position,surface=s.name,inventory=%s,transfer_direction=%s,item=item,quality=quality,requested=requested,available=available,capacity=capacity,moved=moved}))`, luaString(*inventory), luaString(*direction), luaString(*item), luaString(*quality), *count, luaString(*inventory), luaString(outputDirection)), nil
+local bar,deconstructed=transfer_target_state(e,destination)
+local reason=transfer_block_reason(available,moved,capacity,destination,bar,deconstructed)
+rcon.print(helpers.table_to_json({tick=game.tick,entity=e.name,position=e.position,surface=s.name,force=p.force.name,inventory=%s,transfer_direction=%s,item=item,quality=quality,requested=requested,available=available,capacity=capacity,moved=moved,bar=bar,to_be_deconstructed=deconstructed,reason=reason}))`, luaString(*inventory), luaString(*direction), luaString(*item), luaString(*quality), *count, luaString(*inventory), luaString(outputDirection)), nil
 }

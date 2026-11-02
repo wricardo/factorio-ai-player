@@ -1,0 +1,91 @@
+extend type Query {
+  """Deterministic structural and absence defects for one area, in one call. It composes the existing factoryGraph, beltComponents, powerConsumers, ghosts and logisticNetworks reads, each in its own RCON call, so every section reports the tick it was read at and rows can differ by a few ticks; nothing is stored and nothing is written. Rules are per entity type, never a blanket "no inserter" test: a steam engine legitimately has none, a boiler must have a fuel arm, and a mining drill may drop onto a belt or into a machine. area is required with positive dimensions of at most 1024 tiles per side, limit is 1 through 10000 and caps rows while counts cover the whole scan, and kinds keeps only the listed kinds; an empty kinds list means every kind. Rows are ordered by severity, kind, position and entity."""
+  factoryDefects(input: FactoryDefectsInput!): FactoryDefects!
+}
+
+input FactoryDefectsInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  """Required bounds; each side may be up to 1024 tiles."""
+  area: FactoryAreaInput!
+  """Keep only these kinds; empty means every kind."""
+  kinds: [DefectKind!] = []
+  """Row cap, 1 through 10000."""
+  limit: Int! = 100
+}
+
+"""One deterministic defect class. Absence classes compare resolved inserter endpoints against entity types that need them; structural classes come from the belt component, power and ghost reads."""
+enum DefectKind {
+  """A boiler with no inserter whose drop resolves to it, so it can never be fuelled."""
+  BOILER_NO_FUEL_INSERTER
+  """An assembling machine, furnace, lab, chemical plant or oil refinery with no inserter dropping into it."""
+  MACHINE_NO_INPUT
+  """An inserter whose pickup resolves to nothing insertable."""
+  INSERTER_DANGLING_PICKUP
+  """An inserter whose drop resolves to nothing insertable."""
+  INSERTER_DANGLING_DROP
+  """Two or more inserters pick from the same container or belt tile."""
+  INSERTER_SHARED_SOURCE
+  """A machine, boiler, chest or pipe with no engine edge and no inserter touching it."""
+  ORPHAN_ENTITY
+  """A belt component that no inserter or machine feeds or drains."""
+  BELT_DEAD
+  """A component source that nothing drops onto."""
+  BELT_STARVE_HEAD
+  """A component sink that nothing picks from."""
+  BELT_STALL_END
+  """A component whose belts carry more than one item or quality on one side."""
+  BELT_MIXED_LANE
+  """Ghosts exist in the area but no logistic network covers it, so robots cannot build them."""
+  GHOST_NO_ROBOPORT
+  """A generator with no electric network id, so its output goes nowhere."""
+  PRODUCER_UNPLUGGED
+}
+
+"""CRITICAL stops output or wastes a build, WARNING degrades it, INFO is a structural oddity worth a look."""
+enum DefectSeverity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+type FactoryDefect {
+  kind: DefectKind!
+  severity: DefectSeverity!
+  """Prototype name of the entity the row is about; the belt component id for component-wide rows."""
+  entity: String!
+  type: String
+  unitNumber: UnitNumber
+  position: Position!
+  detail: String!
+}
+
+type FactoryDefectCount {
+  kind: DefectKind!
+  count: Int!
+}
+
+type FactoryDefects {
+  """Tick of the factoryGraph read that supplied nodes, inserters and edges."""
+  graphTick: Float!
+  """Tick of the beltComponents read; null when no belt kind was requested."""
+  beltTick: Float
+  """Tick of the powerConsumers read; null when PRODUCER_UNPLUGGED was not requested."""
+  powerTick: Float
+  """Tick of the ghosts and logisticNetworks reads; null when GHOST_NO_ROBOPORT was not requested."""
+  ghostTick: Float
+  surface: String!
+  force: String!
+  area: WorldArea!
+  scannedNodes: Int!
+  scannedInserters: Int!
+  scannedBelts: Int!
+  """Rows found before the limit cut."""
+  total: Int!
+  limit: Int!
+  defects: [FactoryDefect!]!
+  """Per-kind counts over the requested kinds, independent of limit; sections whose kinds were filtered out are not read at all."""
+  counts: [FactoryDefectCount!]!
+  """Skipped sections and truncated scans; empty when the read is complete."""
+  warnings: [String!]!
+}

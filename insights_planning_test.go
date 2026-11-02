@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -187,5 +188,114 @@ func TestPlanningExpansionLimitIsExplicit(t *testing.T) {
 	}
 	if len(planningRequirementsByReason(result.Unresolved, "EXPANSION_LIMIT")) == 0 {
 		t.Fatalf("no expansion limit reported: %#v", result.Unresolved)
+	}
+}
+
+// A research-locked recipe must be reported as such instead of being planned or
+// replaced by an unrelated recipe that happens to produce the item.
+func TestPlanningReportsLockedRecipeInsteadOfFallingBack(t *testing.T) {
+	snapshot := planningSnapshot{
+		Tick: 10,
+		LockedRecipes: []planningLockedRecipe{{
+			Name:     "steel-plate",
+			Products: []planningQuantity{planningItemQuantity("steel-plate", 1)},
+		}},
+	}
+	result, err := planBillOfMaterials(snapshot, planningTestOptions("steel-plate", 5))
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if result.Complete || len(result.Steps) != 0 || result.Expansions != 1 {
+		t.Fatalf("locked recipe must not be planned: %+v", result)
+	}
+	locked := planningRequirementsByReason(result.Unresolved, "RECIPE_NOT_RESEARCHED")
+	if len(locked) != 1 || !nearlyEqual(locked[0].Amount, 5) {
+		t.Fatalf("unresolved locked demand: %#v", result.Unresolved)
+	}
+	if len(planningRequirementsByReason(result.RawRequirements, "RECIPE_NOT_RESEARCHED")) != 1 {
+		t.Fatalf("raw locked demand: %#v", result.RawRequirements)
+	}
+}
+
+// Gathered products (wood from trees, fish, stone from rocks) are raw material:
+// they must not be reported as an unresolved, incomplete plan.
+func TestPlanningTreatsGatheredProductsAsRaw(t *testing.T) {
+	snapshot := planningSnapshot{
+		Tick: 11,
+		Recipes: []planningRecipe{{
+			Name:        "wooden-chest",
+			Ingredients: []planningQuantity{planningItemQuantity("wood", 2)},
+			Products:    []planningQuantity{planningItemQuantity("wooden-chest", 1)},
+		}},
+		Gathered: []planningRef{planningItem("wood")},
+	}
+	result, err := planBillOfMaterials(snapshot, planningTestOptions("wooden-chest", 2))
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if !result.Complete {
+		t.Fatalf("gathered raw material made the plan incomplete: %#v", result.Unresolved)
+	}
+	gathered := planningRequirementsByReason(result.RawRequirements, "GATHERED_RAW")
+	if len(gathered) != 1 || !nearlyEqual(gathered[0].Amount, 4) || len(result.Unresolved) != 0 {
+		t.Fatalf("gathered requirement: %#v unresolved %#v", result.RawRequirements, result.Unresolved)
+	}
+}
+
+// The planner never falls back to a recipe listed only in the locked set, and an
+// item with neither an enabled nor a locked recipe stays NO_ENABLED_RECIPE.
+func TestPlanningDistinguishesMissingRecipeFromLockedRecipe(t *testing.T) {
+	snapshot := planningSnapshot{
+		Tick: 12,
+		LockedRecipes: []planningLockedRecipe{{
+			Name:     "locked-widget",
+			Products: []planningQuantity{planningItemQuantity("locked-widget", 1)},
+		}},
+		Mined: []planningRef{planningItem("iron-ore")},
+	}
+	result, err := planBillOfMaterials(snapshot, planningTestOptions("iron-ore", 3))
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if !result.Complete || len(planningRequirementsByReason(result.RawRequirements, "MINED_RAW")) != 1 {
+		t.Fatalf("mined raw demand: %+v", result)
+	}
+	missing, err := planBillOfMaterials(snapshot, planningTestOptions("nothing-produces-this", 1))
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if missing.Complete || len(planningRequirementsByReason(missing.Unresolved, "NO_ENABLED_RECIPE")) != 1 {
+		t.Fatalf("missing recipe demand: %+v", missing)
+	}
+}
+
+// The recipe snapshot must exclude hidden, recycling and parameter recipes and
+// carry locked recipes and gathered products so the plan can reason about them.
+func TestBillOfMaterialsCatalogueSkipsHiddenAndGathersNaturalProducts(t *testing.T) {
+	response := `{"tick":7,"force":"player","surface":"nauvis","bomRecipes":[],` +
+		`"bomLockedRecipes":[{"name":"steel-plate","bomProducts":[{"item":"steel-plate","materialType":"item","amount":1}]}],` +
+		`"bomStock":[],"bomMined":[],"bomGathered":[{"item":"wood","materialType":"item"}],` +
+		`"stockTruncated":false,"recipeCatalogueTruncated":false}`
+	r, commands := serveLuaOnce(t, response)
+	plan, err := billOfMaterialsQuery(r, BillOfMaterialsInput{Force: "player", Surface: "nauvis", Item: "steel-plate",
+		Amount: 2, Quality: "normal", Stock: &BOMStockInput{Source: BOMStockSourceFactory}, MaxDepth: 8, MaxExpansions: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Complete || len(plan.Unresolved) != 1 || plan.Unresolved[0].Reason != "RECIPE_NOT_RESEARCHED" {
+		t.Fatalf("locked recipe plan: %+v", plan)
+	}
+	lua := <-commands
+	for _, want := range []string{
+		`if recipe.hidden then return false end`,
+		`if string.sub(category,1,9)=="recycling" then return false end`,
+		`if category=="parameters" or category=="parameter" then return false end`,
+		`result.bomLockedRecipes[#result.bomLockedRecipes+1]=entry`,
+		`local is_gathered=t=="tree" or t=="plant" or t=="simple-entity" or t=="fish" or t=="asteroid-chunk"`,
+		`result.bomGathered[#result.bomGathered+1]={item=p.name,materialType=p.type}`,
+	} {
+		if !strings.Contains(lua, want) {
+			t.Fatalf("billOfMaterials Lua missing %q\n%s", want, lua)
+		}
 	}
 }

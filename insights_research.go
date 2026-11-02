@@ -13,8 +13,8 @@ func researchInsightsQuery(r *Resolver, input *ResearchInsightsInput) (*Research
 	if input.Force == "" {
 		return nil, errors.New("force is required")
 	}
-	if input.Limit < 1 || input.Limit > 1000 {
-		return nil, errors.New("limit must be between 1 and 1000")
+	if input.Limit < 1 || input.Limit > maxPageSize {
+		return nil, pageLimitError("limit")
 	}
 	if input.Offset < 0 {
 		return nil, errors.New("offset must be non-negative")

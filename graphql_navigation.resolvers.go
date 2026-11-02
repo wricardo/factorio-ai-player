@@ -23,3 +23,8 @@ func (r *mutationResolver) NavigateCancel(ctx context.Context, id string, messag
 func (r *queryResolver) Navigation(ctx context.Context, id string) (*NavigationJob, error) {
 	return navigationStatus(r.Resolver, id)
 }
+
+// NavigationActive is the resolver for the navigationActive field.
+func (r *queryResolver) NavigationActive(ctx context.Context, actor ActorInput) (*NavigationJob, error) {
+	return navigationActive(ctx, r.Resolver, &actor)
+}

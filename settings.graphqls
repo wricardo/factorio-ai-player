@@ -24,21 +24,51 @@ type SplitterSettings {
   outputPriority: String!
 }
 
+"""One signal reference without a value, mirroring SignalInput. type is the same enum as the write input, so a read can be fed straight back into a write: Factorio reports nil for item signals and a lowercase engine name otherwise, and the reader normalizes both to the enum."""
+type SignalID {
+  type: SignalType!
+  name: String!
+  """Quality prototype name; null when the engine stores no quality."""
+  quality: String
+}
+
+"""A circuit condition as the engine stores it, mirroring SignalConditionInput so reads round-trip into writes."""
+type CircuitCondition {
+  comparator: String
+  constant: Float
+  firstSignal: SignalID
+  secondSignal: SignalID
+  """Engine evaluation result at the read tick; ignored on write."""
+  fulfilled: Boolean
+}
+
+"""Lamp circuit color mode, matching defines.control_behavior.lamp.color_mode."""
+enum LampColorMode {
+  """Take the lamp color from a color signal (engine value color_mapping)."""
+  COLOR_MAPPING
+  """Take red, green and blue from separate signals (engine value components)."""
+  COMPONENTS
+  """Take a packed RGB value from one signal (engine value packed_rgb)."""
+  PACKED_RGB
+}
+
 """Lamp color and circuit-driven color state."""
 type LampSettings {
   color: Color!
   alwaysOn: Boolean!
   """True when the lamp takes its color from circuit signals."""
   useColors: Boolean!
-  """Engine lamp color mode; 0 means no circuit color check."""
-  colorMode: Int!
+  """Which circuit signals drive the color. Colors are turned off by useColors, never by this mode."""
+  colorMode: LampColorMode!
 }
 
 """Bar limit of one container inventory."""
 type ContainerSettings {
   inventory: String!
-  """Number of allowed slots; 0 means no limit."""
+  """Engine bar index: the index at which the red (blocked) area starts, so allowedSlots is this value minus one. Zero means the inventory has no limit."""
   bar: Int!
+  """Usable slot count, derived as bar-1 and clamped to the capacity. Null means no limit; 0 means every slot is blocked."""
+  allowedSlots: Int
   """Total slots of the inventory."""
   capacity: Int!
 }
@@ -49,12 +79,17 @@ type LogisticRequestSlot {
   name: String
   quality: String
   min: Float!
-  max: Float!
+  """Null means infinite (the engine stores nil for an unlimited request)."""
+  max: Float
 }
 
 """One logistic request section of a container."""
 type LogisticSection {
   index: Int!
+  active: Boolean!
+  """Multiplier applied to every slot before the requests are used; 1 for plain request sections."""
+  multiplier: Float!
+  group: String!
   slots: [LogisticRequestSlot!]!
 }
 
@@ -66,7 +101,8 @@ type LogisticSettings {
 """Train stop name, train limit, priority and color."""
 type TrainStopSettings {
   backerName: String!
-  trainsLimit: Int!
+  """Null means unlimited: the engine stores 4294967295 (maximum) for a stop without a train limit."""
+  trainsLimit: Int
   priority: Int!
   color: Color
 }
@@ -79,13 +115,35 @@ type RocketSiloSettings {
   sendToOrbitAutomatically: Boolean!
 }
 
+"""Constant combinator sections and their constant signals."""
+type ConstantCombinatorSettings {
+  enabled: Boolean!
+  sections: [ConstantCombinatorSection!]!
+}
+
+"""One constant combinator section. Section index, active flag, multiplier and group come from LuaLogisticSection."""
+type ConstantCombinatorSection {
+  index: Int!
+  active: Boolean!
+  multiplier: Float!
+  group: String!
+  slots: [ConstantCombinatorSlot!]!
+}
+
+"""One constant combinator slot: a signal and the count it emits."""
+type ConstantCombinatorSlot {
+  index: Int!
+  signal: SignalID!
+  count: Int!
+}
+
 """Raw control behavior settings and the writable flags this behavior exposes. Null fields mean the behavior has no such setting."""
 type CircuitBehaviorSettings {
   behaviorType: Int!
   enabled: Boolean
   circuitEnableDisable: Boolean
-  circuitCondition: InserterCondition
-  logisticCondition: InserterCondition
+  circuitCondition: CircuitCondition
+  logisticCondition: CircuitCondition
   readContents: Boolean
   setRecipe: Boolean
   readIngredients: Boolean
@@ -101,27 +159,56 @@ type CircuitBehaviorSettings {
   readItemsMode: Int
   setFilters: Boolean
   readHandContents: Boolean
+  """Inserter: defines.control_behavior.inserter.hand_read_mode (hold or pulse)."""
+  handReadMode: Int
+  """Inserter: signal the circuit-set stack size reads."""
+  stackControlSignal: SignalID
   setStackSize: Boolean
   connectToLogisticNetwork: Boolean
   useColors: Boolean
-  colorMode: Int
+  colorMode: LampColorMode
   lampColor: Color
+  """Lamp: per-channel color signals used by COLOR_MAPPING and COMPONENTS."""
+  redSignal: SignalID
+  greenSignal: SignalID
+  blueSignal: SignalID
+  rgbSignal: SignalID
+  """Transport belt: defines.control_behavior.transport_belt.content_read_mode (pulse, hold, entire_belt_hold)."""
+  contentsReadMode: Int
+  """Crafter and furnace: broadcast a pulse when the recipe finishes."""
+  readRecipeFinished: Boolean
+  recipeFinishedSignal: SignalID
+  """Crafter and furnace: signal emitted while the machine works."""
+  workingSignal: SignalID
+  """Crafter and furnace: count building contents in crafting signals."""
+  includeInCrafting: Boolean
+  """Crafter and furnace: count fuel in crafting signals."""
+  includeFuel: Boolean
   """Splitter: circuit controls the filter."""
   setFilter: Boolean
   splitterInputSide: Boolean
   splitterOutputSide: Boolean
-  inputLeftCondition: InserterCondition
-  inputRightCondition: InserterCondition
-  outputLeftCondition: InserterCondition
-  outputRightCondition: InserterCondition
+  inputLeftCondition: CircuitCondition
+  inputRightCondition: CircuitCondition
+  outputLeftCondition: CircuitCondition
+  outputRightCondition: CircuitCondition
   """Train stop: circuit flags."""
   sendToTrain: Boolean
   readFromTrain: Boolean
   readStoppedTrain: Boolean
-  trainsLimitSignal: InserterSignal
-  prioritySignal: InserterSignal
+  setTrainsLimit: Boolean
+  readTrainsCount: Boolean
+  stoppedTrainSignal: SignalID
+  trainsCountSignal: SignalID
+  trainsLimitSignal: SignalID
+  setPriority: Boolean
+  prioritySignal: SignalID
   """Rocket silo: defines.control_behavior.rocket_silo.read_mode."""
   siloReadMode: Int
+  """Logistic container: enable/disable through the logistic condition."""
+  circuitConditionEnabled: Boolean
+  """Logistic container: defines.control_behavior.logistic_container.exclusive_mode (0 none, 1 send_contents, 2 set_requests)."""
+  exclusiveModeOfOperation: Int
 }
 
 """Post-write configuration of one entity, read in the same game tick. Sections are null for prototypes that do not support them."""
@@ -141,6 +228,18 @@ type SettingsResult {
   trainStop: TrainStopSettings
   rocketSilo: RocketSiloSettings
   circuit: CircuitBehaviorSettings
+  constantCombinator: ConstantCombinatorSettings
+}
+
+"""One settings batch read over an area, filter and limit, produced by a single Lua chunk."""
+type EntitySettingsPage {
+  tick: Float!
+  surface: String!
+  force: String!
+  """Entities sorted by unit number; entities without a unit number sort last by position."""
+  entities: [SettingsResult!]!
+  """Number of entities the engine matched before the limit was applied."""
+  matched: Int!
 }
 
 """One end of a circuit wire."""
@@ -167,6 +266,11 @@ extend type EntityInspection {
   settings(inventory: String): SettingsResult @goField(forceResolver: true)
 }
 
+extend type Query {
+  """Reads the settings snapshot of every matching entity in one Lua chunk, replacing the two round trips per entity that entities{inspection{settings}} costs. surface defaults to nauvis and must exist; force defaults to player and must exist, and entities on other forces are skipped instead of failing the whole query. area is required. Optional names and types filter by prototype name and entity type (engine find_entities_filtered semantics, all filters AND-ed), and limit is 1..10000 with the default 50; matched reports how many entities the engine found before the limit was applied and the list is sorted by unit number so repeated calls compare positionally. Each row is the same SettingsResult that EntityInspection.settings returns, including container, logistic, lamp, train stop, rocket silo, circuit behavior and constant combinator sections, with the inventory key selecting which container inventory reports its bar. No actor is resolved and no reach check applies, so this is the batching read for audits."""
+  entitySettings(input: EntitySettingsInput!): EntitySettingsPage!
+}
+
 extend type Mutation {
   """
   Replaces or clears a splitter's filter and its left/right lane priorities, then returns the post-write snapshot read in the same tick.
@@ -183,25 +287,25 @@ extend type Mutation {
   """
   Sets a lamp's fixed color, always-on flag and circuit-driven color mode, returning the post-write snapshot in the same tick.
 
-  The actor is exactly one player or character and the target must be a lamp on that actor's force, addressed by `unitNumber` or by `entity` + `position` with the usual surface default. Color components must be finite and within 0-1 (alpha defaults to 1), and `colorMode` must be 0, 1 or 2, where 0 leaves circuit colors off, 1 takes the color signal and 2 takes separate red/green/blue signals. `useColors` and `colorMode` write through the lamp's control behavior, which is created if absent (a persistent save change) and fails when the prototype has none; a request with none of color, alwaysOn, useColors or colorMode is rejected. Success returns the lamp section and prints a generated announcement unless `message` overrides it; validation and target errors are GraphQL errors with no partial write.
+  The actor is exactly one player or character and the target must be a lamp on that actor's force, addressed by `unitNumber` or by `entity` + `position` with the usual surface default. Color components must be finite and within 0-1 (alpha defaults to 1), and `colorMode` selects which circuit signals drive the color: COLOR_MAPPING reads one color signal, COMPONENTS reads separate red, green and blue signals, and PACKED_RGB reads one packed RGB number (these are the engine's defines.control_behavior.lamp.color_mode values); colors are switched off only by `useColors: false`, never by a colorMode value. `useColors` and `colorMode` write through the lamp's control behavior, which is created if absent (a persistent save change) and fails when the prototype has none; a request with none of color, alwaysOn, useColors or colorMode is rejected. Success returns the lamp section and prints a generated announcement unless `message` overrides it; validation and target errors are GraphQL errors with no partial write.
   """
   setLampSettings(input: LampSettingsInput!): SettingsResult!
   """
   Sets the slot bar limit of one container inventory, returning the post-write snapshot in the same tick.
 
-  `inventory` defaults to chest and must be chest, fuel, input (crafter_input), output, modules or turret-ammo; the target must be an entity on the actor's force whose inventory supports a bar, otherwise the mutation fails. `bar` is 0 or 1-65536: 0 removes the limit (engine nil) and a value above the inventory's slot count fails. The actor is exactly one player or character and the target is addressed by `unitNumber` or by `entity` + `position`, on nauvis or the character's current surface. The returned container section reports the written bar and the inventory capacity, and a generated announcement is printed unless `message` overrides it.
+  `inventory` defaults to chest and must be chest, fuel, input (crafter_input), output, modules or turret-ammo; the target must be an entity on the actor's force whose inventory supports a bar, otherwise the mutation fails. `allowedSlots` is the number of usable slots: null removes the limit (engine nil), 0 blocks every slot, and a value above the inventory's slot count fails. The engine stores an index instead (the slot where the blocked red area starts), so this mutation writes allowedSlots+1 and the returned container section reports both the raw `bar` index and the derived `allowedSlots`. The actor is exactly one player or character and the target is addressed by `unitNumber` or by `entity` + `position`, on nauvis or the character's current surface. The returned container section reports the resulting bar index, its derived allowedSlots and the inventory capacity, and a generated announcement is printed unless `message` overrides it.
   """
   setContainerBar(input: ContainerBarInput!): SettingsResult!
   """
   Replaces or clears the logistic request sections of a logistic container, returning the post-write snapshot in the same tick.
 
-  The target must be on the actor's force and expose a logistic point (`get_logistic_point`), otherwise the call fails; the actor is exactly one player or character and the entity is addressed by `unitNumber` or by `entity` + `position` with the usual surface default. `sections` replaces every existing section: each is removed and re-added, at most 20 sections are supported, and every request needs an index of at least 1, a non-empty name, an existing quality (normal by default) and 0 <= min <= max. All item and quality prototypes are validated before any section is cleared, so a bad name cannot leave the container empty. `clear: true` removes every section and cannot be combined with `sections`; passing neither is rejected. Success returns the resulting logistic sections and announces a summary unless `message` overrides it.
+  The target must be on the actor's force and expose a logistic point (`get_logistic_point`), otherwise the call fails; the actor is exactly one player or character and the entity is addressed by `unitNumber` or by `entity` + `position` with the usual surface default. `sections` replaces every existing section: each is removed and re-added, at most 20 sections are supported, and every request needs an index of at least 1, a non-empty name, an existing quality (normal by default), a non-negative min and either no max (infinite, written as an absent engine max) or a max at least as large as min; reading a slot with an infinite request reports a null max, and empty slots are skipped rather than ending the section. All item and quality prototypes are validated before any section is cleared, so a bad name cannot leave the container empty. `clear: true` removes every section and cannot be combined with `sections`; passing neither is rejected. Success returns the resulting logistic sections and announces a summary unless `message` overrides it.
   """
   setLogisticRequests(input: LogisticRequestsInput!): SettingsResult!
   """
   Sets a train stop's name, train limit, priority and color in one write and returns the post-write snapshot from the same tick.
 
-  The actor is exactly one player or character and the target must be a train-stop on that actor's force, addressed by `unitNumber` or by `entity` + `position`, on nauvis or the character's current surface. Omitted fields keep their current values, and at least one of name, trainsLimit, priority or color is required; `name` must be non-empty, `trainsLimit` is 0-1000 where 0 routes no trains, `priority` is 0-255 with higher values preferred, and color components must be finite and within 0-1 (alpha defaults to 1). Validation errors and non-train-stop targets fail the whole mutation before any write. Success returns the trainStop section, including the stop's current name, limit, priority and color, and prints a generated announcement unless `message` overrides it.
+  The actor is exactly one player or character and the target must be a train-stop on that actor's force, addressed by `unitNumber` or by `entity` + `position`, on nauvis or the character's current surface. Omitted fields keep their current values, and at least one of name, trainsLimit, clearTrainsLimit, priority or color is required; `name` must be non-empty, `trainsLimit` is 0-1000 where 0 routes no trains, `clearTrainsLimit: true` removes the limit entirely (engine nil, an unlimited stop) and cannot be combined with trainsLimit, `priority` is 0-255 with higher values preferred, and color components must be finite and within 0-1 (alpha defaults to 1). A read of an unlimited stop reports a null trainsLimit instead of the engine's 4294967295 sentinel. Validation errors and non-train-stop targets fail the whole mutation before any write. Success returns the trainStop section, including the stop's current name, limit, priority and color, and prints a generated announcement unless `message` overrides it.
   """
   setTrainStop(input: TrainStopInput!): SettingsResult!
   """
@@ -219,9 +323,15 @@ extend type Mutation {
   """
   Writes the supported fields of an entity's control behavior, trying each Factorio 2.0 engine key candidate per flag, and returns the post-write snapshot in the same tick.
 
-  The actor is exactly one player or character and the target must be an entity on that actor's force that can carry a control behavior, addressed by `unitNumber` or by `entity` + `position` with the usual surface default; the behavior is materialized with `get_or_create_control_behavior` on first write (a persistent save change) and the call fails when the prototype has none. `enabled` is read-only in 2.0 and always rejected; use `circuitEnableDisable` with `circuitCondition` or `logisticCondition` instead. Only fields the behavior actually exposes are written — a flag with no matching engine key fails with "<field> is not supported by this control behavior", and writes already applied in that call stay applied because mutations are not transactional — and at least one field or `clearConditions` is required; conditions require a comparator and any signal given needs a name (type defaults to item, quality optional), while `colorMode` must be 0-2 and the other integer modes (`siloReadMode`, `resourceReadMode`, `readItemsMode`) must be non-negative. `clearConditions: true` sets every boolean false, zeroes the integer modes and nils all conditions, and cannot be combined with any other field. The result's circuit section reports the behavior type and every writable flag, and a generated announcement is printed unless `message` overrides it.
+  The actor is exactly one player or character and the target must be an entity on that actor's force that can carry a control behavior, addressed by `unitNumber` or by `entity` + `position` with the usual surface default; the behavior is materialized with `get_or_create_control_behavior` on first write (a persistent save change) and the call fails when the prototype has none. `enabled` is read-only in 2.0 and always rejected; use `circuitEnableDisable` with `circuitCondition` or `logisticCondition` instead. Only fields the behavior actually exposes are written. Each flag probes whether any candidate engine key exists: when none does the call fails with "<field> is not supported by this control behavior", and when a key exists but the engine rejects the value the call fails with "<field>: <engine message>" so the caller sees the real cause (invalid signal type or name, unknown comparator, out-of-range mode). Writes already applied in that call stay applied because mutations are not transactional — the keys cover inserter hand read mode and stack control signal, belt content read mode, crafter/furnace recipe-finished, working, include-in-crafting and include-fuel flags, train stop train-limit/priority/count flags with their signals, lamp per-channel color signals, and the logistic container condition and exclusive-mode flags. — and at least one field or `clearConditions` is required; conditions require a comparator and any signal given needs a name (type defaults to item, quality optional), while `colorMode` accepts the LampColorMode values and the integer modes (`siloReadMode`, `resourceReadMode`, `readItemsMode`, `handReadMode`, `contentsReadMode`, `exclusiveModeOfOperation`) must be non-negative engine values. `clearConditions: true` sets every boolean false, zeroes the integer modes and nils all conditions, and cannot be combined with any other field. The result's circuit section reports the behavior type and every writable flag, and a generated announcement is printed unless `message` overrides it.
   """
   setCircuitBehavior(input: CircuitBehaviorInput!): SettingsResult!
+  """
+  Replaces a constant combinator's enabled flag and every signal section, returning the post-write snapshot read in the same tick.
+
+  The actor is exactly one player or character and the target must be a constant-combinator on that actor's force, addressed by `unitNumber` or by `entity` + `position` with the usual surface default, otherwise the call fails. Sections work like logistic request sections: at most 20 sections, each replacing every existing section, and each slot needs a one-based index within the engine's slot count, a non-empty signal name, a valid signal type (item, fluid, virtual, entity, recipe, space-location, asteroid-chunk or quality), an existing quality (normal by default) and a count from 0 to 2147483647 which becomes the signal's `min` value. `enabled` toggles the combinator output without touching the sections, and `clearSections: true` removes every section and cannot be combined with `sections`. Passing none of enabled, sections or clearSections is rejected. Every signal name and quality is validated before any section is removed, so a bad entry cannot leave the combinator empty. Success returns the constantCombinator section (sections with index, active, multiplier, group and slots) and announces a summary unless `message` overrides it.
+  """
+  setConstantCombinator(input: SetConstantCombinatorInput!): SettingsResult!
   """
   Connects a red or green circuit wire between two entities and reports the engine's own connectivity check.
 
@@ -250,9 +360,21 @@ input ColorInput {
   a: Float
 }
 
+"""Signal types accepted by Factorio 2.0 SignalID. Engine names with a dash use an underscore in the enum."""
+enum SignalType {
+  ITEM
+  FLUID
+  VIRTUAL
+  ENTITY
+  RECIPE
+  SPACE_LOCATION
+  ASTEROID_CHUNK
+  QUALITY
+}
+
 input SignalInput {
-  """Engine signal type, for example item, fluid, virtual or virtual-signal."""
-  type: String = "item"
+  """Engine signal type: the name must exist in that prototype type, so an iron plate is ITEM while steam is FLUID and signal-A is VIRTUAL."""
+  type: SignalType = ITEM
   name: String!
   quality: String
 }
@@ -314,8 +436,8 @@ input LampSettingsInput {
   alwaysOn: Boolean
   """Take the color from circuit signals instead of the fixed color."""
   useColors: Boolean
-  """Engine lamp color mode; 0 disables colors, 1 uses the color signal, 2 uses red/green/blue signals."""
-  colorMode: Int
+  """Which circuit signals drive the color. This never turns colors off; use useColors for that."""
+  colorMode: LampColorMode
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
@@ -325,8 +447,8 @@ input ContainerBarInput {
   target: EntityRefInput!
   """Inventory key: input, output, fuel, chest, modules or turret-ammo."""
   inventory: String = "chest"
-  """Allowed slots from 0 (no limit) to the inventory size."""
-  bar: Int!
+  """Number of usable slots; null removes the limit (engine nil) and 0 blocks every slot. Never an engine bar index: the write sends allowedSlots+1."""
+  allowedSlots: Int
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
@@ -337,7 +459,8 @@ input LogisticRequestInput {
   name: String!
   quality: String
   min: Int = 0
-  max: Int!
+  """Omitted or null means infinite: no engine max is written for that slot."""
+  max: Int
 }
 
 input LogisticSectionInput {
@@ -360,8 +483,10 @@ input TrainStopInput {
   target: EntityRefInput!
   """New stop name; omitted keeps the current name."""
   name: String
-  """Maximum trains routed to the stop; 0 routes none."""
+  """Maximum trains routed to the stop; 0 routes none. Cannot be combined with clearTrainsLimit."""
   trainsLimit: Int
+  """Removes the train limit entirely (engine nil), leaving an unlimited stop. Cannot be combined with trainsLimit."""
+  clearTrainsLimit: Boolean
   """Stop priority from 0 to 255; higher values are preferred."""
   priority: Int
   color: ColorInput
@@ -409,10 +534,30 @@ input CircuitBehaviorInput {
   readItemsMode: Int
   setFilters: Boolean
   readHandContents: Boolean
+  """Inserter: defines.control_behavior.inserter.hand_read_mode (hold or pulse)."""
+  handReadMode: Int
+  """Inserter: signal the circuit-set stack size reads; without it setStackSize has no effect."""
+  stackControlSignal: SignalInput
   setStackSize: Boolean
   connectToLogisticNetwork: Boolean
   useColors: Boolean
-  colorMode: Int
+  colorMode: LampColorMode
+  """Lamp: per-channel color signals used by COLOR_MAPPING and COMPONENTS."""
+  redSignal: SignalInput
+  greenSignal: SignalInput
+  blueSignal: SignalInput
+  rgbSignal: SignalInput
+  """Transport belt: defines.control_behavior.transport_belt.content_read_mode (pulse, hold, entire_belt_hold)."""
+  contentsReadMode: Int
+  """Crafter and furnace: broadcast a pulse when the recipe finishes."""
+  readRecipeFinished: Boolean
+  recipeFinishedSignal: SignalInput
+  """Crafter and furnace: signal emitted while the machine works."""
+  workingSignal: SignalInput
+  """Crafter and furnace: count building contents in crafting signals."""
+  includeInCrafting: Boolean
+  """Crafter and furnace: count fuel in crafting signals."""
+  includeFuel: Boolean
   """Splitter: circuit controls the filter and each lane's input/output side."""
   setFilter: Boolean
   splitterInputSide: Boolean
@@ -425,10 +570,68 @@ input CircuitBehaviorInput {
   sendToTrain: Boolean
   readFromTrain: Boolean
   readStoppedTrain: Boolean
+  setTrainsLimit: Boolean
+  readTrainsCount: Boolean
+  stoppedTrainSignal: SignalInput
+  trainsCountSignal: SignalInput
+  trainsLimitSignal: SignalInput
+  setPriority: Boolean
+  prioritySignal: SignalInput
   """Rocket silo: defines.control_behavior.rocket_silo.read_mode."""
   siloReadMode: Int
+  """Logistic container: enable/disable through the logistic condition."""
+  circuitConditionEnabled: Boolean
+  """Logistic container: defines.control_behavior.logistic_container.exclusive_mode (0 none, 1 send_contents, 2 set_requests)."""
+  exclusiveModeOfOperation: Int
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
+}
+
+input ConstantCombinatorSlotInput {
+  """One-based slot index inside the section."""
+  index: Int!
+  signal: SignalInput!
+  """Signal count, written as the engine slot min; 0 to 2147483647."""
+  count: Int!
+}
+
+input ConstantCombinatorSectionInput {
+  """One-based section index; sections are added in list order."""
+  index: Int
+  """Omitted keeps the engine default true."""
+  active: Boolean
+  """Multiplier applied to every slot before the signals are used; omitted keeps the engine value."""
+  multiplier: Float
+  """Section group name; omitted or empty writes no group."""
+  group: String
+  slots: [ConstantCombinatorSlotInput!]!
+}
+
+input SetConstantCombinatorInput {
+  actor: ActorInput!
+  target: EntityRefInput!
+  """Turns the constant combinator output on or off; omitted keeps the current state."""
+  enabled: Boolean
+  """Replaces every signal section when given; at most 20 sections."""
+  sections: [ConstantCombinatorSectionInput!]
+  """Removes every section; cannot be combined with sections."""
+  clearSections: Boolean = false
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input EntitySettingsInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  area: FactoryAreaInput!
+  """Prototype names to include; omitted means every name."""
+  names: [String!]
+  """Entity types to include, for example container, inserter, assembling-machine; omitted means every type."""
+  types: [String!]
+  """Maximum rows returned, 1 through 10000."""
+  limit: Int! = 50
+  """Container inventory key used for the bar section: chest, fuel, input, output, modules or turret-ammo."""
+  inventory: String = "chest"
 }
 
 input WireEndpointInput {

@@ -91,11 +91,32 @@ Condition families (exactly one per call): `tick`, `inventory` (actor holds N of
 - It is not a barrier for other agents; it blocks only your own call.
 - Use `machineStatus` to wait for a machine to *leave* a bad state: poll for `working`, not for the absence of `no_power`.
 
+### Never `sleep` the shell for long
+
+- **`sleep` in bash is capped at 10 seconds.** Anything longer is a defect: it burns the tool deadline, looks hung, gives no progress signal, and leaves you blind while the world moves. If you catch yourself writing `sleep 30`, the wait is game time and it belongs in a `waitUntil` condition.
+- Waiting at speed 1 costs wall time (60 ticks/s). For long game-time waits either chain `waitUntil` calls with `timeoutSeconds <= 300`, or raise the simulation speed, wait, then restore it:
+
+```graphql
+# 1) read the baseline: keep note of tick T and speed S
+query { status { tick speed paused } }
+# 2) raise speed for the bounded wait
+mutation { setGameSpeed(input:{speed:5, message:"speed 5: waiting 3600 ticks"}) { tick speed paused } }
+# 3) wait in game time on the ABSOLUTE target tick (T + 3600); multiplier ~5x shrinks wall time
+mutation { waitUntil(input:{timeoutSeconds:120, pollSeconds:1, condition:{ tick: 1514136 } })
+  { satisfied timedOut waitedSeconds tick last { detail } } }
+# 4) restore S from step 1 (1 unless someone deliberately changed it)
+mutation { setGameSpeed(input:{speed:1, message:"speed back to 1"}) { tick speed paused } }
+```
+
+- Costs of a speed bump: it changes tick rate for **every** force, machine and player on the server, so other agents' tick windows, rate measurements and job timeouts all compress or stretch with it. Restore the original `status.speed` in the same work batch, never leave the world accelerated, and say the multiplier and the restore in chat.
+- Do not compensate for a slow measurement by raising speed silently: `production` windows and `measure-rate.js` deltas are game-tick based, so state the speed you measured at, or measure back at speed 1.
+- `speed:0` or `paused:true` freezes the world for everyone (including your own `waitUntil`). Only use it to take a consistent snapshot of a shared save, and resume immediately.
+
 ## 7. Efficient reads
 
 - Alias several reads in one document: status + briefing + inventory costs one round trip.
 - `factoryBriefing` first when you do not yet know what is wrong; targeted queries after.
-- Area reads cap at 256 tiles per side (64 for `adjacency`). Window larger factories.
+- Area reads cap at 1024 tiles per side. Window larger factories.
 - Select only needed fields. `inspect`, `machines` and `factoryGraph` are wide; ask for specific sub-objects.
 - Read-then-act: capture the `tick` of the baseline; compare against the `tick` of the verification read before computing rates.
 
@@ -136,7 +157,7 @@ These exact mistakes appeared repeatedly in a 2026-10-31/11-01 gameplay session.
 | `WorldResourceEntry { bounds }` | `bounds` exists on `patches[]`, not individual entries |
 | `FactoryAreaInput { min, max }` | `{ leftTopX, leftTopY, rightBottomX, rightBottomY }` |
 | `EntitiesInput { query: ... }` | no `query`; `area` is required; select `entities { ... }` on the page |
-| `mapArea(maxColumns:150)` | maxRows/maxColumns are 1..64 |
+| `mapArea(maxColumns:150)` | maxRows/maxColumns are 1..256 |
 | `Mutation.transferItems`, `closeBeadsTicket` | not part of this API; use `transfer`/`transferMany` and `bd` |
 
-Also: areas and most scans cap at 256 tiles per side; `probePlacement` caps at 16384 sampled tiles; `adjacency` caps at 64 tiles per side. Select object subfields (`position {x y}`, `from { ... }`, `status { ... }`) — GraphQL requires them. On error, gqlcli prints human text; use `-f json` if a downstream parser needs JSON.
+Also: areas and most scans cap at 1024 tiles per side; `probePlacement` caps at 65536 sampled tiles; `adjacency` caps at 1024 tiles per side. Select object subfields (`position {x y}`, `from { ... }`, `status { ... }`) — GraphQL requires them. On error, gqlcli prints human text; use `-f json` if a downstream parser needs JSON.

@@ -1,6 +1,6 @@
 # API map: which operation for which job
 
-Live schema at 2026-11-01: **47 queries, 77 mutations** (`gqlcli queries -f json`, `gqlcli mutations -f json`). Counts drift; rediscover with `gqlcli queries --args --desc`. Operations are grouped by intent, with the semantic trap that cost time in practice.
+Live schema checked 2026-11-01; counts drift, so rediscover with `gqlcli queries --args --desc` and `gqlcli mutations --args --desc` (or `go run . queries --desc`). Operations are grouped by intent, with the semantic trap that cost time in practice.
 
 ## 1. Pick by intent
 
@@ -13,7 +13,7 @@ Live schema at 2026-11-01: **47 queries, 77 mutations** (`gqlcli queries -f json
 | Lay a belt/pipe/pole run | `connectionPlan` then `connectEntities` | `placeMany` with hand-computed directions |
 | Put a building next to another | `placeNextTo` | footprint arithmetic |
 | Wait for a game condition | `waitUntil` | repeated reads |
-| Fuel / fill many machines | `fuelMany`, `transferMany` (up to 200 targets, one RCON call) | N x `fuel`/`transfer` |
+| Fuel / fill many machines | `fuelMany`, `transferMany` (up to 1000 targets, one RCON call) | N x `fuel`/`transfer` |
 | Place N copies of one item | `placeMany` (up to 1000) | N x `place` |
 | Prove a belt really moves items | `beltThroughputStart` / `beltStretchMeasure` | belt fullness |
 | Prove which entity feeds which | `factoryGraph`, `inspect{logistics}`, `beltStretch` | visual guess |
@@ -31,15 +31,16 @@ Live schema at 2026-11-01: **47 queries, 77 mutations** (`gqlcli queries -f json
 ### Entities and topology
 | Operation | Notes |
 |---|---|
-| `entities` | Area (<=256/side) + `name`/`type` filter. Resource/tree/rock rows have `unitNumber:null`; address by position. |
+| `entities` | Whole surface by default (omit `area`) or any positive area; `name`/`type`/`force` filter, `limit` to 10000. Rows carry `status`, `statusName`, `health`. Resource/tree/rock rows have `unitNumber:null`; address by position. |
+| `entityCount` | "How many X / which are dry" in one call: `names`/`types`/optional `area`, `groupByStatus:true` splits rows per engine status. Unknown names/types error instead of returning zero. |
 | `entity` | One entity by `unitNumber` or `entity`+`position`. |
 | `inspect` | Full state: status, inventories, fluids, recipe, settings, `logistics` (inserters touching it), `fluidNetwork`, `beltNeighbours`, `fluidboxNeighbours`. Needs actor + target. **Target `{unitNumber}` alone fails (`prototype is not resolvable by unit number alone; pass entity too`): always send `{entity:"<prototype>", unitNumber:"<n>"}`** (verified live; same for `transfer`, `repair`, most entity-addressed mutations). |
 | `worldLogistics` | One belt/inserter/etc. type per call (`type:"inserter"` matches `burner-inserter` as well; unsupported types such as `roboport` error: use `entities`). |
-| `factoryGraph` | One snapshot of machines, belts, chests, inserters and their pickup/drop edges in <=256 tiles. Best structural read. |
+| `factoryGraph` | One snapshot of machines, belts, chests, inserters and their pickup/drop edges in <=1024 tiles. Best structural read. |
 | `adjacency` | Geometric touching vs real engine connection. Area <=64. Finds misaligned pipes/boilers/inserters. |
 | `belts` | Transport-belt lane contents only; no undergrounds/splitters/loaders. |
 | `beltRun` / `beltStretch` | Structure. `beltStretch` totals per side, collapses underground pairs, reports `ends[]` with `gap:true` for a break that should continue (MISSING_BELT, BLOCKED, HEAD_ON, UNPAIRED_UNDERGROUND). |
-| `mapArea` | Text map; `layer: ALL\|FACTORY\|RESOURCES`; legend characters are assigned **per call**, always read `legend`. Cells show the highest-priority entity whose centre is inside; empty `.`, water `~`. |
+| `mapArea` | Text map; `layer: ALL\|FACTORY\|RESOURCES`; legend characters are assigned **per call**, always read `legend`. Every cell covered by an entity footprint shows it (a 3x3 machine fills nine cells) and the highest-priority entity wins a shared cell; further prototypes collapse into one `?` row; empty `.`, water `~`. |
 
 ### Planning and world
 | Operation | Notes |
@@ -54,9 +55,9 @@ Live schema at 2026-11-01: **47 queries, 77 mutations** (`gqlcli queries -f json
 ### Health and measurement
 | Operation | Notes |
 |---|---|
-| `factoryBriefing` | Attention kinds: `NO_FUEL NO_POWER NO_INGREDIENTS OUTPUT_FULL NO_RECIPE NO_RESEARCH ENEMY DAMAGED GHOST_BACKLOG DECONSTRUCTION LOW_STOCK FLUID_SHORTAGE`; severities `CRITICAL/WARNING/INFO`. Sections are separate RCON reads (different ticks). Ghost section needs `area`; stockouts need `watchItems`; both are skipped and named in `warnings` otherwise. |
-| `factoryOverview` / `production` / `machines` | Production windows are `ONE_MINUTE`, `TEN_MINUTES`, `ONE_HOUR`; `production` is items only, no fluids. `machines` carries `diagnostics{blocked shortfall throughput power}`. |
-| `stock` | Observed counts in supported containers, machines, belts, inserter hands, ground stacks; **excludes** wagons, vehicles, robots, roboports, turrets, linked chests, trash, fluids. Not global stock. Optional `category: STORED\|IN_TRANSIT\|GROUND\|PLAYER` filters locations, totals, and item rows before aggregation/paging. |
+| `factoryBriefing` | Attention kinds: `NO_FUEL NO_POWER NO_AMMO NO_INGREDIENTS NO_RESOURCES OUTPUT_FULL NO_RECIPE LOW_TEMPERATURE BLOCKED DISABLED FLUID_SHORTAGE NO_RESEARCH ENEMY DAMAGED GHOST_BACKLOG DECONSTRUCTION LOW_STOCK`; severities `CRITICAL/WARNING/INFO`. Sections are separate RCON reads (different ticks). Ghost section needs `area`; stockouts need `watchItems`; both are skipped and named in `warnings` otherwise. `factoryAlerts` is the same status scan without the composed sections. |
+| `factoryOverview` / `production` / `machines` | Production windows are `ONE_MINUTE`, `TEN_MINUTES`, `ONE_HOUR`; `production` returns `items` and `fluids` and `itemNames` trims both. `machines` carries `diagnostics{blocked shortfall throughput mining burner power}`, where `blocked` includes `RESOURCE_DEPLETED`. |
+| `stock` | Observed counts in supported containers, machines, belts, inserter hands, ground stacks and detached workers; **excludes** wagons, vehicles, robots, roboports, turrets, linked chests, trash, fluids. Not global stock. Optional `category: STORED\|IN_TRANSIT\|GROUND\|PLAYER\|WORKER` filters locations, totals, and item rows before aggregation/paging. |
 | `powerConsumers` | `onlyIssues:true`, `status:"no_power"`, `connectedToProducingNetwork:false`, `networkId`, area. `connectedToProducingNetwork:false` does not prove "no network". |
 | `electricNetworks` | `productionWatts`/`consumptionWatts`/`id`, not `production`/`consumption`/`networkId`; `satisfaction` may be null. Statistics span the whole network, not just the area. |
 | `beltThroughput` | Observe a started measurement (retained up to 128 records). |
@@ -64,24 +65,24 @@ Live schema at 2026-11-01: **47 queries, 77 mutations** (`gqlcli queries -f json
 | `safety` | Enemies, damaged friendly entities, pollution, evolution, kill counts. |
 
 ### Research, construction, trains, markers
-`researchInsights` (status `ALL RESEARCHED AVAILABLE LOCKED IN_PROGRESS`; `prerequisites{name researched}`, `researchUnitCount`, `researchTriggerJSON` for trigger techs), `scienceBudget`, `ghosts`, `logisticNetworks`, `constructionOrders`, `trains`, `circuitNetwork` (older `serve` builds fail with `"red is not a valid WireColor"`; working tree normalizes the color, re-test after rebuild; see `circuits-and-trains.md`), `surfaces`, `chartTags`, `navigation(id)`.
+`researchInsights` (status `ALL RESEARCHED AVAILABLE LOCKED IN_PROGRESS`; `prerequisites{name researched}`, `researchUnitCount`, `researchTriggerJSON` for trigger techs), `scienceBudget`, `ghosts`, `logisticNetworks`, `constructionOrders`, `trains`, `circuitNetwork` (per-entity network signals plus `connector`, `networkId`, `networkCircuitCount`), `circuitNetworks` (area -> networks grouped by `networkId` with members and signals), `entitySettings` (area/names/types/limit -> per-entity settings in ONE call), `surfaces`, `chartTags`, `navigation(id)`. See `circuits-and-trains.md`.
 
 ## 3. Mutations
 
 ### Actors and travel
-`characterSpawn` (free detached worker, empty inventory), `characterCreate` / `characterReturn` (disconnected player only), `playerRestoreCharacter` (connected god-controller player), `navigateStart` (`position` xor `targetCharacter` xor `targetEntity`; `wait:true`; tolerance 0.5-10, >=1 for chase), `navigateCancel`, `teleport` (admin).
+`characterSpawn` (free detached worker, empty inventory), `characterDelete` (retire a detached, empty, playerless character; rejects player-owned or nonempty), `characterCreate` / `characterReturn` (disconnected player only), `playerRestoreCharacter` (connected god-controller player), `navigateStart` (`position` xor `targetCharacter` xor `targetEntity`; `targetEntity` is the shared `EntityRefInput`, name+position preferred, resolved on the walker's surface; `wait:true`; tolerance 0.5-10, >=1 for chase), `navigateCancel`, `navigationActive(actor)` (read), `teleport` (admin; surface defaults to the actor's, cross-surface needs a player-controlled character).
 
 ### Build, remove, repair
-`place`, `placeMany` (<=1000; `undergroundType INPUT/OUTPUT`, `fastReplace`), `placeNextTo`, `connectEntities`, `placeTile`, `remove`, `removeMany` (<=200), `mine` (instant), `clearArea` (no drops), `harvestArea` (drops), `repair`, `rotate`, `setDirection` (ignored by the engine for belts/rails: place with the right direction).
+`place`, `placeMany` (<=1000; `undergroundType INPUT/OUTPUT` pairs across calls, an occupied tile is `COLLISION` unless `fastReplace`, which proves replaceability and returns the replaced entity + contents to the actor), `placeNextTo` (same occupancy test per nudged candidate), `connectEntities` (`from`/`to` tiles or `fromEntity`/`toEntity` + side/lane; `BELT_ADJACENCY` unless `allowBeltAdjacency`), `placeTile` (`previousTile`, `items`), `remove`, `removeMany` (<=200; per-target `results` + `items`), `mine` (instant; name + position only, no unit number), `clearArea` (no drops), `harvestArea` (drops), `repair` (600 HP per normal pack), `rotate`, `setDirection` (ignored by the engine for belts/rails: place with the right direction), `placeBlueprint` (`direction` 0/4/8/12; `entityCount`/`skipped`), `upgradeArea` / `cancelUpgradeArea`.
 
 ### Items and machines
-`craft` (`wait:true` for bootstrap), `cancelCraft`, `fuel`, `fuelMany`, `transfer`, `transferMany`, `equip`, `equipGrid`, `pickup`, `pickupArea`, `beltTake`, `dropItem` (`BELT` target seeds a lane; `GROUND` refuses belt tiles), `setRecipe` (`drain: ABORT|TO_ACTOR|SPILL`), `clearRecipe`.
+`craft` (`wait:true` for bootstrap), `cancelCraft`, `fuel`, `fuelMany` (`topUpTo` is idempotent and reports `skipped`), `transfer` (`bar`, `toBeDeconstructed`, `reason`), `transferMany`, `equip`, `equipGrid`, `pickup`, `pickupArea`, `beltTake` (any transport-belt tier), `dropItem` (`BELT` target seeds a lane; `GROUND` refuses belt tiles, drops with no force so items are never marked for deconstruction, and reports `remaining`/`groundPositions`), `setRecipe` (`drain: ABORT|TO_ACTOR|SPILL`; assembling machines and furnaces, and a furnace is primed with one unit of the recipe's ingredient from the actor inventory), `clearRecipe` (assembling machines only).
 
 ### Settings and circuits
-`setSplitterSettings`, `setInserterSettings`, `setLampSettings`, `setContainerBar`, `setLogisticRequests`, `setActorLogisticRequests`, `setTrainStop`, `setEntityTags` (fails on normal entities in 2.0.77), `setNameTag`, `setCircuitBehavior`, `setCombinatorParameters`, `connectWire`, `disconnectWire`.
+`setSplitterSettings`, `setInserterSettings`, `setLampSettings`, `setContainerBar` (`allowedSlots`; null removes the limit), `setLogisticRequests` (null `max` = infinite), `setActorLogisticRequests`, `setConstantCombinator`, `setTrainStop` (`clearTrainsLimit` for unlimited), `setEntityTags` (fails on normal entities in 2.0.77), `setNameTag`, `setCircuitBehavior`, `setCombinatorParameters`, `connectWire`, `disconnectWire`.
 
 ### Research, trains, fluids, rocket, server
-`startResearch`, `queueResearch`, `cancelResearch`, `clearResearchQueue`, `unlockAllTechnologies` (admin), `setTrainSchedule`, `trainControl`, `setFluid` (admin), `setRocketSilo`, `launchRocket`, `setGameSpeed` (admin, affects everyone), `announce`, `save`, `shutdown` (**does not save**; never call), `beltThroughputStart`, `beltStretchMeasure`, `addChartTag`, `removeChartTag`, `screenshot`, `waitUntil`, blueprint/ghost/deconstruction family (`createBlueprint`, `createBlueprintFromEntities`, `placeBlueprint`, `buildGhosts`, `deconstructArea`, `cancelDeconstructArea`, `deconstructEntities`, `cancelDeconstructEntities`).
+`startResearch`, `queueResearch`, `cancelResearch`, `clearResearchQueue`, `unlockAllTechnologies` (admin), `setTrainSchedule`, `trainControl`, `setFluid` (admin), `setRocketSilo`, `launchRocket`, `setGameSpeed` (admin, affects everyone), `announce`, `save`, `shutdown` (**does not save**; never call), `beltThroughputStart`, `beltStretchMeasure`, `addChartTag`, `removeChartTag`, `screenshot`, `waitUntil`, blueprint/ghost/deconstruction family (`createBlueprint`, `createBlueprintFromEntities`, `placeBlueprint`, `placeGhosts`, `buildGhosts`, `deconstructArea`, `cancelDeconstructArea`, `deconstructEntities`, `cancelDeconstructEntities`).
 
 ## 4. Semantics worth memorizing
 
@@ -132,7 +133,7 @@ mutation { placeNextTo(input:{actor:{character:"1"}, surface:"nauvis", relativeT
 # Static prototype data (fails today for inserter, burner-inserter, long-handed-inserter: decode defect)
 { prototype(name:"electric-mining-drill") { name entity { type tileWidth tileHeight craftingSpeed supplyArea wireReach } item { stackSize fuelValue placeResult } } }
 
-# Batch fueling and transfers: 1-200 explicit targets, one RCON call, no duplicates, exact countPerTarget or that target fails
+# Batch fueling and transfers: 1-1000 explicit targets, one RCON call, no duplicates, exact countPerTarget or that target fails
 mutation { fuelMany(input:{actor:{character:"1"}, item:"coal", countPerTarget:5,
     targets:[{entity:"burner-mining-drill", unitNumber:"386"}, {entity:"stone-furnace", unitNumber:"385"}]}) {
   fueled failed moved errors { index code message } results { index entity unitNumber moved requested } } }

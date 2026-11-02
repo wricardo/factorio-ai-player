@@ -36,6 +36,15 @@ type routeGrid struct {
 	tunnel []bool
 	// avoid is true when the caller forbids entities on the tile.
 	avoid []bool
+	// feed is true when an existing belt outside the route points into the
+	// tile, which would side-load foreign items into a new belt. Nil disables
+	// the check.
+	feed []bool
+	// spanX and spanY mark tiles covered by an existing same-name underground
+	// span on that axis. A new half inside one would re-pair with the existing
+	// span's other half and break it. Nil disables the check.
+	spanX []bool
+	spanY []bool
 	// existing maps a tile to the direction index 0..3 of a same-name belt, or
 	// routeExistingPipe for a pipe.
 	existing map[int]int
@@ -71,7 +80,9 @@ type routeParams struct {
 	maxTunnel      int
 	preferExisting bool
 	allowAdjacency bool
-	maxExpanded    int
+	// allowBeltAdjacency accepts a foreign belt feeding a new BELT tile.
+	allowBeltAdjacency bool
+	maxExpanded        int
 }
 
 type routeStep struct {
@@ -171,7 +182,7 @@ func routeAStar(grid *routeGrid, params routeParams) routeResult {
 		r.hScale = routeCostExisting
 	}
 	if params.allowTunnel && params.maxTunnel >= 2 {
-		if scale := 2 * routeCostTunnel / float64(params.maxTunnel); scale < r.hScale {
+		if scale := routeTunnelScale(params.maxTunnel); scale < r.hScale {
 			r.hScale = scale
 		}
 	}
@@ -320,6 +331,9 @@ func (r *router) normalCost(index, arrival, out int, goal bool) (float64, bool) 
 	if !r.grid.open[index] || !r.pipeSidesClear(index) {
 		return 0, false
 	}
+	if !r.params.pipe && !r.params.allowBeltAdjacency && r.grid.feed != nil && r.grid.feed[index] {
+		return 0, false
+	}
 	cost := routeCostTile
 	if arrival < 4 && out < 4 && arrival != out {
 		cost += routeCostBend
@@ -327,8 +341,21 @@ func (r *router) normalCost(index, arrival, out int, goal bool) (float64, bool) 
 	return cost, true
 }
 
+// spanHalfForbidden reports whether a new underground half travelling along out
+// would land inside an existing same-name span on the same axis, which re-pairs
+// that span and silently breaks the existing line.
+func (r *router) spanHalfForbidden(index, out int) bool {
+	if out == 1 || out == 3 {
+		return r.grid.spanX != nil && r.grid.spanX[index]
+	}
+	return r.grid.spanY != nil && r.grid.spanY[index]
+}
+
 func (r *router) entranceOK(index, out, arrival int) bool {
 	if !r.params.allowTunnel || !r.tunnelOpen(index) {
+		return false
+	}
+	if r.spanHalfForbidden(index, out) {
 		return false
 	}
 	if arrival != 4 && arrival != out {
@@ -343,6 +370,9 @@ func (r *router) entranceOK(index, out, arrival int) bool {
 
 func (r *router) exitOK(index, out int, goal bool) bool {
 	if !r.tunnelOpen(index) {
+		return false
+	}
+	if r.spanHalfForbidden(index, out) {
 		return false
 	}
 	if goal && r.params.pipe && !r.faceClear(index, out) {
@@ -530,4 +560,16 @@ func routeEndpointOK(grid *routeGrid, params routeParams, x, y int) bool {
 	}
 	r := &router{grid: grid, params: params, from: grid.index(params.fromX, params.fromY), to: grid.index(params.toX, params.toY)}
 	return r.endpointUsable(index)
+}
+
+// routeTunnelScale is the admissible per-tile heuristic scale for a route that may
+// tunnel. A chain charges 2 for an entrance and 2 for the exit on the following
+// move while covering maxTunnel tiles, so one maxTunnel+1 hop costs 4; dividing by
+// maxTunnel alone would overestimate the remaining cost and let A* settle a
+// costlier route first.
+func routeTunnelScale(maxTunnel int) float64 {
+	if maxTunnel < 2 {
+		return 0
+	}
+	return 2 * routeCostTunnel / float64(maxTunnel+1)
 }

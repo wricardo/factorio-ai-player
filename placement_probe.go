@@ -8,13 +8,6 @@ import (
 	"strings"
 )
 
-// maxPlacementProbeSamples bounds one probe so a single RCON call cannot run an
-// unbounded number of engine placement checks.
-const maxPlacementProbeSamples = 16384
-
-// maxProbeSites bounds the number of rectangles one SITES probe returns.
-const maxProbeSites = 200
-
 // placementProbeQuery samples engine placement legality for one prototype on
 // every tile center of a bounded area and returns it in the requested shape:
 // blocked tiles with their blockers, a compact placeability map, or the largest
@@ -27,14 +20,14 @@ func placementProbeQuery(r *Resolver, input *PlacementProbeInput) (*PlacementPro
 	if input.Direction < 0 || input.Direction > 15 {
 		return nil, errors.New("direction must be between 0 and 15")
 	}
-	area, areaResult, err := worldAreaBoundsLua(input.Area, 256)
+	area, areaResult, err := worldAreaBoundsLua(input.Area, maxAreaTiles)
 	if err != nil {
 		return nil, err
 	}
 	columns := math.Ceil(input.Area.RightBottomX) - math.Floor(input.Area.LeftTopX)
 	rows := math.Ceil(input.Area.RightBottomY) - math.Floor(input.Area.LeftTopY)
-	if samples := columns * rows; samples > maxPlacementProbeSamples {
-		return nil, fmt.Errorf("probe area samples %g tiles, above the %d tile limit; shrink the area", samples, maxPlacementProbeSamples)
+	if samples := columns * rows; samples > maxProbeSamples {
+		return nil, fmt.Errorf("probe area samples %g tiles, above the %d tile limit; shrink the area", samples, maxProbeSamples)
 	}
 	mode := strings.ToUpper(string(input.Mode))
 	if mode == "" {
@@ -60,7 +53,7 @@ func placementProbeQuery(r *Resolver, input *PlacementProbeInput) (*PlacementPro
 	default:
 		return nil, fmt.Errorf("unsupported placement probe mode %q", mode)
 	}
-	lua := luaFail + fmt.Sprintf(`local surface_name,force_name=%s,%s; local prototype=%s; local direction=%d; local area,area_result=%s,%s
+	lua := luaFail + luaTileOccupants + fmt.Sprintf(`local surface_name,force_name=%s,%s; local prototype=%s; local direction=%d; local area,area_result=%s,%s
 `, luaString(input.Surface), luaString(input.Force), luaString(input.Prototype), input.Direction, area, areaResult) + worldCommonLua + placementProbeLua(mode, siteWidth, siteHeight, maxSites)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
@@ -77,12 +70,29 @@ func placementProbeLua(mode string, siteWidth, siteHeight float64, maxSites int)
 	body := `
 local proto=prototypes.entity[prototype]
 if not proto then fail("entity prototype not found"); return end
+-- manual is the check a player placing by hand gets; the engine default only
+-- tests collisions.
+local build_check=defines.build_check_type.manual
 local layers=proto.collision_mask.layers
+local w=proto.tile_width or 1
+local h=proto.tile_height or 1
+if direction==4 or direction==12 then w,h=h,w end
 local left,top,right,bottom=math.floor(area[1][1]),math.floor(area[1][2]),math.ceil(area[2][1]),math.ceil(area[2][2])
 local cols,rows=right-left,bottom-top
+-- The footprint of an entity centered inside the area can overhang it, so the
+-- terrain prefilter is grown by half the footprint.
+local margin=math.max(math.ceil(w/2),math.ceil(h/2))
 local terrain={}
-for _,t in pairs(surface.find_tiles_filtered{area=area,collision_mask=layers}) do
+for _,t in pairs(surface.find_tiles_filtered{area={{left-margin,top-margin},{right+margin,bottom+margin}},collision_mask=layers}) do
   if t.valid then terrain[t.position.x..":"..t.position.y]=true end
+end
+local function footprint(px,py)
+  return math.floor(px-w/2+0.001),math.ceil(px+w/2-0.001)-1,math.floor(py-h/2+0.001),math.ceil(py+h/2-0.001)-1
+end
+local function footprint_blocks(px,py)
+  local x0,x1,y0,y1=footprint(px,py)
+  for fy=y0,y1 do for fx=x0,x1 do if terrain[fx..":"..fy] then return true end end end
+  return false
 end
 local sampled,placeable_count=0,0
 local grid={}
@@ -92,19 +102,35 @@ for tx=left,right-1 do
     local position={x=tx+0.5,y=ty+0.5}
     sampled=sampled+1
     local key=(ty-top)*cols+(tx-left+1)
-    if surface.can_place_entity{name=prototype,position=position,direction=direction,force=force} then
+    -- can_place_entity is the engine's manual check, but it accepts a position it
+    -- would fast-replace: a belt on a belt of another direction passes, so the
+    -- answer changes with the probe direction. A tile holding a real entity is
+    -- occupied for placement planning, so it is blocked whatever the direction.
+    -- tile_occupants keeps resources, ghosts, item stacks and corpses out of the
+    -- way: it keeps only entities whose collision mask intersects the probe
+    -- prototype's mask, so a tree-stump corpse (doodad layer, tiles only) never
+    -- blocks the tile while a belt or inserter does.
+    local occupants=tile_occupants(surface,position,layers)
+    if #occupants==0 and surface.can_place_entity{name=prototype,position=position,direction=direction,force=force,build_check_type=build_check} then
       placeable_count=placeable_count+1
       grid[key]=true
     else
       grid[key]=false
       if collect_blocked then
+        -- A refusal can come from any tile of the footprint, so the whole
+        -- footprint is searched instead of the tile under the center. Occupants
+        -- of the sampled tile are merged in because the engine may refuse a
+        -- fast-replaceable tile without reporting a collision; the footprint
+        -- scan filters by the probe prototype's collision mask, so decorations
+        -- and corpses are never named.
         local names,seen={},{}
-        local found=surface.find_entities_filtered{area={{tx,ty},{tx+1,ty+1}},collision_mask=layers}
+        for _,name in ipairs(occupants) do if not seen[name] then seen[name]=true; names[#names+1]=name end end
+        local found=surface.find_entities_filtered{area={{position.x-w/2,position.y-h/2},{position.x+w/2,position.y+h/2}},collision_mask=layers}
         for _,e in pairs(found) do if not seen[e.name] then seen[e.name]=true; names[#names+1]=e.name end end
         table.sort(names)
         local tile=surface.get_tile(tx,ty)
         local tile_name=tile and tile.valid and tile.name or ""
-        blocked[#blocked+1]={position=position,blockers=names,terrain=terrain[tx..":"..ty]==true,tile=tile_name}
+        blocked[#blocked+1]={position=position,blockers=names,terrain=footprint_blocks(position.x,position.y),tile=tile_name}
       end
     end
   end

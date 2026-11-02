@@ -140,8 +140,10 @@ For complex work, add PLAN comment with dependency chain, ASCII maps, batch orde
 - Run gqlcli from the repository root (it reads `.gqlcli.json`), for example `gqlcli query '{ status { tick } }'`. Mutation scripts need `--strict=false`.
 - Read state before mutation and verify state afterward. Mutations are not transactional; never blind-retry after an error or lost response.
 - Use exact actor, surface, entity unit number, position, item, quality, recipe, and technology names.
-- Keep work inside ticket scope. Do not redesign adjacent factory, cancel useful research, change game speed, stop server, or consume unrelated shared stock.
-- Default to normal gameplay. Administrative shortcuts such as `teleport`, `setFluid`, `buildGhosts`, `unlockAllTechnologies`, or direct game-speed changes require explicit ticket authorization.
+- Keep work inside ticket scope. Do not redesign adjacent factory, cancel useful research, stop server, or consume unrelated shared stock.
+- Never block a shell command on `sleep` longer than 10 seconds. Waiting for game time belongs in `waitUntil` (`timeoutSeconds <= 300`, chained for longer waits). One `sleep <= 10` is fine as a poll gap.
+- `setGameSpeed` is allowed for bounded waits: read `status.speed` first, raise it only as far as the wait needs (2-10 usual), announce the multiplier, then restore the recorded speed. It changes tick rate for every force and player, so never leave the world accelerated, never pause the game outside a snapshot, and never use speed as a substitute for fixing throughput.
+- Default to normal gameplay. Administrative shortcuts such as `teleport`, `setFluid`, `buildGhosts`, or `unlockAllTechnologies` require explicit ticket authorization.
 - Shared save may change concurrently. Re-read targets immediately before writes and preserve unfamiliar structures.
 - Chart tags are force-shared state. List nearby `chartTags` before adding a marker, avoid duplicates, and preserve markers outside ticket ownership.
 - Use `screenshot` only when visual context materially helps and a connected graphical player exists. Treat the returned PNG as supplemental evidence; exact GraphQL readback remains acceptance proof. Before retrying a screenshot error, re-check player connection and `FACTORIO_SCREENSHOT_DIR`.

@@ -3,42 +3,20 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 // beltComponentsAreaLimit bounds the read-only area scan. Grouping collisions
 // happen on the game thread, not in a paged result set, so a whole base fits in
-// one snapshot instead of one query per 256-tile box.
+// one snapshot instead of one query per bounded box.
 const beltComponentsAreaLimit = 1024
 
-// beltComponentsQuery groups every belt in an area into weakly connected
-// components, classifies each one, and returns per-component contents in one
-// snapshot. It reuses the topology Lua helpers (belt_connections, endpoint and
-// collect_edges) so component edges match factoryGraph and beltRun.
-func beltComponentsQuery(r *Resolver, input BeltComponentsInput) (*BeltComponentPage, error) {
-	if input.Surface == "" || input.Force == "" {
-		return nil, errors.New("surface and force are required")
-	}
-	if input.MaxEntities < 1 || input.MaxEntities > 5000 {
-		return nil, errors.New("maxEntities must be between 1 and 5000")
-	}
-	if input.Limit < 1 || input.Limit > 100 {
-		return nil, errors.New("limit must be between 1 and 100")
-	}
-	if input.Offset < 0 {
-		return nil, errors.New("offset must be non-negative")
-	}
-	areaLua, areaResult, err := worldAreaBoundsLua(input.Area, beltComponentsAreaLimit)
-	if err != nil {
-		return nil, err
-	}
-	lua := luaFail + transportLineLua + topologyCommonLua + fmt.Sprintf(`
-local surface=game.surfaces[%s]
+const beltComponentsCallLua = `
+local surface=game.surfaces[surface_name]
 if not surface then fail("surface not found"); return end
-local force=game.forces[%s]
+local force=game.forces[force_name]
 if not force then fail("force not found"); return end
-local area,area_result=%s,%s
-local max_entities,page_limit,page_offset,dead_only=%d,%d,%d,%t
-`, luaString(input.Surface), luaString(input.Force), areaLua, areaResult, input.MaxEntities, input.Limit, input.Offset, input.DeadOnly) + `
+local area_result={leftTopX=area[1][1],leftTopY=area[1][2],rightBottomX=area[2][1],rightBottomY=area[2][2]}
 local seeds=surface.find_entities_filtered{area=area,force=force,type=belt_types}
 table.sort(seeds,less)
 local in_area={}
@@ -47,11 +25,13 @@ local components,component_of={},{}
 local truncated_any=false
 for _,seed in ipairs(seeds) do
   if not component_of[key(seed)] then
-    local queue,members={seed},{[key(seed)]=true}
+    local queue,members={seed},{[key(seed)]=seed}
     local cursor,truncated=1,false
     while cursor<=#queue do
       local e=queue[cursor]; cursor=cursor+1
-      for _,link in ipairs(belt_connections(e)) do
+      local links=belt_connections(e)
+      local line_links=belt_line_connections(e)
+      local function visit(link)
         local other
         if key(link.a)==key(e) then other=link.b
         elseif key(link.b)==key(e) then other=link.a
@@ -59,21 +39,23 @@ for _,seed in ipairs(seeds) do
         if valid(other) then
           local k=key(other)
           if in_area[k] and not members[k] then
-            if #queue<max_entities then members[k]=true; queue[#queue+1]=other else truncated=true end
+            if #queue<max_entities then members[k]=other; queue[#queue+1]=other else truncated=true end
           end
         end
       end
+      for _,link in ipairs(links) do visit(link) end
+      for _,link in ipairs(line_links) do visit(link) end
     end
     table.sort(queue,less)
     local index=#components+1
     for k,_ in pairs(members) do component_of[k]=index end
     components[index]={members=members,nodes=queue,truncated=truncated,
-      inputs={},outputs={},raw={},inserters={},inserter_seen={},picked={},dropped={},machine_links=0}
+      inputs={},outputs={},raw={},inserters={},inserter_seen={},picked={},dropped={},pickup_counts={},machine_links=0}
     if truncated then truncated_any=true end
   end
 end
--- Directed belt edges inside each component. Connections to belts outside the
--- area are dropped here and surface again as boundary edges in collect_edges.
+-- Directed structural belt edges inside each component. Connections to belts
+-- outside the area are dropped here and surface again as boundary edges.
 for _,c in ipairs(components) do
   for _,e in ipairs(c.nodes) do
     for _,link in ipairs(belt_connections(e)) do
@@ -83,36 +65,53 @@ for _,c in ipairs(components) do
         c.outputs[key(link.a)]=true
       end
     end
+    if include_line_links then
+      for _,link in ipairs(belt_line_connections(e)) do
+        if c.members[key(link.a)] and c.members[key(link.b)] then c.raw[#c.raw+1]=link end
+      end
+    end
   end
 end
--- One inserter scan for the whole area. Targets resolve through the engine
--- target first and the geometric arm position second, so idle or unpowered but
--- wired inserters still count as feeding or draining a component. An arm can
--- touch two different components (pickup on one, drop on another), so both
--- sides are recorded and the inserter is listed once per component.
-for _,e in pairs(surface.find_entities_filtered{area=area,force=force,type="inserter"}) do
-  local pickup,drop=inserter_targets(e)
+-- One inserter scan for the whole area, padded past the edge and without a
+-- force filter: an inserter just outside the area that picks from or drops onto
+-- a belt inside it is what keeps that component alive. Targets resolve through
+-- the engine target first and the geometric arm position second.
+local area_box={surface=surface,left=area[1][1],top=area[1][2],right=area[2][1],bottom=area[2][2]}
+-- An arm reports a position about 0.2 tiles past its target's centre (a belt
+-- drop reads 30.699 for the tile at 30.5), so an arm is joined through the tile
+-- it reaches. The area's belts are indexed once; a point search would miss them.
+local area_belt_index=belt_tile_index(seeds)
+for _,e in ipairs(scan_inserters(surface,box_area(area_box,2.5))) do
+  local pickup,drop=inserter_targets(e,area_belt_index)
   for _,side in ipairs({{pickup,"pickup"},{drop,"drop"}}) do
     local target,kind=side[1],side[2]
     if valid(target) and is_belt(target) then
       local index=component_of[key(target)]
       if index then
         local c=components[index]
-        if kind=="pickup" then c.picked[key(target)]=true else c.dropped[key(target)]=true end
+        if kind=="pickup" then
+          c.picked[key(target)]=true
+          local tile_key=key(target)
+          c.pickup_counts[tile_key]=(c.pickup_counts[tile_key] or 0)+1
+        else
+          c.dropped[key(target)]=true
+        end
         local inserter_key=key(e)
         if not c.inserter_seen[inserter_key] then
           c.inserter_seen[inserter_key]=true
-          c.inserters[#c.inserters+1]=connected_inserter(e)
+          c.inserters[#c.inserters+1]=connected_inserter(e,area_belt_index)
         end
       end
     end
   end
 end
 -- Machines that drop onto belts (mining drills) drain nothing but do feed, so
--- they count as a link and clear the starvation flag on that belt.
+-- they count as a link and clear the starvation flag on that belt. The machine
+-- scan is padded by the largest machine radius, so a drill centred outside the
+-- area still counts for a belt it drops onto inside it.
 local machine_types={"assembling-machine","furnace","mining-drill","lab","rocket-silo"}
-for _,e in pairs(surface.find_entities_filtered{area=area,force=force,type=machine_types}) do
-  local target=machine_drop_target(e)
+for _,e in pairs(surface.find_entities_filtered{area=box_area(area_box,2.5),force=force,type=machine_types}) do
+  local target=machine_drop_target(e,area_belt_index)
   if valid(target) and is_belt(target) then
     local index=component_of[key(target)]
     if index then
@@ -135,11 +134,15 @@ local out={}
 for index,c in ipairs(components) do
   local nodes,sources,sinks,stall,starve={},{},{},{},{}
   local items,item_index,item_total={},{},0
+  local side_names,side_mixed={},false
   for _,e in ipairs(c.nodes) do
     local obj=endpoint(e)
     nodes[#nodes+1]=obj
     for _,lane in ipairs(obj.lanes or {}) do
+      local side=lane.side or "unknown"
+      side_names[side]=side_names[side] or {}
       for _,stack in ipairs(lane.items or {}) do
+        side_names[side][tostring(stack.name).."|"..tostring(stack.quality or "normal")]=true
         local item_key=tostring(stack.name).."|"..tostring(stack.quality or "normal")
         local entry=item_index[item_key]
         if not entry then
@@ -162,13 +165,23 @@ for index,c in ipairs(components) do
       if not c.picked[key(e)] then stall[#stall+1]=obj end
     end
   end
+  for _,names in pairs(side_names) do
+    local distinct=0
+    for _ in pairs(names) do distinct=distinct+1 end
+    if distinct>1 then side_mixed=true end
+  end
+  local shared_pickups=0
+  for _,count in pairs(c.pickup_counts) do
+    if count>1 then shared_pickups=shared_pickups+1 end
+  end
   table.sort(items,function(a,b)
     if a.name~=b.name then return a.name<b.name end
     return tostring(a.quality)<tostring(b.quality)
   end)
   local edges=collect_edges(c.members,c.raw)
   out[#out+1]={id=tostring(index),dead=(#c.inserters==0 and c.machine_links==0),belts=#c.nodes,
-    truncated=c.truncated,items=items,itemCount=item_total,nodes=nodes,edges=edges,
+    truncated=c.truncated,items=items,itemCount=item_total,
+    mixed=side_mixed,sharedPickupSources=shared_pickups,nodes=nodes,edges=edges,
     sources=sources,sinks=sinks,inserters=c.inserters,stallEnds=stall,starveHeads=starve,
     first=key(c.nodes[1])}
 end
@@ -184,10 +197,43 @@ local page={}
 for i=page_offset+1,math.min(page_offset+page_limit,total) do
   local c=filtered[i]; c.first=nil; page[#page+1]=c
 end
-rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,area=area_result,
+local payload={tick=game.tick,surface=surface.name,force=force.name,area=area_result,
   beltTotal=#seeds,truncated=truncated_any,
   pageInfo={total=total,limit=page_limit,offset=page_offset,hasMore=(page_offset+#page<total)},
-  components=page})`
+  components=page}`
+
+// beltComponentsQuery groups every belt in an area into weakly connected
+// components, classifies each one, and returns per-component contents in one
+// snapshot. It reuses the topology Lua helpers (belt_connections, endpoint and
+// collect_edges) so component edges match factoryGraph and beltRun.
+func beltComponentsQuery(r *Resolver, input BeltComponentsInput) (*BeltComponentPage, error) {
+	if input.Surface == "" || input.Force == "" {
+		return nil, errors.New("surface and force are required")
+	}
+	if input.MaxEntities < 1 || input.MaxEntities > maxBeltTraversal {
+		return nil, limitError("maxEntities", maxBeltTraversal)
+	}
+	if input.Limit < 1 || input.Limit > maxBeltComponents {
+		return nil, limitError("limit", maxBeltComponents)
+	}
+	if input.Offset < 0 {
+		return nil, errors.New("offset must be non-negative")
+	}
+	areaLua, _, err := worldAreaBoundsLua(input.Area, beltComponentsAreaLimit)
+	if err != nil {
+		return nil, err
+	}
+	lua := topologyChunk(r, "belt_components",
+		[]string{luaString(input.Surface), luaString(input.Force), areaLua,
+			strconv.Itoa(input.MaxEntities), strconv.Itoa(input.Limit), strconv.Itoa(input.Offset),
+			luaBool(input.DeadOnly), luaBool(input.IncludeLineLinks)},
+		fmt.Sprintf(`
+local surface_name,force_name=%s,%s
+local area=%s
+local max_entities,page_limit,page_offset,dead_only,include_line_links=%d,%d,%d,%t,%t
+`, luaString(input.Surface), luaString(input.Force), areaLua,
+			input.MaxEntities, input.Limit, input.Offset, input.DeadOnly, input.IncludeLineLinks),
+		beltComponentsCallLua)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

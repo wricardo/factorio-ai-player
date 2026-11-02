@@ -1,14 +1,14 @@
 extend type Query {
-  """Reads the logistic networks served by roboports of one force on a surface, optionally restricted to an area of at most 256 tiles per side. Networks are deduplicated by engine network id, sorted by ascending id and paginated by network: limit is 1 through 1000 (default 100), offset must be non-negative, and pageInfo.total counts every matching network, so a page may cover fewer roboports than exist. networkId selects one engine network id and must be a numeric id; area and networkId combine, and a network appears when any roboport of the force inside the area belongs to it. Each network is one snapshot per call: cells counts roboport cells, robot counts are split into total and available per kind, contents is the network inventory, deployed and carrying logistic robots are counted from the deployed robot list, and points classifies every point by owner (roboports counted once, character personal-logistics requester points separately). With includeItemStats (default true) each network also carries per-item rows, paged inside each network by itemsLimit 1 through 1000 (default 1000) and itemsOffset and ordered by item name then quality, with its own itemPageInfo; set it false for the cheaper robots-and-points read, which returns no item rows. Invalid surface, force, networkId, area or pagination values fail the whole query instead of returning an empty page."""
+  """Reads the logistic networks served by roboports of one force on a surface, optionally restricted to an area of at most 1024 tiles per side. Networks are deduplicated by engine network id, sorted by ascending id and paginated by network: limit is 1 through 10000 (default 100), offset must be non-negative, and pageInfo.total counts every matching network, so a page may cover fewer roboports than exist. networkId selects one engine network id and must be a numeric id; area and networkId combine, and a network appears when any roboport of the force inside the area belongs to it. Each network is one snapshot per call: cells counts roboport cells, robot counts are split into total and available per kind, contents is the network inventory, deployed and carrying logistic robots are counted from the deployed robot list, and points classifies every point by owner (roboports counted once, character personal-logistics requester points separately). With includeItemStats (default true) each network also carries per-item rows, paged inside each network by itemsLimit 1 through 10000 (default 1000) and itemsOffset and ordered by item name then quality, with its own itemPageInfo; set it false for the cheaper robots-and-points read, which returns no item rows. Invalid surface, force, networkId, area or pagination values fail the whole query instead of returning an empty page."""
   logisticNetworks(input: LogisticNetworksInput = {}): LogisticNetworkPage!
-  """Lists entities registered with the engine construction manager for deconstruction or upgrade, using the to_be_deconstructed or to_be_upgraded filter selected by state. The engine filter matches entities of any force, so force is reported per order rather than filtered on, and omitting area scans the whole surface cheaply because only marked entities match; a supplied area is limited to 256 tiles per side. Orders are sorted by position y, then x, then unit number ascending, and paginated by limit 1 through 1000 (default 100) and non-negative offset with pageInfo.total counting every match. UPGRADE orders add the target prototype and quality from get_upgrade_target; both are null for deconstruction orders and when the engine reports no target. Empty surface, unknown state, out-of-range limit or offset, or invalid area bounds fail the query as a GraphQL error rather than a per-order entry."""
+  """Lists entities registered with the engine construction manager for deconstruction or upgrade, using the to_be_deconstructed or to_be_upgraded filter selected by state. The engine filter matches entities of any force, so force is reported per order rather than filtered on, and omitting area scans the whole surface cheaply because only marked entities match; a supplied area is limited to 1024 tiles per side. Orders are sorted by position y, then x, then unit number ascending, and paginated by limit 1 through 10000 (default 100) and non-negative offset with pageInfo.total counting every match. UPGRADE orders add the target prototype and quality from get_upgrade_target; both are null for deconstruction orders and when the engine reports no target. Empty surface, unknown state, out-of-range limit or offset, or invalid area bounds fail the query as a GraphQL error rather than a per-order entry."""
   constructionOrders(input: ConstructionOrdersInput = {}): ConstructionOrderPage!
 }
 
 """Orders are per force in the engine, but the filter matches any force; force is reported per entity."""
 input ConstructionOrdersInput {
   surface: String! = "nauvis"
-  """Optional area (at most 256 tiles per side); omitted scans the whole surface."""
+  """Optional area (at most 1024 tiles per side); omitted scans the whole surface."""
   area: FactoryAreaInput
   state: ConstructionOrderState! = DECONSTRUCTION
   limit: Int! = 100
@@ -52,7 +52,7 @@ input LogisticNetworksInput {
   offset: Int! = 0
   """Include per-item stock, request, robot-cargo and shortfall stats. Set false for a cheaper robots-and-points read."""
   includeItemStats: Boolean! = true
-  """Maximum item rows per network, 1 through 1000. Rows are ordered by item name, then quality."""
+  """Maximum item rows per network, 1 through 10000. Rows are ordered by item name, then quality."""
   itemsLimit: Int! = 1000
   itemsOffset: Int! = 0
 }
@@ -128,7 +128,7 @@ type LogisticItemStat {
   incoming: Float!
   """Items robots are committed to pick up from providers or storage but are not carrying yet."""
   targetedPickup: Float!
-  """max(0, requested - delivered - inFlight - incoming). Non-zero means chest demand is not covered by delivered, carried, or committed deliveries; compare with `stored` and `targetedPickup` to separate supply shortage from robot backlog."""
+  """max(0, demand - delivered - inFlight - incoming), where demand is `requestedMinimum` when the row has a request minimum (a vanilla requester chest compiles to count only, with no maximum) and `requested` otherwise. Non-zero means chest demand is not covered by delivered, carried or committed deliveries; compare with `stored` and `targetedPickup` to separate supply shortage from robot backlog."""
   missing: Float!
 }
 
@@ -138,11 +138,13 @@ type RobotCount {
 }
 
 extend type Mutation {
-  """Revives entity ghosts of one force inside a required area of at most 256 tiles per side, taking at most limit ghosts (1 through 1000, default 100) in engine scan order. REVIVE (default) uses the normal revive path and raises built events; SILENT uses the silent variant, which raises no built events and creates no smoke. Script revival bypasses construction robots and item consumption, so a ghost is built whether or not the force owns its materials and stock is never withdrawn; a ghost that fails is reported in missing by its prototype cost, which in practice means its tile was blocked rather than that items were absent. revived and failed count attempts, entities lists each created entity, and errors carries at most 20 entries with COLLISION when the engine declined to place and ENGINE when the call raised. actor is validated when supplied but does not gate or reach-check the work, and the mutation prints the generated notification unless message overrides the text."""
+  """Revives entity ghosts of one force inside a required area of at most 1024 tiles per side, taking at most limit ghosts (1 through 10000, default 100) in engine scan order. REVIVE (default) uses the engine revive path with raise_revive set, so script_raised_revive is raised; SILENT uses silent_revive without raising any revive event and without sound or smoke. Script revival bypasses construction robots and item consumption, so a ghost is built whether or not the force owns its materials and stock is never withdrawn; a ghost that fails is reported in missing by its prototype cost, which in practice means its tile was blocked rather than that items were absent. revived and failed count attempts, entities lists each created entity, and errors carries at most 20 entries with COLLISION when the engine declined to place and ENGINE when the call raised. collidedItems holds items on the ground that a revived entity displaced, never missing materials; when actor is supplied those items are also transferred to the actor's main inventory as the engine overflow inventory. actor is validated but does not gate or reach-check the work, and the mutation prints the generated notification unless message overrides the text."""
   buildGhosts(input: BuildGhostsInput!): BuildGhostsResult!
+  """Creates entity ghosts and tile ghosts at explicit map positions in one call, so a build can be planned without exporting or importing a blueprint string. Each entity entry names an existing entity prototype, the exact center position, an optional canonical direction 0-15 (default 0), an optional existing quality (default normal), and an optional recipe plus recipe quality that are set on the ghost's crafting machine. Each tile entry names an existing tile prototype at whole-tile map coordinates. At most 1000 entities plus 20000 tiles per call, and at least one entry is required. Ghost creation is script-level: no item is consumed, no reach check runs and no collision test is applied, so a ghost may overlap an existing entity, a resource or another ghost exactly like a blueprint ghost, and nothing is built — construction robots or buildGhosts must still build the plan. Entries are processed in request order and continue past per-entry failures; a failed recipe assignment removes the ghost it was set on, so every ghost the result lists is complete. Returns entitiesCreated, tilesCreated, failed, ghosts for every created ghost (engine prototype name, inner prototype, quality, position, unit number), and up to 100 typed errors (LOOKUP for an unknown entity, tile, quality or recipe prototype, ENGINE when the engine refused the ghost or its recipe). Emits an in-game notification unless message overrides it."""
+  placeGhosts(input: PlaceGhostsInput!): GhostPlacementResult!
 }
 
-"""Area limits are positive and at most 256 tiles per side. limit is 1 through 1000."""
+"""Area limits are positive and at most 1024 tiles per side. limit is 1 through 10000."""
 input BuildGhostsInput {
   actor: ActorInput
   force: String = "player"
@@ -169,7 +171,146 @@ type BuildGhostsResult {
   mode: BuildGhostsMode!
   revived: Int!
   failed: Int!
+  """Prototype cost of ghosts that could not be revived. A blocked tile, not absent stock: script revival never checks or withdraws items."""
   missing: [ItemRequest!]!
+  """Items on the ground that revived entities collided with and displaced. Never counted as missing materials; transferred to the actor's main inventory as overflow when actor is given."""
+  collidedItems: [ItemRequest!]!
   entities: [PlacedEntity!]!
+  errors: [BatchError!]!
+}
+
+"""At most 10000 entities and 20000 tiles per call; at least one entry is required. surface and force must name existing objects."""
+input PlaceGhostsInput {
+  surface: String = "nauvis"
+  force: String = "player"
+  entities: [GhostEntityInput!]! = []
+  tiles: [GhostTileInput!]! = []
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""One ghost to plan. position is an absolute map position, not blueprint-relative."""
+input GhostEntityInput {
+  """Entity prototype to ghost."""
+  name: String!
+  """Exact map position of the ghost's center."""
+  position: PositionInput!
+  """Canonical engine direction 0 through 15; 0 is north."""
+  direction: Int! = 0
+  """Entity quality prototype name; defaults to normal."""
+  quality: String
+  """Recipe to set on the ghost's crafting machine; the prototype must exist."""
+  recipe: String
+  """Quality prototype of recipe products; only meaningful with recipe."""
+  recipeQuality: String
+}
+
+"""One tile ghost at whole-tile map coordinates."""
+input GhostTileInput {
+  """Tile prototype to ghost."""
+  name: String!
+  x: Int!
+  y: Int!
+}
+
+"""One created ghost. name is the engine ghost prototype, innerName the prototype it stands for."""
+type PlacedGhost {
+  """Engine prototype name of the created ghost: entity-ghost or tile-ghost."""
+  name: String!
+  type: String!
+  """Prototype the ghost stands for."""
+  innerName: String!
+  quality: String
+  position: Position!
+  unitNumber: UnitNumber
+}
+
+type GhostPlacementResult {
+  tick: Float!
+  surface: String!
+  force: String!
+  entitiesCreated: Int!
+  tilesCreated: Int!
+  failed: Int!
+  errors: [BatchError!]!
+  ghosts: [PlacedGhost!]!
+}
+
+extend type Mutation {
+  """Marks entities inside a required area of at most 1024 tiles per side for upgrade to explicit target prototypes, so a belt or inserter tier change can be planned in one call without unsafe fast replace. Every entity whose prototype name equals a mapping's from becomes one upgrade order to that mapping's to prototype and quality (default normal); entities already marked for upgrade are reported ALREADY_MARKED and left untouched, an unknown target prototype or quality is reported LOOKUP, and an engine refusal is reported REFUSED with its message and a BatchError. The engine's LuaSurface.upgrade_area needs an upgrade planner item stack and the 2.0 script API cannot set mappings on one, so each order is written through LuaEntity.order_upgrade, which records the same order construction robots execute and constructionOrders(UPGRADE) lists. limit is 1 through 10000 and bounds visited entities; mappings must contain 1 through 200 entries with non-empty, unique from values. The order is placed for force, and an optional actor supplies only the engine player recorded for the order. Returns orders (newly marked), skipped, rows per visited entity, and up to 20 errors. Emits an in-game notification unless message overrides it."""
+  upgradeArea(input: UpgradeAreaInput!): UpgradeAreaResult!
+  """Cancels upgrade orders inside a required area of at most 1024 tiles per side, returning canceled plus rows for each visited entity. Every entity of force in the area that is marked for upgrade is canceled through LuaEntity.cancel_upgrade; an engine refusal is reported REFUSED with its message and a BatchError. limit is 1 through 10000 and bounds visited entities. Emits an in-game notification unless message overrides it."""
+  cancelUpgradeArea(input: CancelUpgradeAreaInput!): UpgradeAreaResult!
+}
+
+"""One prototype substitution for an area upgrade. From matches the entity prototype to replace, To is the target entity prototype, and quality defaults to normal."""
+input UpgradeMappingInput {
+  from: String!
+  to: String!
+  quality: String
+}
+
+input UpgradeAreaInput {
+  actor: ActorInput
+  force: String! = "player"
+  surface: String! = "nauvis"
+  """Finite positive dimensions, at most 1024 tiles per side."""
+  area: FactoryAreaInput!
+  """1 through 1000 entries with non-empty unique from values."""
+  mappings: [UpgradeMappingInput!]!
+  limit: Int! = 500
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input CancelUpgradeAreaInput {
+  actor: ActorInput
+  force: String! = "player"
+  surface: String! = "nauvis"
+  """Finite positive dimensions, at most 1024 tiles per side."""
+  area: FactoryAreaInput!
+  limit: Int! = 500
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+enum UpgradeOrderStatus {
+  """A new upgrade order was recorded."""
+  MARKED
+  """The entity already had an upgrade order; it was left untouched."""
+  ALREADY_MARKED
+  """An existing upgrade order was canceled."""
+  CANCELED
+  """The engine refused the order or the cancellation."""
+  REFUSED
+  """The mapping names an unknown entity or quality prototype."""
+  LOOKUP
+}
+
+"""One entity visited by an area upgrade or cancel request."""
+type UpgradeAreaRow {
+  unitNumber: UnitNumber
+  name: String!
+  type: String!
+  position: Position!
+  """Upgrade target prototype: the mapping's to value for upgradeArea, the recorded order target for cancelUpgradeArea."""
+  target: String!
+  quality: String!
+  status: UpgradeOrderStatus!
+  """Engine or lookup message for REFUSED and LOOKUP rows."""
+  message: String
+}
+
+type UpgradeAreaResult {
+  tick: Float!
+  surface: String!
+  force: String!
+  """Entities newly marked for upgrade by this call."""
+  orders: Int!
+  """Entities visited and not newly marked: already marked, refused, or unknown target."""
+  skipped: Int!
+  """Upgrade orders canceled by cancelUpgradeArea; zero for upgradeArea."""
+  canceled: Int!
+  rows: [UpgradeAreaRow!]!
   errors: [BatchError!]!
 }

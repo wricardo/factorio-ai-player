@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	routeMaxRegionTiles  = 16384
-	routeDefaultExpanded = 5000
-	routeMaxExpanded     = 50000
-	routeDefaultMargin   = 12
-	routeMaxMargin       = 64
-	routeMaxAvoidAreas   = 20
+	routeMaxRegionTiles  = 65536
+	routeDefaultExpanded = 10000
+	routeMaxExpanded     = 200000
+	routeDefaultMargin   = 32
+	routeMaxMargin       = 256
+	routeMaxAvoidAreas   = 100
 	routeMaxTunnelOffset = 32
 	routeMaxCoordinate   = 10_000_000
 	routeMinTunnelOffset = 2
@@ -99,7 +99,7 @@ func validateRouteOptions(kind ConnectionKind, o connectionRouteOptions) (bool, 
 		return false, fmt.Errorf("avoidAreas must contain at most %d areas", routeMaxAvoidAreas)
 	}
 	for i, area := range o.avoidAreas {
-		if _, _, err := worldAreaBoundsLua(area, 256); err != nil {
+		if _, _, err := worldAreaBoundsLua(area, maxAreaTiles); err != nil {
 			return false, fmt.Errorf("avoid area %d: %w", i+1, err)
 		}
 	}
@@ -124,16 +124,22 @@ func routeUndergroundItem(kind ConnectionKind, item *string) string {
 
 // routeRegion is the engine state the planner reads for one search region.
 type routeRegion struct {
-	Tick            float64        `json:"tick"`
-	Surface         string         `json:"surface"`
-	Force           string         `json:"force"`
-	Entity          string         `json:"entity"`
-	TunnelEntity    string         `json:"tunnelEntity"`
-	MaxTunnel       int            `json:"maxTunnel"`
-	Open            []string       `json:"open"`
-	OpenTunnel      []string       `json:"openTunnel"`
-	Fluid           []string       `json:"fluid"`
-	Tunnel          []string       `json:"tunnel"`
+	Tick         float64  `json:"tick"`
+	Surface      string   `json:"surface"`
+	Force        string   `json:"force"`
+	Entity       string   `json:"entity"`
+	TunnelEntity string   `json:"tunnelEntity"`
+	MaxTunnel    int      `json:"maxTunnel"`
+	Open         []string `json:"open"`
+	OpenTunnel   []string `json:"openTunnel"`
+	Fluid        []string `json:"fluid"`
+	Tunnel       []string `json:"tunnel"`
+	// Feed marks tiles an existing belt points into (BELT routes only).
+	Feed []string `json:"feed"`
+	// SpanX and SpanY mark tiles covered by an existing same-name underground
+	// span on that axis; empty unless a tunnel item is used.
+	SpanX           []string       `json:"spanX"`
+	SpanY           []string       `json:"spanY"`
 	Existing        []routeExisted `json:"existing"`
 	Left, Top       int
 	Cols, Rows      int
@@ -183,7 +189,9 @@ local function grid_rows(name)
   for ty=top,top+rows-1 do
     local parts={}
     for tx=left,left+cols-1 do
-      parts[#parts+1]=surface.can_place_entity{name=name,position={x=tx+0.5,y=ty+0.5},direction=0,force=force} and "1" or "0"
+      -- build_check_type.manual is the player build rule; build_check_type.script
+      -- only reports whether a script may create the box, which overlaps obstacles.
+      parts[#parts+1]=surface.can_place_entity{name=name,position={x=tx+0.5,y=ty+0.5},direction=0,force=force,build_check_type=defines.build_check_type.manual} and "1" or "0"
     end
     out[#out+1]=table.concat(parts)
   end
@@ -205,15 +213,99 @@ local function mark(grid,e)
     for tx=math.max(x0,left),math.min(x1,left+cols-1) do grid[ty-top+1][tx-left+1]="1" end
   end
 end
+-- Grids that do not apply (feed for PIPE routes, spans without a tunnel item) are
+-- empty tables, so joining must not assume rows exist.
 local function join(grid)
   local out={}
-  for ty=1,rows do out[ty]=table.concat(grid[ty]) end
+  if not grid or #grid==0 then return out end
+  for ty=1,rows do
+    if not grid[ty] then return out end
+    out[ty]=table.concat(grid[ty])
+  end
   return out
 end
+local function set_tile(grid,px,py)
+  local tx,ty=math.floor(px),math.floor(py)
+  if tx<left or ty<top or tx>=left+cols or ty>=top+rows then return end
+  grid[ty-top+1][tx-left+1]="1"
+end
+-- Pipes are pipe-like by type. Machines join a fluid network through a fluidbox
+-- pipe connection instead, so their port tiles are marked; a fluidbox with no
+-- reported connection yet counts on its own tiles, because placing a pipe on
+-- its port creates the link.
 local fluid=blank()
 if kind=="PIPE" then
-for _,e in pairs(surface.find_entities_filtered{area=area,type=`+pipeLikeTypesLua+`}) do
+  for _,e in pairs(surface.find_entities_filtered{area=area,type=`+pipeLikeTypesLua+`}) do
     if e.valid then mark(fluid,e) end
+  end
+  local port_types={"assembling-machine","furnace","mining-drill","rocket-silo","boiler","generator","fusion-generator","heat-exchanger","storage-tank","offshore-pump","pump","reactor","fusion-reactor","fluid-wagon","fluid-turret"}
+  for _,e in pairs(surface.find_entities_filtered{area=area,type=port_types}) do
+    if e.valid then
+      local ok_box,box=pcall(function() return e.fluidbox end)
+      local ok_count,count=false,0
+      if ok_box and box then ok_count,count=pcall(function() return #box end) end
+      if ok_box and box and ok_count and type(count)=="number" and count>0 then
+        local any=false
+        for index=1,count do
+          local ok_connections,connections=pcall(function() return box.get_pipe_connections(index) end)
+          if ok_connections and connections then
+            for _,connection in pairs(connections) do
+              any=true
+              local target=connection.target_position
+              if target then set_tile(fluid,target.x,target.y) end
+            end
+          end
+        end
+        if not any then mark(fluid,e) end
+      end
+    end
+  end
+end
+-- A belt pointing into a tile side-loads its items there, so a new BELT route
+-- tile next to one needs the allow flag.
+local feed={}
+if kind=="BELT" then
+  feed=blank()
+  local feed_vectors={[0]={0,-1},[4]={1,0},[8]={0,1},[12]={-1,0}}
+  for _,e in pairs(surface.find_entities_filtered{area=area,type={"transport-belt","underground-belt","splitter","loader","loader-1x1","linked-belt"}}) do
+    if e.valid then
+      local feeds=true
+      if e.type=="underground-belt" and e.belt_to_ground_type~="output" then feeds=false end
+      local vector=feed_vectors[e.direction]
+      if feeds and vector then
+        local foot=e.bounding_box
+        for ty=math.max(top,math.floor(foot.left_top.y)),math.min(top+rows-1,math.ceil(foot.right_bottom.y)-1) do
+          for tx=math.max(left,math.floor(foot.left_top.x)),math.min(left+cols-1,math.ceil(foot.right_bottom.x)-1) do
+            set_tile(feed,tx+0.5+vector[1],ty+0.5+vector[2])
+          end
+        end
+      end
+    end
+  end
+end
+-- Existing same-name underground spans, per axis. A new half inside one would
+-- re-pair with the span's other half and break the existing line.
+local span_x,span_y={},{}
+if tunnel_name~="" then
+  span_x,span_y=blank(),blank()
+  local pad=max_tunnel
+  local span_area={{left-pad,top-pad},{left+cols+pad,top+rows+pad}}
+  for _,e in pairs(surface.find_entities_filtered{area=span_area,name=tunnel_name}) do
+    if e.valid and e.type=="underground-belt" then
+      local ok_type,ground=pcall(function() return e.belt_to_ground_type end)
+      if ok_type and ground=="input" then
+        local partner=e.neighbours
+        if partner and partner.valid then
+          local x0,x1=math.min(e.position.x,partner.position.x),math.max(e.position.x,partner.position.x)
+          local y0,y1=math.min(e.position.y,partner.position.y),math.max(e.position.y,partner.position.y)
+          for ty=math.floor(y0),math.floor(y1) do
+            for tx=math.floor(x0),math.floor(x1) do
+              if e.direction==0 or e.direction==8 then set_tile(span_y,tx+0.5,ty+0.5) else set_tile(span_x,tx+0.5,ty+0.5) end
+            end
+          end
+        end
+      end
+    end
   end
 end
 local tunnel=blank()
@@ -224,7 +316,13 @@ local existing={}
 for _,e in pairs(surface.find_entities_filtered{area=area,name=entity_name,force=force}) do
   if e.valid then existing[#existing+1]={x=math.floor(e.position.x),y=math.floor(e.position.y),direction=e.direction} end
 end
-rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,entity=entity_name,tunnelEntity=tunnel_name,maxTunnel=max_tunnel,open=open_rows,openTunnel=open_tunnel_rows,fluid=join(fluid),tunnel=join(tunnel),existing=existing})`,
+-- Grids that do not apply are omitted instead of encoded as {}, so an empty
+-- table never has to be decoded into a string slice.
+local payload={tick=game.tick,surface=surface.name,force=force.name,entity=entity_name,tunnelEntity=tunnel_name,maxTunnel=max_tunnel,open=open_rows,openTunnel=open_tunnel_rows,fluid=join(fluid),tunnel=join(tunnel),existing=existing}
+if #feed>0 then payload.feed=join(feed) end
+if #span_x>0 then payload.spanX=join(span_x) end
+if #span_y>0 then payload.spanY=join(span_y) end
+rcon.print(helpers.table_to_json(payload))`,
 		luaString(surface), luaString(force), luaString(item), luaString(tunnelItem), luaString(kind), left, top, cols, rows)
 }
 
@@ -235,7 +333,9 @@ type connectionRequest struct {
 	kind           ConnectionKind
 	item           string
 	allowAdjacency bool
-	options        connectionRouteOptions
+	// allowBeltAdjacency accepts a foreign belt feeding a new BELT tile.
+	allowBeltAdjacency bool
+	options            connectionRouteOptions
 }
 
 func routeTile(p *PositionInput) (int, int) { return int(math.Floor(p.X)), int(math.Floor(p.Y)) }
@@ -279,6 +379,27 @@ func buildRouteGrid(region *routeRegion, left, top, cols, rows int, pipe bool, a
 	fill(grid.open, region.Open)
 	fill(grid.fluid, region.Fluid)
 	fill(grid.tunnel, region.Tunnel)
+	if err := check("feed", region.Feed, false); err != nil {
+		return nil, err
+	}
+	if err := check("spanX", region.SpanX, false); err != nil {
+		return nil, err
+	}
+	if err := check("spanY", region.SpanY, false); err != nil {
+		return nil, err
+	}
+	if len(region.Feed) > 0 {
+		grid.feed = make([]bool, cols*rows)
+		fill(grid.feed, region.Feed)
+	}
+	if len(region.SpanX) > 0 {
+		grid.spanX = make([]bool, cols*rows)
+		fill(grid.spanX, region.SpanX)
+	}
+	if len(region.SpanY) > 0 {
+		grid.spanY = make([]bool, cols*rows)
+		fill(grid.spanY, region.SpanY)
+	}
 	if len(region.OpenTunnel) > 0 {
 		grid.openTunnel = make([]bool, cols*rows)
 		fill(grid.openTunnel, region.OpenTunnel)
@@ -356,7 +477,8 @@ func connectionPlanAStar(r *Resolver, req connectionRequest) (*ConnectionPlan, e
 	params := routeParams{
 		pipe: pipe, fromX: fx, fromY: fy, toX: tx, toY: ty,
 		allowTunnel: options.allowUnderground, maxTunnel: maxTunnel,
-		preferExisting: options.preferExisting, allowAdjacency: req.allowAdjacency, maxExpanded: maxExpanded,
+		preferExisting: options.preferExisting, allowAdjacency: req.allowAdjacency,
+		allowBeltAdjacency: req.allowBeltAdjacency, maxExpanded: maxExpanded,
 	}
 	result := routeAStar(grid, params)
 
@@ -515,7 +637,6 @@ for i,s in ipairs(steps) do
     local ok=true
     if %s then ok=false; fail_at(i,"REACH","out of build reach",name,position) end
     if ok and inv.get_item_count{name=use_item,quality="normal"}<1 then ok=false; fail_at(i,"INVENTORY","actor lacks item",name,position) end
-    if ok and not surface.can_place_entity{name=name,position=position,direction=s.direction,force=c.force} then ok=false; fail_at(i,"COLLISION","cannot place entity at tile",name,position) end
     if ok and inv.remove{name=use_item,quality="normal",count=1}~=1 then ok=false; fail_at(i,"INVENTORY","could not remove item",name,position) end
     if ok then
       local params={name=name,position=position,direction=s.direction,force=c.force,quality="normal",raise_built=true}
@@ -526,7 +647,14 @@ for i,s in ipairs(steps) do
         entities[#entities+1]={name=e.name,type=e.type,position={x=e.position.x,y=e.position.y},unitNumber=e.unit_number}
       else
         inv.insert{name=use_item,quality="normal",count=1}
-        fail_at(i,"ENGINE","entity creation failed"..(created and "" or ": "..tostring(e)),name,position)
+        -- Entity creation is the success test; can_place_entity only explains a refusal.
+        if not created then
+          fail_at(i,"ENGINE","entity creation failed: "..tostring(e),name,position)
+        elseif surface.can_place_entity{name=name,position=position,direction=s.direction,force=c.force,build_check_type=defines.build_check_type.manual} then
+          fail_at(i,"ENGINE","entity creation failed",name,position)
+        else
+          fail_at(i,"COLLISION","cannot place entity at tile",name,position)
+        end
       end
     end
   end

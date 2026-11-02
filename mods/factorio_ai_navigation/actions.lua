@@ -65,6 +65,9 @@ local function prune_jobs()
 end
 
 local function start_shoot(unit, x, y, ticks)
+  -- Storage keys are created lazily so a save from before the action jobs
+  -- existed keeps working without waiting for on_configuration_changed.
+  initialize()
   if not finite(unit) or unit < 1 or unit > 4294967295 or unit % 1 ~= 0 then
     return {error = "character must be a positive uint32"}
   end
@@ -97,7 +100,7 @@ local function start_shoot(unit, x, y, ticks)
   storage.action_jobs[id] = job
   storage.action_active[unit] = id
   local ok, error = pcall(function()
-    character.shooting_state = {state = defines.shooting.shooting_enemies, position = job.position}
+    character.shooting_state = {state = defines.shooting.shooting_selected, position = job.position}
   end)
   if not ok then
     storage.action_jobs[id] = nil
@@ -127,7 +130,7 @@ local function on_tick(event)
           finish(job, "COMPLETE", nil)
         else
           local ok, error = pcall(function()
-            character.shooting_state = {state = defines.shooting.shooting_enemies, position = job.position}
+            character.shooting_state = {state = defines.shooting.shooting_selected, position = job.position}
           end)
           if not ok then
             finish(job, "FAILED", tostring(error))
@@ -143,6 +146,7 @@ end
 remote.add_interface("factorio_ai_actions", {
   start_shoot = start_shoot,
   status = function(id)
+    initialize()
     local job = type(id) == "string" and storage.action_jobs[id] or nil
     if not job then
       return {error = "action job not found"}
@@ -150,6 +154,7 @@ remote.add_interface("factorio_ai_actions", {
     return snapshot(job)
   end,
   cancel = function(id)
+    initialize()
     local job = type(id) == "string" and storage.action_jobs[id] or nil
     if not job then
       return {error = "action job not found"}

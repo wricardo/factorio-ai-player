@@ -18,7 +18,7 @@ import (
 // character paths report them (c is the character in both cases). Every engine
 // access is wrapped in pcall so an armorless character or a character without a
 // requester point simply omits the fields instead of failing the query.
-const luaActorGear = `
+const luaActorGear = settingsLogisticSectionsLua + `
 if c then
   local gear_ok,gear_grid=pcall(function() return c.grid end)
   if gear_ok and gear_grid then
@@ -27,28 +27,7 @@ if c then
   end
   local gear_point_ok,gear_point=pcall(function() return c.get_requester_point() end)
   if gear_point_ok and gear_point then
-    local gear_sections={}
-    for gear_index=1,20 do
-      local gear_section_ok,gear_section=pcall(function() return gear_point.get_section(gear_index) end)
-      if not gear_section_ok or not gear_section then break end
-      local gear_slots={}
-      for gear_slot=1,30 do
-        local gear_slot_ok,gear_filter=pcall(function() return gear_section.get_slot(gear_slot) end)
-        if not gear_slot_ok or not gear_filter then break end
-        local gear_value=gear_filter.value
-        local gear_name,gear_quality
-        if type(gear_value)=="table" then
-          gear_name=gear_value.name
-          gear_quality=type(gear_value.quality)=="string" and gear_value.quality or (gear_value.quality and gear_value.quality.name)
-        else
-          gear_name=gear_value
-        end
-        if gear_name==nil then break end
-        gear_slots[#gear_slots+1]={index=gear_slot,name=gear_name,quality=gear_quality,min=gear_filter.min or 0,max=gear_filter.max or 0}
-      end
-      gear_sections[#gear_sections+1]={index=gear_index,slots=gear_slots}
-    end
-    subject.logistic_requests={sections=gear_sections}
+    subject.logistic_requests={sections=settings_logistic_sections(gear_point)}
   end
 end
 `

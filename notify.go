@@ -83,6 +83,8 @@ func actionResultSummary(name string, r *ActionResult) string {
 		return fmt.Sprintf("created character %s for %s%s", stringValue(r.Character), stringValue(r.Player), at)
 	case "character-spawn":
 		return "spawned character " + stringValue(r.Character) + at
+	case "character-delete":
+		return "deleted character " + stringValue(r.Character) + at
 	case "player-restore-character":
 		return fmt.Sprintf("restored character %s for %s%s", stringValue(r.Character), stringValue(r.Player), at)
 	case "character-return":
@@ -101,7 +103,11 @@ func actionResultSummary(name string, r *ActionResult) string {
 		}
 		return fmt.Sprintf("moved %s %s into %s%s", numberValue(r.Moved), stringValue(r.Item), stringValue(r.Entity), at)
 	case "set-recipe":
-		return fmt.Sprintf("set %s recipe to %s%s", stringValue(r.Entity), stringValue(r.Recipe), at)
+		summary := fmt.Sprintf("set %s recipe to %s", stringValue(r.Entity), stringValue(r.Recipe))
+		if r.Item != nil {
+			summary += fmt.Sprintf(" (primed with %s %s)", numberValue(r.Count), *r.Item)
+		}
+		return summary + at
 	case "equip":
 		where := "into " + stringValue(r.Inventory)
 		if r.EquipmentDirection != nil && *r.EquipmentDirection == EquipmentTransferDirectionToMain {

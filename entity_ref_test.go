@@ -50,21 +50,39 @@ func TestEntityTarget(t *testing.T) {
 func TestUnitNumberAddressingLua(t *testing.T) {
 	var out bytes.Buffer
 	for _, tc := range []struct {
-		name  string
-		build func([]string) (string, error)
-		args  []string
+		name       string
+		build      func([]string) (string, error)
+		args       []string
+		requireAct string
+		// allowNeutral reports whether the command also accepts a neutral-force
+		// entity (rocks, trees, resource tiles) at a coordinate target.
+		allowNeutral bool
 	}{
-		{"transfer", func(a []string) (string, error) { return productionLua("transfer", a, &out) }, []string{"--player=wricardo", "--unitNumber=439", "--inventory=chest", "--direction=to-player", "--item=iron-plate", "--count=5"}},
-		{"inspect", func(a []string) (string, error) { return productionLua("inspect", a, &out) }, []string{"--player=wricardo", "--unit-number=439"}},
-		{"fuel", func(a []string) (string, error) { return actionLua("fuel", a, &out) }, []string{"--player=wricardo", "--unitNumber=439", "--item=coal", "--count=2"}},
-		{"remove", func(a []string) (string, error) { return removeLua(a, &out) }, []string{"--player=wricardo", "--unitNumber=439"}},
+		{"transfer", func(a []string) (string, error) { return productionLua("transfer", a, &out) }, []string{"--player=wricardo", "--unitNumber=439", "--inventory=chest", "--direction=to-player", "--item=iron-plate", "--count=5"}, "true", false},
+		{"inspect", func(a []string) (string, error) { return productionLua("inspect", a, &out) }, []string{"--player=wricardo", "--unit-number=439"}, "false", false},
+		{"fuel", func(a []string) (string, error) { return actionLua("fuel", a, &out) }, []string{"--player=wricardo", "--unitNumber=439", "--item=coal", "--count=2"}, "true", false},
+		{"remove", func(a []string) (string, error) { return removeLua(a, &out) }, []string{"--player=wricardo", "--unitNumber=439"}, "true", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			lua, err := tc.build(tc.args)
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, want := range []string{"local target_unit=439", "resolve_entity(target_unit,target_name,target_position,surface_name,p)", "e=game.get_entity_by_unit_number(unit)", "find_entities_filtered{name=name}", "find_entities_filtered{name=name,position=pos"} {
+			resolveCall := "resolve_entity(target_unit,target_name,target_position,surface_name,p," + tc.requireAct + ",target_position_valid"
+			if tc.allowNeutral {
+				resolveCall += ",true"
+			}
+			resolveCall += ")"
+			for _, want := range []string{
+				"local target_unit=439",
+				resolveCall,
+				"e=game.get_entity_by_unit_number(unit)",
+				"e=find_entity_by_unit_number(s,unit,name)",
+				"local function find_entity_by_unit_number(surface,unit,name)",
+				`local lua_unit_number_excluded_types={"tree","simple-entity","resource","item-entity","fish","cliff"}`,
+				"surface.find_entities_filtered{type=lua_unit_number_excluded_types,invert=true}",
+				"find_entities_filtered{name=name,position=pos",
+			} {
 				if !strings.Contains(lua, want) {
 					t.Errorf("Lua missing %q:\n%s", want, lua)
 				}
@@ -137,14 +155,14 @@ func TestUnitNumberAddressingOtherOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(lua, "local target_unit=500") || !strings.Contains(lua, `if e.type~="assembling-machine"`) {
+	if !strings.Contains(lua, "local target_unit=500") || !strings.Contains(lua, `if e.type~="assembling-machine" and e.type~="furnace"`) {
 		t.Errorf("setRecipe Lua must accept a unit number:\n%s", lua)
 	}
 	lua, err = beltTakeLua([]string{"--character=267", "--unitNumber=440", "--item=iron-plate", "--count=2"}, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"local target_unit=440", "target_name=" + luaString("transport-belt"), `if e.type~="transport-belt"`} {
+	for _, want := range []string{"local target_unit=440", `target_name=""`, `if e.type~="transport-belt"`} {
 		if !strings.Contains(lua, want) {
 			t.Errorf("beltTake Lua missing %q:\n%s", want, lua)
 		}
