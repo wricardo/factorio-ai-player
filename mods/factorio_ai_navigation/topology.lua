@@ -530,6 +530,7 @@ local function belt_stretch(seed,limit)
   local nodes,lines,mixed={},{},{left=false,right=false,unknown=false}
   for _,e in ipairs(ordered) do
     local node={name=e.name,type=e.type,position=e.position,unitNumber=e.unit_number,direction=e.direction,lanes={}}
+    local node_side={}
     local max_index=1
     local ok,value=pcall(function() return e.get_max_transport_line_index() end)
     if ok and type(value)=="number" and value>=1 then max_index=value end
@@ -544,8 +545,20 @@ local function belt_stretch(seed,limit)
       table.sort(items,function(a,b) if a.name~=b.name then return a.name<b.name end return (a.quality or "normal")<(b.quality or "normal") end)
       local side=transport_line_side(name)
       node.lanes[#node.lanes+1]={index=index,lineName=name,side=side,items=items}
-      if #items>1 then mixed[side]=true end
+      node_side[side]=node_side[side] or {}
+      for _,item in ipairs(items) do
+        node_side[side][tostring(item.name).."|"..tostring(item.quality or "normal")]=true
+      end
       lines[#lines+1]={line=line,side=side}
+    end
+    -- mixed is a per-side property of one belt: an underground entrance can
+    -- expose surface and tunnel lines that share a side, so count distinct
+    -- prototype/quality combinations across every line of that side instead
+    -- of requiring two stacks inside one line.
+    for side,names in pairs(node_side) do
+      local distinct=0
+      for _ in pairs(names) do distinct=distinct+1 end
+      if distinct>1 then mixed[side]=true end
     end
     nodes[#nodes+1]=node
   end
@@ -979,9 +992,10 @@ local out={}
 for index,c in ipairs(components) do
   local nodes,sources,sinks,stall,starve={},{},{},{},{}
   local items,item_index,item_total={},{},0
-  local side_names,side_mixed={},false
+  local side_mixed=false
   for _,e in ipairs(c.nodes) do
     local obj=endpoint(e)
+    local side_names={}
     nodes[#nodes+1]=obj
     for _,lane in ipairs(obj.lanes or {}) do
       local side=lane.side or "unknown"
@@ -999,6 +1013,11 @@ for index,c in ipairs(components) do
         item_total=item_total+(stack.count or 0)
       end
     end
+    for _,names in pairs(side_names) do
+      local distinct=0
+      for _ in pairs(names) do distinct=distinct+1 end
+      if distinct>1 then side_mixed=true end
+    end
     local fed=c.inputs[key(e)]
     local drained=c.outputs[key(e)]
     if not fed then
@@ -1009,11 +1028,6 @@ for index,c in ipairs(components) do
       sinks[#sinks+1]=obj
       if not c.picked[key(e)] then stall[#stall+1]=obj end
     end
-  end
-  for _,names in pairs(side_names) do
-    local distinct=0
-    for _ in pairs(names) do distinct=distinct+1 end
-    if distinct>1 then side_mixed=true end
   end
   local shared_pickups=0
   for _,count in pairs(c.pickup_counts) do

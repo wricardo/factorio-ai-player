@@ -58,7 +58,7 @@ Variables beat string interpolation: pass `--variables '{"input":{...}}'` for qu
 
 - **Always run mutation scripts with `--strict=false`.** In strict mode (default) any GraphQL error makes `gql.query/mutation` **throw** `GoError: GraphQL errors in response`, the `errors[]` and partial `data` are lost, and the script dies mid-batch. With `--strict=false` the call returns `{data, errors}` and the script decides. After a throw or lost response the world may already have changed: inspect before retrying.
 - Inside a script, the thrown error carries details in `e.value.Response.errors` when you do wrap in try/catch.
-- Scripts have no overall timeout. Use `gql.mutation(waitUntil ...)` (max 300 s per call) instead of busy polling in JS, and `--timeout 60` to bound each request.
+- Scripts have no overall timeout. Use `gql.mutation(waitUntil ...)` (max 10 s per call) instead of busy polling in JS, and `--timeout 60` to bound each request.
 - Return plain JSON-able values; large arrays should be reduced in JS before returning.
 - `gql.each(items, worker, {concurrency, stopOnError})`: reads can use concurrency 4-8. **Mutations that touch the same entity or actor must use `concurrency: 1`** (RCON serializes calls, but ordering and shared inventories still matter).
 - Numbers: `UnitNumber` arrives as a string; keep it a string. Positions are floats; compare with exact `.5` centers, not `===` on computed values.
@@ -79,14 +79,14 @@ Variables beat string interpolation: pass `--variables '{"input":{...}}'` for qu
 Prefer `waitUntil` to repeated polling. Each poll is a separate RCON read; the game keeps simulating; nothing is mutated.
 
 ```graphql
-mutation { waitUntil(input:{timeoutSeconds:120, pollSeconds:1,
+mutation { waitUntil(input:{timeoutSeconds:10, pollSeconds:1,
   condition:{ machineStatus:{ target:{entity:"lab", unitNumber:"60"}, statuses:["working"] } } })
   { satisfied timedOut waitedSeconds tick last { status detail } } }
 ```
 
-Condition families (exactly one per call): `tick`, `inventory` (actor holds N of item), `craftQueueEmpty`, `machineStatus` (entity status name in a set), `research` (technology researched), `fluid` (entity holds N of a fluid), `production` (force produced N in a window). Rules:
+Condition families (exactly one per call): `tick`, `ticks` (N game ticks from the first poll — follows game speed), `inventory` (actor holds N of item), `craftQueueEmpty`, `machineStatus` (entity status name in a set), `research` (technology researched), `fluid` (entity holds N of a fluid), `production` (force produced N in a window). Rules:
 
-- `timeoutSeconds` 1-300 wall seconds; at speed 1, 60 ticks = 1 s, so `tick` waits cap near 18000 ticks per call (chain calls for longer).
+- `timeoutSeconds` is 1-10 wall seconds (default 10; larger values are clamped). Every wait, including `tick` and `ticks`, is bounded by it: at speed 1, 10 s is ~600 ticks, at 3x ~1800. For longer game-time waits raise the simulation speed and restore it, then chain another bounded call; do not expect a single call to cover minutes.
 - `satisfied:false, timedOut:true` is a normal result, not an error. A condition that becomes unobservable (entity removed, unknown technology) is an **error**, because the outcome is unknown.
 - It is not a barrier for other agents; it blocks only your own call.
 - Use `machineStatus` to wait for a machine to *leave* a bad state: poll for `working`, not for the absence of `no_power`.
@@ -94,15 +94,15 @@ Condition families (exactly one per call): `tick`, `inventory` (actor holds N of
 ### Never `sleep` the shell for long
 
 - **`sleep` in bash is capped at 10 seconds.** Anything longer is a defect: it burns the tool deadline, looks hung, gives no progress signal, and leaves you blind while the world moves. If you catch yourself writing `sleep 30`, the wait is game time and it belongs in a `waitUntil` condition.
-- Waiting at speed 1 costs wall time (60 ticks/s). For long game-time waits either chain `waitUntil` calls with `timeoutSeconds <= 300`, or raise the simulation speed, wait, then restore it:
+- Waiting at speed 1 costs wall time (60 ticks/s), and each call is capped at 10 s. `ticks` is a count to wait from the first poll, so it follows game speed and never needs a baseline tick read from you; for long game-time waits raise the simulation speed, wait, then restore the speed — chaining calls works for anything longer than one 10 s window:
 
 ```graphql
-# 1) read the baseline: keep note of tick T and speed S
+# 1) read the current speed S (and the tick, for your own notes)
 query { status { tick speed paused } }
 # 2) raise speed for the bounded wait
 mutation { setGameSpeed(input:{speed:5, message:"speed 5: waiting 3600 ticks"}) { tick speed paused } }
-# 3) wait in game time on the ABSOLUTE target tick (T + 3600); multiplier ~5x shrinks wall time
-mutation { waitUntil(input:{timeoutSeconds:120, pollSeconds:1, condition:{ tick: 1514136 } })
+# 3) wait 3600 game ticks (the CLI samples the baseline tick itself); multiplier ~5x shrinks wall time
+mutation { waitUntil(input:{timeoutSeconds:10, pollSeconds:1, condition:{ ticks: 3600 } })
   { satisfied timedOut waitedSeconds tick last { detail } } }
 # 4) restore S from step 1 (1 unless someone deliberately changed it)
 mutation { setGameSpeed(input:{speed:1, message:"speed back to 1"}) { tick speed paused } }

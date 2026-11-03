@@ -442,7 +442,7 @@ type BeltStretchMeasureInput struct {
 	DurationTicks int `json:"durationTicks"`
 	// Wait for completion or invalidation, bounded by waitTimeoutSeconds. Timeout returns latest state without cancelling measurement.
 	Wait bool `json:"wait"`
-	// Wall-clock wait limit from 1 to 600 seconds.
+	// Wall-clock wait limit from 1 to 10 seconds; larger values are clamped to 10.
 	WaitTimeoutSeconds int `json:"waitTimeoutSeconds"`
 	// Which transport-belt tile of the stretch to measure: first, middle or last in travel order.
 	Sample BeltStretchSample `json:"sample"`
@@ -532,7 +532,7 @@ type BeltThroughputStartInput struct {
 	DurationTicks int `json:"durationTicks"`
 	// Wait for completion or invalidation, bounded by waitTimeoutSeconds. Timeout returns latest state without cancelling measurement.
 	Wait bool `json:"wait"`
-	// Wall-clock wait limit from 1 to 600 seconds.
+	// Wall-clock wait limit from 1 to 10 seconds; larger values are clamped to 10.
 	WaitTimeoutSeconds int `json:"waitTimeoutSeconds"`
 }
 
@@ -1441,6 +1441,76 @@ type CraftInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// Read-only hand-craft plan for requested crafts of one recipe.
+type CraftPlan struct {
+	Tick      float64        `json:"tick"`
+	Surface   string         `json:"surface"`
+	Force     string         `json:"force"`
+	Actor     *ActorIdentity `json:"actor"`
+	Player    *string        `json:"player,omitempty"`
+	Character *string        `json:"character,omitempty"`
+	Recipe    string         `json:"recipe"`
+	Requested float64        `json:"requested"`
+	// True when missing is empty, so hand crafting alone can finish the plan.
+	Complete bool                `json:"complete"`
+	Steps    []*CraftPlanStep    `json:"steps"`
+	Missing  []*CraftPlanMissing `json:"missing"`
+}
+
+// Select one actor, an enabled hand-craftable recipe, and the number of crafts to plan.
+type CraftPlanInput struct {
+	Actor  *ActorInput `json:"actor"`
+	Recipe string      `json:"recipe"`
+	Count  *float64    `json:"count,omitempty"`
+}
+
+// An ingredient the actor cannot hand-craft from its current inventory; a machine, a fluid source, another actor, or research must supply it.
+type CraftPlanMissing struct {
+	Name string `json:"name"`
+	// Ingredient type, item or fluid.
+	Type   string  `json:"type"`
+	Amount float64 `json:"amount"`
+}
+
+// Outcome of performing a hand-craft plan.
+type CraftPlanResult struct {
+	Tick      float64        `json:"tick"`
+	Surface   string         `json:"surface"`
+	Force     string         `json:"force"`
+	Actor     *ActorIdentity `json:"actor"`
+	Player    *string        `json:"player,omitempty"`
+	Character *string        `json:"character,omitempty"`
+	Recipe    string         `json:"recipe"`
+	Requested float64        `json:"requested"`
+	// True when every planned craft was queued and the crafting queue drained inside the wait budget; missing nonempty leaves it false with nothing queued.
+	Complete bool             `json:"complete"`
+	Queued   []*CraftPlanStep `json:"queued"`
+	// Planned steps not queued yet, so a timed-out call can be finished with craft.
+	Remaining     []*CraftPlanStep    `json:"remaining"`
+	Missing       []*CraftPlanMissing `json:"missing"`
+	QueueSize     *float64            `json:"queueSize,omitempty"`
+	WaitTimedOut  bool                `json:"waitTimedOut"`
+	WaitedSeconds float64             `json:"waitedSeconds"`
+}
+
+// Select one actor, an enabled hand-craftable recipe, the number of crafts to perform, and how long the call may wait for linked crafts.
+type CraftPlanRunInput struct {
+	Actor              *ActorInput `json:"actor"`
+	Recipe             string      `json:"recipe"`
+	Count              *float64    `json:"count,omitempty"`
+	WaitTimeoutSeconds int         `json:"waitTimeoutSeconds"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// One hand-craft step in bottom-up dependency order: count crafts of recipe, each producing products from ingredients that are in stock or produced by an earlier step.
+type CraftPlanStep struct {
+	Recipe      string              `json:"recipe"`
+	Count       float64             `json:"count"`
+	Ingredients []*RecipeIngredient `json:"ingredients"`
+	Products    []*RecipeProduct    `json:"products"`
+}
+
 type CraftQueue struct {
 	Tick         float64        `json:"tick"`
 	Surface      string         `json:"surface"`
@@ -1705,6 +1775,12 @@ type EntityInspection struct {
 	UnitNumber *string `json:"unitNumber,omitempty"`
 	// Engine direction code, when the entity exposes one. 0 north, 4 east, 8 south, 12 west; inserts and machinery may use the full 0-15 range.
 	Direction *int `json:"direction,omitempty"`
+	// Ghost-only: engine prototype name of the entity an entity-ghost would build (for example transport-belt or assembling-machine-1), read from ghost_prototype.name with ghost_name as a fallback. Null for a real entity and for an entity-ghost whose prototype is unreadable, so a ghost plan can be audited (name plus direction) before it is built.
+	GhostName *string `json:"ghostName,omitempty"`
+	// Ghost-only: quality prototype name of the ghost's target entity (normal, uncommon, rare, epic, legendary). Null for a real entity.
+	GhostQuality *string `json:"ghostQuality,omitempty"`
+	// Ghost-only: recipe currently set on the ghost, when its target prototype is a crafting machine. Null for a real entity and for ghosts whose prototype takes no recipe.
+	GhostRecipe *string `json:"ghostRecipe,omitempty"`
 	// Typed arithmetic or decider combinator parameters; null for other entities.
 	CombinatorParameters *CombinatorParameters `json:"combinatorParameters,omitempty"`
 	// Unmodified JSON encoding of engine parameters for unsupported parameter-bearing entities.
@@ -3193,7 +3269,7 @@ type NavigateStartInput struct {
 	TimeoutTicks int `json:"timeoutTicks"`
 	// Wait for a terminal job state before returning. Default false.
 	Wait bool `json:"wait"`
-	// Maximum wall-clock wait in seconds, from 1 to 3600. On expiry return the latest observed job without cancelling it.
+	// Maximum wall-clock wait in seconds, from 1 to 10; larger values are clamped to 10. On expiry return the latest observed job without cancelling it.
 	WaitTimeoutSeconds int `json:"waitTimeoutSeconds"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
@@ -4730,8 +4806,8 @@ type UpgradeMappingInput struct {
 
 // One condition selected per call. Exactly one field must be set.
 type WaitConditionInput struct {
-	// Wait until the game tick is at least this value.
-	Tick *float64 `json:"tick,omitempty"`
+	// Number of game ticks to wait from the first poll; the wait follows game speed instead of wall-clock time and is still bounded by timeoutSeconds. Must be greater than 0.
+	Ticks *float64 `json:"ticks,omitempty"`
 	// Wait until the actor's main inventory holds at least count of item.
 	Inventory *WaitInventoryInput `json:"inventory,omitempty"`
 	// Wait until the actor's crafting queue is empty.
@@ -4770,7 +4846,7 @@ type WaitMachineStatusInput struct {
 // Facts observed on the last poll. Only the fields relevant to the condition are set.
 type WaitObservation struct {
 	Tick float64 `json:"tick"`
-	// Observed count for inventory, fluid, production and tick conditions.
+	// Observed count for inventory, fluid and production conditions; for TICKS it is the elapsed game ticks, capped at the requested count.
 	Count *float64 `json:"count,omitempty"`
 	// Engine status name for MACHINE_STATUS.
 	Status *string `json:"status,omitempty"`
@@ -4808,7 +4884,7 @@ type WaitResult struct {
 }
 
 type WaitUntilInput struct {
-	// Total wall-clock limit in seconds, 1 through 300.
+	// Total wall-clock limit in seconds, 1 through 10; larger values are clamped to 10.
 	TimeoutSeconds float64 `json:"timeoutSeconds"`
 	// Delay between polls in seconds, 0.05 through 5.
 	PollSeconds float64             `json:"pollSeconds"`
@@ -7637,7 +7713,7 @@ func (e UpgradeOrderStatus) MarshalJSON() ([]byte, error) {
 type WaitConditionKind string
 
 const (
-	WaitConditionKindTick            WaitConditionKind = "TICK"
+	WaitConditionKindTicks           WaitConditionKind = "TICKS"
 	WaitConditionKindInventory       WaitConditionKind = "INVENTORY"
 	WaitConditionKindCraftQueueEmpty WaitConditionKind = "CRAFT_QUEUE_EMPTY"
 	WaitConditionKindMachineStatus   WaitConditionKind = "MACHINE_STATUS"
@@ -7647,7 +7723,7 @@ const (
 )
 
 var AllWaitConditionKind = []WaitConditionKind{
-	WaitConditionKindTick,
+	WaitConditionKindTicks,
 	WaitConditionKindInventory,
 	WaitConditionKindCraftQueueEmpty,
 	WaitConditionKindMachineStatus,
@@ -7658,7 +7734,7 @@ var AllWaitConditionKind = []WaitConditionKind{
 
 func (e WaitConditionKind) IsValid() bool {
 	switch e {
-	case WaitConditionKindTick, WaitConditionKindInventory, WaitConditionKindCraftQueueEmpty, WaitConditionKindMachineStatus, WaitConditionKindResearch, WaitConditionKindFluid, WaitConditionKindProduction:
+	case WaitConditionKindTicks, WaitConditionKindInventory, WaitConditionKindCraftQueueEmpty, WaitConditionKindMachineStatus, WaitConditionKindResearch, WaitConditionKindFluid, WaitConditionKindProduction:
 		return true
 	}
 	return false

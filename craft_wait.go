@@ -17,8 +17,8 @@ type craftCommandInput struct {
 }
 
 func craftMutation(ctx context.Context, r *Resolver, input CraftInput) (*ActionResult, error) {
-	if input.WaitTimeoutSeconds < 1 || input.WaitTimeoutSeconds > 3600 {
-		return nil, errors.New("waitTimeoutSeconds must be from 1 to 3600")
+	if input.WaitTimeoutSeconds < 1 {
+		return nil, errors.New("waitTimeoutSeconds must be at least 1")
 	}
 	player, character := actorFields(input.Actor)
 	result, err := commandQuiet[ActionResult](r, "craft", craftCommandInput{
@@ -37,8 +37,8 @@ func craftMutation(ctx context.Context, r *Resolver, input CraftInput) (*ActionR
 	if result.QueueSize == nil {
 		return nil, errors.New("craft response omitted queue size")
 	}
-	queueSize, completed, waited, err := waitForCraftQueue(ctx, *result.QueueSize, time.Duration(input.WaitTimeoutSeconds)*time.Second, func(ctx context.Context) (float64, error) {
-		return craftQueueSize(ctx, r, input)
+	queueSize, completed, waited, err := waitForCraftQueue(ctx, *result.QueueSize, clampWaitSeconds(input.WaitTimeoutSeconds), func(ctx context.Context) (float64, error) {
+		return craftQueueSize(ctx, r, input.Actor)
 	})
 	if err != nil {
 		return nil, err
@@ -86,9 +86,9 @@ func waitForCraftQueue(ctx context.Context, queueSize float64, timeout time.Dura
 	return queueSize, true, time.Since(started), nil
 }
 
-func craftQueueSize(ctx context.Context, r *Resolver, input CraftInput) (float64, error) {
+func craftQueueSize(ctx context.Context, r *Resolver, actor *ActorInput) (float64, error) {
 	unit := uint64(0)
-	playerValue, character := actorFields(input.Actor)
+	playerValue, character := actorFields(actor)
 	if character != nil {
 		parsed, err := strconv.ParseUint(*character, 10, 32)
 		if err != nil || parsed == 0 {

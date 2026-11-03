@@ -260,6 +260,76 @@ assert(c.dead==true,"a run with no inserter must read dead")
 `)
 }
 
+// mixed is a per-belt side property: two belts carrying different single
+// items on the same side must not flag the component, while one belt exposing
+// two prototypes on two lines of the same side must.
+func TestBeltComponentsMixedIsPerBeltSide(t *testing.T) {
+	const stubs = `
+defines={entity_status={},transport_line={left_line=1,right_line=2,left_underground_line=3,right_underground_line=4}}
+local surface={index=1,name="nauvis"}
+local force={name="player"}
+local world={}
+local function box(cx,cy)
+  return {left_top={x=cx-0.5,y=cy-0.5},right_bottom={x=cx+0.5,y=cy+0.5}}
+end
+surface.find_entities_filtered=function(spec)
+  if spec.position then return {} end
+  local out={}
+  for _,e in ipairs(world) do
+    local bb=e.bounding_box
+    if bb.left_top.x<=spec.area[2][1] and bb.right_bottom.x>=spec.area[1][1]
+      and bb.left_top.y<=spec.area[2][2] and bb.right_bottom.y>=spec.area[1][2] then
+      local ok=true
+      if spec.type then
+        local kinds=type(spec.type)=="table" and spec.type or {spec.type}
+        ok=false
+        for _,kind in ipairs(kinds) do if e.type==kind then ok=true end end
+      end
+      if ok then out[#out+1]=e end
+    end
+  end
+  return out
+end
+game={tick=5,surfaces={nauvis=surface},forces={player=force}}
+local function belt(unit,kind,cx,cy,lines)
+  local e={valid=true,unit_number=unit,type=kind,name=kind,surface=surface,force=force,
+    position={x=cx,y=cy},direction=4,bounding_box=box(cx,cy),belt_neighbours={inputs={},outputs={}}}
+  e.get_max_transport_line_index=function() return #lines end
+  e.get_transport_line=function(i)
+    local items=lines[i] or {}
+    return {owner=e,get_contents=function() return items end,input_lines={},output_lines={},
+      line_equals=function(other) return other.owner==e end}
+  end
+  world[#world+1]=e
+  return e
+end
+local iron={{name="iron-plate",quality="normal",count=2}}
+local coal={{name="coal",quality="normal",count=2}}
+local a=belt(11,"transport-belt",0.5,0.5,{iron,{}})
+local b=belt(12,"transport-belt",1.5,0.5,{coal,{}})
+a.belt_neighbours.outputs[1]=b
+b.belt_neighbours.inputs[1]=a
+local c=belt(21,"underground-belt",0.5,3.5,{iron,{},coal,{}})
+`
+	const locals = `local surface_name,force_name="nauvis","player"
+local area={{-1,-1},{3,5}}
+local max_entities,page_limit,page_offset,dead_only,include_line_links=100,10,0,false,false
+`
+	source := beltComponentsFixtureSource(locals)
+	runLuaFixture(t, source, stubs, `
+assert(captured and captured.components,"payload missing: "..tostring(captured and captured.error))
+local run,one
+for _,comp in ipairs(captured.components) do
+  if comp.belts==2 then run=comp end
+  if comp.belts==1 then one=comp end
+end
+assert(run,"two-belt component missing")
+assert(run.mixed==false,"different belts each carrying one item must not be mixed")
+assert(one,"one-belt component missing")
+assert(one.mixed==true,"two prototypes on one side of one belt must be mixed")
+`)
+}
+
 // A splitter is one entity spanning two tiles, so the tile index must register
 // both of them: an arm reaching the far tile still resolves the splitter, while
 // an empty tile stays empty.

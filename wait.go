@@ -10,13 +10,28 @@ import (
 )
 
 const (
-	waitDefaultTimeoutSeconds = 30.0
+	// maxWaitSeconds bounds every wall-clock wait exposed by the API so a
+	// single call can never block an agent for minutes; the game runs at a
+	// multiple of real time, so 10 seconds covers long waits.
+	maxWaitSeconds = 10
+	// maxWaitDuration is maxWaitSeconds as a time.Duration.
+	maxWaitDuration           = maxWaitSeconds * time.Second
+	waitDefaultTimeoutSeconds = float64(maxWaitSeconds)
 	waitDefaultPollSeconds    = 0.25
-	waitMaxTimeoutSeconds     = 300.0
+	waitMaxTimeoutSeconds     = float64(maxWaitSeconds)
 	waitMinPollSeconds        = 0.05
 	waitMaxPollSeconds        = 5.0
 	waitMaxStatuses           = 32
 )
+
+// clampWaitSeconds caps a requested wall-clock wait in whole seconds at
+// maxWaitSeconds. Callers still reject non-positive values.
+func clampWaitSeconds(seconds int) time.Duration {
+	if seconds > maxWaitSeconds {
+		seconds = maxWaitSeconds
+	}
+	return time.Duration(seconds) * time.Second
+}
 
 // waitObservation is one poll result decoded from the backend Lua.
 type waitObservation struct {
@@ -38,8 +53,11 @@ func waitUntil(ctx context.Context, r *Resolver, input WaitUntilInput) (*WaitRes
 	if timeout == 0 {
 		timeout = waitDefaultTimeoutSeconds
 	}
-	if math.IsNaN(timeout) || math.IsInf(timeout, 0) || timeout < 1 || timeout > waitMaxTimeoutSeconds {
-		return nil, fmt.Errorf("timeoutSeconds must be between 1 and %g", waitMaxTimeoutSeconds)
+	if math.IsNaN(timeout) || math.IsInf(timeout, 0) || timeout < 1 {
+		return nil, fmt.Errorf("timeoutSeconds must be at least 1")
+	}
+	if timeout > waitMaxTimeoutSeconds {
+		timeout = waitMaxTimeoutSeconds
 	}
 	poll := input.PollSeconds
 	if poll == 0 {
@@ -48,7 +66,7 @@ func waitUntil(ctx context.Context, r *Resolver, input WaitUntilInput) (*WaitRes
 	if math.IsNaN(poll) || math.IsInf(poll, 0) || poll < waitMinPollSeconds || poll > waitMaxPollSeconds {
 		return nil, fmt.Errorf("pollSeconds must be between %g and %g", waitMinPollSeconds, waitMaxPollSeconds)
 	}
-	kind, lua, err := waitConditionLua(input.Condition)
+	kind, lua, err := waitPollLua(ctx, r, input.Condition)
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +101,52 @@ func waitUntil(ctx context.Context, r *Resolver, input WaitUntilInput) (*WaitRes
 	}
 }
 
+// waitTickBaselineLua reads the current game tick so a ticks condition can
+// become an absolute tick target.
+const waitTickBaselineLua = luaFail + `local tick=game.tick
+rcon.print(helpers.table_to_json{tick=tick,detail="tick baseline "..tick})`
+
+// waitPollLua validates the selected condition and builds its one-poll Lua
+// script. A ticks condition costs one extra engine read first: the baseline
+// tick turns "wait N ticks" into an absolute target so the wait follows game
+// speed instead of wall-clock time, while the caller's timeout still bounds it.
+func waitPollLua(ctx context.Context, r *Resolver, condition *WaitConditionInput) (WaitConditionKind, string, error) {
+	if condition == nil || condition.Ticks == nil {
+		return waitConditionLua(condition)
+	}
+	if waitConditionFieldCount(condition) != 1 {
+		return "", "", errors.New("condition must set exactly one field")
+	}
+	ticks := *condition.Ticks
+	if math.IsNaN(ticks) || math.IsInf(ticks, 0) || ticks <= 0 {
+		return "", "", errors.New("ticks must be finite and greater than 0")
+	}
+	baseline, err := executeWaitPoll(ctx, r, waitTickBaselineLua)
+	if err != nil {
+		return "", "", err
+	}
+	target := waitTickTarget(baseline.Tick, ticks)
+	return waitTicksLua(baseline.Tick, target, ticks)
+}
+
+// waitTicksLua builds the one-poll script for an already resolved ticks
+// condition; count reports elapsed ticks capped at the requested amount.
+func waitTicksLua(baseline, target, ticks float64) (WaitConditionKind, string, error) {
+	return WaitConditionKindTicks, luaFail + fmt.Sprintf(`local baseline=%s; local target=%s; local want=%s
+local tick=game.tick
+local elapsed=tick-baseline
+if elapsed<0 then elapsed=0 end
+local shown=elapsed; if shown>want then shown=want end
+rcon.print(helpers.table_to_json{tick=tick,satisfied=tick>=target,count=shown,detail="waited "..shown.." of "..want.." ticks"})`,
+		luaCoordinate(baseline), luaCoordinate(target), luaCoordinate(ticks)), nil
+}
+
+// waitTickTarget is the absolute tick a ticks condition waits for, rounding up
+// so a fractional request never returns a tick early.
+func waitTickTarget(baseline, ticks float64) float64 {
+	return math.Ceil(baseline + ticks)
+}
+
 func executeWaitPoll(ctx context.Context, r *Resolver, lua string) (*waitObservation, error) {
 	response, _, err := executeLuaContext(ctx, r.addr, r.password, lua)
 	if err != nil {
@@ -110,15 +174,15 @@ func waitResult(kind WaitConditionKind, observation *waitObservation, timedOut b
 	}
 }
 
-// waitConditionLua validates the selected condition and builds its one-poll Lua
-// script.
-func waitConditionLua(condition *WaitConditionInput) (WaitConditionKind, string, error) {
+// waitConditionFieldCount counts how many condition fields the input sets, so
+// exactly-one validation is shared by the resolver and the Lua builder.
+func waitConditionFieldCount(condition *WaitConditionInput) int {
 	if condition == nil {
-		return "", "", errors.New("condition is required")
+		return 0
 	}
 	selected := 0
 	for _, present := range []bool{
-		condition.Tick != nil,
+		condition.Ticks != nil,
 		condition.Inventory != nil,
 		condition.CraftQueueEmpty != nil,
 		condition.MachineStatus != nil,
@@ -130,19 +194,22 @@ func waitConditionLua(condition *WaitConditionInput) (WaitConditionKind, string,
 			selected++
 		}
 	}
-	if selected != 1 {
+	return selected
+}
+
+// waitConditionLua validates the selected condition and builds its one-poll Lua
+// script.
+func waitConditionLua(condition *WaitConditionInput) (WaitConditionKind, string, error) {
+	if condition == nil {
+		return "", "", errors.New("condition is required")
+	}
+	if waitConditionFieldCount(condition) != 1 {
 		return "", "", errors.New("condition must set exactly one field")
 	}
 	switch {
-	case condition.Tick != nil:
-		target := *condition.Tick
-		if math.IsNaN(target) || math.IsInf(target, 0) || target < 0 {
-			return "", "", errors.New("tick must be finite and non-negative")
-		}
-		return WaitConditionKindTick, luaFail + fmt.Sprintf(`local target=%s
-local tick=game.tick
-rcon.print(helpers.table_to_json{tick=tick,satisfied=tick>=target,count=tick,detail="game tick "..tick.." of "..target})`,
-			luaCoordinate(target)), nil
+	case condition.Ticks != nil:
+		// waitPollLua resolves this into an absolute tick before polling.
+		return "", "", errors.New("ticks condition must be resolved before building its Lua")
 	case condition.Inventory != nil:
 		cond := condition.Inventory
 		if cond.Actor == nil {

@@ -814,6 +814,51 @@ type ComplexityRoot struct {
 		Inventory    func(childComplexity int) int
 	}
 
+	CraftPlan struct {
+		Actor     func(childComplexity int) int
+		Character func(childComplexity int) int
+		Complete  func(childComplexity int) int
+		Force     func(childComplexity int) int
+		Missing   func(childComplexity int) int
+		Player    func(childComplexity int) int
+		Recipe    func(childComplexity int) int
+		Requested func(childComplexity int) int
+		Steps     func(childComplexity int) int
+		Surface   func(childComplexity int) int
+		Tick      func(childComplexity int) int
+	}
+
+	CraftPlanMissing struct {
+		Amount func(childComplexity int) int
+		Name   func(childComplexity int) int
+		Type   func(childComplexity int) int
+	}
+
+	CraftPlanResult struct {
+		Actor         func(childComplexity int) int
+		Character     func(childComplexity int) int
+		Complete      func(childComplexity int) int
+		Force         func(childComplexity int) int
+		Missing       func(childComplexity int) int
+		Player        func(childComplexity int) int
+		QueueSize     func(childComplexity int) int
+		Queued        func(childComplexity int) int
+		Recipe        func(childComplexity int) int
+		Remaining     func(childComplexity int) int
+		Requested     func(childComplexity int) int
+		Surface       func(childComplexity int) int
+		Tick          func(childComplexity int) int
+		WaitTimedOut  func(childComplexity int) int
+		WaitedSeconds func(childComplexity int) int
+	}
+
+	CraftPlanStep struct {
+		Count       func(childComplexity int) int
+		Ingredients func(childComplexity int) int
+		Products    func(childComplexity int) int
+		Recipe      func(childComplexity int) int
+	}
+
 	CraftQueue struct {
 		Actor        func(childComplexity int) int
 		Character    func(childComplexity int) int
@@ -938,6 +983,9 @@ type ComplexityRoot struct {
 		Fluids               func(childComplexity int) int
 		Force                func(childComplexity int) int
 		ForceItemProduction  func(childComplexity int) int
+		GhostName            func(childComplexity int) int
+		GhostQuality         func(childComplexity int) int
+		GhostRecipe          func(childComplexity int) int
 		Health               func(childComplexity int) int
 		HeldStack            func(childComplexity int) int
 		Inventories          func(childComplexity int) int
@@ -1856,6 +1904,7 @@ type ComplexityRoot struct {
 		ConnectEntities             func(childComplexity int, input ConnectEntitiesInput) int
 		ConnectWire                 func(childComplexity int, input WireInput) int
 		Craft                       func(childComplexity int, input CraftInput) int
+		CraftPlan                   func(childComplexity int, input CraftPlanRunInput) int
 		CreateBlueprint             func(childComplexity int, input CreateBlueprintInput) int
 		CreateBlueprintFromEntities func(childComplexity int, input CreateBlueprintFromEntitiesInput) int
 		DeconstructArea             func(childComplexity int, input DeconstructAreaInput) int
@@ -2194,6 +2243,7 @@ type ComplexityRoot struct {
 		CircuitNetworks    func(childComplexity int, input CircuitNetworksInput) int
 		ConnectionPlan     func(childComplexity int, input ConnectionPlanInput) int
 		ConstructionOrders func(childComplexity int, input *ConstructionOrdersInput) int
+		CraftPlan          func(childComplexity int, input CraftPlanInput) int
 		ElectricNetworks   func(childComplexity int, input *PowerInsightsInput) int
 		Entities           func(childComplexity int, input EntitiesInput) int
 		Entity             func(childComplexity int, input EntityRefInput) int
@@ -2935,6 +2985,7 @@ type MutationResolver interface {
 	PlaceBlueprint(ctx context.Context, input PlaceBlueprintInput) (*BlueprintPlaceResult, error)
 	Fuel(ctx context.Context, input FuelInput) (*ActionResult, error)
 	Craft(ctx context.Context, input CraftInput) (*ActionResult, error)
+	CraftPlan(ctx context.Context, input CraftPlanRunInput) (*CraftPlanResult, error)
 	CancelCraft(ctx context.Context, input CancelCraftInput) (*CraftQueue, error)
 	ClearArea(ctx context.Context, input ClearAreaInput) (*ClearAreaResult, error)
 	HarvestArea(ctx context.Context, input HarvestAreaInput) (*HarvestAreaResult, error)
@@ -3013,6 +3064,7 @@ type QueryResolver interface {
 	Inventory(ctx context.Context, input ActorInput) (*ActorInventory, error)
 	Queue(ctx context.Context, input ActorInput) (*CraftQueue, error)
 	Recipe(ctx context.Context, input RecipeInput) (*Recipe, error)
+	CraftPlan(ctx context.Context, input CraftPlanInput) (*CraftPlan, error)
 	Inspect(ctx context.Context, input InspectInput) (*EntityInspection, error)
 	InspectMany(ctx context.Context, input InspectManyInput) (*BatchInspectionPage, error)
 	FactoryOverview(ctx context.Context, input *FactoryOverviewInput) (*FactoryOverview, error)
@@ -6467,6 +6519,208 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ContainerSettings.Inventory(childComplexity), true
 
+	case "CraftPlan.actor":
+		if e.ComplexityRoot.CraftPlan.Actor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlan.Actor(childComplexity), true
+	case "CraftPlan.character":
+		if e.ComplexityRoot.CraftPlan.Character == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlan.Character(childComplexity), true
+	case "CraftPlan.complete":
+		if e.ComplexityRoot.CraftPlan.Complete == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlan.Complete(childComplexity), true
+	case "CraftPlan.force":
+		if e.ComplexityRoot.CraftPlan.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlan.Force(childComplexity), true
+	case "CraftPlan.missing":
+		if e.ComplexityRoot.CraftPlan.Missing == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlan.Missing(childComplexity), true
+	case "CraftPlan.player":
+		if e.ComplexityRoot.CraftPlan.Player == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlan.Player(childComplexity), true
+	case "CraftPlan.recipe":
+		if e.ComplexityRoot.CraftPlan.Recipe == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlan.Recipe(childComplexity), true
+	case "CraftPlan.requested":
+		if e.ComplexityRoot.CraftPlan.Requested == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlan.Requested(childComplexity), true
+	case "CraftPlan.steps":
+		if e.ComplexityRoot.CraftPlan.Steps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlan.Steps(childComplexity), true
+	case "CraftPlan.surface":
+		if e.ComplexityRoot.CraftPlan.Surface == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlan.Surface(childComplexity), true
+	case "CraftPlan.tick":
+		if e.ComplexityRoot.CraftPlan.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlan.Tick(childComplexity), true
+
+	case "CraftPlanMissing.amount":
+		if e.ComplexityRoot.CraftPlanMissing.Amount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanMissing.Amount(childComplexity), true
+	case "CraftPlanMissing.name":
+		if e.ComplexityRoot.CraftPlanMissing.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanMissing.Name(childComplexity), true
+	case "CraftPlanMissing.type":
+		if e.ComplexityRoot.CraftPlanMissing.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanMissing.Type(childComplexity), true
+
+	case "CraftPlanResult.actor":
+		if e.ComplexityRoot.CraftPlanResult.Actor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Actor(childComplexity), true
+	case "CraftPlanResult.character":
+		if e.ComplexityRoot.CraftPlanResult.Character == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Character(childComplexity), true
+	case "CraftPlanResult.complete":
+		if e.ComplexityRoot.CraftPlanResult.Complete == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Complete(childComplexity), true
+	case "CraftPlanResult.force":
+		if e.ComplexityRoot.CraftPlanResult.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Force(childComplexity), true
+	case "CraftPlanResult.missing":
+		if e.ComplexityRoot.CraftPlanResult.Missing == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Missing(childComplexity), true
+	case "CraftPlanResult.player":
+		if e.ComplexityRoot.CraftPlanResult.Player == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Player(childComplexity), true
+	case "CraftPlanResult.queueSize":
+		if e.ComplexityRoot.CraftPlanResult.QueueSize == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.QueueSize(childComplexity), true
+	case "CraftPlanResult.queued":
+		if e.ComplexityRoot.CraftPlanResult.Queued == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Queued(childComplexity), true
+	case "CraftPlanResult.recipe":
+		if e.ComplexityRoot.CraftPlanResult.Recipe == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Recipe(childComplexity), true
+	case "CraftPlanResult.remaining":
+		if e.ComplexityRoot.CraftPlanResult.Remaining == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Remaining(childComplexity), true
+	case "CraftPlanResult.requested":
+		if e.ComplexityRoot.CraftPlanResult.Requested == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Requested(childComplexity), true
+	case "CraftPlanResult.surface":
+		if e.ComplexityRoot.CraftPlanResult.Surface == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Surface(childComplexity), true
+	case "CraftPlanResult.tick":
+		if e.ComplexityRoot.CraftPlanResult.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.Tick(childComplexity), true
+	case "CraftPlanResult.waitTimedOut":
+		if e.ComplexityRoot.CraftPlanResult.WaitTimedOut == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.WaitTimedOut(childComplexity), true
+	case "CraftPlanResult.waitedSeconds":
+		if e.ComplexityRoot.CraftPlanResult.WaitedSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanResult.WaitedSeconds(childComplexity), true
+
+	case "CraftPlanStep.count":
+		if e.ComplexityRoot.CraftPlanStep.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanStep.Count(childComplexity), true
+	case "CraftPlanStep.ingredients":
+		if e.ComplexityRoot.CraftPlanStep.Ingredients == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanStep.Ingredients(childComplexity), true
+	case "CraftPlanStep.products":
+		if e.ComplexityRoot.CraftPlanStep.Products == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanStep.Products(childComplexity), true
+	case "CraftPlanStep.recipe":
+		if e.ComplexityRoot.CraftPlanStep.Recipe == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CraftPlanStep.Recipe(childComplexity), true
+
 	case "CraftQueue.actor":
 		if e.ComplexityRoot.CraftQueue.Actor == nil {
 			break
@@ -7028,6 +7282,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.EntityInspection.ForceItemProduction(childComplexity), true
+	case "EntityInspection.ghostName":
+		if e.ComplexityRoot.EntityInspection.GhostName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityInspection.GhostName(childComplexity), true
+	case "EntityInspection.ghostQuality":
+		if e.ComplexityRoot.EntityInspection.GhostQuality == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityInspection.GhostQuality(childComplexity), true
+	case "EntityInspection.ghostRecipe":
+		if e.ComplexityRoot.EntityInspection.GhostRecipe == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityInspection.GhostRecipe(childComplexity), true
 	case "EntityInspection.health":
 		if e.ComplexityRoot.EntityInspection.Health == nil {
 			break
@@ -11262,6 +11534,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.Craft(childComplexity, args["input"].(CraftInput)), true
+	case "Mutation.craftPlan":
+		if e.ComplexityRoot.Mutation.CraftPlan == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_craftPlan_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CraftPlan(childComplexity, args["input"].(CraftPlanRunInput)), true
 	case "Mutation.createBlueprint":
 		if e.ComplexityRoot.Mutation.CreateBlueprint == nil {
 			break
@@ -13191,6 +13474,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ConstructionOrders(childComplexity, args["input"].(*ConstructionOrdersInput)), true
+	case "Query.craftPlan":
+		if e.ComplexityRoot.Query.CraftPlan == nil {
+			break
+		}
+
+		args, err := ec.field_Query_craftPlan_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.CraftPlan(childComplexity, args["input"].(CraftPlanInput)), true
 	case "Query.electricNetworks":
 		if e.ComplexityRoot.Query.ElectricNetworks == nil {
 			break
@@ -16500,6 +16794,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputConstructionOrdersInput,
 		ec.unmarshalInputContainerBarInput,
 		ec.unmarshalInputCraftInput,
+		ec.unmarshalInputCraftPlanInput,
+		ec.unmarshalInputCraftPlanRunInput,
 		ec.unmarshalInputCreateBlueprintFromEntitiesInput,
 		ec.unmarshalInputCreateBlueprintInput,
 		ec.unmarshalInputDeciderCombinatorConditionInput,
@@ -17059,6 +17355,17 @@ func (ec *executionContext) field_Mutation_connectWire_args(ctx context.Context,
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNWireInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWireInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_craftPlan_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCraftPlanRunInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanRunInput)
 	if err != nil {
 		return nil, err
 	}
@@ -17923,6 +18230,17 @@ func (ec *executionContext) field_Query_constructionOrders_args(ctx context.Cont
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalOConstructionOrdersInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConstructionOrdersInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_craftPlan_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCraftPlanInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanInput)
 	if err != nil {
 		return nil, err
 	}
@@ -23095,6 +23413,12 @@ func (ec *executionContext) fieldContext_BatchInspection_inspection(_ context.Co
 				return ec.fieldContext_EntityInspection_unitNumber(ctx, field)
 			case "direction":
 				return ec.fieldContext_EntityInspection_direction(ctx, field)
+			case "ghostName":
+				return ec.fieldContext_EntityInspection_ghostName(ctx, field)
+			case "ghostQuality":
+				return ec.fieldContext_EntityInspection_ghostQuality(ctx, field)
+			case "ghostRecipe":
+				return ec.fieldContext_EntityInspection_ghostRecipe(ctx, field)
 			case "combinatorParameters":
 				return ec.fieldContext_EntityInspection_combinatorParameters(ctx, field)
 			case "parametersRawJSON":
@@ -36435,6 +36759,1053 @@ func (ec *executionContext) fieldContext_ContainerSettings_capacity(_ context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _CraftPlan_tick(ctx context.Context, field graphql.CollectedField, obj *CraftPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlan_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlan_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlan_surface(ctx context.Context, field graphql.CollectedField, obj *CraftPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlan_surface,
+		func(ctx context.Context) (any, error) {
+			return obj.Surface, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlan_surface(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlan_force(ctx context.Context, field graphql.CollectedField, obj *CraftPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlan_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlan_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlan_actor(ctx context.Context, field graphql.CollectedField, obj *CraftPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlan_actor,
+		func(ctx context.Context) (any, error) {
+			return obj.Actor, nil
+		},
+		nil,
+		ec.marshalNActorIdentity2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorIdentity,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlan_actor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "player":
+				return ec.fieldContext_ActorIdentity_player(ctx, field)
+			case "character":
+				return ec.fieldContext_ActorIdentity_character(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ActorIdentity", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlan_player(ctx context.Context, field graphql.CollectedField, obj *CraftPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlan_player,
+		func(ctx context.Context) (any, error) {
+			return obj.Player, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlan_player(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlan_character(ctx context.Context, field graphql.CollectedField, obj *CraftPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlan_character,
+		func(ctx context.Context) (any, error) {
+			return obj.Character, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlan_character(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlan_recipe(ctx context.Context, field graphql.CollectedField, obj *CraftPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlan_recipe,
+		func(ctx context.Context) (any, error) {
+			return obj.Recipe, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlan_recipe(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlan_requested(ctx context.Context, field graphql.CollectedField, obj *CraftPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlan_requested,
+		func(ctx context.Context) (any, error) {
+			return obj.Requested, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlan_requested(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlan_complete(ctx context.Context, field graphql.CollectedField, obj *CraftPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlan_complete,
+		func(ctx context.Context) (any, error) {
+			return obj.Complete, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlan_complete(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlan_steps(ctx context.Context, field graphql.CollectedField, obj *CraftPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlan_steps,
+		func(ctx context.Context) (any, error) {
+			return obj.Steps, nil
+		},
+		nil,
+		ec.marshalNCraftPlanStep2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanStepᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlan_steps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "recipe":
+				return ec.fieldContext_CraftPlanStep_recipe(ctx, field)
+			case "count":
+				return ec.fieldContext_CraftPlanStep_count(ctx, field)
+			case "ingredients":
+				return ec.fieldContext_CraftPlanStep_ingredients(ctx, field)
+			case "products":
+				return ec.fieldContext_CraftPlanStep_products(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CraftPlanStep", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlan_missing(ctx context.Context, field graphql.CollectedField, obj *CraftPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlan_missing,
+		func(ctx context.Context) (any, error) {
+			return obj.Missing, nil
+		},
+		nil,
+		ec.marshalNCraftPlanMissing2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanMissingᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlan_missing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_CraftPlanMissing_name(ctx, field)
+			case "type":
+				return ec.fieldContext_CraftPlanMissing_type(ctx, field)
+			case "amount":
+				return ec.fieldContext_CraftPlanMissing_amount(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CraftPlanMissing", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanMissing_name(ctx context.Context, field graphql.CollectedField, obj *CraftPlanMissing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanMissing_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanMissing_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanMissing",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanMissing_type(ctx context.Context, field graphql.CollectedField, obj *CraftPlanMissing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanMissing_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanMissing_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanMissing",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanMissing_amount(ctx context.Context, field graphql.CollectedField, obj *CraftPlanMissing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanMissing_amount,
+		func(ctx context.Context) (any, error) {
+			return obj.Amount, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanMissing_amount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanMissing",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_tick(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_surface(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_surface,
+		func(ctx context.Context) (any, error) {
+			return obj.Surface, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_surface(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_force(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_actor(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_actor,
+		func(ctx context.Context) (any, error) {
+			return obj.Actor, nil
+		},
+		nil,
+		ec.marshalNActorIdentity2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorIdentity,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_actor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "player":
+				return ec.fieldContext_ActorIdentity_player(ctx, field)
+			case "character":
+				return ec.fieldContext_ActorIdentity_character(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ActorIdentity", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_player(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_player,
+		func(ctx context.Context) (any, error) {
+			return obj.Player, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_player(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_character(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_character,
+		func(ctx context.Context) (any, error) {
+			return obj.Character, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_character(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_recipe(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_recipe,
+		func(ctx context.Context) (any, error) {
+			return obj.Recipe, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_recipe(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_requested(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_requested,
+		func(ctx context.Context) (any, error) {
+			return obj.Requested, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_requested(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_complete(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_complete,
+		func(ctx context.Context) (any, error) {
+			return obj.Complete, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_complete(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_queued(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_queued,
+		func(ctx context.Context) (any, error) {
+			return obj.Queued, nil
+		},
+		nil,
+		ec.marshalNCraftPlanStep2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanStepᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_queued(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "recipe":
+				return ec.fieldContext_CraftPlanStep_recipe(ctx, field)
+			case "count":
+				return ec.fieldContext_CraftPlanStep_count(ctx, field)
+			case "ingredients":
+				return ec.fieldContext_CraftPlanStep_ingredients(ctx, field)
+			case "products":
+				return ec.fieldContext_CraftPlanStep_products(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CraftPlanStep", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_remaining(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_remaining,
+		func(ctx context.Context) (any, error) {
+			return obj.Remaining, nil
+		},
+		nil,
+		ec.marshalNCraftPlanStep2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanStepᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_remaining(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "recipe":
+				return ec.fieldContext_CraftPlanStep_recipe(ctx, field)
+			case "count":
+				return ec.fieldContext_CraftPlanStep_count(ctx, field)
+			case "ingredients":
+				return ec.fieldContext_CraftPlanStep_ingredients(ctx, field)
+			case "products":
+				return ec.fieldContext_CraftPlanStep_products(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CraftPlanStep", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_missing(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_missing,
+		func(ctx context.Context) (any, error) {
+			return obj.Missing, nil
+		},
+		nil,
+		ec.marshalNCraftPlanMissing2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanMissingᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_missing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_CraftPlanMissing_name(ctx, field)
+			case "type":
+				return ec.fieldContext_CraftPlanMissing_type(ctx, field)
+			case "amount":
+				return ec.fieldContext_CraftPlanMissing_amount(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CraftPlanMissing", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_queueSize(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_queueSize,
+		func(ctx context.Context) (any, error) {
+			return obj.QueueSize, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_queueSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_waitTimedOut(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_waitTimedOut,
+		func(ctx context.Context) (any, error) {
+			return obj.WaitTimedOut, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_waitTimedOut(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanResult_waitedSeconds(ctx context.Context, field graphql.CollectedField, obj *CraftPlanResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanResult_waitedSeconds,
+		func(ctx context.Context) (any, error) {
+			return obj.WaitedSeconds, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanResult_waitedSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanStep_recipe(ctx context.Context, field graphql.CollectedField, obj *CraftPlanStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanStep_recipe,
+		func(ctx context.Context) (any, error) {
+			return obj.Recipe, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanStep_recipe(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanStep_count(ctx context.Context, field graphql.CollectedField, obj *CraftPlanStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanStep_count,
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanStep_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanStep_ingredients(ctx context.Context, field graphql.CollectedField, obj *CraftPlanStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanStep_ingredients,
+		func(ctx context.Context) (any, error) {
+			return obj.Ingredients, nil
+		},
+		nil,
+		ec.marshalNRecipeIngredient2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐRecipeIngredientᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanStep_ingredients(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_RecipeIngredient_name(ctx, field)
+			case "type":
+				return ec.fieldContext_RecipeIngredient_type(ctx, field)
+			case "amount":
+				return ec.fieldContext_RecipeIngredient_amount(ctx, field)
+			case "quality":
+				return ec.fieldContext_RecipeIngredient_quality(ctx, field)
+			case "minimumTemperature":
+				return ec.fieldContext_RecipeIngredient_minimumTemperature(ctx, field)
+			case "maximumTemperature":
+				return ec.fieldContext_RecipeIngredient_maximumTemperature(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type RecipeIngredient", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CraftPlanStep_products(ctx context.Context, field graphql.CollectedField, obj *CraftPlanStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CraftPlanStep_products,
+		func(ctx context.Context) (any, error) {
+			return obj.Products, nil
+		},
+		nil,
+		ec.marshalNRecipeProduct2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐRecipeProductᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CraftPlanStep_products(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CraftPlanStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_RecipeProduct_name(ctx, field)
+			case "type":
+				return ec.fieldContext_RecipeProduct_type(ctx, field)
+			case "amount":
+				return ec.fieldContext_RecipeProduct_amount(ctx, field)
+			case "probability":
+				return ec.fieldContext_RecipeProduct_probability(ctx, field)
+			case "amountMin":
+				return ec.fieldContext_RecipeProduct_amountMin(ctx, field)
+			case "amountMax":
+				return ec.fieldContext_RecipeProduct_amountMax(ctx, field)
+			case "temperature":
+				return ec.fieldContext_RecipeProduct_temperature(ctx, field)
+			case "quality":
+				return ec.fieldContext_RecipeProduct_quality(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type RecipeProduct", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CraftQueue_tick(ctx context.Context, field graphql.CollectedField, obj *CraftQueue) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38814,6 +40185,12 @@ func (ec *executionContext) fieldContext_Entity_inspection(ctx context.Context, 
 				return ec.fieldContext_EntityInspection_unitNumber(ctx, field)
 			case "direction":
 				return ec.fieldContext_EntityInspection_direction(ctx, field)
+			case "ghostName":
+				return ec.fieldContext_EntityInspection_ghostName(ctx, field)
+			case "ghostQuality":
+				return ec.fieldContext_EntityInspection_ghostQuality(ctx, field)
+			case "ghostRecipe":
+				return ec.fieldContext_EntityInspection_ghostRecipe(ctx, field)
 			case "combinatorParameters":
 				return ec.fieldContext_EntityInspection_combinatorParameters(ctx, field)
 			case "parametersRawJSON":
@@ -39961,6 +41338,93 @@ func (ec *executionContext) fieldContext_EntityInspection_direction(_ context.Co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityInspection_ghostName(ctx context.Context, field graphql.CollectedField, obj *EntityInspection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityInspection_ghostName,
+		func(ctx context.Context) (any, error) {
+			return obj.GhostName, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityInspection_ghostName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityInspection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityInspection_ghostQuality(ctx context.Context, field graphql.CollectedField, obj *EntityInspection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityInspection_ghostQuality,
+		func(ctx context.Context) (any, error) {
+			return obj.GhostQuality, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityInspection_ghostQuality(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityInspection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EntityInspection_ghostRecipe(ctx context.Context, field graphql.CollectedField, obj *EntityInspection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityInspection_ghostRecipe,
+		func(ctx context.Context) (any, error) {
+			return obj.GhostRecipe, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityInspection_ghostRecipe(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityInspection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -61887,6 +63351,79 @@ func (ec *executionContext) fieldContext_Mutation_craft(ctx context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_craftPlan(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_craftPlan,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CraftPlan(ctx, fc.Args["input"].(CraftPlanRunInput))
+		},
+		nil,
+		ec.marshalNCraftPlanResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_craftPlan(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_CraftPlanResult_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_CraftPlanResult_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_CraftPlanResult_force(ctx, field)
+			case "actor":
+				return ec.fieldContext_CraftPlanResult_actor(ctx, field)
+			case "player":
+				return ec.fieldContext_CraftPlanResult_player(ctx, field)
+			case "character":
+				return ec.fieldContext_CraftPlanResult_character(ctx, field)
+			case "recipe":
+				return ec.fieldContext_CraftPlanResult_recipe(ctx, field)
+			case "requested":
+				return ec.fieldContext_CraftPlanResult_requested(ctx, field)
+			case "complete":
+				return ec.fieldContext_CraftPlanResult_complete(ctx, field)
+			case "queued":
+				return ec.fieldContext_CraftPlanResult_queued(ctx, field)
+			case "remaining":
+				return ec.fieldContext_CraftPlanResult_remaining(ctx, field)
+			case "missing":
+				return ec.fieldContext_CraftPlanResult_missing(ctx, field)
+			case "queueSize":
+				return ec.fieldContext_CraftPlanResult_queueSize(ctx, field)
+			case "waitTimedOut":
+				return ec.fieldContext_CraftPlanResult_waitTimedOut(ctx, field)
+			case "waitedSeconds":
+				return ec.fieldContext_CraftPlanResult_waitedSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CraftPlanResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_craftPlan_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_cancelCraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -73046,6 +74583,71 @@ func (ec *executionContext) fieldContext_Query_recipe(ctx context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_craftPlan(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_craftPlan,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().CraftPlan(ctx, fc.Args["input"].(CraftPlanInput))
+		},
+		nil,
+		ec.marshalNCraftPlan2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlan,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_craftPlan(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_CraftPlan_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_CraftPlan_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_CraftPlan_force(ctx, field)
+			case "actor":
+				return ec.fieldContext_CraftPlan_actor(ctx, field)
+			case "player":
+				return ec.fieldContext_CraftPlan_player(ctx, field)
+			case "character":
+				return ec.fieldContext_CraftPlan_character(ctx, field)
+			case "recipe":
+				return ec.fieldContext_CraftPlan_recipe(ctx, field)
+			case "requested":
+				return ec.fieldContext_CraftPlan_requested(ctx, field)
+			case "complete":
+				return ec.fieldContext_CraftPlan_complete(ctx, field)
+			case "steps":
+				return ec.fieldContext_CraftPlan_steps(ctx, field)
+			case "missing":
+				return ec.fieldContext_CraftPlan_missing(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CraftPlan", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_craftPlan_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_inspect(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -73125,6 +74727,12 @@ func (ec *executionContext) fieldContext_Query_inspect(ctx context.Context, fiel
 				return ec.fieldContext_EntityInspection_unitNumber(ctx, field)
 			case "direction":
 				return ec.fieldContext_EntityInspection_direction(ctx, field)
+			case "ghostName":
+				return ec.fieldContext_EntityInspection_ghostName(ctx, field)
+			case "ghostQuality":
+				return ec.fieldContext_EntityInspection_ghostQuality(ctx, field)
+			case "ghostRecipe":
+				return ec.fieldContext_EntityInspection_ghostRecipe(ctx, field)
 			case "combinatorParameters":
 				return ec.fieldContext_EntityInspection_combinatorParameters(ctx, field)
 			case "parametersRawJSON":
@@ -92533,7 +94141,7 @@ func (ec *executionContext) unmarshalInputBeltStretchMeasureInput(ctx context.Co
 		asMap["wait"] = false
 	}
 	if _, present := asMap["waitTimeoutSeconds"]; !present {
-		asMap["waitTimeoutSeconds"] = 30
+		asMap["waitTimeoutSeconds"] = 10
 	}
 	if _, present := asMap["sample"]; !present {
 		asMap["sample"] = "MIDDLE"
@@ -92668,7 +94276,7 @@ func (ec *executionContext) unmarshalInputBeltThroughputStartInput(ctx context.C
 		asMap["wait"] = false
 	}
 	if _, present := asMap["waitTimeoutSeconds"]; !present {
-		asMap["waitTimeoutSeconds"] = 30
+		asMap["waitTimeoutSeconds"] = 10
 	}
 
 	fieldsInOrder := [...]string{"target", "durationTicks", "wait", "waitTimeoutSeconds"}
@@ -94987,7 +96595,7 @@ func (ec *executionContext) unmarshalInputCraftInput(ctx context.Context, obj an
 		asMap["wait"] = false
 	}
 	if _, present := asMap["waitTimeoutSeconds"]; !present {
-		asMap["waitTimeoutSeconds"] = 60
+		asMap["waitTimeoutSeconds"] = 10
 	}
 
 	fieldsInOrder := [...]string{"actor", "recipe", "count", "wait", "waitTimeoutSeconds", "message"}
@@ -95025,6 +96633,111 @@ func (ec *executionContext) unmarshalInputCraftInput(ctx context.Context, obj an
 				return it, err
 			}
 			it.Wait = data
+		case "waitTimeoutSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("waitTimeoutSeconds"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WaitTimeoutSeconds = data
+		case "message":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Message = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCraftPlanInput(ctx context.Context, obj any) (CraftPlanInput, error) {
+	var it CraftPlanInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["count"]; !present {
+		asMap["count"] = 1
+	}
+
+	fieldsInOrder := [...]string{"actor", "recipe", "count"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "actor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actor"))
+			data, err := ec.unmarshalNActorInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Actor = data
+		case "recipe":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recipe"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Recipe = data
+		case "count":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Count = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCraftPlanRunInput(ctx context.Context, obj any) (CraftPlanRunInput, error) {
+	var it CraftPlanRunInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["count"]; !present {
+		asMap["count"] = 1
+	}
+	if _, present := asMap["waitTimeoutSeconds"]; !present {
+		asMap["waitTimeoutSeconds"] = 10
+	}
+
+	fieldsInOrder := [...]string{"actor", "recipe", "count", "waitTimeoutSeconds", "message"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "actor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actor"))
+			data, err := ec.unmarshalNActorInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Actor = data
+		case "recipe":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recipe"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Recipe = data
+		case "count":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Count = data
 		case "waitTimeoutSeconds":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("waitTimeoutSeconds"))
 			data, err := ec.unmarshalNInt2int(ctx, v)
@@ -97959,7 +99672,7 @@ func (ec *executionContext) unmarshalInputNavigateStartInput(ctx context.Context
 		asMap["wait"] = false
 	}
 	if _, present := asMap["waitTimeoutSeconds"]; !present {
-		asMap["waitTimeoutSeconds"] = 60
+		asMap["waitTimeoutSeconds"] = 10
 	}
 
 	fieldsInOrder := [...]string{"actor", "position", "targetCharacter", "targetEntity", "tolerance", "timeoutTicks", "wait", "waitTimeoutSeconds", "message"}
@@ -101435,20 +103148,20 @@ func (ec *executionContext) unmarshalInputWaitConditionInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"tick", "inventory", "craftQueueEmpty", "machineStatus", "research", "fluid", "production"}
+	fieldsInOrder := [...]string{"ticks", "inventory", "craftQueueEmpty", "machineStatus", "research", "fluid", "production"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "tick":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tick"))
+		case "ticks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ticks"))
 			data, err := ec.unmarshalOFiniteFloat2ᚖfloat64(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Tick = data
+			it.Ticks = data
 		case "inventory":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("inventory"))
 			data, err := ec.unmarshalOWaitInventoryInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWaitInventoryInput(ctx, v)
@@ -101729,7 +103442,7 @@ func (ec *executionContext) unmarshalInputWaitUntilInput(ctx context.Context, ob
 	}
 
 	if _, present := asMap["timeoutSeconds"]; !present {
-		asMap["timeoutSeconds"] = 30
+		asMap["timeoutSeconds"] = 10
 	}
 	if _, present := asMap["pollSeconds"]; !present {
 		asMap["pollSeconds"] = 0.250000
@@ -106978,6 +108691,292 @@ func (ec *executionContext) _ContainerSettings(ctx context.Context, sel ast.Sele
 	return out
 }
 
+var craftPlanImplementors = []string{"CraftPlan"}
+
+func (ec *executionContext) _CraftPlan(ctx context.Context, sel ast.SelectionSet, obj *CraftPlan) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, craftPlanImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CraftPlan")
+		case "tick":
+			out.Values[i] = ec._CraftPlan_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "surface":
+			out.Values[i] = ec._CraftPlan_surface(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._CraftPlan_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "actor":
+			out.Values[i] = ec._CraftPlan_actor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "player":
+			out.Values[i] = ec._CraftPlan_player(ctx, field, obj)
+		case "character":
+			out.Values[i] = ec._CraftPlan_character(ctx, field, obj)
+		case "recipe":
+			out.Values[i] = ec._CraftPlan_recipe(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requested":
+			out.Values[i] = ec._CraftPlan_requested(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "complete":
+			out.Values[i] = ec._CraftPlan_complete(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "steps":
+			out.Values[i] = ec._CraftPlan_steps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "missing":
+			out.Values[i] = ec._CraftPlan_missing(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var craftPlanMissingImplementors = []string{"CraftPlanMissing"}
+
+func (ec *executionContext) _CraftPlanMissing(ctx context.Context, sel ast.SelectionSet, obj *CraftPlanMissing) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, craftPlanMissingImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CraftPlanMissing")
+		case "name":
+			out.Values[i] = ec._CraftPlanMissing_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._CraftPlanMissing_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "amount":
+			out.Values[i] = ec._CraftPlanMissing_amount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var craftPlanResultImplementors = []string{"CraftPlanResult"}
+
+func (ec *executionContext) _CraftPlanResult(ctx context.Context, sel ast.SelectionSet, obj *CraftPlanResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, craftPlanResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CraftPlanResult")
+		case "tick":
+			out.Values[i] = ec._CraftPlanResult_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "surface":
+			out.Values[i] = ec._CraftPlanResult_surface(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._CraftPlanResult_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "actor":
+			out.Values[i] = ec._CraftPlanResult_actor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "player":
+			out.Values[i] = ec._CraftPlanResult_player(ctx, field, obj)
+		case "character":
+			out.Values[i] = ec._CraftPlanResult_character(ctx, field, obj)
+		case "recipe":
+			out.Values[i] = ec._CraftPlanResult_recipe(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requested":
+			out.Values[i] = ec._CraftPlanResult_requested(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "complete":
+			out.Values[i] = ec._CraftPlanResult_complete(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queued":
+			out.Values[i] = ec._CraftPlanResult_queued(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "remaining":
+			out.Values[i] = ec._CraftPlanResult_remaining(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "missing":
+			out.Values[i] = ec._CraftPlanResult_missing(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queueSize":
+			out.Values[i] = ec._CraftPlanResult_queueSize(ctx, field, obj)
+		case "waitTimedOut":
+			out.Values[i] = ec._CraftPlanResult_waitTimedOut(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "waitedSeconds":
+			out.Values[i] = ec._CraftPlanResult_waitedSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var craftPlanStepImplementors = []string{"CraftPlanStep"}
+
+func (ec *executionContext) _CraftPlanStep(ctx context.Context, sel ast.SelectionSet, obj *CraftPlanStep) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, craftPlanStepImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CraftPlanStep")
+		case "recipe":
+			out.Values[i] = ec._CraftPlanStep_recipe(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._CraftPlanStep_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ingredients":
+			out.Values[i] = ec._CraftPlanStep_ingredients(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "products":
+			out.Values[i] = ec._CraftPlanStep_products(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var craftQueueImplementors = []string{"CraftQueue"}
 
 func (ec *executionContext) _CraftQueue(ctx context.Context, sel ast.SelectionSet, obj *CraftQueue) graphql.Marshaler {
@@ -107829,6 +109828,12 @@ func (ec *executionContext) _EntityInspection(ctx context.Context, sel ast.Selec
 			out.Values[i] = ec._EntityInspection_unitNumber(ctx, field, obj)
 		case "direction":
 			out.Values[i] = ec._EntityInspection_direction(ctx, field, obj)
+		case "ghostName":
+			out.Values[i] = ec._EntityInspection_ghostName(ctx, field, obj)
+		case "ghostQuality":
+			out.Values[i] = ec._EntityInspection_ghostQuality(ctx, field, obj)
+		case "ghostRecipe":
+			out.Values[i] = ec._EntityInspection_ghostRecipe(ctx, field, obj)
 		case "combinatorParameters":
 			out.Values[i] = ec._EntityInspection_combinatorParameters(ctx, field, obj)
 		case "parametersRawJSON":
@@ -113570,6 +115575,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "craftPlan":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_craftPlan(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "cancelCraft":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_cancelCraft(ctx, field)
@@ -115901,6 +117913,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_recipe(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "craftPlan":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_craftPlan(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -123276,6 +125310,96 @@ func (ec *executionContext) unmarshalNContainerBarInput2githubᚗcomᚋwricardo�
 func (ec *executionContext) unmarshalNCraftInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftInput(ctx context.Context, v any) (CraftInput, error) {
 	res, err := ec.unmarshalInputCraftInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCraftPlan2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlan(ctx context.Context, sel ast.SelectionSet, v CraftPlan) graphql.Marshaler {
+	return ec._CraftPlan(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCraftPlan2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlan(ctx context.Context, sel ast.SelectionSet, v *CraftPlan) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CraftPlan(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNCraftPlanInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanInput(ctx context.Context, v any) (CraftPlanInput, error) {
+	res, err := ec.unmarshalInputCraftPlanInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCraftPlanMissing2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanMissingᚄ(ctx context.Context, sel ast.SelectionSet, v []*CraftPlanMissing) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCraftPlanMissing2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanMissing(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCraftPlanMissing2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanMissing(ctx context.Context, sel ast.SelectionSet, v *CraftPlanMissing) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CraftPlanMissing(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCraftPlanResult2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanResult(ctx context.Context, sel ast.SelectionSet, v CraftPlanResult) graphql.Marshaler {
+	return ec._CraftPlanResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCraftPlanResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanResult(ctx context.Context, sel ast.SelectionSet, v *CraftPlanResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CraftPlanResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNCraftPlanRunInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanRunInput(ctx context.Context, v any) (CraftPlanRunInput, error) {
+	res, err := ec.unmarshalInputCraftPlanRunInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCraftPlanStep2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanStepᚄ(ctx context.Context, sel ast.SelectionSet, v []*CraftPlanStep) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCraftPlanStep2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanStep(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCraftPlanStep2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanStep(ctx context.Context, sel ast.SelectionSet, v *CraftPlanStep) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CraftPlanStep(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNCraftQueue2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftQueue(ctx context.Context, sel ast.SelectionSet, v CraftQueue) graphql.Marshaler {

@@ -3,7 +3,8 @@
 // gqlcli script --file .agents/skills/factorio-gameplay/scripts/measure-rate.js \
 //   --arg '{"items":["iron-plate","copper-plate"],"ticks":1800,"area":{"leftTopX":-8,"leftTopY":-40,"rightBottomX":8,"rightBottomY":-30}}'
 // Input: items [names] (required), ticks (default 1800 = 30 s game time; waits wall-clock
-//   ticks/60/speed seconds, so keep <= 14000 at speed 1), area (stock scope; omit = whole surface),
+//   ticks/60/speed seconds capped by the wait's 10 s wall-clock limit, so keep <= 600 at speed 1
+//   or raise the speed), area (stock scope; omit = whole surface),
 //   surface, force.
 // Rate = delta stock / delta ticks * 3600 per minute. Stock is net of consumption: a consumed item
 // shows lower rate than produced. Use production() for produced-vs-consumed in the same window.
@@ -29,7 +30,7 @@ async function run(gql, input) {
   const a = await readStock(gql, input)
   const w = await gql.mutation(
     `mutation($in: WaitUntilInput!) { waitUntil(input: $in) { satisfied timedOut tick } }`,
-    { in: { timeoutSeconds: 300, pollSeconds: 1, condition: { tick: a.tick + ticks } } }
+    { in: { timeoutSeconds: 10, pollSeconds: 0.5, condition: { ticks } } }
   )
   if (w.errors) return { errors: w.errors }
   const b = await readStock(gql, input)

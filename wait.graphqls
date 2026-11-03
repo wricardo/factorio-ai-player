@@ -1,12 +1,12 @@
 extend type Mutation {
-  """Polls exactly one game-state condition from the backend until it holds or a wall-clock timeout expires; every poll is a separate RCON read, so the game thread keeps simulating and other agents are not starved, and the mutation changes no game state and prints no notification. Supply exactly one condition field — tick, inventory (actor main inventory at a quality), craftQueueEmpty, machineStatus with 1..32 engine status names such as no_recipe, no_fuel, or no_power, research for a force technology, fluid as an entity-wide total optionally filtered by prototype, or production as an item flow count over ONE_MINUTE, TEN_MINUTES, or ONE_HOUR — and every field of that condition is validated before the first poll. timeoutSeconds is 1..300 (default 30) and pollSeconds 0.05..5 (default 0.25); a first observation that already satisfies the condition returns immediately, while an expired timeout returns satisfied=false with timedOut=true and the last observation instead of an error. A condition that becomes unobservable (a removed entity, an unknown technology) is a GraphQL error rather than a timeout because the outcome is unknown. The result reports the condition kind, satisfied, timedOut, waitedSeconds and polls measured on the Go side, plus last carrying the last polled tick and only the fields relevant to the condition (count, status, researched, queueSize, detail)."""
+  """Polls exactly one game-state condition from the backend until it holds or a wall-clock timeout expires; every poll is a separate RCON read, so the game thread keeps simulating and other agents are not starved, and the mutation changes no game state and prints no notification. Supply exactly one condition field — ticks for the number of game ticks to wait from the first poll so the wait follows game speed, inventory (actor main inventory at a quality), craftQueueEmpty, machineStatus with 1..32 engine status names such as no_recipe, no_fuel, or no_power, research for a force technology, fluid as an entity-wide total optionally filtered by prototype, or production as an item flow count over ONE_MINUTE, TEN_MINUTES, or ONE_HOUR — and every field of that condition is validated before the first poll. timeoutSeconds is 1..10 (values above 10 are clamped to 10, default 10) and pollSeconds 0.05..5 (default 0.25); a first observation that already satisfies the condition returns immediately, while an expired timeout returns satisfied=false with timedOut=true and the last observation instead of an error. A condition that becomes unobservable (a removed entity, an unknown technology) is a GraphQL error rather than a timeout because the outcome is unknown. The result reports the condition kind, satisfied, timedOut, waitedSeconds and polls measured on the Go side, plus last carrying the last polled tick and only the fields relevant to the condition (count, status, researched, queueSize, detail)."""
   waitUntil(input: WaitUntilInput!): WaitResult!
 }
 
 """One condition selected per call. Exactly one field must be set."""
 input WaitConditionInput {
-  """Wait until the game tick is at least this value."""
-  tick: FiniteFloat
+  """Number of game ticks to wait from the first poll; the wait follows game speed instead of wall-clock time and is still bounded by timeoutSeconds. Must be greater than 0."""
+  ticks: FiniteFloat
   """Wait until the actor's main inventory holds at least count of item."""
   inventory: WaitInventoryInput
   """Wait until the actor's crafting queue is empty."""
@@ -56,19 +56,19 @@ input WaitProductionInput {
 }
 
 input WaitUntilInput {
-  """Total wall-clock limit in seconds, 1 through 300."""
-  timeoutSeconds: FiniteFloat! = 30
+  """Total wall-clock limit in seconds, 1 through 10; larger values are clamped to 10."""
+  timeoutSeconds: FiniteFloat! = 10
   """Delay between polls in seconds, 0.05 through 5."""
   pollSeconds: FiniteFloat! = 0.25
   condition: WaitConditionInput!
 }
 
-enum WaitConditionKind { TICK INVENTORY CRAFT_QUEUE_EMPTY MACHINE_STATUS RESEARCH FLUID PRODUCTION }
+enum WaitConditionKind { TICKS INVENTORY CRAFT_QUEUE_EMPTY MACHINE_STATUS RESEARCH FLUID PRODUCTION }
 
 """Facts observed on the last poll. Only the fields relevant to the condition are set."""
 type WaitObservation {
   tick: Float!
-  """Observed count for inventory, fluid, production and tick conditions."""
+  """Observed count for inventory, fluid and production conditions; for TICKS it is the elapsed game ticks, capped at the requested count."""
   count: Float
   """Engine status name for MACHINE_STATUS."""
   status: String

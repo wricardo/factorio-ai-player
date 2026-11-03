@@ -3,6 +3,12 @@ extend type EntityInspection {
   unitNumber: UnitNumber
   """Engine direction code, when the entity exposes one. 0 north, 4 east, 8 south, 12 west; inserts and machinery may use the full 0-15 range."""
   direction: Int
+  """Ghost-only: engine prototype name of the entity an entity-ghost would build (for example transport-belt or assembling-machine-1), read from ghost_prototype.name with ghost_name as a fallback. Null for a real entity and for an entity-ghost whose prototype is unreadable, so a ghost plan can be audited (name plus direction) before it is built."""
+  ghostName: String
+  """Ghost-only: quality prototype name of the ghost's target entity (normal, uncommon, rare, epic, legendary). Null for a real entity."""
+  ghostQuality: String
+  """Ghost-only: recipe currently set on the ghost, when its target prototype is a crafting machine. Null for a real entity and for ghosts whose prototype takes no recipe."""
+  ghostRecipe: String
   """Typed arithmetic or decider combinator parameters; null for other entities."""
   combinatorParameters: CombinatorParameters
   """Unmodified JSON encoding of engine parameters for unsupported parameter-bearing entities."""

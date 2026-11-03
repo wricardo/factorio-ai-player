@@ -37,7 +37,7 @@ Demands (live recipes): plastic 20 gas + 1 coal -> 2 (1 s); sulfur 30 gas + 30 w
 
 Procedure for a fluid supply/demand model:
 
-1. Sample twice with a recorded tick gap (use `waitUntil{condition:{tick:T+600}}`): `fluidStock totals` and per-tank `inspect.fluids`.
+1. Sample twice with a recorded tick gap (use `waitUntil{condition:{ticks:600}}`): `fluidStock totals` and per-tank `inspect.fluids`.
 2. Rate per fluid = `delta amount / delta tick * 60`. A tank at 0 with consumers `fluid_ingredient_shortage` proves immediate consumption, not abundance.
 3. Supply = producers x amount / time x speed; demand = every consumer including intermediates (cracking, solid fuel, rocket fuel, lubricant).
 4. Check the by-product outlet: a fluid with no consumer (heavy oil with lubricant full) fills its tank and then blocks the whole refinery. Compute the stall ETA from the measured slope.

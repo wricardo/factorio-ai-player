@@ -15,8 +15,8 @@ input BeltThroughputStartInput {
   durationTicks: Int! = 600
   """Wait for completion or invalidation, bounded by waitTimeoutSeconds. Timeout returns latest state without cancelling measurement."""
   wait: Boolean! = false
-  """Wall-clock wait limit from 1 to 600 seconds."""
-  waitTimeoutSeconds: Int! = 30
+  """Wall-clock wait limit from 1 to 10 seconds; larger values are clamped to 10."""
+  waitTimeoutSeconds: Int! = 10
 }
 
 """Observed item crossings, not buffer-count deltas or theoretical capacity. Baseline snapshot at start is excluded; only IDs seen on both sides of each lane's fixed midpoint count. Items inserted downstream of that point do not count. Stack counts and quality are captured when crossing. Entity removal, replacement, rotation, relocation, or lane geometry changes invalidate the sample."""
@@ -72,8 +72,8 @@ input BeltStretchMeasureInput {
   durationTicks: Int! = 600
   """Wait for completion or invalidation, bounded by waitTimeoutSeconds. Timeout returns latest state without cancelling measurement."""
   wait: Boolean! = false
-  """Wall-clock wait limit from 1 to 600 seconds."""
-  waitTimeoutSeconds: Int! = 30
+  """Wall-clock wait limit from 1 to 10 seconds; larger values are clamped to 10."""
+  waitTimeoutSeconds: Int! = 10
   """Which transport-belt tile of the stretch to measure: first, middle or last in travel order."""
   sample: BeltStretchSample! = MIDDLE
 }

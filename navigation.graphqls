@@ -32,8 +32,8 @@ input NavigateStartInput {
   timeoutTicks: Int! = 3600
   """Wait for a terminal job state before returning. Default false."""
   wait: Boolean! = false
-  """Maximum wall-clock wait in seconds, from 1 to 3600. On expiry return the latest observed job without cancelling it."""
-  waitTimeoutSeconds: Int! = 60
+  """Maximum wall-clock wait in seconds, from 1 to 10; larger values are clamped to 10. On expiry return the latest observed job without cancelling it."""
+  waitTimeoutSeconds: Int! = 10
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }

@@ -5,127 +5,229 @@
       "url": "http://127.0.0.1:8080/query"
     }
   },
-  "fragments": {
-    "ActorFields": "fragment ActorFields on Actor { tick player character force surface position { x y } hasCharacter connected controllerType health }",
-    "StatusFields": "fragment StatusFields on Status { tick speed paused players { name surface position { x y } actor { ...ActorFields } } }",
-    "EntityFields": "fragment EntityFields on Entity { tick name type force surface position { x y } direction unitNumber amount distance }",
-    "InventoryStackFields": "fragment InventoryStackFields on InventoryStack { name quality count }",
-    "PlayerInsightFields": "fragment PlayerInsightFields on PlayerInsight { tick player force surface position { x y } connected hasCharacter controllerType queueSize queueProgress items { ...InventoryStackFields } queue { recipe count } reach { canReachEntity distance targetPosition { x y } targetName unavailableReason } recipe { name category energy enabled hiddenFromPlayerCrafting craftableCount ingredients { name type available required unavailableReason } products { name type amount amountMin amountMax probability quality temperature } } }",
-    "InspectionFields": "fragment InspectionFields on EntityInspection { tick name type unitNumber surface force position { x y } health maxHealth status statusName recipe craftingProgress miningProgress toBeDeconstructed nameTag tagsJSON parametersRawJSON inventories { main { ...InventoryStackFields } input { ...InventoryStackFields } output { ...InventoryStackFields } chest { ...InventoryStackFields } fuel { ...InventoryStackFields } modules { ...InventoryStackFields } ammo { ...InventoryStackFields } armor { ...InventoryStackFields } guns { ...InventoryStackFields } turretAmmo { ...InventoryStackFields } } fluids { name amount } heldStack { ...InventoryStackFields } pickupPosition { x y } dropPosition { x y } miningTarget { name type unitNumber position { x y } } missingSciencePacks { name supported available missing required } transportLines { items { ...InventoryStackFields } } beltNeighbours { name type unitNumber position { x y } } fluidboxNeighbours { name type unitNumber position { x y } } }",
-    "MachineFields": "fragment MachineFields on FactoryMachine { name type unitNumber position { x y } status recipeName recipeQuality craftingProgress craftingSpeed electricBufferSize electricDrain energy miningProgress input { ...InventoryStackFields } output { ...InventoryStackFields } fuel { ...InventoryStackFields } machineFluids { index name amount temperature } recipeIngredients { name type amount quality minimumTemperature maximumTemperature } miningTarget { name position { x y } amount } diagnostics { tick recipe recipeQuality throughputUnavailableReason blocked { category rawStatusName rawStatusCode suggestedAction } power { electric connected connectedToProducingNetwork satisfaction networkId satisfactionUnavailableReason } throughput { actualCraftsPerSecond theoreticalCraftsPerSecond craftingSpeed productivityBonus recipeDurationSeconds theoreticalBaseProducts { name type expectedBaseUnitsPerCraft theoreticalBaseUnitsPerSecond } } shortfall { name type quality available missing requiredPerCraft minimumTemperatureCelsius maximumTemperatureCelsius } } }",
-    "ResearchTechnologyFields": "fragment ResearchTechnologyFields on ResearchInsightsTechnology { name available enabled researched inProgress level researchUnitCount researchUnitEnergy savedProgress prerequisites { name researched } scienceIngredients { name amount } effects { type recipe dataJSON } researchTriggerJSON }",
-    "PowerConsumerFields": "fragment PowerConsumerFields on PowerEntityInsight { name type unitNumber position { x y } status networkId connectedToProducingNetwork burningFuelJoules electricBufferJoules electricDrainJoulesPerTick energyJoules temperatureCelsius powerFluids { box name amount temperatureCelsius } }",
-    "StockLocationFields": "fragment StockLocationFields on StockLocation { category entityName entityType inventoryKind player position { x y } stack { name quality count } }",
-    "FluidStockLocationFields": "fragment FluidStockLocationFields on FluidStockLocation { category entityName entityType inventoryKind unitNumber boxIndex productionType filter segmentId fluid amount temperature capacity position { x y } }",
-    "ConstructionOrderFields": "fragment ConstructionOrderFields on ConstructionOrder { name type position { x y } direction force unitNumber upgradeTarget upgradeQuality }",
-    "TrainFields": "fragment TrainFields on TrainInfo { trainId tick surface force actor { player character } status { terminal rawCode rawName category } manualMode speed locomotives wagons fluidWagons frontPosition { x y } station pathEndStop scheduleIndex destination carriages { unitNumber name type position { x y } direction } cargo { name quality count } fluids { name amount } schedule { station waitConditionRawJSON waitConditions { ticks rawType compareType type station damage condition { comparator constant fulfilled firstSignal { type name quality } secondSignal { type name quality } } } } }",
-    "LogisticsEndpointFields": "fragment LogisticsEndpointFields on LogisticsEndpoint { name type surface position { x y } unitNumber direction status pickupPosition { x y } dropPosition { x y } heldStack { ...InventoryStackFields } lanes { index lineName side items { ...InventoryStackFields } } }",
-    "ItemFlowEndpointFields": "fragment ItemFlowEndpointFields on ItemFlowEndpoint { name type surface force position { x y } unitNumber status materialType recipe recipeQuality miningTarget theoreticalRatePerSecond rateUnavailableReason bufferedItems { ...InventoryStackFields } bufferedFluidAmount }",
-    "PlacedEntityFields": "fragment PlacedEntityFields on PlacedEntity { name type position { x y } unitNumber }",
-    "ActionResultFields": "fragment ActionResultFields on ActionResult { tick player character force surface name entity unitNumber position { x y } direction item quality count inventory recipe transferDirection equipmentDirection available capacity inserted moved transferredStacks remaining requested started craftingComplete waitTimedOut waitedSeconds queueSize mined instant before turns returnedStacks items { ...InventoryStackFields } returned { ...InventoryStackFields } }",
-    "BatchErrorFields": "fragment BatchErrorFields on BatchError { index code message target { entity surface position { x y } unitNumber } }",
-    "PlaceManyResultFields": "fragment PlaceManyResultFields on PlaceManyResult { tick actor { player character } item surface force placed failed errors { ...BatchErrorFields } entities { ...PlacedEntityFields } }"
-  },
   "operations": {
-    "status": {
-      "type": "query",
-      "query": "query Status { status { ...StatusFields } }"
+    "announce": {
+      "type": "mutation",
+      "mutation": "mutation Announce($message: String!) { announce(message: $message) { message } }"
     },
-    "briefing": {
+    "belt-stretch": {
       "type": "query",
-      "query": "query Briefing($input: FactoryBriefingInput = {}) { factoryBriefing(input: $input) { surface force window stockTick machineTick productionTick researchTick powerTick constructionTick safetyTick attentionTotal attentionCounts { kind count } attention { kind severity count position { x y } entity message unitNumber } warnings machines { type total working idle noFuel noPower noIngredients outputFull other } production { item produced consumed producedPerMinute consumedPerMinute } stockouts { item have minimum shortfall actorHas } research { enabled progress currentTechnology queue } power { consumptionWatts productionWatts networks } construction { ghosts ghostsBuildable deconstructionOrders upgradeOrders } } }"
-    },
-    "overview": {
-      "type": "query",
-      "query": "query Overview($input: FactoryOverviewInput = {}) { factoryOverview(input: $input) { machineTick productionTick surface force window machines { type total working idle noFuel noPower noIngredients outputFull other } production { item produced consumed producedPerMinute consumedPerMinute } } }"
-    },
-    "machines": {
-      "type": "query",
-      "query": "query Machines($input: MachinesInput = {}) { machines(input: $input) { tick surface force pageInfo { total limit offset hasMore } summaries { type total working idle noFuel noPower noIngredients outputFull other } machines { ...MachineFields } } }"
-    },
-    "inspect": {
-      "type": "query",
-      "query": "query Inspect($input: InspectInput!) { inspect(input: $input) { ...InspectionFields } }"
-    },
-    "player": {
-      "type": "query",
-      "query": "query Player($input: PlayerInsightInput!) { playerInsight(input: $input) { ...PlayerInsightFields } }"
-    },
-    "nearby": {
-      "type": "query",
-      "query": "query Nearby($input: NearbyInput = {}) { nearby(input: $input) { tick surface pageInfo { total limit offset hasMore } entities { ...EntityFields } } }"
-    },
-    "entity": {
-      "type": "query",
-      "query": "query Entity($input: EntityRefInput!) { entity(input: $input) { tick surface force entity { ...EntityFields } } }"
-    },
-    "entities": {
-      "type": "query",
-      "query": "query Entities($input: EntitiesInput!) { entities(input: $input) { tick surface pageInfo { total limit offset hasMore } entities { ...EntityFields } } }"
-    },
-    "probe-placement": {
-      "type": "query",
-      "query": "query ProbePlacement($input: PlacementProbeInput!) { probePlacement(input: $input) { tick surface force prototype area { leftTopX leftTopY rightBottomX rightBottomY } direction sampled placeable blocked blockedTiles { position { x y } blockers terrain tile } rows sites { origin { x y } width height } } }"
-    },
-    "stock": {
-      "type": "query",
-      "query": "query Stock($input: StockInput = {}) { stock(input: $input) { tick surface force itemPageInfo { total limit offset hasMore } items { item quality count } locationPageInfo { total limit offset hasMore } locations { ...StockLocationFields } totalPageInfo { total limit offset hasMore } totals { item quality count category } } }"
-    },
-    "research": {
-      "type": "query",
-      "query": "query Research($research: ResearchInsightsInput = {status: AVAILABLE}, $force: String! = \"player\", $surface: String! = \"nauvis\") { researchInsights(input: $research) { tick force researchEnabled progress currentTechnology researchQueue pageInfo { total limit offset hasMore } technologies { ...ResearchTechnologyFields } } scienceBudget(force: $force, surface: $surface) { tick force surface technology progress researchUnits remainingResearchUnits triggerResearch labCount missingPackLabCount sciencePacks { name nominalPacksLeft availableItems nominalShortfall missingLabCount perResearchUnit unsupportedLabCount } } }"
-    },
-    "power": {
-      "type": "query",
-      "query": "query Power($networks: PowerInsightsInput = {}, $consumers: PowerInsightsInput = {onlyIssues: true}) { electricNetworks(input: $networks) { tick surface force pageInfo { total limit offset hasMore } networks { id consumptionWatts productionWatts satisfaction polesInArea } } powerConsumers(input: $consumers) { tick surface force pageInfo { total limit offset hasMore } powerEntities { ...PowerConsumerFields } } }"
-    },
-    "safety": {
-      "type": "query",
-      "query": "query Safety($input: SafetyInput = {}) { safety(input: $input) { tick surface force evolutionFactor evolutionByTime evolutionByPollution evolutionByKills totalPollution killCounts { name count } enemies { pageInfo { total limit offset hasMore } entities { name type force position { x y } unitNumber health maxHealth status statusCode } } damaged { pageInfo { total limit offset hasMore } entities { name type force position { x y } unitNumber health maxHealth status statusCode } } pollution { position { x y } amount pollutant } playerAlerts { available player unavailableReason pageInfo { total limit offset hasMore } alerts { tick type typeCode prototype iconType iconName iconQuality areaMatchUnknown position { x y } messageJSON target { name type force position { x y } unitNumber health maxHealth status statusCode } } } } }"
-    },
-    "construction": {
-      "type": "query",
-      "query": "query Construction($orders: ConstructionOrdersInput = {}, $networks: LogisticNetworksInput = {}) { constructionOrders(input: $orders) { state tick surface pageInfo { total limit offset hasMore } orders { ...ConstructionOrderFields } } logisticNetworks(input: $networks) { tick surface force pageInfo { total limit offset hasMore } networks { id customName force surface robotLimit cells deployedLogisticRobots carryingLogisticRobots constructionRobots { available total } logisticRobots { available total } providerPoints requesterPoints points { activeProviderChests bufferChests characterRequestPoints other passiveProviderChests requesterChests roboports storageChests } contents { ...InventoryStackFields } itemPageInfo { total limit offset hasMore } items { name quality available delivered inFlight incoming missing requested requestedMinimum stored storedActiveProviders storedBuffers storedPassiveProviders storedStorage targetedPickup unlimitedRequests } } } }"
-    },
-    "fluids": {
-      "type": "query",
-      "query": "query Fluids($input: FluidStockInput = {}) { fluidStock(input: $input) { tick surface force totalPageInfo { total limit offset hasMore } totals { fluid amount category } locationPageInfo { total limit offset hasMore } locations { ...FluidStockLocationFields } } }"
-    },
-    "trains": {
-      "type": "query",
-      "query": "query Trains($input: TrainsInput = {}) { trains(input: $input) { tick surface force pageInfo { total limit offset hasMore } trains { ...TrainFields } } }"
-    },
-    "resource-patches": {
-      "type": "query",
-      "query": "query ResourcePatches($input: WorldResourcesInput = {area: {leftTopX: -128, leftTopY: -128, rightBottomX: 128, rightBottomY: 128}, kinds: [\"resource\"], groupPatches: true, limit: 100}) { worldResources(input: $input) { tick surface force area { leftTopX leftTopY rightBottomX rightBottomY } drillRadius pageInfo { total limit offset hasMore } resourceTotal obstacleTotal waterTotal patches { name tiles totalAmount bounds { leftTopX leftTopY rightBottomX rightBottomY } centroid { x y } nearbyDrills { name position { x y } unitNumber } } worldEntries { kind name amount position { x y } requiredFluid fluidAmount nearbyDrills { name position { x y } unitNumber } } } }"
-    },
-    "characters": {
-      "type": "query",
-      "query": "query Characters($input: CharactersInput = {detachedOnly: false}) { characters(input: $input) { tick surface pageInfo { total limit offset hasMore } characters { unitNumber position { x y } surface force health player } } }"
-    },
-    "recipe": {
-      "type": "query",
-      "query": "query Recipe($input: RecipeInput!) { recipe(input: $input) { tick force player character name category energy enabled hiddenFromPlayerCrafting craftableCount ingredients { name type amount quality minimumTemperature maximumTemperature } products { name type amount amountMin amountMax probability quality temperature } } }"
-    },
-    "item-recipes": {
-      "type": "query",
-      "query": "query ItemRecipes($input: ItemRecipesInput!) { itemRecipes(input: $input) { tick force item pageInfo { total limit offset hasMore } recipes { name enabled category energy ingredients { name type amount quality minimumTemperature maximumTemperature } products { name type amount amountMin amountMax probability quality temperature } craftingMachines } } }"
+      "query": "query BeltStretch($target: EntityRefInput!, $maxEntities: Int! = 100) { beltStretch(target: $target, maxEntities: $maxEntities) { tick surface seed { ...LogisticsEndpointFields } maxEntities truncated nodes { name type position { x y } unitNumber direction lanes { index lineName side items { ...InventoryStackFields } } } ends { position { x y } unitNumber kind targets { ...LogisticsEndpointFields } expectedTarget { x y } blocker gap reason } left { side items { ...InventoryStackFields } itemCount mixed } right { side items { ...InventoryStackFields } itemCount mixed } unknown { side items { ...InventoryStackFields } itemCount mixed } } }"
     },
     "bill-of-materials": {
       "type": "query",
       "query": "query BillOfMaterials($input: BillOfMaterialsInput!) { billOfMaterials(input: $input) { tick force surface item quality amount expansions complete probabilistic recipeCatalogueTruncated stockTruncated stockSource assumptions warnings materials { item quality materialType required availableStock allocatedStock missingStock surplus expectedYield } rawRequirements { item quality materialType amount reason } seedRequirements { item quality materialType amount reason } unresolved { item quality materialType amount reason } steps { item quality materialType recipe crafts expectedOutput overridden alternatives } } }"
     },
-    "item-flow": {
+    "briefing": {
       "type": "query",
-      "query": "query ItemFlow($input: ItemFlowInput!) { itemFlow(input: $input) { tick surface force item rateAssumptions producerPageInfo { total limit offset hasMore } consumerPageInfo { total limit offset hasMore } producers { ...ItemFlowEndpointFields } consumers { ...ItemFlowEndpointFields } } }"
+      "query": "query Briefing($input: FactoryBriefingInput = {}) { factoryBriefing(input: $input) { surface force window stockTick machineTick productionTick researchTick powerTick constructionTick safetyTick attentionTotal attentionCounts { kind count } attention { kind severity count position { x y } entity message unitNumber } warnings machines { type total working idle noFuel noPower noIngredients outputFull other } production { item produced consumed producedPerMinute consumedPerMinute } stockouts { item have minimum shortfall actorHas } research { enabled progress currentTechnology queue } power { consumptionWatts productionWatts networks } construction { ghosts ghostsBuildable deconstructionOrders upgradeOrders } } }"
+    },
+    "characters": {
+      "type": "query",
+      "query": "query Characters($input: CharactersInput = {detachedOnly: false}) { characters(input: $input) { tick surface pageInfo { total limit offset hasMore } characters { unitNumber position { x y } surface force health player } } }"
+    },
+    "construction": {
+      "type": "query",
+      "query": "query Construction($orders: ConstructionOrdersInput = {}, $networks: LogisticNetworksInput = {}) { constructionOrders(input: $orders) { state tick surface pageInfo { total limit offset hasMore } orders { ...ConstructionOrderFields } } logisticNetworks(input: $networks) { tick surface force pageInfo { total limit offset hasMore } networks { id customName force surface robotLimit cells deployedLogisticRobots carryingLogisticRobots constructionRobots { available total } logisticRobots { available total } providerPoints requesterPoints points { activeProviderChests bufferChests characterRequestPoints other passiveProviderChests requesterChests roboports storageChests } contents { ...InventoryStackFields } itemPageInfo { total limit offset hasMore } items { name quality available delivered inFlight incoming missing requested requestedMinimum stored storedActiveProviders storedBuffers storedPassiveProviders storedStorage targetedPickup unlimitedRequests } } } }"
+    },
+    "dead-belts": {
+      "type": "query",
+      "query": "query DeadBelts($input: BeltComponentsInput!) { beltComponents(input: $input) { tick truncated beltTotal pageInfo { total hasMore } components { id dead belts itemCount items { name count } sources { position { x y } } sinks { position { x y } } stallEnds { position { x y } name unitNumber } } } }"
+    },
+    "entities": {
+      "type": "query",
+      "query": "query Entities($input: EntitiesInput!) { entities(input: $input) { tick surface pageInfo { total limit offset hasMore } entities { ...EntityFields } } }"
+    },
+    "entity": {
+      "type": "query",
+      "query": "query Entity($input: EntityRefInput!) { entity(input: $input) { tick surface force entity { ...EntityFields } } }"
+    },
+    "factory-alerts": {
+      "type": "query",
+      "query": "query FactoryAlerts($input: FactoryAlertsInput = {}) { factoryAlerts(input: $input) { tick surface force scanned total attentionCounts { kind count } alerts { kind severity name type status unitNumber position { x y } suggestedAction cause } machines { type total working idle } } }"
     },
     "factory-graph": {
       "type": "query",
       "query": "query FactoryGraph($area: FactoryAreaInput!, $force: String! = \"player\", $surface: String! = \"nauvis\") { factoryGraph(area: $area, force: $force, surface: $surface) { tick surface force area { leftTopX leftTopY rightBottomX rightBottomY } nodes { ...LogisticsEndpointFields } machines { ...LogisticsEndpointFields } belts { ...LogisticsEndpointFields } chests { ...LogisticsEndpointFields } inserters { inserter { ...LogisticsEndpointFields } pickup { ...LogisticsEndpointFields } drop { ...LogisticsEndpointFields } } fluidEntities { ...LogisticsEndpointFields } edges { from { name type position { x y } unitNumber status } to { name type position { x y } unitNumber status } kind flowDirection boundary } } }"
     },
-    "belt-stretch": {
+    "fluid-segments": {
       "type": "query",
-      "query": "query BeltStretch($target: EntityRefInput!, $maxEntities: Int! = 100) { beltStretch(target: $target, maxEntities: $maxEntities) { tick surface seed { ...LogisticsEndpointFields } maxEntities truncated nodes { name type position { x y } unitNumber direction lanes { index lineName side items { ...InventoryStackFields } } } ends { position { x y } unitNumber kind targets { ...LogisticsEndpointFields } expectedTarget { x y } blocker gap reason } left { side items { ...InventoryStackFields } itemCount mixed } right { side items { ...InventoryStackFields } itemCount mixed } unknown { side items { ...InventoryStackFields } itemCount mixed } } }"
+      "query": "query FluidSegments($input: FluidSegmentsInput!) { fluidSegments(input: $input) { tick surface force truncated visitedBoxes area { leftTopX leftTopY rightBottomX rightBottomY } problems { kind entity unitNumber boxIndex position { x y } detail } segments { id engineSegmentId amount capacity temperature fluids { name amount } members { name unitNumber boxIndex position { x y } } } } }"
+    },
+    "fluids": {
+      "type": "query",
+      "query": "query Fluids($input: FluidStockInput = {}) { fluidStock(input: $input) { tick surface force totalPageInfo { total limit offset hasMore } totals { fluid amount category } locationPageInfo { total limit offset hasMore } locations { ...FluidStockLocationFields } } }"
+    },
+    "ghosts": {
+      "type": "query",
+      "query": "query Ghosts($input: GhostsInput = {}) { ghosts(input: $input) { tick surface force pageInfo { total limit offset hasMore } ghostEntries { name unitNumber position { x y } } } }"
+    },
+    "inspect": {
+      "type": "query",
+      "query": "query Inspect($input: InspectInput!) { inspect(input: $input) { ...InspectionFields } }"
+    },
+    "item-flow": {
+      "type": "query",
+      "query": "query ItemFlow($input: ItemFlowInput!) { itemFlow(input: $input) { tick surface force item rateAssumptions producerPageInfo { total limit offset hasMore } consumerPageInfo { total limit offset hasMore } producers { ...ItemFlowEndpointFields } consumers { ...ItemFlowEndpointFields } } }"
+    },
+    "item-recipes": {
+      "type": "query",
+      "query": "query ItemRecipes($input: ItemRecipesInput!) { itemRecipes(input: $input) { tick force item pageInfo { total limit offset hasMore } recipes { name enabled category energy ingredients { name type amount quality minimumTemperature maximumTemperature } products { name type amount amountMin amountMax probability quality temperature } craftingMachines } } }"
+    },
+    "labs": {
+      "type": "query",
+      "query": "query Labs($surface: String! = \"nauvis\", $force: String! = \"player\") { machines(input: {surface: $surface, type: \"lab\", limit: 100}) { tick machines { unitNumber name position { x y } status recipeName input { name count } output { name count } } } scienceBudget(force: $force, surface: $surface) { tick technology progress remainingResearchUnits labCount missingPackLabCount } production(input: {surface: $surface, window: TEN_MINUTES, itemNames: [\"automation-science-pack\", \"logistic-science-pack\", \"chemical-science-pack\"]}) { items { item produced consumed } } }"
+    },
+    "machines": {
+      "type": "query",
+      "query": "query Machines($input: MachinesInput = {}) { machines(input: $input) { tick surface force pageInfo { total limit offset hasMore } summaries { type total working idle noFuel noPower noIngredients outputFull other } machines { ...MachineFields } } }"
+    },
+    "map-area": {
+      "type": "query",
+      "query": "query MapArea($input: MapAreaInput!) { mapArea(input: $input) { tick surface force rows } }"
+    },
+    "nearby": {
+      "type": "query",
+      "query": "query Nearby($input: NearbyInput = {}) { nearby(input: $input) { tick surface pageInfo { total limit offset hasMore } entities { ...EntityFields } } }"
+    },
+    "overview": {
+      "type": "query",
+      "query": "query Overview($input: FactoryOverviewInput = {}) { factoryOverview(input: $input) { machineTick productionTick surface force window machines { type total working idle noFuel noPower noIngredients outputFull other } production { item produced consumed producedPerMinute consumedPerMinute } } }"
+    },
+    "place-item": {
+      "type": "mutation",
+      "mutation": "mutation PlaceItem($input: PlaceInput!) { place(input: $input) { ...ActionResultFields } }"
+    },
+    "place-many": {
+      "type": "mutation",
+      "mutation": "mutation PlaceMany($input: PlaceManyInput!) { placeMany(input: $input) { placed failed errors { index code message } entities { name unitNumber position { x y } direction } } }"
+    },
+    "player": {
+      "type": "query",
+      "query": "query Player($input: PlayerInsightInput!) { playerInsight(input: $input) { ...PlayerInsightFields } }"
+    },
+    "power": {
+      "type": "query",
+      "query": "query Power($networks: PowerInsightsInput = {}, $consumers: PowerInsightsInput = {onlyIssues: true}) { electricNetworks(input: $networks) { tick surface force pageInfo { total limit offset hasMore } networks { id consumptionWatts productionWatts satisfaction polesInArea } } powerConsumers(input: $consumers) { tick surface force pageInfo { total limit offset hasMore } powerEntities { ...PowerConsumerFields } } }"
+    },
+    "probe-placement": {
+      "type": "query",
+      "query": "query ProbePlacement($input: PlacementProbeInput!) { probePlacement(input: $input) { tick surface force prototype area { leftTopX leftTopY rightBottomX rightBottomY } direction sampled placeable blocked blockedTiles { position { x y } blockers terrain tile } rows sites { origin { x y } width height } } }"
+    },
+    "production": {
+      "type": "query",
+      "query": "query Production($input: FactoryOverviewInput = {}) { production(input: $input) { tick surface force window items { item produced consumed } } }"
+    },
+    "queue-research": {
+      "type": "mutation",
+      "mutation": "mutation QueueResearch($technology: String!, $force: String! = \"player\") { queueResearch(input: {force: $force, technology: $technology}) { tick force technology started currentResearch researchQueue } }"
+    },
+    "recipe": {
+      "type": "query",
+      "query": "query Recipe($input: RecipeInput!) { recipe(input: $input) { tick force player character name category energy enabled hiddenFromPlayerCrafting craftableCount ingredients { name type amount quality minimumTemperature maximumTemperature } products { name type amount amountMin amountMax probability quality temperature } } }"
+    },
+    "remove-many": {
+      "type": "mutation",
+      "mutation": "mutation RemoveMany($input: RemoveManyInput!) { removeMany(input: $input) { tick removed failed errors { index code message } items { name count } results { name unitNumber position { x y } } } }"
+    },
+    "research": {
+      "type": "query",
+      "query": "query Research($research: ResearchInsightsInput = {status: AVAILABLE}, $force: String! = \"player\", $surface: String! = \"nauvis\") { researchInsights(input: $research) { tick force researchEnabled progress currentTechnology researchQueue pageInfo { total limit offset hasMore } technologies { ...ResearchTechnologyFields } } scienceBudget(force: $force, surface: $surface) { tick force surface technology progress researchUnits remainingResearchUnits triggerResearch labCount missingPackLabCount sciencePacks { name nominalPacksLeft availableItems nominalShortfall missingLabCount perResearchUnit unsupportedLabCount } } }"
+    },
+    "resource-patches": {
+      "type": "query",
+      "query": "query ResourcePatches($input: WorldResourcesInput = {area: {leftTopX: -128, leftTopY: -128, rightBottomX: 128, rightBottomY: 128}, kinds: [\"resource\"], groupPatches: true, limit: 100}) { worldResources(input: $input) { tick surface force area { leftTopX leftTopY rightBottomX rightBottomY } drillRadius pageInfo { total limit offset hasMore } resourceTotal obstacleTotal waterTotal patches { name tiles totalAmount bounds { leftTopX leftTopY rightBottomX rightBottomY } centroid { x y } nearbyDrills { name position { x y } unitNumber } } worldEntries { kind name amount position { x y } requiredFluid fluidAmount nearbyDrills { name position { x y } unitNumber } } } }"
+    },
+    "safety": {
+      "type": "query",
+      "query": "query Safety($input: SafetyInput = {}) { safety(input: $input) { tick surface force evolutionFactor evolutionByTime evolutionByPollution evolutionByKills totalPollution killCounts { name count } enemies { pageInfo { total limit offset hasMore } entities { name type force position { x y } unitNumber health maxHealth status statusCode } } damaged { pageInfo { total limit offset hasMore } entities { name type force position { x y } unitNumber health maxHealth status statusCode } } pollution { position { x y } amount pollutant } playerAlerts { available player unavailableReason pageInfo { total limit offset hasMore } alerts { tick type typeCode prototype iconType iconName iconQuality areaMatchUnknown position { x y } messageJSON target { name type force position { x y } unitNumber health maxHealth status statusCode } } } } }"
+    },
+    "set-recipe": {
+      "type": "mutation",
+      "mutation": "mutation SetRecipe($input: SetRecipeInput!) { setRecipe(input: $input) { ...ActionResultFields } }"
+    },
+    "spawn-character": {
+      "type": "mutation",
+      "mutation": "mutation SpawnCharacter($input: CharacterSpawnInput!) { characterSpawn(input: $input) { character name unitNumber position { x y } } }"
+    },
+    "status": {
+      "type": "query",
+      "query": "query Status { status { ...StatusFields } }"
+    },
+    "stock": {
+      "type": "query",
+      "query": "query Stock($input: StockInput = {}) { stock(input: $input) { tick surface force itemPageInfo { total limit offset hasMore } items { item quality count } locationPageInfo { total limit offset hasMore } locations { ...StockLocationFields } totalPageInfo { total limit offset hasMore } totals { item quality count category } } }"
+    },
+    "trains": {
+      "type": "query",
+      "query": "query Trains($input: TrainsInput = {}) { trains(input: $input) { tick surface force pageInfo { total limit offset hasMore } trains { ...TrainFields } } }"
+    },
+    "transfer": {
+      "type": "mutation",
+      "mutation": "mutation Transfer($input: TransferInput!) { transfer(input: $input) { ...ActionResultFields } }"
+    },
+    "wait-until": {
+      "type": "mutation",
+      "mutation": "mutation WaitUntil($input: WaitUntilInput!) { waitUntil(input: $input) { satisfied timedOut tick waitedSeconds polls condition last { status } } }"
     }
+  },
+  "scripts": {
+    "briefing": {
+      "lang": "javascript",
+      "function": "run",
+      "source": "// Compact \"what needs attention\" read. Read-only.\n// Run with --strict=false: otherwise a GraphQL error throws and the envelope is lost.\n// gqlcli script --file .agents/skills/factorio-gameplay/scripts/briefing.js \\\n//   --arg '{\"watch\":[{\"item\":\"iron-plate\",\"minimum\":100}],\"area\":{\"leftTopX\":-128,\"leftTopY\":-128,\"rightBottomX\":128,\"rightBottomY\":128}}'\n// Input (all optional): surface, force, window (ONE_MINUTE|TEN_MINUTES|ONE_HOUR),\n//   area (\u003c=1024 tiles/side; omit = whole surface), watch [{item,minimum}], limit.\nasync function run(gql, input) {\n  input = input || {}\n  const vars = {\n    input: {\n      surface: input.surface || \"nauvis\",\n      force: input.force || \"player\",\n      window: input.window || \"ONE_MINUTE\",\n      attentionLimit: input.limit || 20,\n      watchItems: input.watch || [],\n    },\n  }\n  if (input.area) vars.input.area = input.area\n  const r = await gql.query(\n    `query($input: FactoryBriefingInput!) {\n      status { tick speed paused players { name } }\n      factoryBriefing(input: $input) {\n        attentionTotal\n        attentionCounts { kind count }\n        attention { kind severity entity unitNumber position { x y } count message }\n        machines { type total working noFuel noPower noIngredients outputFull idle other }\n        power { productionWatts consumptionWatts networks }\n        research { enabled currentTechnology progress queue }\n        construction { ghosts ghostsBuildable deconstructionOrders upgradeOrders }\n        production { item producedPerMinute consumedPerMinute }\n        stockouts { item have minimum shortfall actorHas }\n        warnings\n      }\n    }`,\n    vars\n  )\n  if (r.errors) return { errors: r.errors }\n  const b = r.data.factoryBriefing\n  return {\n    tick: r.data.status.tick,\n    paused: r.data.status.paused,\n    speed: r.data.status.speed,\n    attentionTotal: b.attentionTotal,\n    attentionCounts: b.attentionCounts,\n    attention: b.attention,\n    machines: b.machines,\n    power: b.power,\n    research: b.research,\n    construction: b.construction,\n    production: b.production.filter((p) =\u003e p.producedPerMinute || p.consumedPerMinute),\n    stockouts: b.stockouts,\n    warnings: b.warnings,\n  }\n}\n",
+      "description": "Factory briefing: status, production, attention items, research"
+    },
+    "inserter-audit": {
+      "lang": "javascript",
+      "function": "run",
+      "source": "// Verify every inserter in an area has a real pickup AND drop target. Read-only.\n// Run with --strict=false: otherwise a GraphQL error throws and the envelope is lost.\n// gqlcli script --file .agents/skills/factorio-gameplay/scripts/inserter-audit.js \\\n//   --arg '{\"area\":{\"leftTopX\":-120,\"leftTopY\":-45,\"rightBottomX\":-90,\"rightBottomY\":-34}}'\n// Input: area (\u003c=1024 tiles/side), surface, force. Uses factoryGraph, which returns each inserter with\n// its actual pickup/drop endpoint (machines, belts, chests). Returns only suspicious inserters.\n// Flags: NO_PICKUP / NO_DROP (empty tile or unsupported entity), SAME_ENDPOINT, and non-working status.\nasync function run(gql, input) {\n  const r = await gql.query(\n    `query($area: FactoryAreaInput!, $force: String!, $surface: String!) {\n      factoryGraph(area: $area, force: $force, surface: $surface) {\n        tick\n        inserters {\n          inserter { name unitNumber position { x y } direction status pickupPosition { x y } dropPosition { x y } }\n          pickup { name type unitNumber position { x y } }\n          drop { name type unitNumber position { x y } }\n        }\n      }\n    }`,\n    { area: input.area, force: input.force || \"player\", surface: input.surface || \"nauvis\" }\n  )\n  if (r.errors) return { errors: r.errors }\n  const g = r.data.factoryGraph\n  const issues = []\n  for (const c of g.inserters) {\n    const flags = []\n    if (!c.pickup) flags.push(\"NO_PICKUP\")\n    if (!c.drop) flags.push(\"NO_DROP\")\n    if (c.pickup \u0026\u0026 c.drop \u0026\u0026 c.pickup.unitNumber \u0026\u0026 c.pickup.unitNumber === c.drop.unitNumber) flags.push(\"SAME_ENDPOINT\")\n    const st = c.inserter.status\n    if (st \u0026\u0026 st !== \"working\" \u0026\u0026 st !== \"normal\" \u0026\u0026 st !== \"waiting_for_source_items\" \u0026\u0026 st !== \"waiting_for_space_in_destination\") flags.push(\"STATUS_\" + st)\n    if (flags.length) issues.push({ unitNumber: c.inserter.unitNumber, name: c.inserter.name, position: c.inserter.position,\n      direction: c.inserter.direction, pickupPosition: c.inserter.pickupPosition, dropPosition: c.inserter.dropPosition,\n      pickup: c.pickup \u0026\u0026 `${c.pickup.name}@${c.pickup.position.x},${c.pickup.position.y}`,\n      drop: c.drop \u0026\u0026 `${c.drop.name}@${c.drop.position.x},${c.drop.position.y}`, flags })\n  }\n  return { tick: g.tick, inserters: g.inserters.length, suspicious: issues.length, issues }\n}\n",
+      "description": "Verify every inserter in an area has pickup and drop targets"
+    },
+    "measure-rate": {
+      "lang": "javascript",
+      "function": "run",
+      "source": "// Measure real item rates as stock deltas between two game ticks. Read-only.\n// Run with --strict=false: otherwise a GraphQL error throws and the envelope is lost.\n// gqlcli script --file .agents/skills/factorio-gameplay/scripts/measure-rate.js \\\n//   --arg '{\"items\":[\"iron-plate\",\"copper-plate\"],\"ticks\":1800,\"area\":{\"leftTopX\":-8,\"leftTopY\":-40,\"rightBottomX\":8,\"rightBottomY\":-30}}'\n// Input: items [names] (required), ticks (default 1800 = 30 s game time; waits wall-clock\n//   ticks/60/speed seconds capped by the wait's 10 s wall-clock limit, so keep \u003c= 600 at speed 1\n//   or raise the speed), area (stock scope; omit = whole surface),\n//   surface, force.\n// Rate = delta stock / delta ticks * 3600 per minute. Stock is net of consumption: a consumed item\n// shows lower rate than produced. Use production() for produced-vs-consumed in the same window.\nasync function readStock(gql, input) {\n  const stockInput = {\n    surface: input.surface || \"nauvis\", force: input.force || \"player\",\n    itemsLimit: 500, itemsOffset: 0, limit: 1, offset: 0, totalsLimit: 1, totalsOffset: 0,\n  }\n  if (input.area) stockInput.area = input.area\n  const r = await gql.query(\n    `query($input: StockInput) { status { tick } stock(input: $input) { tick items { item quality count } } }`,\n    { input: stockInput }\n  )\n  if (r.errors) throw new Error(r.errors[0].message)\n  const byItem = {}\n  for (const it of r.data.stock.items) byItem[it.item] = (byItem[it.item] || 0) + it.count\n  return { tick: r.data.stock.tick, byItem }\n}\n\nasync function run(gql, input) {\n  const items = input.items || []\n  const ticks = input.ticks || 1800\n  const a = await readStock(gql, input)\n  const w = await gql.mutation(\n    `mutation($in: WaitUntilInput!) { waitUntil(input: $in) { satisfied timedOut tick } }`,\n    { in: { timeoutSeconds: 10, pollSeconds: 0.5, condition: { ticks } } }\n  )\n  if (w.errors) return { errors: w.errors }\n  const b = await readStock(gql, input)\n  const dt = b.tick - a.tick\n  const rates = {}\n  for (const item of items) {\n    const d = (b.byItem[item] || 0) - (a.byItem[item] || 0)\n    rates[item] = { before: a.byItem[item] || 0, after: b.byItem[item] || 0, delta: d,\n                    perMinute: dt \u003e 0 ? +(d / dt * 3600).toFixed(2) : null }\n  }\n  return { fromTick: a.tick, toTick: b.tick, ticks: dt, timedOut: w.data.waitUntil.timedOut, rates }\n}\n",
+      "description": "Measure production rates by delta over N ticks"
+    },
+    "place-row": {
+      "lang": "javascript",
+      "function": "run",
+      "source": "// Probe, then place a straight row/column/grid of one item. DRY RUN unless apply:true.\n// ALWAYS run with --strict=false: a throw hides the placeMany envelope, and a lost response is not proof of rollback.\n// gqlcli script --file .agents/skills/factorio-gameplay/scripts/place-row.js \\\n//   --arg '{\"actor\":{\"character\":\"70\"},\"item\":\"transport-belt\",\"start\":{\"x\":10.5,\"y\":4.5},\"step\":{\"x\":1,\"y\":0},\"count\":12,\"direction\":4}'\n// Input: actor {player|character}, item, start {x,y} (entity CENTER), step {x,y} per entity,\n//   count (\u003c=1000), direction (0..15, default 0), apply (default false), surface, force,\n//   underground: \"INPUT\"|\"OUTPUT\" (optional, for underground belts), message.\n// Behaviour: probePlacement on the covered box for the item; with any blocked tile the script returns\n//   the blockers and places nothing. Then (apply:true) checks stock and calls placeMany once.\n// Footprint note: probePlacement samples tile CENTERS for a 1x1 shape; for machines larger than 1x1 use\n//   nearestPlacement or probePlacement with mode SITES instead of this script.\nasync function run(gql, input) {\n  const surface = input.surface || \"nauvis\"\n  const force = input.force || \"player\"\n  const dir = input.direction || 0\n  const pts = []\n  for (let i = 0; i \u003c input.count; i++) {\n    pts.push({ x: input.start.x + i * input.step.x, y: input.start.y + i * input.step.y })\n  }\n  const xs = pts.map((p) =\u003e p.x), ys = pts.map((p) =\u003e p.y)\n  const area = {\n    leftTopX: Math.floor(Math.min(...xs)), leftTopY: Math.floor(Math.min(...ys)),\n    rightBottomX: Math.ceil(Math.max(...xs)) + 0.01, rightBottomY: Math.ceil(Math.max(...ys)) + 0.01,\n  }\n  const probe = await gql.query(\n    `query($input: PlacementProbeInput!) {\n      probePlacement(input: $input) { tick sampled placeable blocked\n        blockedTiles { position { x y } blockers terrain tile } }\n    }`,\n    { input: { surface, force, prototype: input.item, direction: dir, area,\n               mode: \"BLOCKED_TILES\", siteWidth: 1, siteHeight: 1, maxSites: 1 } }\n  )\n  if (probe.errors) return { stage: \"probe\", errors: probe.errors }\n  const p = probe.data.probePlacement\n  const blockedSet = new Set(p.blockedTiles.map((t) =\u003e `${t.position.x},${t.position.y}`))\n  const hits = pts.filter((q) =\u003e blockedSet.has(`${q.x},${q.y}`))\n  const result = { stage: \"probe\", tick: p.tick, planned: pts.length, blockedOnRoute: hits.length,\n                   blocked: p.blockedTiles.filter((t) =\u003e hits.some((h) =\u003e h.x === t.position.x \u0026\u0026 h.y === t.position.y)) }\n  if (hits.length) return { ...result, placed: 0, note: \"route blocked; nothing placed\" }\n  if (!input.apply) return { ...result, placed: 0, note: \"dry run; pass apply:true to place\" }\n\n  const placements = pts.map((q) =\u003e {\n    const e = { position: { x: q.x, y: q.y }, direction: dir }\n    if (input.underground) e.undergroundType = input.underground\n    return e\n  })\n  const m = await gql.mutation(\n    `mutation($input: PlaceManyInput!) {\n      placeMany(input: $input) { placed failed errors { index code message target { position { x y } } }\n        entities { name unitNumber position { x y } } }\n    }`,\n    { input: { actor: input.actor, surface, item: input.item, placements, message: input.message || null } }\n  )\n  if (m.errors) return { ...result, stage: \"place\", errors: m.errors, note: \"outcome uncertain: inspect before retry\" }\n  return { ...result, stage: \"place\", ...m.data.placeMany }\n}\n",
+      "description": "Place a row of entities along a step vector (dry run by default)"
+    },
+    "survey": {
+      "lang": "javascript",
+      "function": "run",
+      "source": "// Resource patch survey with distances from a point. Read-only.\n// Run with --strict=false: otherwise a GraphQL error throws and the envelope is lost.\n// gqlcli script --file .agents/skills/factorio-gameplay/scripts/survey.js \\\n//   --arg '{\"center\":{\"x\":0,\"y\":0},\"radius\":128}'\n// Input: center {x,y} (default 0,0), radius (default 128, max 128 -\u003e 256 tile box),\n//   resources [names] (default iron-ore, copper-ore, coal, stone, uranium-ore, crude-oil),\n//   surface, force.\nasync function run(gql, input) {\n  input = input || {}\n  const c = input.center || { x: 0, y: 0 }\n  const r = Math.min(input.radius || 128, 128)\n  const names = input.resources || [\"iron-ore\", \"copper-ore\", \"coal\", \"stone\", \"uranium-ore\", \"crude-oil\"]\n  const area = {\n    leftTopX: c.x - r, leftTopY: c.y - r, rightBottomX: c.x + r, rightBottomY: c.y + r,\n  }\n  const out = []\n  for (const name of names) {\n    const res = await gql.query(\n      `query($input: WorldResourcesInput!) {\n        worldResources(input: $input) {\n          tick pageInfo { total }\n          patches { name totalAmount tiles centroid { x y }\n            bounds { leftTopX leftTopY rightBottomX rightBottomY }\n            nearbyDrills { unitNumber } }\n        }\n      }`,\n      { input: { surface: input.surface || \"nauvis\", force: input.force || \"player\", area,\n                 groupPatches: true, resourceName: name, drillRadius: 2, limit: 50, offset: 0 } }\n    )\n    if (res.errors) { out.push({ name, error: res.errors[0].message }); continue }\n    for (const p of res.data.worldResources.patches) {\n      const dx = p.centroid.x - c.x, dy = p.centroid.y - c.y\n      out.push({\n        name: p.name, totalAmount: p.totalAmount, tiles: p.tiles,\n        centroid: p.centroid, bounds: p.bounds,\n        distance: Math.round(Math.sqrt(dx * dx + dy * dy)),\n        drills: p.nearbyDrills.length,\n      })\n    }\n  }\n  out.sort((a, b) =\u003e (a.distance || 1e9) - (b.distance || 1e9))\n  return out\n}\n",
+      "description": "Survey resource patches and terrain around a center"
+    },
+    "tech-path": {
+      "lang": "javascript",
+      "function": "run",
+      "source": "// Unresearched prerequisite closure of a technology, in a valid research order, with pack totals. Read-only.\n// Run with --strict=false: otherwise a GraphQL error throws and the envelope is lost.\n// gqlcli script --strict=false --file .agents/skills/factorio-gameplay/scripts/tech-path.js --arg '{\"technology\":\"rocket-silo\"}'\n// Input: technology (required), force (default player), labs (optional, estimates wall time at speed 1,\n//   ignoring lab-speed bonuses), unresearchedOnly (default true).\n// Output: order[] (name, units, unitSeconds, packs, trigger?, available), totals{units,labSeconds,packs},\n//   triggerTechs[] (must be satisfied by an action such as crafting/mining/building, not lab research).\nasync function run(gql, input) {\n  const force = input.force || \"player\"\n  const all = {}\n  for (let off = 0; ; off += 100) {\n    const r = await gql.query(\n      `query($f:String!,$o:Int!){ researchInsights(input:{force:$f,status:ALL,limit:100,offset:$o}){\n        pageInfo{ hasMore }\n        technologies{ name available researched enabled researchUnitCount researchUnitEnergy researchTriggerJSON\n          prerequisites{ name researched } scienceIngredients{ name amount } } } }`,\n      { f: force, o: off }\n    )\n    if (r.errors) return { errors: r.errors }\n    for (const t of r.data.researchInsights.technologies) all[t.name] = t\n    if (!r.data.researchInsights.pageInfo.hasMore) break\n  }\n  const target = all[input.technology]\n  if (!target) return { error: \"unknown technology \" + input.technology }\n  const seen = new Set(), order = []\n  const visit = (name) =\u003e {\n    if (seen.has(name)) return\n    seen.add(name)\n    const t = all[name]\n    if (!t) return\n    for (const p of t.prerequisites) if (!p.researched) visit(p.name)\n    if (!t.researched) order.push(t)\n  }\n  visit(input.technology)\n  const totals = { units: 0, labSeconds: 0, packs: {} }\n  const triggerTechs = []\n  const out = order.map((t) =\u003e {\n    const unitSeconds = t.researchUnitEnergy / 60\n    const packs = {}\n    for (const i of t.scienceIngredients) {\n      packs[i.name.replace(\"-science-pack\", \"\")] = i.amount * t.researchUnitCount\n      totals.packs[i.name] = (totals.packs[i.name] || 0) + i.amount * t.researchUnitCount\n    }\n    totals.units += t.researchUnitCount\n    totals.labSeconds += t.researchUnitCount * unitSeconds\n    const trig = t.researchTriggerJSON || null\n    if (trig) triggerTechs.push({ name: t.name, trigger: JSON.parse(trig) })\n    return { name: t.name, available: t.available, units: t.researchUnitCount, unitSeconds, packs, trigger: trig \u0026\u0026 JSON.parse(trig) }\n  })\n  const res = { target: input.technology, count: out.length, totals, triggerTechs, order: out }\n  if (input.labs) res.estimatedMinutesAtSpeed1 = +(totals.labSeconds / input.labs / 60).toFixed(1)\n  return res\n}\n",
+      "description": "Research critical path for a target technology"
+    }
+  },
+  "fragments": {
+    "ActionResultFields": "fragment ActionResultFields on ActionResult { tick player character force surface name entity unitNumber position { x y } direction item quality count inventory recipe transferDirection equipmentDirection available capacity inserted moved transferredStacks remaining requested started craftingComplete waitTimedOut waitedSeconds queueSize mined instant before turns returnedStacks items { ...InventoryStackFields } returned { ...InventoryStackFields } }",
+    "ActorFields": "fragment ActorFields on Actor { tick player character force surface position { x y } hasCharacter connected controllerType health }",
+    "BatchErrorFields": "fragment BatchErrorFields on BatchError { index code message target { entity surface position { x y } unitNumber } }",
+    "ConstructionOrderFields": "fragment ConstructionOrderFields on ConstructionOrder { name type position { x y } direction force unitNumber upgradeTarget upgradeQuality }",
+    "EntityFields": "fragment EntityFields on Entity { tick name type force surface position { x y } direction unitNumber amount distance }",
+    "FluidStockLocationFields": "fragment FluidStockLocationFields on FluidStockLocation { category entityName entityType inventoryKind unitNumber boxIndex productionType filter segmentId fluid amount temperature capacity position { x y } }",
+    "InspectionFields": "fragment InspectionFields on EntityInspection { tick name type unitNumber surface force position { x y } health maxHealth status statusName recipe craftingProgress miningProgress toBeDeconstructed nameTag tagsJSON parametersRawJSON inventories { main { ...InventoryStackFields } input { ...InventoryStackFields } output { ...InventoryStackFields } chest { ...InventoryStackFields } fuel { ...InventoryStackFields } modules { ...InventoryStackFields } ammo { ...InventoryStackFields } armor { ...InventoryStackFields } guns { ...InventoryStackFields } turretAmmo { ...InventoryStackFields } } fluids { name amount } heldStack { ...InventoryStackFields } pickupPosition { x y } dropPosition { x y } miningTarget { name type unitNumber position { x y } } missingSciencePacks { name supported available missing required } transportLines { items { ...InventoryStackFields } } beltNeighbours { name type unitNumber position { x y } } fluidboxNeighbours { name type unitNumber position { x y } } }",
+    "InventoryStackFields": "fragment InventoryStackFields on InventoryStack { name quality count }",
+    "ItemFlowEndpointFields": "fragment ItemFlowEndpointFields on ItemFlowEndpoint { name type surface force position { x y } unitNumber status materialType recipe recipeQuality miningTarget theoreticalRatePerSecond rateUnavailableReason bufferedItems { ...InventoryStackFields } bufferedFluidAmount }",
+    "LogisticsEndpointFields": "fragment LogisticsEndpointFields on LogisticsEndpoint { name type surface position { x y } unitNumber direction status pickupPosition { x y } dropPosition { x y } heldStack { ...InventoryStackFields } lanes { index lineName side items { ...InventoryStackFields } } }",
+    "MachineFields": "fragment MachineFields on FactoryMachine { name type unitNumber position { x y } status recipeName recipeQuality craftingProgress craftingSpeed electricBufferSize electricDrain energy miningProgress input { ...InventoryStackFields } output { ...InventoryStackFields } fuel { ...InventoryStackFields } machineFluids { index name amount temperature } recipeIngredients { name type amount quality minimumTemperature maximumTemperature } miningTarget { name position { x y } amount } diagnostics { tick recipe recipeQuality throughputUnavailableReason blocked { category rawStatusName rawStatusCode suggestedAction } power { electric connected connectedToProducingNetwork satisfaction networkId satisfactionUnavailableReason } throughput { actualCraftsPerSecond theoreticalCraftsPerSecond craftingSpeed productivityBonus recipeDurationSeconds theoreticalBaseProducts { name type expectedBaseUnitsPerCraft theoreticalBaseUnitsPerSecond } } shortfall { name type quality available missing requiredPerCraft minimumTemperatureCelsius maximumTemperatureCelsius } } }",
+    "PlaceManyResultFields": "fragment PlaceManyResultFields on PlaceManyResult { tick actor { player character } item surface force placed failed errors { ...BatchErrorFields } entities { ...PlacedEntityFields } }",
+    "PlacedEntityFields": "fragment PlacedEntityFields on PlacedEntity { name type position { x y } unitNumber }",
+    "PlayerInsightFields": "fragment PlayerInsightFields on PlayerInsight { tick player force surface position { x y } connected hasCharacter controllerType queueSize queueProgress items { ...InventoryStackFields } queue { recipe count } reach { canReachEntity distance targetPosition { x y } targetName unavailableReason } recipe { name category energy enabled hiddenFromPlayerCrafting craftableCount ingredients { name type available required unavailableReason } products { name type amount amountMin amountMax probability quality temperature } } }",
+    "PowerConsumerFields": "fragment PowerConsumerFields on PowerEntityInsight { name type unitNumber position { x y } status networkId connectedToProducingNetwork burningFuelJoules electricBufferJoules electricDrainJoulesPerTick energyJoules temperatureCelsius powerFluids { box name amount temperatureCelsius } }",
+    "ResearchTechnologyFields": "fragment ResearchTechnologyFields on ResearchInsightsTechnology { name available enabled researched inProgress level researchUnitCount researchUnitEnergy savedProgress prerequisites { name researched } scienceIngredients { name amount } effects { type recipe dataJSON } researchTriggerJSON }",
+    "StatusFields": "fragment StatusFields on Status { tick speed paused players { name surface position { x y } actor { ...ActorFields } } }",
+    "StockLocationFields": "fragment StockLocationFields on StockLocation { category entityName entityType inventoryKind unitNumber player position { x y } stack { name quality count } }",
+    "TrainFields": "fragment TrainFields on TrainInfo { trainId tick surface force actor { player character } status { terminal rawCode rawName category } manualMode speed locomotives wagons fluidWagons frontPosition { x y } station pathEndStop scheduleIndex destination carriages { unitNumber name type position { x y } direction } cargo { name quality count } fluids { name amount } schedule { station waitConditionRawJSON waitConditions { ticks rawType compareType type station damage condition { comparator constant fulfilled firstSignal { type name quality } secondSignal { type name quality } } } } }"
   }
 }

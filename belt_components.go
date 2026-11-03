@@ -134,9 +134,10 @@ local out={}
 for index,c in ipairs(components) do
   local nodes,sources,sinks,stall,starve={},{},{},{},{}
   local items,item_index,item_total={},{},0
-  local side_names,side_mixed={},false
+  local side_mixed=false
   for _,e in ipairs(c.nodes) do
     local obj=endpoint(e)
+    local side_names={}
     nodes[#nodes+1]=obj
     for _,lane in ipairs(obj.lanes or {}) do
       local side=lane.side or "unknown"
@@ -154,6 +155,11 @@ for index,c in ipairs(components) do
         item_total=item_total+(stack.count or 0)
       end
     end
+    for _,names in pairs(side_names) do
+      local distinct=0
+      for _ in pairs(names) do distinct=distinct+1 end
+      if distinct>1 then side_mixed=true end
+    end
     local fed=c.inputs[key(e)]
     local drained=c.outputs[key(e)]
     if not fed then
@@ -164,11 +170,6 @@ for index,c in ipairs(components) do
       sinks[#sinks+1]=obj
       if not c.picked[key(e)] then stall[#stall+1]=obj end
     end
-  end
-  for _,names in pairs(side_names) do
-    local distinct=0
-    for _ in pairs(names) do distinct=distinct+1 end
-    if distinct>1 then side_mixed=true end
   end
   local shared_pickups=0
   for _,count in pairs(c.pickup_counts) do

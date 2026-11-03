@@ -132,6 +132,35 @@ local function entity_meta_fields(entity)
     local ok_underground,underground=pcall(function() return entity.neighbours end)
     if ok_underground and underground~=nil then meta.underground_neighbour=entity_meta_neighbour(underground) end
   end
+  -- A ghost's own prototype is always "entity-ghost": the prototype it would
+  -- build, its quality and its recipe live on the ghost-only fields, so an
+  -- inspection meant to audit a blueprint would otherwise see nothing useful.
+  -- type=="entity-ghost" gates the block because ghost_prototype and
+  -- get_recipe are ghost-only reads; every read stays pcall-guarded so a ghost
+  -- that the engine marks invalid still returns the rest of the snapshot.
+  if entity.type=="entity-ghost" then
+    local ghost_name=nil
+    local ok_proto,proto=pcall(function() return entity.ghost_prototype end)
+    if ok_proto and proto~=nil then
+      local ok_proto_name,proto_name=pcall(function() return proto.name end)
+      if ok_proto_name and type(proto_name)=="string" and proto_name~="" then ghost_name=proto_name end
+    end
+    if ghost_name==nil then
+      local ok_fallback,fallback=pcall(function() return entity.ghost_name end)
+      if ok_fallback and type(fallback)=="string" and fallback~="" then ghost_name=fallback end
+    end
+    if ghost_name~=nil then meta.ghost_name=ghost_name end
+    local ok_quality,quality=pcall(function() return entity.quality end)
+    if ok_quality and quality~=nil then
+      local ok_quality_name,quality_name=pcall(function() return quality.name end)
+      if ok_quality_name and type(quality_name)=="string" and quality_name~="" then meta.ghost_quality=quality_name end
+    end
+    local ok_recipe,recipe=pcall(function() return entity.get_recipe() end)
+    if ok_recipe and recipe~=nil then
+      local ok_recipe_name,recipe_name=pcall(function() return recipe.name end)
+      if ok_recipe_name and type(recipe_name)=="string" and recipe_name~="" then meta.ghost_recipe=recipe_name end
+    end
+  end
   local ok_belt,belt=pcall(function() return entity.belt_neighbours end)
   if ok_belt and type(belt)=="table" then
     local seen={}; local list={}

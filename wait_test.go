@@ -51,29 +51,33 @@ func serveLuaRepeated(t *testing.T, response string) (*Resolver, <-chan string) 
 
 // A satisfied first poll must return immediately with the observed facts and a
 // single read that only compares the game tick.
-func TestWaitUntilTickSatisfied(t *testing.T) {
-	r, commands := serveLuaOnce(t, `{"tick":500,"satisfied":true,"count":500,"detail":"game tick 500 of 100"}`)
+func TestWaitUntilTicksSatisfied(t *testing.T) {
+	r, commands := serveLuaRepeated(t, `{"tick":500,"satisfied":true,"count":50,"detail":"waited 50 of 50 ticks"}`)
 	result, err := waitUntil(context.Background(), r, WaitUntilInput{
 		TimeoutSeconds: 5, PollSeconds: 0.05,
-		Condition: &WaitConditionInput{Tick: new(100.0)},
+		Condition: &WaitConditionInput{Ticks: new(50.0)},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Satisfied || result.TimedOut || result.Polls != 1 || result.Condition != WaitConditionKindTick {
+	if !result.Satisfied || result.TimedOut || result.Polls != 1 || result.Condition != WaitConditionKindTicks {
 		t.Fatalf("result: %+v", result)
 	}
-	if result.Last == nil || result.Last.Count == nil || *result.Last.Count != 500 || result.Last.Detail == "" {
+	if result.Last == nil || result.Last.Count == nil || *result.Last.Count != 50 || result.Last.Detail == "" {
 		t.Fatalf("last observation: %+v", result.Last)
 	}
+	baseline := <-commands
+	if !strings.Contains(baseline, "local tick=game.tick") || strings.Contains(baseline, "create_entity") {
+		t.Fatalf("baseline read must only sample the tick: %s", baseline)
+	}
 	lua := <-commands
-	for _, want := range []string{"local target=100", "tick>=target", "game.tick"} {
+	for _, want := range []string{"local baseline=500", "local target=550", "local want=50", "tick>=target"} {
 		if !strings.Contains(lua, want) {
-			t.Fatalf("tick poll Lua missing %q\n%s", want, lua)
+			t.Fatalf("ticks poll Lua missing %q\n%s", want, lua)
 		}
 	}
 	if strings.Contains(lua, "create_entity") || strings.Contains(lua, "inv.") {
-		t.Fatalf("tick poll must not touch the world: %s", lua)
+		t.Fatalf("ticks poll must not touch the world: %s", lua)
 	}
 }
 
@@ -252,21 +256,20 @@ func TestWaitUntilConditionLua(t *testing.T) {
 // Invalid inputs must fail before any RCON poll.
 func TestWaitUntilValidation(t *testing.T) {
 	r := &Resolver{addr: "127.0.0.1:1", password: "password"}
-	both := &WaitConditionInput{Tick: new(5.0), Research: &WaitResearchInput{Force: "player", Technology: "automation"}}
+	both := &WaitConditionInput{Ticks: new(5.0), Research: &WaitResearchInput{Force: "player", Technology: "automation"}}
 	none := &WaitConditionInput{}
 	cases := []struct {
 		name  string
 		input WaitUntilInput
 		want  string
 	}{
-		{"timeout low", WaitUntilInput{TimeoutSeconds: 0.5, PollSeconds: 0.25, Condition: &WaitConditionInput{Tick: new(1.0)}}, "timeoutSeconds must be between"},
-		{"timeout high", WaitUntilInput{TimeoutSeconds: 301, PollSeconds: 0.25, Condition: &WaitConditionInput{Tick: new(1.0)}}, "timeoutSeconds must be between"},
-		{"poll low", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 0.01, Condition: &WaitConditionInput{Tick: new(1.0)}}, "pollSeconds must be between"},
-		{"poll high", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 6, Condition: &WaitConditionInput{Tick: new(1.0)}}, "pollSeconds must be between"},
+		{"timeout low", WaitUntilInput{TimeoutSeconds: 0.5, PollSeconds: 0.25, Condition: &WaitConditionInput{Ticks: new(1.0)}}, "timeoutSeconds must be at least 1"},
+		{"poll low", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 0.01, Condition: &WaitConditionInput{Ticks: new(1.0)}}, "pollSeconds must be between"},
+		{"poll high", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 6, Condition: &WaitConditionInput{Ticks: new(1.0)}}, "pollSeconds must be between"},
 		{"no condition", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 0.25, Condition: none}, "exactly one field"},
 		{"two conditions", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 0.25, Condition: both}, "exactly one field"},
 		{"nil condition", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 0.25}, "condition is required"},
-		{"negative tick", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 0.25, Condition: &WaitConditionInput{Tick: new(-1.0)}}, "tick must be finite"},
+		{"zero ticks", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 0.25, Condition: &WaitConditionInput{Ticks: new(0.0)}}, "ticks must be finite and greater than 0"},
 		{"empty item", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 0.25, Condition: &WaitConditionInput{Inventory: &WaitInventoryInput{Actor: &ActorInput{Character: new("1")}, Count: 1}}}, "item must not be empty"},
 		{"zero count", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 0.25, Condition: &WaitConditionInput{Inventory: &WaitInventoryInput{Actor: &ActorInput{Character: new("1")}, Item: "iron-plate", Quality: "normal"}}}, "count must be finite and greater than 0"},
 		{"empty status list", WaitUntilInput{TimeoutSeconds: 5, PollSeconds: 0.25, Condition: &WaitConditionInput{MachineStatus: &WaitMachineStatusInput{Target: &EntityRefInput{UnitNumber: new("2")}}}}, "statuses must contain between"},
@@ -296,7 +299,7 @@ func TestWaitUntilContextCanceled(t *testing.T) {
 	go func() {
 		_, err := waitUntil(ctx, r, WaitUntilInput{
 			TimeoutSeconds: 30, PollSeconds: 0.2,
-			Condition: &WaitConditionInput{Tick: new(1e9)},
+			Condition: &WaitConditionInput{Ticks: new(1e9)},
 		})
 		done <- err
 	}()
@@ -309,5 +312,25 @@ func TestWaitUntilContextCanceled(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("waitUntil did not stop after cancel")
+	}
+}
+
+// Every wait is capped at 10 seconds; larger requests are clamped rather than
+// rejected so an agent cannot block the CLI for minutes.
+func TestClampWaitSeconds(t *testing.T) {
+	if got := clampWaitSeconds(3600); got != 10*time.Second {
+		t.Fatalf("clampWaitSeconds(3600) = %v, want 10s", got)
+	}
+	if got := clampWaitSeconds(7); got != 7*time.Second {
+		t.Fatalf("clampWaitSeconds(7) = %v, want 7s", got)
+	}
+}
+
+func TestWaitTickTarget(t *testing.T) {
+	if got := waitTickTarget(100, 50); got != 150 {
+		t.Fatalf("waitTickTarget(100, 50) = %v, want 150", got)
+	}
+	if got := waitTickTarget(100.5, 2); got != 103 {
+		t.Fatalf("waitTickTarget(100.5, 2) = %v, want 103", got)
 	}
 }

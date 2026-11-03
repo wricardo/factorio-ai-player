@@ -13,6 +13,7 @@ Authority order: live game state and the live schema (`gqlcli describe ...`) > r
 
 | Task | Read |
 |---|---|
+| End-to-end build order from empty map to verified rocket launch (phases, gates, research sequence, parallel tracks) | [`factorio-scratch-to-rocket`](../factorio-scratch-to-rocket/SKILL.md) |
 | Running gqlcli, scripts, waiting, error handling, `--strict`, CWD trap | [references/gqlcli-workflow.md](references/gqlcli-workflow.md) |
 | Which query/mutation to use; semantics of each; new ops (`factoryBriefing`, `factoryAlerts`, `inspectMany`, `entitySettings`, `itemBalance`, `connectEntities`, `placeNextTo`, `nearestPlacement`, `mapArea`, `prototype`, `waitUntil`, `navigationActive`, `circuitNetworks`, `fluidSegments`, `trainStops`, `upgradeArea`, `setConstantCombinator`, `fuelMany`, `transferMany`) | [references/api-map.md](references/api-map.md) |
 | Where to put things: coordinates, footprints, **inserter direction rule**, belts/lanes, pole reach, worked cell layouts | [references/spatial-and-geometry.md](references/spatial-and-geometry.md) |
@@ -42,7 +43,7 @@ Normative. MUST = required, violating it makes the action wrong. SHOULD = defaul
 2. **Observe, plan, act, verify, in that order.** Never run a long mutation chain against assumed state; a live read after the write is the only proof.
 3. **Exact engine names.** Items, recipes, technologies, entities, fluids, inventories come from `prototype`, `itemRecipes`, `researchInsights`, `recipe`. Never translate a display name from memory.
 4. **Address entities with `entity` AND `unitNumber`** (`{entity:"lab", unitNumber:"60"}`), or `entity` + exact center `position`. `{unitNumber}` alone fails (`prototype is not resolvable by unit number alone; pass entity too`). Keep the unit numbers placement returned.
-5. **Compute geometry, do not guess it.** Inserter `direction` is the DROP side: `0`=+y, `4`=-x, `8`=-y, `12`=+x, so its pickup is the opposite tile (verified live on Factorio 2.0.77 by `pickupPosition`/`dropPosition` on u1211, u1623, u1692, ticks 1507030-1513866). Belt `direction` in this save is **inverted from older notes on the y axis**: `8` moves items toward +y and `0` toward -y, while `4`=+x and `12`=-x as usual (verified by observed pack movement and `beltComponents` `stallEnds`). **An underground entrance accepts a feed only from directly behind it** (the tile opposite its facing): a perpendicular belt cannot feed a tunnel mouth, and a tunnel entirely inside a one-tile corridor has no usable exit. Odd footprints centre on `.5`, even on integers. Re-read `pickupPosition`/`dropPosition` and `beltStretch` after placing. See `spatial-and-geometry.md`.
+5. **Compute geometry, do not guess it.** Inserter `direction` points at its **PICKUP** side, so it drops on the opposite tile: `0` pickup north / drop +y, `4` pickup east / drop -x, `8` pickup south / drop -y, `12` pickup west / drop +x (verified live on Factorio 2.0.77 by `pickupPosition`/`dropPosition` on u1211, u1623, u1692, ticks 1507030-1513866). A **mining drill** is the other way round — `direction` is its DROP side: `0`=north (-y), `4`=east (+x), `8`=south (+y), `12`=west (-x), the same sense as belts (live ticks 2919457 and 3672835; `spatial-and-geometry.md` section 5). Belt `direction` in this save is **inverted from older notes on the y axis**: `8` moves items toward +y and `0` toward -y, while `4`=+x and `12`=-x as usual (verified by observed pack movement and `beltComponents` `stallEnds`). **An underground entrance accepts a feed only from directly behind it** (the tile opposite its facing): a perpendicular belt cannot feed a tunnel mouth, and a tunnel entirely inside a one-tile corridor has no usable exit. Odd footprints centre on `.5`, even on integers. Re-read `pickupPosition`/`dropPosition` and `beltStretch` after placing. See `spatial-and-geometry.md`.
 6. **Keep changes bounded.** One machine, one belt segment, one cell, then inspect and measure. Clone only a verified block.
 7. **Re-read the target immediately before every write.** Other agents share this save; unfamiliar unit numbers, structures and tags are theirs.
 8. **`save` before any authorized restart.** `shutdown` does not save; `just restart` can silently switch saves.
@@ -110,7 +111,7 @@ gqlcli script --strict=false --file .agents/skills/factorio-gameplay/scripts/bri
 1. **Baseline:** tick, actor, inventory, targets, research, power; `factoryBriefing` for attention items.
 2. **Binding constraint:** recipe/tech, stock, space, power, input flow, output capacity (`production-math.md` section 8).
 3. **Smallest complete change:** one functional unit with its fuel/power/input/output.
-4. **Stabilize:** `waitUntil` (status, fluid, inventory, research, production, tick) instead of polling; re-read after at least one machine cycle.
+4. **Stabilize:** `waitUntil` (status, fluid, inventory, research, production, ticks) instead of polling; re-read after at least one machine cycle.
 5. **Prove:** status leaves the bad state, rate moves, inserters have real endpoints. If proof fails, diagnose the changed path before adding capacity.
 
 Prefer the purpose-built operations: `connectionPlan`/`connectEntities` for belt/pipe/pole runs, `placeNextTo` for adjacent buildings, `nearestPlacement`/`probePlacement(SITES)` for sites, `prototype` for sizes/stack/fuel, `mapArea` for text maps, `fuelMany`/`transferMany`/`placeMany`/`removeMany` for batches, `waitUntil` to wait.
@@ -178,7 +179,7 @@ mutation { transfer(input:{actor:{character:"123"}, target:{entity:"assembling-m
     logistics { inserters { inserter { name position { x y } pickupPosition { x y } dropPosition { x y } } pickup { name } drop { name } } } } }
 
 # wait, then measure
-mutation { waitUntil(input:{timeoutSeconds:60, condition:{ machineStatus:{ target:{entity:"assembling-machine-1", unitNumber:"456"}, statuses:["working"] } } }) { satisfied timedOut tick last { status } } }
+mutation { waitUntil(input:{timeoutSeconds:10, condition:{ machineStatus:{ target:{entity:"assembling-machine-1", unitNumber:"456"}, statuses:["working"] } } }) { satisfied timedOut tick last { status } } }
 ```
 
 `gqlcli describe` any operation before copying an example into a consequential mutation. More recipes (resources, routing, belts measurement, research, diagnose) are in `api-map.md` and the topic references.
@@ -201,7 +202,7 @@ Time is the scarce resource; production advances whether or not the actor is bus
 
 **Survey and choose a site** (`bootstrap-and-progression.md`, `spatial-and-geometry.md`): `scripts/survey.js` for patches; `worldResources(groupPatches:true)`; `mapArea`; `probePlacement(SITES)` / `nearestPlacement`; check pole reach, belt/pipe route and expansion room. Proof: footprint legal, resource present, no conflicts, bounds and endpoints recorded.
 
-**Obtain materials:** `stock` and `inventory`, then `recipe`/`itemRecipes`/`billOfMaterials`; `mine`/`harvestArea` for raw; `craft(wait:true)` only for bootstrap; `transfer` from known containers. Re-read inventory after queued actions.
+**Obtain materials:** `stock` and `inventory`, then `recipe`/`itemRecipes`/`billOfMaterials`; `mine`/`harvestArea` for raw; `craft(wait:true)` only for bootstrap; `transfer` from known containers. Re-read inventory after queued actions. Where is an item: `gqlcli query --op stock --variables '{"input":{"item":"inserter"}}'` (saved `stock` op, rows carry `unitNumber`); `category: STORED` = chests/machines you can take from, `PLAYER`/`WORKER` = carried, `IN_TRANSIT` = belt traffic, not retrievable.
 
 **Build a production cell** (`spatial-and-geometry.md` section 6): recipe discovery, bill of materials, probe, obtain all items first, place machine, `setRecipe`, place inserters/belts from endpoint toward machine, power, bounded output, then `inserter-audit.js` and a status/progress proof. Never add a second machine until the first works.
 
@@ -216,7 +217,7 @@ Time is the scarce resource; production advances whether or not the actor is bus
 ## Common traps (full list: engine-traps.md)
 
 - `{unitNumber}` alone is rejected; send `entity` too. Underground belt halves need `undergroundType` `INPUT` on the entrance and `OUTPUT` on the exit, but they pair across calls: a facing half placed later completes the tunnel.
-- Inserter direction = DROP side (`0`:+y, `4`:-x, `8`:-y, `12`:+x); pickup is the opposite tile. Belt direction is inverted on y in this save (`8`=+y, `0`=-y; `4`=+x, `12`=-x). Verified live on 2.0.77, ticks 1507030-1513866.
+- Inserter direction points at its PICKUP side (`0`:pickup north/drop +y, `4`:east/-x, `8`:south/-y, `12`:west/+x). Belt direction is inverted on y in this save (`8`=+y, `0`=-y; `4`=+x, `12`=-x). Verified live on 2.0.77, ticks 1507030-1513866. **Mining drills differ: `direction` is the DROP side** — `0` drops north (-y), `4` east (+x), `8` south (+y), `12` west (-x), i.e. the belt sense, opposite the inserter (live ticks 2919457, 3672835; `spatial-and-geometry.md` section 5).
 - Underground entrances accept a feed only from directly behind (opposite the facing); a perpendicular belt cannot feed a tunnel mouth, and a tunnel inside a 1-tile-wide corridor cannot exit it.
 - `setDirection`/`rotate` do not work on belts/rails in 2.0.77; place with the final direction. `placeBlueprint` only rotates in 90° steps, so its `direction` must be 0/4/8/12.
 - `setContainerBar allowedSlots:0` leaves 0 usable slots (`transfer` shows `moved:0`); null removes the limit. `transfer` also reports `bar`, `toBeDeconstructed`, and `reason` (`BAR_LIMITED`, `NO_CAPACITY`, `NO_SOURCE`, `MARKED_FOR_DECONSTRUCTION`, `FILTERED`).

@@ -238,6 +238,102 @@ assert(recipe and recipe.name=="iron-gear-wheel", "ghost recipe is "..tostring(r
 rcon.print("ok")`)
 	})
 
+	t.Run("GhostInspectionReportsPrototype", func(t *testing.T) {
+		// A blueprint plan is only auditable if a ghost reports the prototype it
+		// would build, so the round trip the ticket describes is exercised
+		// end to end: export entities, place them as ghosts, inspect the ghosts.
+		const area = `{leftTopX:24,leftTopY:-16,rightBottomX:36,rightBottomY:-6}`
+		t.Cleanup(func() {
+			if h.isStopped() {
+				return
+			}
+			h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+if surface then
+  for _,e in pairs(surface.find_entities_filtered{area=`+luaBounds(area)+`}) do if e.valid and e.type~="character" then e.destroy() end end
+end
+rcon.print("ok")`)
+		})
+		character := h.spawnCharacter(t)
+		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
+
+		exported := h.mutation(t, `mutation {
+		  createBlueprintFromEntities(input:{entities:[
+		    {name:"assembling-machine-1",position:{x:0.5,y:0.5},direction:0,recipe:"iron-gear-wheel"},
+		    {name:"transport-belt",position:{x:3.5,y:0.5},direction:4}
+		  ]}) { blueprint entityCount }
+		}`)
+		blueprint := jsonString(t, jsonObject(t, jsonObject(t, exported, "data"), "createBlueprintFromEntities"), "blueprint")
+		placed := h.mutation(t, fmt.Sprintf(`mutation {
+		  placeBlueprint(input:{surface:%q,force:"player",blueprint:%q,position:{x:30,y:-10}}) {
+		    ghosts entityCount entities { name type unitNumber }
+		  }
+		}`, integrationSurface, blueprint))
+		placeResult := jsonObject(t, jsonObject(t, placed, "data"), "placeBlueprint")
+		ghosts := jsonArray(t, placeResult, "entities")
+		if count := jsonNumber(t, placeResult, "ghosts"); float64(len(ghosts)) != count || count != 2 {
+			t.Fatalf("ghosts=%v entities=%d, want 2; result=%v", count, len(ghosts), placeResult)
+		}
+		var targets strings.Builder
+		for i, raw := range ghosts {
+			row := raw.(map[string]any)
+			if i > 0 {
+				targets.WriteString(",")
+			}
+			fmt.Fprintf(&targets, `{entity:"entity-ghost",unitNumber:%q}`, jsonString(t, row, "unitNumber"))
+		}
+		// A real entity in the same read proves the ghost fields stay null
+		// instead of leaking the ghost prototype onto everything.
+		h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+local chest=surface.create_entity{name="wooden-chest",position={x:34.5,y=-13.5},force="player"}
+assert(chest and chest.valid)
+rcon.print("ok")`)
+		targets.WriteString(`,{entity:"wooden-chest",position:{x:34.5,y:-13.5}}`)
+		inspected := h.query(t, fmt.Sprintf(`{
+		  inspectMany(input:{actor:{character:%q},surface:%q,targets:[%s]}) {
+		    results { index unitNumber error inspection { name type direction ghostName ghostQuality ghostRecipe } }
+		  }
+		}`, character.id, integrationSurface, targets.String()))
+		results := jsonArray(t, jsonObject(t, jsonObject(t, inspected, "data"), "inspectMany"), "results")
+		if len(results) != 3 {
+			t.Fatalf("results=%d, want 3: %v", len(results), results)
+		}
+		prototypes := map[string]map[string]any{}
+		for _, raw := range results {
+			row := raw.(map[string]any)
+			if message, ok := row["error"]; ok && message != nil {
+				t.Fatalf("inspect row failed: %v", row)
+			}
+			inspection := jsonObject(t, row, "inspection")
+			if jsonString(t, inspection, "type") != "entity-ghost" {
+				// The real chest: every ghost-only field must be null.
+				for _, field := range []string{"ghostName", "ghostQuality", "ghostRecipe"} {
+					if value, ok := inspection[field]; !ok || value != nil {
+						t.Fatalf("%s on a real entity = %v, want null: %v", field, value, inspection)
+					}
+				}
+				continue
+			}
+			prototypes[jsonString(t, inspection, "ghostName")] = inspection
+		}
+		machine, ok := prototypes["assembling-machine-1"]
+		if !ok {
+			t.Fatalf("ghost prototype set = %v, want assembling-machine-1 and transport-belt", prototypes)
+		}
+		if recipe, _ := machine["ghostRecipe"].(string); recipe != "iron-gear-wheel" {
+			t.Fatalf("ghostRecipe = %v, want the recipe carried by the ghost", machine["ghostRecipe"])
+		}
+		if quality, _ := machine["ghostQuality"].(string); quality != "normal" {
+			t.Fatalf("ghostQuality = %v, want normal", machine["ghostQuality"])
+		}
+		belt, ok := prototypes["transport-belt"]
+		if !ok {
+			t.Fatalf("ghost prototype set = %v, want the belt ghost", prototypes)
+		}
+		if direction := jsonNumber(t, belt, "direction"); direction != 4 {
+			t.Fatalf("belt ghost direction = %v, want 4", direction)
+		}
+	})
+
 	t.Run("CharacterSpawnInventory", func(t *testing.T) {
 		character := h.spawnCharacter(t)
 		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
@@ -275,6 +371,86 @@ rcon.print("ok")`)
 		}`, character.id, integrationSurface, unit))
 		if got := jsonNumber(t, jsonObject(t, jsonObject(t, returned, "data"), "transfer"), "moved"); got != 1 {
 			t.Fatalf("return transfer moved=%v, want 1", got)
+		}
+	})
+
+	t.Run("CraftPlanHandCrafting", func(t *testing.T) {
+		character := h.spawnCharacter(t)
+		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
+		// The sandbox starts with almost nothing researched; hand crafting needs
+		// the inserter chain enabled on the character's force.
+		h.lua(t, `for _,recipe in pairs(game.forces.player.recipes) do recipe.enabled=true end
+rcon.print("ok")`)
+
+		// Empty inventory: the plan must report the non-hand-craftable raws and
+		// the mutation must refuse to queue anything.
+		planned := h.query(t, fmt.Sprintf(`{
+		  craftPlan(input:{actor:{character:%q},recipe:"inserter"}) {
+		    complete steps { recipe count } missing { name type amount }
+		  }
+		}`, character.id))
+		plan := jsonObject(t, jsonObject(t, planned, "data"), "craftPlan")
+		if complete, _ := plan["complete"].(bool); complete {
+			t.Fatalf("plan with an empty inventory must be incomplete: %v", plan)
+		}
+		missing := jsonArray(t, plan, "missing")
+		missingAmount := func(name string) float64 {
+			for _, raw := range missing {
+				row := raw.(map[string]any)
+				if row["name"] == name {
+					amount, _ := row["amount"].(float64)
+					return amount
+				}
+			}
+			return 0
+		}
+		if missingAmount("iron-plate") != 4 || missingAmount("copper-plate") != 2 {
+			t.Fatalf("missing raws = %v, want iron-plate 4 and copper-plate 2", missing)
+		}
+		steps := jsonArray(t, plan, "steps")
+		if len(steps) == 0 || jsonString(t, steps[len(steps)-1].(map[string]any), "recipe") != "inserter" {
+			t.Fatalf("plan steps must end with the requested recipe: %v", steps)
+		}
+
+		refused := h.mutation(t, fmt.Sprintf(`mutation {
+		  craftPlan(input:{actor:{character:%q},recipe:"inserter"}) {
+		    complete queued { recipe } missing { name } queueSize
+		  }
+		}`, character.id))
+		refusedResult := jsonObject(t, jsonObject(t, refused, "data"), "craftPlan")
+		if queued := jsonArray(t, refusedResult, "queued"); len(queued) != 0 {
+			t.Fatalf("missing raws must queue nothing, got %v", queued)
+		}
+		if size := jsonNumber(t, refusedResult, "queueSize"); size != 0 {
+			t.Fatalf("refused plan left queueSize=%v, want 0", size)
+		}
+
+		// Supply the raws: the plan becomes complete and performs bottom-up.
+		h.grantItems(t, character.id, map[string]int{"iron-plate": 4, "copper-plate": 2})
+		crafted := h.mutation(t, fmt.Sprintf(`mutation {
+		  craftPlan(input:{actor:{character:%q},recipe:"inserter",waitTimeoutSeconds:10}) {
+		    complete queued { recipe count } remaining { recipe } missing { name } queueSize waitTimedOut
+		  }
+		}`, character.id))
+		result := jsonObject(t, jsonObject(t, crafted, "data"), "craftPlan")
+		if complete, _ := result["complete"].(bool); !complete {
+			t.Fatalf("craftPlan did not finish: %v", result)
+		}
+		if timedOut, _ := result["waitTimedOut"].(bool); timedOut {
+			t.Fatalf("craftPlan timed out: %v", result)
+		}
+		if remaining := jsonArray(t, result, "remaining"); len(remaining) != 0 {
+			t.Fatalf("craftPlan left %v pending", remaining)
+		}
+		queued := jsonArray(t, result, "queued")
+		if len(queued) < 4 {
+			t.Fatalf("queued steps = %v, want cable, circuit, gear, and inserter crafts", queued)
+		}
+
+		inventory := h.query(t, fmt.Sprintf(`{ inventory(input:{character:%q}) { items { name count } } }`, character.id))
+		items := jsonArray(t, jsonObject(t, jsonObject(t, inventory, "data"), "inventory"), "items")
+		if !hasItem(items, "inserter", 1) {
+			t.Fatalf("hand-crafted inserter missing from inventory: %v", items)
 		}
 	})
 
@@ -860,31 +1036,33 @@ rcon.print("ok")`)
 		}
 	})
 
-	t.Run("WaitUntilTick", func(t *testing.T) {
+	t.Run("WaitUntilTicks", func(t *testing.T) {
 		current := h.status(t)
-		target := current + 20
 		started := time.Now()
-		result := h.mutation(t, fmt.Sprintf(`mutation {
-		  waitUntil(input:{timeoutSeconds:5,pollSeconds:0.05,condition:{tick:%g}}) {
+		result := h.mutation(t, `mutation {
+		  waitUntil(input:{timeoutSeconds:5,pollSeconds:0.05,condition:{ticks:20}}) {
 		    tick condition satisfied timedOut polls waitedSeconds
 		    last { tick count detail }
 		  }
-		}`, target))
+		}`)
 		wait := jsonObject(t, jsonObject(t, result, "data"), "waitUntil")
 		if !jsonBool(t, wait, "satisfied") || jsonBool(t, wait, "timedOut") {
-			t.Fatalf("tick wait: %v", wait)
+			t.Fatalf("ticks wait: %v", wait)
 		}
-		if condition := jsonString(t, wait, "condition"); condition != "TICK" {
-			t.Fatalf("condition=%q, want TICK", condition)
+		if condition := jsonString(t, wait, "condition"); condition != "TICKS" {
+			t.Fatalf("condition=%q, want TICKS", condition)
 		}
-		if tick := jsonNumber(t, wait, "tick"); tick < target {
-			t.Fatalf("satisfied at tick=%v before target=%v", tick, target)
+		if tick := jsonNumber(t, wait, "tick"); tick < current+20 {
+			t.Fatalf("satisfied at tick=%v before target=%v", tick, current+20)
+		}
+		if count := jsonNumber(t, jsonObject(t, wait, "last"), "count"); count < 20 {
+			t.Fatalf("elapsed ticks=%v before target=20", count)
 		}
 		if polls := jsonNumber(t, wait, "polls"); polls < 1 {
 			t.Fatalf("polls=%v", polls)
 		}
 		if elapsed := time.Since(started); elapsed > 5*time.Second {
-			t.Fatalf("tick wait took %v", elapsed)
+			t.Fatalf("ticks wait took %v", elapsed)
 		}
 	})
 

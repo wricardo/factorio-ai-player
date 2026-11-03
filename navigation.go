@@ -62,8 +62,8 @@ func navigationStart(ctx context.Context, r *Resolver, input NavigateStartInput)
 	if input.TimeoutTicks < 1 || input.TimeoutTicks > 216000 {
 		return nil, fmt.Errorf("timeoutTicks must be from 1 to 216000")
 	}
-	if input.WaitTimeoutSeconds < 1 || input.WaitTimeoutSeconds > 3600 {
-		return nil, fmt.Errorf("waitTimeoutSeconds must be from 1 to 3600")
+	if input.WaitTimeoutSeconds < 1 {
+		return nil, fmt.Errorf("waitTimeoutSeconds must be at least 1")
 	}
 	x, y := "nil", "nil"
 	if input.Position != nil {
@@ -80,7 +80,7 @@ func navigationStart(ctx context.Context, r *Resolver, input NavigateStartInput)
 	if !input.Wait {
 		return job, nil
 	}
-	return waitForNavigation(ctx, job, time.Duration(input.WaitTimeoutSeconds)*time.Second, func(ctx context.Context, id string) (*NavigationJob, error) {
+	return waitForNavigation(ctx, job, clampWaitSeconds(input.WaitTimeoutSeconds), func(ctx context.Context, id string) (*NavigationJob, error) {
 		return navigationCallContext(ctx, r, "status", luaString(id))
 	})
 }

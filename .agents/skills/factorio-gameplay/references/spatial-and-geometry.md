@@ -87,6 +87,15 @@ Throughput (base game, measure before trusting): basic inserter chest-to-chest ~
 
 ## 5. Drills, furnaces, chests
 
+**A mining drill's `direction` is its DROP side** — the same sense as belt travel direction, and the *opposite* sense to an inserter (section 3):
+
+| `direction` | 0 | 4 | 8 | 12 |
+|---|---|---|---|---|
+| drill / belt move toward | north (`-y`) | east (`+x`) | south (`+y`) | west (`-x`) |
+| inserter (same int) drops toward | south (`+y`) | west (`-x`) | north (`-y`) | east (`+x`) |
+
+The drop tile is one tile past the middle of the facing edge (3x3 drill: `centre ± 2`). Verified live on Factorio 2.0.77, tick 2919457: a drill at `(217.5,-93.5)` with `direction 8` dropped coal on the **ground** at `(217.5,-91.652)`, south of itself, reading `waiting_for_space_in_destination`; `direction 0` put the coal on the north belt and it read `working`. Re-confirmed tick 3672835 on the Z2 coal row: u11569 `(217.5,-93.5)` dir 0 and u11576 `(217.5,-97.5)` dir 8 both feed the west-bound belt at `y=-95.5` — the first from the north side, the second from the south side. `inspect.dropPosition` is null for drills, so confirm the side by where the ore lands.
+
 - A mining drill outputs onto the tile in front of its facing edge (direction = output direction): a burner drill (2x2) facing east at `(-115,-39)` drops into a furnace at `(-113,-39)`; the furnace occupies the tile the drill outputs to. No inserter needed.
 - Electric drill (3x3) outputs at the middle of the facing edge.
 - Burner drills/furnaces/inserters burn fuel; electric ones do not. Fuel supply is part of the design (see `bootstrap-and-progression.md`).

@@ -38,8 +38,8 @@ func beltThroughputStart(ctx context.Context, r *Resolver, input BeltThroughputS
 	if input.DurationTicks < 1 || input.DurationTicks > 36000 {
 		return nil, fmt.Errorf("durationTicks must be from 1 to 36000")
 	}
-	if input.WaitTimeoutSeconds < 1 || input.WaitTimeoutSeconds > 600 {
-		return nil, fmt.Errorf("waitTimeoutSeconds must be from 1 to 600")
+	if input.WaitTimeoutSeconds < 1 {
+		return nil, fmt.Errorf("waitTimeoutSeconds must be at least 1")
 	}
 	args := fmt.Sprintf("%s,%s,%s,%d", luaString(surface),
 		strconv.FormatFloat(x, 'g', -1, 64), strconv.FormatFloat(y, 'g', -1, 64), input.DurationTicks)
@@ -47,7 +47,7 @@ func beltThroughputStart(ctx context.Context, r *Resolver, input BeltThroughputS
 	if err != nil || !input.Wait || measurement.Status == nil || measurement.Status.RawName == nil || *measurement.Status.RawName != "RUNNING" {
 		return measurement, err
 	}
-	waitCtx, cancel := context.WithTimeout(ctx, time.Duration(input.WaitTimeoutSeconds)*time.Second)
+	waitCtx, cancel := context.WithTimeout(ctx, clampWaitSeconds(input.WaitTimeoutSeconds))
 	defer cancel()
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
@@ -107,8 +107,8 @@ func beltStretchMeasure(ctx context.Context, r *Resolver, input BeltStretchMeasu
 	if input.DurationTicks < 1 || input.DurationTicks > 36000 {
 		return nil, fmt.Errorf("durationTicks must be from 1 to 36000")
 	}
-	if input.WaitTimeoutSeconds < 1 || input.WaitTimeoutSeconds > 600 {
-		return nil, fmt.Errorf("waitTimeoutSeconds must be from 1 to 600")
+	if input.WaitTimeoutSeconds < 1 {
+		return nil, fmt.Errorf("waitTimeoutSeconds must be at least 1")
 	}
 	surfaceField, _, unitNumber, inputX, inputY := entityRefFields(input.Target)
 	stretch, err := beltStretchQuery(r, stringValueOr(surfaceField, "nauvis"), inputX, inputY, unitNumber, 1000)

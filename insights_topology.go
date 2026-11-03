@@ -655,6 +655,7 @@ local function belt_stretch(seed,limit)
   local nodes,lines,mixed={},{},{left=false,right=false,unknown=false}
   for _,e in ipairs(ordered) do
     local node={name=e.name,type=e.type,position=e.position,unitNumber=e.unit_number,direction=e.direction,lanes={}}
+    local node_side={}
     local max_index=1
     local ok,value=pcall(function() return e.get_max_transport_line_index() end)
     if ok and type(value)=="number" and value>=1 then max_index=value end
@@ -669,8 +670,20 @@ local function belt_stretch(seed,limit)
       table.sort(items,function(a,b) if a.name~=b.name then return a.name<b.name end return (a.quality or "normal")<(b.quality or "normal") end)
       local side=transport_line_side(name)
       node.lanes[#node.lanes+1]={index=index,lineName=name,side=side,items=items}
-      if #items>1 then mixed[side]=true end
+      node_side[side]=node_side[side] or {}
+      for _,item in ipairs(items) do
+        node_side[side][tostring(item.name).."|"..tostring(item.quality or "normal")]=true
+      end
       lines[#lines+1]={line=line,side=side}
+    end
+    -- mixed is a per-side property of one belt: an underground entrance can
+    -- expose surface and tunnel lines that share a side, so count distinct
+    -- prototype/quality combinations across every line of that side instead
+    -- of requiring two stacks inside one line.
+    for side,names in pairs(node_side) do
+      local distinct=0
+      for _ in pairs(names) do distinct=distinct+1 end
+      if distinct>1 then mixed[side]=true end
     end
     nodes[#nodes+1]=node
   end

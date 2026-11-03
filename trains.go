@@ -628,8 +628,8 @@ func trainControl(r *Resolver, input TrainControlInput) (*TrainInfo, error) {
 //
 //   - Direction is the side an entity faces, not the side it acts on. For an
 //     inserter that is its *pickup* side: direction 0 picks up one tile north
-//     (0=north, 4=east, 8=south, 12=west) and drops on the opposite tile, which
-//     is why a chest-to-machine inserter needs the machine-opposite code.
+//     (0=north, 4=east, 8=south, 12=west) and drops on the opposite tile, so an
+//     inserter that must drain a machine into a chest faces the machine.
 //   - Assigning e.direction is silently ignored for prototypes whose direction
 //     is fixed at placement (transport belts, straight rails), so the write is
 //     always verified by readback. rotate{} is the only scripted path for those
@@ -662,7 +662,7 @@ if not applied then
   local clockwise=(requested-before)%%16
   local counter=(before-requested)%%16
   if clockwise%%4~=0 then
-    fail(string.format("cannot rotate %%s to direction %%d: the engine ignored the direct write and rotate only steps a quarter turn at a time, so only 0, 4, 8 and 12 are reachable", e.name, requested))
+    fail(string.format("cannot rotate %%s to direction %%d: the engine ignored the direct write and rotate only steps a quarter turn at a time, so only 0, 4, 8 and 12 are reachable", tostring(e.name), requested))
     return
   end
   local reverse=counter<clockwise

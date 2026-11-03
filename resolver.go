@@ -496,7 +496,7 @@ func normalizeGraphQL(value any, key, command string) any {
 
 func isListField(key string) bool {
 	switch key {
-	case "players", "entities", "items", "itemsPickedUp", "itemsRemaining", "queue", "ingredients", "products", "input", "output", "fuel", "chest", "modules", "turretAmmo", "main", "guns", "ammo", "armor", "trash", "fluids", "errors", "inserters", "belts", "returned", "miningResources", "transportLines", "machines", "summaries", "recipes", "craftingMachines", "researchQueue", "technologies", "prerequisites", "scienceIngredients", "effects", "machineFluids", "recipeIngredients", "locations", "totals", "networks", "powerEntities", "powerFluids", "logisticsEntities", "lanes", "worldInventories", "worldEntries", "nearbyDrills", "alerts":
+	case "players", "entities", "items", "itemsPickedUp", "itemsRemaining", "queue", "ingredients", "products", "input", "output", "fuel", "chest", "modules", "turretAmmo", "main", "guns", "ammo", "armor", "trash", "fluids", "errors", "inserters", "belts", "returned", "miningResources", "transportLines", "machines", "summaries", "recipes", "craftingMachines", "researchQueue", "technologies", "prerequisites", "scienceIngredients", "effects", "machineFluids", "recipeIngredients", "locations", "totals", "networks", "powerEntities", "powerFluids", "logisticsEntities", "lanes", "worldInventories", "worldEntries", "nearbyDrills", "alerts", "queued", "remaining":
 		return true
 	case "nodes", "edges", "boundaryEdges", "sources", "sinks", "chests", "beltRuns", "pairs",
 		"filterSlots", "producers", "consumers", "bufferedItems", "materials", "steps",

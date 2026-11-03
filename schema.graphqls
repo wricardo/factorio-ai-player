@@ -15,6 +15,8 @@ type Query {
   queue(input: ActorInput!): CraftQueue!
   """Returns one recipe of the actor's force: enabled, category, energy, ingredients, products, hiddenFromPlayerCrafting, and the craftableCount the engine computes for that actor. actor (exactly one of player or character) and a nonempty recipe name are required; an unknown recipe is an error. The lookup uses the actor's force, so recipes gated by other forces or technologies may be missing or disabled. ingredients and products are prototype data, not live stock."""
   recipe(input: RecipeInput!): Recipe!
+  """Plans the hand-craft dependency chain for count crafts of one enabled, hand-craftable recipe, without changing the game. The actor's main inventory is used as stock and every missing item ingredient is expanded through the enabled, non-hidden, hand-craftable recipe with the lowest name that produces it, so steps are returned bottom-up: each step's ingredients are either in stock or produced by an earlier step. count counts crafts of the named recipe, not products, matching craft. missing lists the ingredients that cannot be hand-crafted at all (fluids, or items whose only recipes are machine-only, disabled, hidden, or unavailable), with the aggregated shortfall; complete is true when missing is empty. Recipe prototypes may yield several products per craft; planning uses amount, then amountMin, and ignores quality and probabilistic yields, so a plan can over-craft rather than under-craft."""
+  craftPlan(input: CraftPlanInput!): CraftPlan!
   """Inspects one entity using the selected actor's force and returns a broad single-tick snapshot: health, status and statusName, inventories keyed by name, fluids, recipe and craftingProgress, belt lanes, inserter pickup/drop positions and held stack, mining progress/target/resources, force item-production totals, and deconstruction marking. Address the target by unitNumber or by prototype name plus a position inside the entity; the entity must exist on the actor's force, otherwise the call fails. Type-specific fields are only filled for the matching type, so an absent transportLines or heldStack means the entity cannot carry one rather than a failed read. forceItemProduction is the force's whole-surface lifetime statistic, not this entity's throughput, and every value comes from one snapshot."""
   inspect(input: InspectInput!): EntityInspection!
   """Inspects many entities in one backend call using the actor force, returning one result per target in input order. Each result carries the same snapshot as inspect, and a target that cannot be resolved fails only its own row (error is set, inspection is null) instead of failing the page. Use this instead of selecting inspection on entities or nearby pages, which issues one backend call per entity. includeSettings and includeDiagnostics add the matching per-entity sections to the same call."""
@@ -60,8 +62,10 @@ type Mutation {
   placeBlueprint(input: PlaceBlueprintInput!): BlueprintPlaceResult!
   """Moves up to count items of the requested quality from the actor's main inventory into a target entity's fuel inventory, checking availability, capacity, removal, and insertion within one tick. The actor must be on the entity's surface and within build reach when FACTORIO_ENFORCE_REACH=1, the entity must expose a fuel inventory, and that inventory must accept at least one item or the call fails with the fuel returned. On a partial insert the remainder goes back to the actor's inventory and inserted reports what was accepted. Emits an in-game notification unless message overrides it."""
   fuel(input: FuelInput!): ActionResult!
-  """Queues up to count crafts of an enabled recipe for the actor, which must control a character and have ingredients for at least one craft. Returns started (what the engine actually queued, possibly below requested) and queueSize; with wait false it returns immediately, while wait true polls the actor's queue every 250 ms until it drains or waitTimeoutSeconds (1-3600) expires and then reports craftingComplete, waitTimedOut, and waitedSeconds. waitTimedOut true means crafts may still be running. Emits one in-game notification unless message overrides it."""
+  """Queues up to count crafts of an enabled recipe for the actor, which must control a character and have ingredients for at least one craft. Returns started (what the engine actually queued, possibly below requested) and queueSize; with wait false it returns immediately, while wait true polls the actor's queue every 250 ms until it drains or waitTimeoutSeconds (1-10, values above 10 are clamped to 10) expires and then reports craftingComplete, waitTimedOut, and waitedSeconds. waitTimedOut true means crafts may still be running. Emits one in-game notification unless message overrides it."""
   craft(input: CraftInput!): ActionResult!
+  """Plans the hand-craft dependency chain for count crafts of one enabled, hand-craftable recipe and then performs it: the same steps craftPlan returns are queued bottom-up, waiting for the queue to drain between layers so each produced intermediate exists before its consumer is queued. Nothing is queued when missing is nonempty. waitTimeoutSeconds (1-10, values above 10 are clamped to 10) bounds the whole call; on expiry waitTimedOut is true and queued reports what was queued, so call again to finish. Returns complete true only when every planned craft was queued. Emits one in-game notification unless message overrides it."""
+  craftPlan(input: CraftPlanRunInput!): CraftPlanResult!
   """Cancels count crafts starting at the one-based queue index and returns the actor's remaining queue. The actor must control a character, the queue must be nonempty, and the index must not exceed queueSize, otherwise the call errors without changing anything; the engine may also cancel later crafts that depend on the canceled ones. Returns the queue snapshot with queueEntries, queueSize, and progress. Emits an in-game notification unless message overrides it."""
   cancelCraft(input: CancelCraftInput!): CraftQueue!
   """Instantly destroys every tree and every simple entity whose name contains "rock" with its center inside the bounded area, with no actor, no reach check, and no mining drops. The surface must exist and the area must have positive dimensions no larger than 1024 tiles per side; non-rock simple entities are ignored. Returns separate treesRemoved and rocksRemoved counts from the same tick. Emits an in-game notification unless message overrides it."""
@@ -292,7 +296,7 @@ input CraftInput {
   recipe: String!
   count: Float = 1
   wait: Boolean! = false
-  waitTimeoutSeconds: Int! = 60
+  waitTimeoutSeconds: Int! = 10
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
@@ -304,6 +308,29 @@ input CancelCraftInput {
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
+"""Select one actor, an enabled hand-craftable recipe, and the number of crafts to plan."""
+input CraftPlanInput {
+  actor: ActorInput!
+  recipe: String!
+  count: Float = 1
+}
+"""Select one actor, an enabled hand-craftable recipe, the number of crafts to perform, and how long the call may wait for linked crafts."""
+input CraftPlanRunInput {
+  actor: ActorInput!
+  recipe: String!
+  count: Float = 1
+  waitTimeoutSeconds: Int! = 10
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+"""One hand-craft step in bottom-up dependency order: count crafts of recipe, each producing products from ingredients that are in stock or produced by an earlier step."""
+type CraftPlanStep { recipe: String! count: Float! ingredients: [RecipeIngredient!]! products: [RecipeProduct!]! }
+"""An ingredient the actor cannot hand-craft from its current inventory; a machine, a fluid source, another actor, or research must supply it."""
+type CraftPlanMissing { name: String! """Ingredient type, item or fluid.""" type: String! amount: Float! }
+"""Read-only hand-craft plan for requested crafts of one recipe."""
+type CraftPlan { tick: Float! surface: String! force: String! actor: ActorIdentity! player: String character: UnitNumber recipe: String! requested: Float! """True when missing is empty, so hand crafting alone can finish the plan.""" complete: Boolean! steps: [CraftPlanStep!]! missing: [CraftPlanMissing!]! }
+"""Outcome of performing a hand-craft plan."""
+type CraftPlanResult { tick: Float! surface: String! force: String! actor: ActorIdentity! player: String character: UnitNumber recipe: String! requested: Float! """True when every planned craft was queued and the crafting queue drained inside the wait budget; missing nonempty leaves it false with nothing queued.""" complete: Boolean! queued: [CraftPlanStep!]! """Planned steps not queued yet, so a timed-out call can be finished with craft.""" remaining: [CraftPlanStep!]! missing: [CraftPlanMissing!]! queueSize: Float waitTimedOut: Boolean! waitedSeconds: Float! }
 """Mine one entity as the selected actor."""
 input MineInput {
   actor: ActorInput!

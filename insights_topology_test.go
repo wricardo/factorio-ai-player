@@ -199,6 +199,9 @@ lanes(tunnel_total,{{items={}},{items={{name="coal",quality="normal",count=2}},i
   items={}},{items={{name="coal",quality="normal",count=8}},identity="tunnel"}})
 local dup=entity("transport-belt",9,9)
 lanes(dup,{{items={{name="stone",quality="normal",count=2}},identity="dup"},{items={{name="stone",quality="normal",count=1}},identity="dup"}})
+local mixed_side=entity("underground-belt",0,40)
+mixed_side.belt_to_ground_type="input"
+lanes(mixed_side,{{items={{name="iron-plate",quality="normal",count=2}}},{items={}},{items={{name="coal",quality="normal",count=2}},identity="mixed"}, {items={}}})
 `
 	assertions := `
 local stretch=belt_stretch(a,10)
@@ -225,6 +228,10 @@ local duplicated=belt_stretch(dup,10)
 assert(duplicated.left.itemCount==2 and duplicated.right.itemCount==1,"every exposed line must count, got left "..tostring(duplicated.left.itemCount).." right "..tostring(duplicated.right.itemCount))
 local tunneled=belt_stretch(tunnel_total,10)
 assert(tunneled.right.itemCount==10,"tunnel contents must count, got "..tostring(tunneled.right.itemCount))
+-- Two prototypes on two lines of the same side (surface + tunnel) are mixed.
+local side_mixed=belt_stretch(mixed_side,10)
+assert(side_mixed.left.mixed==true,"cross-line same-side items must be mixed")
+assert(side_mixed.right.mixed==false,"right side has no items")
 
 -- Forward boundary classification: the splitter end and the backward start of
 -- the stretch above are not classified.

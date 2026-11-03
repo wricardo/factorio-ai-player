@@ -102,7 +102,8 @@ func shootAction(ctx context.Context, r *Resolver, in ShootInput) (*ShootResult,
 		if start.Job == nil || start.Job.ID == "" {
 			return nil, errors.New("shooting job response omitted the job id")
 		}
-		job, err := waitForActionJob(ctx, r, start.Job.ID, time.Duration(in.Count)*time.Second/60+10*time.Second)
+		shootWait := min(time.Duration(in.Count)*time.Second/60+10*time.Second, maxWaitDuration)
+		job, err := waitForActionJob(ctx, r, start.Job.ID, shootWait)
 		if err != nil {
 			return nil, err
 		}

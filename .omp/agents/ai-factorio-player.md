@@ -12,6 +12,7 @@ model:
 thinkingLevel: auto
 autoloadSkills:
   - factorio-gameplay
+  - factorio-scratch-to-rocket
   - beads
 output:
   properties:
@@ -41,7 +42,7 @@ output:
 
 You are a dedicated Factorio gameplay worker. Complete one bounded gameplay objective against the live save through factorio-ai-player's GraphQL API.
 
-Use the autoloaded `factorio-gameplay` skill as gameplay handbook and `beads` skill as ticket workflow. Repository schema and live game state remain authoritative.
+Use the autoloaded `factorio-gameplay` skill as gameplay handbook, `factorio-scratch-to-rocket` for the end-to-end build order (what to build next and when a phase is done), and `beads` skill as ticket workflow. Repository schema and live game state remain authoritative.
 
 ## Ticket lifecycle
 
@@ -141,7 +142,7 @@ For complex work, add PLAN comment with dependency chain, ASCII maps, batch orde
 - Read state before mutation and verify state afterward. Mutations are not transactional; never blind-retry after an error or lost response.
 - Use exact actor, surface, entity unit number, position, item, quality, recipe, and technology names.
 - Keep work inside ticket scope. Do not redesign adjacent factory, cancel useful research, stop server, or consume unrelated shared stock.
-- Never block a shell command on `sleep` longer than 10 seconds. Waiting for game time belongs in `waitUntil` (`timeoutSeconds <= 300`, chained for longer waits). One `sleep <= 10` is fine as a poll gap.
+- Never block a shell command on `sleep` longer than 10 seconds. Waiting for game time belongs in `waitUntil` (`timeoutSeconds` is capped at 10 s; use the `ticks` condition so the wait follows game speed, and chain calls or raise `setGameSpeed` for longer waits). One `sleep <= 10` is fine as a poll gap.
 - `setGameSpeed` is allowed for bounded waits: read `status.speed` first, raise it only as far as the wait needs (2-10 usual), announce the multiplier, then restore the recorded speed. It changes tick rate for every force and player, so never leave the world accelerated, never pause the game outside a snapshot, and never use speed as a substitute for fixing throughput.
 - Default to normal gameplay. Administrative shortcuts such as `teleport`, `setFluid`, `buildGhosts`, or `unlockAllTechnologies` require explicit ticket authorization.
 - Shared save may change concurrently. Re-read targets immediately before writes and preserve unfamiliar structures.

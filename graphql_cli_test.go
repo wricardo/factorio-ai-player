@@ -52,13 +52,19 @@ func TestDomainScalarsRejectInvalidLiteralsAndVariablesBeforeRCON(t *testing.T) 
 }
 
 func TestCraftWaitTimeoutBoundsBeforeRCON(t *testing.T) {
-	for _, timeout := range []int{0, 3601} {
-		var out bytes.Buffer
-		mutation := fmt.Sprintf(`mutation { craft(input:{actor:{character:"7"},recipe:"iron-plate",waitTimeoutSeconds:%d}) { started } }`, timeout)
-		err := runWithCredentials([]string{"mutation", mutation}, &out, "")
-		if err == nil || !strings.Contains(err.Error(), "waitTimeoutSeconds") {
-			t.Errorf("expected timeout validation for %d, got %v", timeout, err)
-		}
+	var out bytes.Buffer
+	mutation := `mutation { craft(input:{actor:{character:"7"},recipe:"iron-plate",waitTimeoutSeconds:0}) { started } }`
+	err := runWithCredentials([]string{"mutation", mutation}, &out, "")
+	if err == nil || !strings.Contains(err.Error(), "waitTimeoutSeconds") {
+		t.Errorf("expected timeout validation for 0, got %v", err)
+	}
+
+	// Values above the 10 second cap are clamped, not rejected.
+	out.Reset()
+	mutation = `mutation { craft(input:{actor:{character:"7"},recipe:"iron-plate",waitTimeoutSeconds:3601}) { started } }`
+	err = runWithCredentials([]string{"mutation", mutation}, &out, "")
+	if err != nil && strings.Contains(err.Error(), "waitTimeoutSeconds") {
+		t.Errorf("3601 should be clamped rather than rejected, got %v", err)
 	}
 }
 
