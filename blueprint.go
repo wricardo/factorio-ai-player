@@ -91,13 +91,23 @@ if not is_setup then inv.destroy(); fail("blueprint is not set up"); return end
 -- build_blueprint returns only the ghosts it created, so the blueprint's own
 -- entity count is what tells a partial placement from a full one.
 local entity_count=stack.get_blueprint_entity_count()
-local ok,built=pcall(function() return stack.build_blueprint{surface=s,force=f,position={x=%s,y=%s},direction=%d,build_mode=defines.build_mode.normal,raise_built=true} end)
+local px,py=%s,%s
+local ok,built=pcall(function() return stack.build_blueprint{surface=s,force=f,position={x=px,y=py},direction=%d,build_mode=defines.build_mode.normal,raise_built=true} end)
 if not ok then inv.destroy(); fail("could not place blueprint: "..tostring(built)); return end
 local entities={}
 for _,e in ipairs(built) do entities[#entities+1]={name=e.name,type=e.type,position=e.position,unit_number=e.unit_number} end
 inv.destroy()
 local skipped=entity_count-#built
 if skipped<0 then skipped=0 end
+-- build_blueprint returns an empty array when it cannot place anything (for
+-- example a footprint that runs past the map edge, or one that is already
+-- occupied) and raises nothing, so reporting 0 placed of N as success hides a
+-- plan that never became ghosts. A partial placement stays a normal result;
+-- only the total no-op is an error.
+if #built==0 and entity_count>0 then
+  fail("blueprint placed none of "..entity_count.." entities at "..tostring(px)..","..tostring(py).."; the footprint is outside the map or already occupied")
+  return
+end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,ghosts=#built,entity_count=entity_count,skipped=skipped,entities=entities}))`,
 		luaString(surface), luaString(force), luaString(input.Blueprint),
 		strconv.FormatFloat(input.Position.X, 'g', -1, 64), strconv.FormatFloat(input.Position.Y, 'g', -1, 64), direction)

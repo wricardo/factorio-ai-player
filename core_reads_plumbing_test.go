@@ -235,7 +235,7 @@ helpers={table_to_json=function(value) return value end}
 rcon={print=function(value) printed=value end}
 game={tick=1,surfaces={nauvis={name="nauvis",find_entities_filtered=function() return {} end}}}
 prototypes={entity={["stone-furnace"]={type="furnace"},["transport-belt"]={type="transport-belt"}}}
-` + nearbyLua("nauvis", 0, 0, 4, "", tc.kind, "", "distance", 0, 10) + `
+` + nearbyLua("nauvis", 0, 0, 4, "", tc.kind, "", "distance", 0, 10, 0) + `
 assert(printed and printed.error, "expected a rejected type filter")
 assert(string.find(printed.error, ` + luaString(tc.want) + `, 1, true), "unexpected message: "..tostring(printed.error))
 `
@@ -263,7 +263,7 @@ game={tick=1,surfaces={nauvis={name="nauvis",find_entities_filtered=function(fil
   return {{name="stone-furnace",type="furnace",position={x=1,y=0},force={name="enemy"},unit_number=7}}
 end}}}
 prototypes={entity={["stone-furnace"]={type="furnace"}}}
-` + nearbyLua("nauvis", 0, 0, 4, "", "furnace", "enemy", "distance", 0, 10) + `
+` + nearbyLua("nauvis", 0, 0, 4, "", "furnace", "enemy", "distance", 0, 10, 0) + `
 assert(#printed.entities==1, "one row")
 assert(printed.entities[1].force=="enemy", "row force")
 assert(printed.entities[1].tick==1, "row tick")
@@ -912,7 +912,7 @@ game={tick=3,surfaces={nauvis={name="nauvis",find_entities_filtered=function(fil
   return {{name="transport-belt",type="transport-belt",unit_number=9,position={x=1.5,y=0},force={name="player"}}}
 end}}}
 prototypes={entity={["transport-belt"]={type="transport-belt"},["stone-furnace"]={type="furnace"}}}
-` + nearbyLua("nauvis", 0, 0, 4, "", "transport-belt", "", "distance", 0, 10) + `
+` + nearbyLua("nauvis", 0, 0, 4, "", "transport-belt", "", "distance", 0, 10, 0) + `
 assert(printed and not printed.error, "engine type rejected: "..tostring(printed and printed.error))
 assert(#printed.entities==1, "rows = "..#printed.entities)
 `

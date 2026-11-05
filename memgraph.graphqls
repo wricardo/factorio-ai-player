@@ -1,0 +1,134 @@
+"""Arbitrary JSON value: a Cypher scalar, list, map, or a node/relationship/path rendered as a map."""
+scalar Any
+
+extend type Query {
+  """Returns the Memgraph factory-graph schema as it exists in the loaded graph: every node label with its node count and property keys, every relationship type with its edge count and property keys, and the latest loaded snapshot. Derived from the loaded data, so a label, type or property that no loaded node or edge carries is absent, and declared constraints/indexes are not reported because they live in memgraph/schema.cypherl (use SHOW INDEX INFO / SHOW CONSTRAINT INFO via mgconsole). The Bolt target comes from the server's MEMGRAPH_BOLT, MEMGRAPH_USER and MEMGRAPH_PASSWORD environment, never from the caller. One read transaction; returns empty lists and a null snapshot when no load has completed, and fails when the stack is down."""
+  memgraphSchema: MemgraphSchema!
+  """Runs one read-only Cypher statement against the Memgraph factory graph (populated by exportMapSnapshotToMemgraph or `graph sync`) and returns its columns and rows. The Bolt target comes from the server's MEMGRAPH_BOLT, MEMGRAPH_USER and MEMGRAPH_PASSWORD environment (default bolt://127.0.0.1:7687), never from the caller. The statement must start with MATCH, OPTIONAL MATCH, WITH, UNWIND, RETURN, EXPLAIN or PROFILE and must not contain any write, schema, administrative or CALL keyword outside string literals and comments; this is a lexical guard plus a Bolt read transaction, not a Memgraph permission, so connect with a read-only Memgraph user when the endpoint is shared. Rows are arrays aligned with columns; a node is {id, labels, properties}, a relationship {id, type, startId, endId, properties} and a path {nodes, relationships}. At most limit rows are returned (truncated is true when more existed) and the statement is cancelled after timeoutMs. With sync true a fresh snapshot is exported from the live save and loaded first, so the same call answers from current data; the export is not covered by timeoutMs. The graph is a snapshot of the tick recorded on its Snapshot node, not live state."""
+  queryMemgraph(input: MemgraphQueryInput!): MemgraphQueryResult!
+}
+
+extend type Mutation {
+  """Exports every entity of one force from the live save and loads the result into Memgraph, replacing the graph for the exported surfaces: nodes and relationships are MERGEd by stable id and key, then anything in the same surface/force scope that the new snapshot does not contain is deleted, so deconstructed or rebuilt entities disappear (a full replace per scope, not a delta and not a wipe; other surfaces and forces are untouched). Reads run as one RCON call per disjoint area, so each area is a single-tick view and the whole export spans several ticks; each surface is classified complete, drift (the world changed during the scan) or incomplete (an entity was counted but not exported). An incomplete snapshot is written to disk but not loaded unless allowIncomplete is true, and the call then fails; a failed load leaves the previous Memgraph data in place. Only one export may run at a time. Takes seconds on small saves and about 6 s for 40 000 entities with the navigation mod's graph_leaf loaded; without it each area costs about 1.8 s. Writes only to Memgraph and the .factorio/graph snapshot directory, never to the game save."""
+  exportMapSnapshotToMemgraph(input: ExportMapSnapshotToMemgraphInput! = {}): MemgraphExportResult!
+}
+
+input MemgraphQueryInput {
+  """One read-only Cypher statement."""
+  cypher: String!
+  """Cypher parameters, referenced as $name. Values must be JSON scalars, lists or maps."""
+  params: Any
+  """Maximum rows returned, 1 through 10000."""
+  limit: Int! = 1000
+  """Statement deadline in milliseconds, 100 through 60000. Covers only the Bolt read, never the sync export."""
+  timeoutMs: Int! = 10000
+  """Exports a fresh snapshot from the live save and loads it into Memgraph before running the statement, so one call returns data current as of that export. Uses the mutation's defaults (force player, every surface it owns entities on, leafMax 2000, concurrency 4); takes seconds and blocks the game thread per leaf read, and fails when another export is already running. The export is not covered by timeoutMs."""
+  sync: Boolean! = false
+}
+
+type MemgraphQueryResult {
+  columns: [String!]!
+  """One array per row, aligned with columns."""
+  rows: [[Any]!]!
+  truncated: Boolean!
+  durationMs: Float!
+}
+
+type MemgraphSchema {
+  """Node labels present in the loaded graph, ordered by name."""
+  labels: [MemgraphSchemaLabel!]!
+  """Relationship types present in the loaded graph, ordered by name."""
+  relationships: [MemgraphSchemaRelationship!]!
+  """Latest snapshot whose load completed, or null before the first successful load."""
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphSchemaLabel {
+  name: String!
+  """Nodes carrying this label; a node with several labels counts once per label."""
+  nodes: Int!
+  """Property keys present on nodes carrying this label, ordered by name."""
+  properties: [MemgraphSchemaProperty!]!
+}
+
+type MemgraphSchemaRelationship {
+  name: String!
+  """Edges of this type."""
+  edges: Int!
+  """Property keys present on edges of this type, ordered by name."""
+  properties: [MemgraphSchemaProperty!]!
+}
+
+type MemgraphSchemaProperty {
+  name: String!
+  """Nodes or edges (per the parent type) carrying this property."""
+  count: Int!
+}
+
+type MemgraphSnapshotInfo {
+  id: String!
+  """Snapshot creation time as recorded by the loader."""
+  createdAt: String
+  """Time the load completed and pruning finished."""
+  loadedAt: String
+  """complete, drift or incomplete."""
+  status: String!
+  force: String!
+  """Surfaces covered by the snapshot."""
+  surfaces: [String!]!
+  nodes: Int!
+  edges: Int!
+}
+
+input ExportMapSnapshotToMemgraphInput {
+  """Force whose entities are exported."""
+  force: String! = "player"
+  """Surfaces to export; empty exports every surface the force owns entities on."""
+  surfaces: [String!]
+  """Estimated entities per area read (1 through 20000); each read blocks the game thread for its duration."""
+  leafMax: Int! = 2000
+  """Parallel area reads, 1 through 6."""
+  concurrency: Int! = 4
+  """Also export transport-line links as BELT_OUT edges of kind line."""
+  includeLineLinks: Boolean! = false
+  """Load a snapshot whose reconciliation found a hole instead of failing."""
+  allowIncomplete: Boolean! = false
+}
+
+type MemgraphExportResult {
+  snapshot: String!
+  """Snapshot directory on the GraphQL host."""
+  directory: String!
+  """Worst surface status: complete, drift or incomplete."""
+  status: String!
+  force: String!
+  """Nodes and relationships written, including External stubs."""
+  nodes: Int!
+  externalNodes: Int!
+  edges: Int!
+  """Rows removed from the exported scopes because the new snapshot no longer contains them."""
+  prunedNodes: Int!
+  prunedEdges: Int!
+  prunedNetworks: Int!
+  exportMs: Float!
+  loadMs: Float!
+  surfaces: [MemgraphSurfaceReport!]!
+  labelCounts: [MemgraphCount!]!
+  edgeTypes: [MemgraphCount!]!
+}
+
+type MemgraphSurfaceReport {
+  surface: String!
+  status: String!
+  explanation: String!
+  tickBefore: Float!
+  tickAfter: Float!
+  staticExported: Int!
+  mobileExported: Int!
+  leaves: Int!
+}
+
+type MemgraphCount {
+  name: String!
+  count: Int!
+}

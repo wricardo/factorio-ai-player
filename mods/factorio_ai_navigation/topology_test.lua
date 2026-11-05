@@ -2,6 +2,7 @@
 -- Run from the repository root: lua mods/factorio_ai_navigation/topology_test.lua
 storage = {}
 defines = {entity_status = {}, transport_line = {left_line = 1, right_line = 2, secondary_left_line = 3, secondary_right_line = 4}}
+prototypes = {entity = {}}
 local api = nil
 remote = {add_interface = function(name, functions)
   assert(name == 'factorio_ai_topology', name)
@@ -146,7 +147,47 @@ assert(#compact.nodes >= 3, 'compact nodes ' .. #compact.nodes)
 assert(#compact.machines == 0 and #compact.belts == 0, 'compact mode must not repeat entity lists')
 assert(#compact.inserters == 0 and #compact.edges == 0, 'compact mode must not repeat edges or inserters')
 assert(#compact.compactInserters == 1, 'compact inserters ' .. #compact.compactInserters)
-assert(type(compact.compactInserters[1].drop) == 'string', 'compact inserter keys must be strings')
+
+local leaf = api.graph_leaf('nauvis', 'player', {{-4, -4}, {4, 4}}, 3, false, {'character'})
+assert(leaf.error == nil, 'graph_leaf error: ' .. tostring(leaf.error))
+assert(#leaf.nodes == 4, 'graph_leaf nodes ' .. #(leaf.nodes or {}))
+local kinds = {}
+for _, edge in ipairs(leaf.edges) do kinds[edge.kind] = (kinds[edge.kind] or 0) + 1 end
+-- Both belts own the same link, so it arrives twice; the Go side deduplicates.
+assert(kinds.belt == 2 and kinds.pickup == 1 and kinds.drop == 1, 'graph_leaf edge kinds')
+-- Ownership is by centre in a half-open rectangle: the belt at x=1.5 belongs
+-- to the neighbouring leaf even though the scan pad reaches it.
+local half = api.graph_leaf('nauvis', 'player', {{0, 0}, {1, 1}}, 3, false, {})
+assert(#half.nodes == 1 and half.nodes[1].id == 'nauvis:' .. first.unit_number, 'half-open leaf ownership')
+local mobile = api.graph_mobile('nauvis', 'player', {'character'})
+assert(mobile.error == nil and mobile.nodes == nil, 'graph_mobile without vehicles')
+-- A splitter's two outputs are ports: each outgoing belt must carry the side of
+-- the splitter it leaves from, resolved from the two bounding boxes. Placed far
+-- from the areas the earlier assertions counted.
+local splitter = entity('splitter', 'splitter', 100.5, 101.0, 2)
+splitter.direction = 4
+splitter.belt_neighbours = {inputs = {}, outputs = {}}
+local up = entity('transport-belt', 'transport-belt', 101.5, 100.5)
+local down = entity('transport-belt', 'transport-belt', 101.5, 101.5)
+for _, b in ipairs({up, down}) do
+  b.belt_neighbours = {inputs = {splitter}, outputs = {}}
+  splitter.belt_neighbours.outputs[#splitter.belt_neighbours.outputs + 1] = b
+end
+splitter.splitter_output_priority = 'right'
+splitter.splitter_input_priority = 'none'
+local ports = api.graph_leaf('nauvis', 'player', {{100, 100}, {102, 102}}, 3, false, {})
+local sides, splitterNode = {}, nil
+for _, node in ipairs(ports.nodes) do if node.type == 'splitter' then splitterNode = node end end
+for _, edge in ipairs(ports.edges) do
+  -- The neighbouring belt reports the same link back without a port; Go merges
+  -- the port onto that edge, so only the splitter-owned copy carries one.
+  if edge.kind == 'belt' and edge.from == 'nauvis:' .. splitter.unit_number and edge.fromPort then
+    sides[edge.fromPort] = edge.to
+  end
+end
+assert(splitterNode and splitterNode.outputPriority == 'right' and splitterNode.inputPriority == 'none', 'splitter priorities')
+assert(sides.left == 'nauvis:' .. up.unit_number and sides.right == 'nauvis:' .. down.unit_number,
+  'splitter ports: left=' .. tostring(sides.left) .. ' right=' .. tostring(sides.right))
 assert(compact.compactInserters[1].drop == 'nauvis:' .. tostring(chest.unit_number), compact.compactInserters[1].drop)
 for _, edge in ipairs(compact.compactEdges or {}) do
   assert(type(edge.from) == 'string' and type(edge.to) == 'string', 'compact edges carry keys')

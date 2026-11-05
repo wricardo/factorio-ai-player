@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/99designs/gqlgen v0.17.87
+	github.com/neo4j/neo4j-go-driver/v5 v5.28.6
 	github.com/urfave/cli/v2 v2.27.2
 	github.com/vektah/gqlparser/v2 v2.5.32
 	github.com/wricardo/gqlcli v0.10.0

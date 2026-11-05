@@ -208,7 +208,7 @@ end
 for i=offset+1,math.min(#matches,offset+limit) do
   local e=matches[i]
   local row={id=entity_id(e),unitNumber=e.unit_number,kind=e.type,name=e.name,quality=e.quality.name,
-    position=e.position,placementAlternatives={},requestedMaterials={},buildable=false}
+    position=e.position,placementAlternatives={},requestedMaterials={},buildable=false,blocked=false}
   local required={}
   if e.type=="entity-ghost" or e.type=="item-request-proxy" then
     for _,s in pairs(e.item_requests) do
@@ -237,6 +237,30 @@ for i=offset+1,math.min(#matches,offset+limit) do
       local key=stock_key(s.name,row.quality)
       local requested=required[key]
       if requests_ok and (stock[key] or 0)>=s.count+(requested and requested.count or 0) then row.buildable=true end
+    end
+    -- Stock and requests say nothing about the tile itself: a rock, a tree or
+    -- any other colliding entity makes the ghost unbuildable no matter what the
+    -- network holds, and construction robots then hover on it forever. Ask the
+    -- engine's own manual placement check and name one colliding entity so the
+    -- blocker is actionable instead of silent.
+    if e.type=="entity-ghost" and e.ghost_prototype then
+      local ok,placeable_now=pcall(function()
+        return surface.can_place_entity{name=e.ghost_name,position=e.position,direction=e.direction,force=force,build_check_type=defines.build_check_type.manual}
+      end)
+      if ok and placeable_now==false then
+        row.blocked=true
+        local tile_width=math.max(e.ghost_prototype.tile_width or 1,1)
+        local tile_height=math.max(e.ghost_prototype.tile_height or 1,1)
+        local half_w,half_h=tile_width/2,tile_height/2
+        local footprint={{e.position.x-half_w+0.01,e.position.y-half_h+0.01},{e.position.x+half_w-0.01,e.position.y+half_h-0.01}}
+        for _,other in pairs(surface.find_entities_filtered{area=footprint}) do
+          if other.valid and other.type~="entity-ghost" and other.type~="item-entity" and other.type~="tile-ghost"
+            and (not other.unit_number or other.unit_number~=e.unit_number) then
+            row.blockingName=other.name
+            break
+          end
+        end
+      end
     end
   end
   entries[#entries+1]=row

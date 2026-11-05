@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factory graph in Memgraph — factorio-ai-player</title>
+<style>
+  :root {
+    --bg: #fbfbfa;
+    --fg: #1d1d1f;
+    --muted: #6a6a70;
+    --border: #d9d9de;
+    --surface: #f2f2f4;
+    --code-bg: #f5f5f7;
+    --accent: #2f6df6;
+    --success: #1f8a4c;
+    --warning: #a8690b;
+    --error: #c02b2b;
+    --c1: #2f6df6;
+    --c2: #1f8a4c;
+    --c3: #a8690b;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17171a;
+      --fg: #e9e9ec;
+      --muted: #9a9aa3;
+      --border: #33333a;
+      --surface: #202026;
+      --code-bg: #1d1d22;
+      --accent: #6f9bff;
+      --success: #4cc985;
+      --warning: #e0a33a;
+      --error: #ef6b6b;
+      --c1: #6f9bff;
+      --c2: #4cc985;
+      --c3: #e0a33a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto;
+    max-width: 1080px;
+    padding: 40px 24px 80px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.6 var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 8px; }
+  h1 { font-size: 26px; line-height: 1.25; margin: 0 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 19px; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 15px; margin: 24px 0 8px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  p { margin: 10px 0; }
+  .sub { color: var(--muted); margin: 0; }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+  .badge {
+    font: 12px/1 var(--mono); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px;
+    background: var(--surface);
+  }
+  .badge b { color: var(--fg); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  .tw { overflow-x: auto; margin: 14px 0; }
+  .tw table { margin: 0; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td code, th code, p code, li code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font: 13px/1.5 var(--mono); }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; margin: 14px 0;
+    font: 13px/1.55 var(--mono); tab-size: 2;
+  }
+  pre code { background: none; border: 0; padding: 0; font: inherit; }
+  .note, .warn, .ok {
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 16px; margin: 16px 0;
+    font-size: 14px;
+  }
+  .warn { border-left-color: var(--warning); }
+  .ok { border-left-color: var(--success); }
+  .note p:first-child, .warn p:first-child, .ok p:first-child { margin-top: 0; }
+  .note p:last-child, .warn p:last-child, .ok p:last-child { margin-bottom: 0; }
+  .diagram { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 8px; margin: 18px 0; }
+  svg text { font-family: var(--font); fill: var(--fg); }
+  svg .box { fill: var(--bg); stroke: var(--border); stroke-width: 1.5; }
+  svg .box-accent { fill: var(--bg); stroke: var(--accent); stroke-width: 1.5; }
+  svg .t { font-size: 13px; font-weight: 600; }
+  svg .s { font-size: 10.5px; fill: var(--muted); font-family: var(--mono); }
+  svg .e { font-size: 11px; fill: var(--c1); font-family: var(--mono); }
+  svg .e2 { font-size: 11px; fill: var(--c2); font-family: var(--mono); }
+  svg .e3 { font-size: 11px; fill: var(--c3); font-family: var(--mono); }
+  svg .ln { stroke: var(--c1); stroke-width: 1.6; fill: none; }
+  svg .ln2 { stroke: var(--c2); stroke-width: 1.6; fill: none; }
+  svg .ln3 { stroke: var(--c3); stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; }
+  svg .lnm { stroke: var(--muted); stroke-width: 1.2; fill: none; stroke-dasharray: 2 4; }
+  svg marker path { fill: var(--c1); }
+  svg marker.m2 path { fill: var(--c2); }
+  svg marker.m3 path { fill: var(--c3); }
+  svg marker.mm path { fill: var(--muted); }
+  ul, ol { margin: 10px 0; padding-left: 22px; }
+  li { margin: 6px 0; }
+  .refs { font-size: 13px; color: var(--muted); }
+  .refs code { font-size: 12px; }
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 780px) {
+    body { padding: 28px 14px 64px; }
+    .grid2 { grid-template-columns: 1fr; }
+    table { table-layout: auto; min-width: 640px; }
+    th, td { padding: 8px 8px; }
+    td:first-child, th:first-child { white-space: nowrap; }
+    td code, th code { overflow-wrap: anywhere; }
+    pre { font-size: 12px; padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Factory graph in Memgraph</h1>
+  <p class="sub">Every entity of one force, and every engine-verified connection between them, exported from the live save and loaded into Memgraph for Cypher queries.</p>
+  <div class="badges">
+    <span class="badge">status <b>implemented</b></span>
+    <span class="badge">engine <b>Factorio 2.0.77</b></span>
+    <span class="badge">store <b>Memgraph 3.14 (MAGE) + Lab</b></span>
+    <span class="badge">command <b>factorio-ai-player graph</b></span>
+  </div>
+</header>
+
+<h2>1 · Quick start</h2>
+
+<pre><code>just graph-up        # Memgraph on bolt://127.0.0.1:7687, Lab on http://127.0.0.1:3000
+just graph-sync      # export the live save, then load it (replaces the previous snapshot)
+just graph-shell     # mgconsole inside the container</code></pre>
+
+<p>The export is read-only on the game. Snapshots land in <code>.factorio/graph/snap-*</code> (newest five kept, <code>LATEST</code> names the newest); <code>just graph-load --in DIR</code> loads any of them again.</p>
+
+<div class="tw"><table>
+  <thead><tr><th>Recipe</th><th>Runs</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td><code>graph-up</code> / <code>graph-down</code></td><td><code>scripts/graph-compose.sh up -d --wait</code></td><td>start / stop Memgraph and Lab; data volume kept</td></tr>
+    <tr><td><code>graph-wipe</code></td><td><code>down -v</code></td><td>delete the Memgraph volume</td></tr>
+    <tr><td><code>graph-export *args</code></td><td><code>go run . graph export</code></td><td>write a snapshot directory</td></tr>
+    <tr><td><code>graph-load *args</code></td><td><code>go run . graph load</code></td><td>write a snapshot into Memgraph</td></tr>
+    <tr><td><code>graph-sync *args</code></td><td><code>go run . graph sync</code></td><td>export, then load</td></tr>
+    <tr><td><code>graph-schema</code></td><td><code>go run . graph schema</code></td><td>reapply constraints and indexes</td></tr>
+  </tbody>
+</table></div>
+
+<h2>2 · Pipeline</h2>
+
+<div class="diagram">
+<svg viewBox="0 0 980 250" role="img" aria-label="census before, chunk census, leaf reads and mobile read go into the builder, census after reconciles, the snapshot directory is loaded into Memgraph">
+  <defs>
+    <marker id="p1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+  <rect class="box" x="16" y="20" width="150" height="56" rx="8"/>
+  <text class="t" x="91" y="44" text-anchor="middle">census (before)</text>
+  <text class="s" x="91" y="62" text-anchor="middle">static · mobile · skipped</text>
+  <rect class="box" x="16" y="104" width="150" height="56" rx="8"/>
+  <text class="t" x="91" y="128" text-anchor="middle">chunk census</text>
+  <text class="s" x="91" y="146" text-anchor="middle">non-empty chunks, paged</text>
+  <rect class="box-accent" x="210" y="104" width="160" height="56" rx="8"/>
+  <text class="t" x="290" y="128" text-anchor="middle">leaf reads ×N</text>
+  <text class="s" x="290" y="146" text-anchor="middle">1 RCON call = 1 tick</text>
+  <rect class="box" x="210" y="186" width="160" height="50" rx="8"/>
+  <text class="t" x="290" y="208" text-anchor="middle">mobile read</text>
+  <text class="s" x="290" y="225" text-anchor="middle">vehicles, characters</text>
+  <rect class="box" x="414" y="104" width="150" height="56" rx="8"/>
+  <text class="t" x="489" y="128" text-anchor="middle">builder</text>
+  <text class="s" x="489" y="146" text-anchor="middle">route kinds · dedupe</text>
+  <rect class="box" x="414" y="20" width="150" height="56" rx="8"/>
+  <text class="t" x="489" y="44" text-anchor="middle">census (after)</text>
+  <text class="s" x="489" y="62" text-anchor="middle">reconcile per surface</text>
+  <rect class="box" x="608" y="104" width="160" height="56" rx="8"/>
+  <text class="t" x="688" y="128" text-anchor="middle">snapshot dir</text>
+  <text class="s" x="688" y="146" text-anchor="middle">jsonl + manifest</text>
+  <rect class="box-accent" x="812" y="104" width="150" height="56" rx="8"/>
+  <text class="t" x="887" y="128" text-anchor="middle">Memgraph</text>
+  <text class="s" x="887" y="146" text-anchor="middle">MERGE · prune scope</text>
+  <line class="ln" x1="91" y1="76" x2="91" y2="100" marker-end="url(#p1)"/>
+  <line class="ln" x1="166" y1="132" x2="206" y2="132" marker-end="url(#p1)"/>
+  <line class="ln" x1="370" y1="132" x2="410" y2="132" marker-end="url(#p1)"/>
+  <line class="ln" x1="370" y1="211" x2="430" y2="164" marker-end="url(#p1)"/>
+  <line class="ln" x1="489" y1="104" x2="489" y2="80" marker-end="url(#p1)"/>
+  <line class="ln" x1="564" y1="132" x2="604" y2="132" marker-end="url(#p1)"/>
+  <line class="ln" x1="768" y1="132" x2="808" y2="132" marker-end="url(#p1)"/>
+  <text class="s" x="600" y="40">status: complete | drift | incomplete</text>
+</svg>
+</div>
+
+<ol>
+  <li><b>Census before.</b> One call totals each surface for the force: <em>static</em> entities (exported by leaves), <em>mobile</em> entities (characters, cars, spidertrons, rolling stock) and <em>skipped</em> ones (robots and transient effects such as projectiles and fire).</li>
+  <li><b>Chunk census.</b> Generated chunks are visited in pages of 20,000 and every chunk intersecting an entity of the force is kept with its count.</li>
+  <li><b>Leaf plan.</b> Non-empty chunks are grouped into aligned 256-tile cells and each cell is split into quadrants until its estimated count fits <code>--leaf-max</code> (default 2000) or it is a single chunk. Leaves never overlap and cover every non-empty chunk.</li>
+  <li><b>Leaf reads.</b> One RCON call per leaf, up to <code>--concurrency</code> (default 4) in parallel. A leaf owns every static entity whose <em>centre</em> lies in its half-open rectangle <code>[lx,rx)×[ly,ry)</code>, so each entity is owned exactly once; the scan is padded by 3 tiles so arms and drills at the border still resolve their targets. A leaf that fails on transport is split into quadrants and retried.</li>
+  <li><b>Mobile read.</b> One call per surface reads every mobile entity in a single tick, so moving vehicles are neither missed nor counted twice.</li>
+  <li><b>Census after</b> and reconciliation (§6), then the builder routes raw engine links into relationship types (§4) and writes the snapshot directory atomically.</li>
+  <li><b>Load.</b> Schema applied, nodes and edges MERGEd in batches, then everything in the snapshot's scopes that does not carry its id is deleted.</li>
+</ol>
+
+<h2>3 · Nodes</h2>
+
+<p>Every entity is <code>(:Entity {id})</code> plus category labels by engine type. Networks are <code>(:Network {id})</code>; snapshots are <code>(:Snapshot {id})</code>.</p>
+
+<div class="tw"><table>
+  <thead><tr><th>Label</th><th>Engine types</th></tr></thead>
+  <tbody>
+    <tr><td><code>:Machine</code></td><td>assembling-machine, furnace, lab, rocket-silo, agricultural-tower, asteroid-collector</td></tr>
+    <tr><td><code>:MiningDrill</code></td><td>mining-drill</td></tr>
+    <tr><td><code>:Belt</code></td><td>transport-belt, underground-belt, splitter (also <code>:Splitter</code>), loader, loader-1x1, linked-belt, lane-splitter</td></tr>
+    <tr><td><code>:Inserter</code></td><td>inserter</td></tr>
+    <tr><td><code>:Chest</code></td><td>container, logistic-container, linked-container, infinity-container</td></tr>
+    <tr><td><code>:FluidEntity</code></td><td>pipe, pipe-to-ground, pump, offshore-pump, storage-tank, infinity-pipe, heat-exchanger, boiler, generator, fusion-generator</td></tr>
+    <tr><td><code>:PowerSource</code></td><td>boiler, generator, fusion-generator, fusion-reactor, solar-panel, accumulator, reactor, burner-generator, electric-energy-interface, lightning-attractor</td></tr>
+    <tr><td><code>:Pole</code></td><td>electric-pole, power-switch</td></tr>
+    <tr><td><code>:Beacon</code> · <code>:Roboport</code></td><td>beacon · roboport</td></tr>
+    <tr><td><code>:Rail</code> · <code>:RailSignal</code> · <code>:TrainStop</code></td><td>all 2.0 rail pieces incl. elevated and legacy · rail-signal, rail-chain-signal · train-stop</td></tr>
+    <tr><td><code>:Combinator</code></td><td>arithmetic/decider/constant/selector combinators, power-switch, programmable-speaker, display-panel, lamp</td></tr>
+    <tr><td><code>:Defense</code></td><td>turrets, artillery-turret, wall, gate, land-mine, radar</td></tr>
+    <tr><td><code>:Vehicle</code> · <code>:RollingStock</code> · <code>:Character</code></td><td>car, spider-vehicle, locomotive and wagons (also <code>:RollingStock</code>) · character</td></tr>
+    <tr><td><code>:Ghost</code></td><td>entity-ghost, tile-ghost (<code>ghostName</code>, <code>ghostType</code>)</td></tr>
+    <tr><td><code>:ResourceTile</code></td><td>resource (only as a drill's mining target)</td></tr>
+    <tr><td><code>:External</code></td><td>an edge endpoint no leaf owns: neutral resources, another force's entities</td></tr>
+    <tr><td><i>(none)</i></td><td>any other type is still an <code>:Entity</code> with its <code>type</code> property</td></tr>
+  </tbody>
+</table></div>
+
+<p><b>Entity properties:</b> <code>id</code>, <code>unit</code>, <code>name</code>, <code>type</code>, <code>surface</code>, <code>force</code>, <code>x</code>, <code>y</code>, <code>direction</code>, <code>quality</code>, <code>status</code> (engine status name), <code>recipe</code>, <code>recipeQuality</code>, <code>recipeSource</code> (<code>previous</code> for an idle furnace), <code>modules</code> (<code>name:quality:count</code> strings), <code>electricNetwork</code>, <code>logisticNetwork</code>, <code>train</code>, <code>mobile</code>, <code>tick</code> (the tick of the read that owned it), <code>snapshot</code>, <code>scope</code>.</p>
+
+<p><b>Identity.</b> <code>id = surface:unit_number</code>, else <code>surface:type:name:x:y</code> (resources have no unit number). Unit numbers are global, the surface prefix keeps ids readable and linked belts across surfaces distinct.</p>
+
+<p><b>Network nodes.</b> <code>:Network:ElectricNetwork</code> (<code>surface:electric:N</code>), <code>:Network:LogisticNetwork</code> (<code>surface:force:logistic:N</code>), <code>:Network:CircuitNetwork</code> (<code>surface:circuit:N</code>, with <code>color</code>).</p>
+
+<p><b>Sequence splitters.</b> A splitter is a <code>:Belt</code> and a <code>:Splitter</code> with <code>inputPriority</code>/<code>outputPriority</code> (<code>none</code>, <code>left</code>, <code>right</code>) and, where the build exposes them, <code>filters</code> (<code>{index, name, quality}</code>). Its two outputs are separate edges with <code>fromPort</code> = <code>left</code> or <code>right</code>, resolved geometrically from the two bounding boxes and the splitter's direction — the side counter-clockwise of travel, so an eastward splitter's north output is <code>left</code>. An edge entering the splitter carries <code>toPort</code>. Neither engine source names the side: <code>belt_neighbours</code> keys are ordering only, and the transport-line names <code>left_split_line</code>/<code>right_split_line</code> are the two <em>lanes of one output belt</em> while <code>secondary_*_split_line</code> names the second output — measured on a connected splitter. Both neighbouring belts report the same link back without a port, and the loader merges the port onto the single edge instead of creating a second. When the geometry cannot resolve (<code>fromPort</code>/<code>toPort</code> absent) the raw neighbour key is kept separately as <code>fromPortIndex</code>/<code>toPortIndex</code>, so <code>fromPort</code> only ever holds <code>left</code> or <code>right</code>.</p>
+
+<h2>4 · Relationships</h2>
+
+<div class="tw"><table>
+  <thead><tr><th>Type</th><th>From → to</th><th>Properties</th><th>Engine source</th></tr></thead>
+  <tbody>
+    <tr><td><code>BELT_OUT</code></td><td>belt → belt (or loader ↔ chest)</td><td><code>kind</code>: belt · underground · linked · loader · line; <code>fromPort</code> / <code>toPort</code> (<code>left</code> · <code>right</code>) and <code>fromPortIndex</code> / <code>toPortIndex</code> on a splitter endpoint</td><td><code>belt_neighbours</code>, underground/linked partners, <code>loader_container</code>; <code>line</code> only with <code>--line-links</code></td></tr>
+    <tr><td><code>PICKS_FROM</code></td><td>inserter → source</td><td><code>side</code> (<code>left</code> · <code>right</code>) when the source is a belt: the side of the belt the inserter stands on</td><td><code>pickup_target</code>, else the entity on the arm's pickup tile</td></tr>
+    <tr><td><code>DROPS_TO</code></td><td>inserter → destination</td><td><code>side</code> when the destination is a belt: the lane the item lands on</td><td><code>drop_target</code>, else the entity on the drop tile</td></tr>
+    <tr><td><code>DROPS_ON</code></td><td>drill / machine → target</td><td>—</td><td>machine <code>drop_target</code> with the same tile fallback</td></tr>
+    <tr><td><code>MINES</code></td><td>drill → <code>:ResourceTile</code></td><td>—</td><td><code>mining_target</code> (none for a dry or unstarted drill)</td></tr>
+    <tr><td><code>AFFECTS</code></td><td>beacon → machine</td><td>—</td><td><code>get_beacon_effect_receivers()</code></td></tr>
+    <tr><td><code>FLUID_LINK</code></td><td>canonical pair (stored a→b, read undirected)</td><td><code>dirA</code>, <code>dirB</code>, <code>ports</code></td><td><code>fluidbox.get_pipe_connections</code> on every entity with a fluidbox, machines included</td></tr>
+    <tr><td><code>POWER_WIRE</code></td><td>canonical pair</td><td><code>connectorA</code>, <code>connectorB</code></td><td>copper wire connectors</td></tr>
+    <tr><td><code>CIRCUIT_WIRE</code></td><td>canonical pair</td><td><code>color</code>, <code>connectorA</code>, <code>connectorB</code></td><td>red / green wire connectors</td></tr>
+    <tr><td><code>RAIL_LINK</code></td><td>canonical pair</td><td>—</td><td><code>get_connected_rail</code> in every direction</td></tr>
+    <tr><td><code>POWERED_BY</code></td><td>entity → <code>:ElectricNetwork</code></td><td>—</td><td><code>electric_network_id</code></td></tr>
+    <tr><td><code>IN_LOGISTIC_NETWORK</code></td><td>entity → <code>:LogisticNetwork</code></td><td>—</td><td><code>logistic_network</code></td></tr>
+    <tr><td><code>ON_CIRCUIT</code></td><td>entity → <code>:CircuitNetwork</code></td><td><code>connector</code>, <code>color</code></td><td>wire connector <code>network_id</code></td></tr>
+  </tbody>
+</table></div>
+
+<p>Every relationship carries <code>key</code>, <code>snapshot</code> and <code>scope</code>. Connector names follow the owner (<code>pole_copper</code> vs <code>power_switch_left_copper</code> share id 5; combinators use <code>combinator_input_*</code>/<code>combinator_output_*</code>).</p>
+
+<div class="warn">
+  <p><b>Kind routing is strict.</b> Raw links arrive per owning entity with a <code>kind</code>; the exporter routes each kind to one relationship type and <b>fails on an unknown kind</b> rather than dropping connectivity. Pickups arrive as source→arm and are re-hung on the arm. Fluid ports, wires and rails are reported from both ends; they fold into one edge on the sorted endpoint pair. <code>dirA</code>/<code>dirB</code> are the raw per-port declarations and never imply a direction of flow.</p>
+</div>
+
+<h2>5 · Coverage</h2>
+
+<div class="grid2">
+  <div class="ok">
+    <p><b>Captured</b></p>
+    <ul>
+      <li>Every static entity of the force on every surface it owns entities on, including ghosts, poles, rails, combinators, defenses.</li>
+      <li>Every vehicle, character and piece of rolling stock (one-tick mobile pass).</li>
+      <li>Belt, inserter, drill, beacon, fluid, copper, circuit and rail connections; electric, logistic and circuit network membership.</li>
+      <li>Recipe, modules, status, quality and direction on each node.</li>
+    </ul>
+  </div>
+  <div class="warn">
+    <p><b>Deliberately not captured</b></p>
+    <ul>
+      <li>Robots and transient effects (counted as <em>skipped</em> in the census).</li>
+      <li>Item contents, belt lane contents and measured throughput — they change every tick and belong on dated measurement edges.</li>
+      <li>Splitter lane routing, heat-pipe connectivity, train schedules and paths, tiles, trees, enemies.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>6 · Completeness</h2>
+
+<p>The census counts entities by force and type; leaves own entities by centre. Because leaves partition every non-empty chunk, each static entity is exported exactly once, and the exported count must equal the census. The census is taken before and after the scan:</p>
+
+<div class="tw"><table>
+  <thead><tr><th>Status</th><th>Condition</th><th>Meaning</th><th>Exit / load</th></tr></thead>
+  <tbody>
+    <tr><td><code>complete</code></td><td>before = after = exported</td><td>nothing changed during the scan and nothing was missed</td><td>0 / loads</td></tr>
+    <tr><td><code>drift</code></td><td>before ≠ after</td><td>bots or players built or removed entities while the scan ran; each node is correct at its own <code>tick</code></td><td>0 / loads; rerun for an exact snapshot</td></tr>
+    <tr><td><code>incomplete</code></td><td>before = after ≠ exported</td><td>a hole: something counted was not exported</td><td>non-zero / refused unless <code>--allow-incomplete</code></td></tr>
+  </tbody>
+</table></div>
+
+<p>An entity owned by two leaves is an error, not a merge. The manifest records every leaf's area, tick, owned count, edge count and duration.</p>
+
+<h2>7 · Snapshots and loading</h2>
+
+<p>A snapshot directory holds <code>nodes.jsonl</code> (<code>{id, labels, props}</code>), <code>edges.jsonl</code> (<code>{type, from, fromLabel, to, toLabel, key, props}</code>) and <code>manifest.json</code>. It is written to a temp directory and renamed into place, so a reader never sees half a snapshot.</p>
+
+<p>Loading MERGEs nodes by <code>id</code> and relationships by <code>key</code>, so loading the same snapshot twice is a no-op. A snapshot covers one <em>scope</em> per surface (<code>surface|force</code>); after all rows are written, every node, network and relationship in those scopes that does not carry the new snapshot id is deleted. A snapshot replaces its scopes and never patches them, because the world it describes may have been rebuilt in between. <code>(:Snapshot {loaded})</code> flips to <code>true</code> only after pruning.</p>
+
+<p>Labels and relationship types are spliced into Cypher from fixed allow-lists; anything else is rejected before a query is built.</p>
+
+<h3>Schema</h3>
+
+<p><code>memgraph/schema.cypherl</code> holds unique constraints on <code>:Entity(id)</code>, <code>:Network(id)</code>, <code>:Snapshot(id)</code>, the matching label-property indexes (Memgraph does not index a constraint by itself), scope indexes for pruning, and indexes on <code>unit</code>, <code>name</code>, <code>type</code>, <code>status</code>, <code>:Machine(recipe)</code> and the main labels. The container runs it with <code>--init-file</code> on every start and <code>graph load</code> reapplies it; re-creating an existing index or constraint is a no-op. One statement per line, no comments: the init file is parsed line by line.</p>
+
+<h2>8 · Performance</h2>
+
+<div class="tw"><table>
+  <thead><tr><th>Case</th><th>Entities</th><th>Leaves</th><th>Export</th><th>Load</th></tr></thead>
+  <tbody>
+    <tr><td>Disposable sandbox, mod ops loaded (<code>graph_leaf</code>, <code>--leaf-max 3000</code>)</td><td>41,600</td><td>44</td><td>6.1 s, slowest leaf 613 ms</td><td>3.3 s</td></tr>
+    <tr><td>Live save, mod loaded before the ops existed (inline fallback)</td><td>309</td><td>2</td><td>3.9 s, each leaf ≈1.8 s</td><td>0.1 s</td></tr>
+  </tbody>
+</table></div>
+
+<p>Leaf and mobile reads run the topology prelude plus the graph prelude. The navigation mod compiles both once and exposes <code>graph_leaf</code> and <code>graph_mobile</code> on <code>factorio_ai_topology</code>, so the console sends only a <code>remote.call</code>. A save whose loaded mod predates those ops gets the same Lua inline. That path is correct but slow for a reason unrelated to Lua: in-game <code>load()</code> of the 25 KB prelude takes 1.8 ms, yet the console command takes ~1.2 s, and the delay scales with the command's <em>entropy</em> (24 KB of repeated text: 4 ms; 24 KB of random text: 2.9 s). A multiplayer server replicates each console command to its clients, so large commands cost transmission time. Restarting Factorio loads the new ops.</p>
+
+<p>Each leaf read runs on the game thread for its duration; <code>--leaf-max</code> trades the number of calls against the length of each stall.</p>
+
+<h2>9 · Query cookbook</h2>
+
+<p>Through GraphQL, <code>query { memgraphSchema { labels { name nodes properties { name count } } relationships { name edges properties { name count } } snapshot { id status nodes edges } } }</code> returns the labels, relationship types, property keys and latest loaded snapshot without writing Cypher. It is derived from loaded data, so a label, type or property that was never loaded is absent, and declared indexes/constraints remain in <code>memgraph/schema.cypherl</code>.</p>
+
+<h3>Mine → belt run → inserter → smelter</h3>
+<pre><code>MATCH p = (d:MiningDrill)-[:DROPS_ON]-&gt;(:Belt)-[:BELT_OUT*0..300]-&gt;(b:Belt)
+          &lt;-[:PICKS_FROM]-(i:Inserter)-[:DROPS_TO]-&gt;(m:Machine)
+MATCH (d)-[:MINES]-&gt;(ore:ResourceTile)
+RETURN ore.name, d.id, i.id, m.name, m.recipe, length(p) AS hops;</code></pre>
+
+<h3>Everything feeding one machine</h3>
+<pre><code>MATCH (m:Machine {unit: $unit})&lt;-[:DROPS_TO]-(i:Inserter)-[:PICKS_FROM]-&gt;(src)
+OPTIONAL MATCH (up:Belt)-[:BELT_OUT*1..300]-&gt;(src)
+OPTIONAL MATCH (up)&lt;-[:DROPS_ON|DROPS_TO]-(feeder)
+RETURN i.status, src.name, collect(DISTINCT feeder.name) AS feeders;</code></pre>
+
+<h3>Belt heads nothing feeds</h3>
+<pre><code>MATCH (b:Belt)
+WHERE NOT ()-[:BELT_OUT]-&gt;(b) AND NOT ()-[:DROPS_ON]-&gt;(b) AND NOT ()-[:DROPS_TO]-&gt;(b)
+RETURN b.id, b.x, b.y;</code></pre>
+
+<h3>Splitter outputs and dead sides</h3>
+<pre><code>MATCH (s:Splitter)-[r:BELT_OUT]-&gt;(b:Belt)
+WITH s, r.fromPort AS port, b, size([(b)-[:BELT_OUT]-&gt;() | 1]) AS downstream
+RETURN s.id, s.x, s.y, s.outputPriority, port, b.id,
+       CASE WHEN downstream = 0 THEN 'dead side' ELSE 'flows' END;</code></pre>
+
+<h3>Inserters bridging belt to belt (candidate defects)</h3>
+<pre><code>MATCH (a:Belt)&lt;-[:PICKS_FROM]-(i:Inserter)-[:DROPS_TO]-&gt;(b:Belt) RETURN i.id, i.x, i.y;</code></pre>
+
+<h3>Burner machines with no fuel anywhere upstream (point-in-time contents)</h3>
+<p>Nodes carry a contents sample taken at the leaf tick: <code>fuel</code>, <code>input</code>, <code>output</code> (furnaces, assemblers, burner drills/boilers/inserters), <code>items</code> (chests) and <code>left</code> / <code>right</code> (per-lane items of a <code>transport-belt</code>: engine transport line 1 exported as <code>left</code>, line 2 as <code>right</code>; the side mapping is not independently verified), each a sorted list of <code>name:count</code> (<code>name@quality:count</code> when not normal). Each list has a matching <code>…Count</code>, present whenever the entity has that inventory, so <code>fuelCount = 0</code> (burner, empty) differs from no <code>fuelCount</code> (no fuel inventory); the list itself is absent when empty. <code>PICKS_FROM.side</code> is the side of the belt (relative to travel) the inserter stands on; <code>DROPS_TO.side</code> is the lane the dropped item lands on. Contents are volatile: compare against <code>tick</code> and re-export before trusting them.</p>
+<pre><code>MATCH (m:Machine) WHERE m.fuelCount = 0
+  AND NOT EXISTS { MATCH (m)&lt;-[:DROPS_TO]-(:Inserter)-[:PICKS_FROM]-&gt;(b:Belt)
+                   WHERE any(x IN coalesce(b.left,[]) + coalesce(b.right,[]) WHERE x STARTS WITH 'coal') }
+RETURN m.unit, m.recipe, m.inputCount;</code></pre>
+
+<h3>Machines on no electric network</h3>
+<pre><code>MATCH (m) WHERE (m:Machine OR m:Inserter OR m:MiningDrill)
+  AND m.electricNetwork IS NULL AND NOT m.name STARTS WITH 'burner' AND NOT m.name STARTS WITH 'stone'
+RETURN m.name, m.x, m.y, m.status;</code></pre>
+
+<h3>Beacon coverage per machine</h3>
+<pre><code>MATCH (m:Machine) OPTIONAL MATCH (b:Beacon)-[:AFFECTS]-&gt;(m)
+RETURN m.recipe, m.id, count(b) AS beacons ORDER BY beacons;</code></pre>
+
+<h3>Fluid neighbourhood (undirected)</h3>
+<pre><code>MATCH (n:Entity {unit: $unit})-[r:FLUID_LINK]-(other) RETURN other.name, r.dirA, r.dirB, r.ports;</code></pre>
+
+<h3>Latest loaded snapshot</h3>
+<pre><code>MATCH (s:Snapshot {loaded: true}) RETURN s ORDER BY s.id DESC LIMIT 1;</code></pre>
+
+<h2>10 · Invariants</h2>
+
+<ul>
+  <li><b>Wiring is not throughput.</b> No rate or item count lives on a wiring edge. A packed static belt reads zero flow with full lanes.</li>
+  <li><b>Fluid, wire and rail edges are undirected in meaning.</b> Match them without an arrow.</li>
+  <li><b>Unknown link kinds fail the export.</b> Silent skips would make contract drift look like a smaller factory.</li>
+  <li><b>Snapshots replace scopes.</b> A partial or older snapshot never patches a newer world.</li>
+  <li><b>Ticks are per read.</b> Each node carries the tick of the leaf that owned it; a multi-leaf snapshot spans ticks and says so in the manifest.</li>
+  <li><b>Inline and mod Lua are one text.</b> <code>TestTopologyModPreludeParity</code> fails when the <code>graph_prelude</code>, <code>graph_leaf</code> or <code>graph_mobile</code> regions of <code>topology.lua</code> drift from the Go fallback.</li>
+  <li><b>The graph is a snapshot, not live state.</b> Refresh with <code>just graph-sync</code> or the GraphQL mutation <code>exportMapSnapshotToMemgraph</code>; read with the read-only <code>queryMemgraph</code>. Each <code>Entity</code> carries the <code>tick</code> and <code>snapshot</code> id it was exported at.</li>
+</ul>
+
+<footer>
+  <p class="refs">
+    Code: <code>graph_export_lua.go</code> (census, chunk and leaf Lua) · <code>graph_export.go</code> (planning, routing, reconciliation, <code>graph</code> command) · <code>graph_load.go</code> (Bolt loader) · <code>memgraph_api.go</code> + <code>memgraph_schema.go</code> + <code>memgraph.graphqls</code> (GraphQL export mutation, read-only query and schema query) ·
+    <code>mods/factorio_ai_navigation/topology.lua</code> (<code>graph_leaf</code>, <code>graph_mobile</code>) · <code>memgraph/docker-compose.yml</code> · <code>memgraph/schema.cypherl</code> · <code>scripts/graph-compose.sh</code>.
+    Tests: <code>graph_export_test.go</code>, <code>TestIntegration/GraphExportCoverage</code> (real engine: beacon, rails, circuit wire, logistic network, fluid folding, recipe, modules, splitter ports and priorities, mobile pass), <code>topology_test.lua</code>.
+  </p>
+</footer>
+
+</body>
+</html>

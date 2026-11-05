@@ -122,3 +122,72 @@ assert(captured.removed==1 and captured.skipped==0)
 	}
 	runLuaFixture(t, deconstructionAreaLua(options), stubs, assertions)
 }
+
+// An entity ghost cannot hold a deconstruction order: the engine cancels the
+// ghost during order_deconstruction and the entity is invalid afterwards, which
+// used to abort the whole batch with "LuaEntity API call when LuaEntity was
+// invalid." while the ghost was already gone. The order must be counted and the
+// remaining targets must still be processed.
+func TestDeconstructionEntitiesGhostOrderDoesNotAbortBatch(t *testing.T) {
+	stubs := `
+local surface=game.surfaces.nauvis
+surface.find_entities_filtered=function() return {} end
+called={}
+-- Declare the locals before the closures that mutate them: a local is not in
+-- scope inside its own initializer, so a table constructor would capture a nil
+-- global instead.
+local ghost,belt
+ghost={valid=true,type="entity-ghost",name="entity-ghost",surface=surface,ordered=false}
+ghost.to_be_deconstructed=function() return false end
+ghost.order_deconstruction=function(order_force) called.ghost=(called.ghost or 0)+1; ghost.ordered=true; ghost.valid=false; error("LuaEntity API call when LuaEntity was invalid.") end
+belt={valid=true,type="transport-belt",name="transport-belt",surface=surface,ordered=false}
+belt.to_be_deconstructed=function() return belt.ordered end
+belt.order_deconstruction=function(order_force) called.belt=(called.belt or 0)+1; belt.ordered=true; return true end
+game.get_entity_by_unit_number=function(unit)
+  if unit==1 then return ghost end
+  if unit==2 then return belt end
+  return nil
+end
+game.get_entity_by_unit_number=function(unit)
+  if unit==1 then return ghost end
+  if unit==2 then return belt end
+  return nil
+end
+`
+	assertions := `
+assert(captured~=nil,"the batch must print a result")
+assert(captured.error==nil,"the ghost must not abort the batch: "..tostring(captured.error))
+assert(captured.orders==2,"both the cancelled ghost and the belt must count as orders, got "..tostring(captured.orders))
+assert(captured.skipped==0,"nothing in this batch may be skipped, got "..tostring(captured.skipped))
+assert(#captured.errors==0,"an invalidated ghost must not become an ENGINE error")
+assert(ghost.valid==false and ghost.ordered==true,"the ghost must have been cancelled by the order")
+assert(belt.ordered==true,"the target after the ghost must still be ordered")
+`
+	targets := `{unit=1,name="entity-ghost",x=0,y=0,surface="nauvis"},{unit=2,name="transport-belt",x=0,y=0,surface="nauvis"}`
+	runLuaFixture(t, deconstructionEntitiesLua("nauvis", "player", false, targets), stubs, assertions)
+}
+
+// The cancel path has the same hazard: an entity that disappears while its
+// order is cancelled must be reported as a completed cancellation, not abort the
+// batch.
+func TestDeconstructionEntitiesCancelSurvivesVanishedEntity(t *testing.T) {
+	stubs := `
+local surface=game.surfaces.nauvis
+surface.find_entities_filtered=function() return {} end
+local belt={valid=true,type="transport-belt",name="transport-belt",surface=surface}
+belt.to_be_deconstructed=function() return true end
+belt.cancel_deconstruction=function(order_force) belt.valid=false end
+game.get_entity_by_unit_number=function(unit)
+  if unit==3 then return belt end
+  return nil
+end
+`
+	assertions := `
+assert(captured~=nil,"the batch must print a result")
+assert(captured.error==nil,"a vanished entity must not abort the cancel batch: "..tostring(captured.error))
+assert(captured.orders==1,"the cancellation must be counted, got "..tostring(captured.orders))
+assert(captured.skipped==0,"nothing may be skipped")
+assert(#captured.errors==0,"a vanished entity must not become an ENGINE error")
+`
+	runLuaFixture(t, deconstructionEntitiesLua("nauvis", "player", true, `{unit=3,name="transport-belt",x=0,y=0,surface="nauvis"}`), stubs, assertions)
+}

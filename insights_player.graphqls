@@ -7,13 +7,17 @@ extend type FactoryMachine {
   electricDrain: Float
   """Current recipe and quality, when the entity exposes a recipe."""
   recipeName: String
+  """Quality of the current recipe, when the machine exposes one."""
   recipeQuality: String
+  """Ingredients of the current recipe, when the machine exposes one."""
   recipeIngredients: [RecipeIngredient!]
   """Crafting progress and speed, when applicable."""
   craftingProgress: Float
+  """Crafting speed, when applicable."""
   craftingSpeed: Float
   "Null when this machine has no corresponding inventory."
   input: [InventoryStack!]
+  """Output inventory; null when this machine has no corresponding inventory."""
   output: [InventoryStack!]
   """Occupied fluid boxes with one-based indices."""
   machineFluids: [MachineInsightFluid!]!
@@ -23,7 +27,7 @@ extend type FactoryMachine {
 }
 
 type MachineInsightFluid { index: Int! name: String! amount: Float! temperature: Float! }
-type MachineInsightMiningTarget { name: String! position: Position! amount: Float }
+type MachineInsightMiningTarget { name: String! position: Position! amount: Float surface: String inspection: EntityInspection @goField(forceResolver: true) }
 
 extend type Query {
   """

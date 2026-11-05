@@ -108,10 +108,16 @@ local function find_batch_entity(ref)
   if not s then return nil,"surface not found" end
   if ref.name=="" then return find_entity_by_unit_number(s,ref.unit,"") end
   if ref.has_position then
+    -- A position-only reference carries unit 0, so requiring a unit-number
+    -- match here silently skipped the exact tile and fell through to the
+    -- per-prototype index, which could not find unit 0 either. Accept any
+    -- candidate at the exact centre when no unit number was given.
     for _,candidate in pairs(s.find_entities_filtered{name=ref.name,position={x=ref.x,y=ref.y},radius=0.01}) do
-      if candidate.unit_number==ref.unit and math.abs(candidate.position.x-ref.x)<0.001 and math.abs(candidate.position.y-ref.y)<0.001 then return candidate end
+      if math.abs(candidate.position.x-ref.x)<0.001 and math.abs(candidate.position.y-ref.y)<0.001
+        and (ref.unit==0 or candidate.unit_number==ref.unit) then return candidate end
     end
   end
+  if ref.unit==0 then return nil,"entity not found at that position on that surface" end
   local key=ref.surface..string.char(31)..ref.name
   local index=batch_unit_index_cache[key]
   if not index then

@@ -9,7 +9,23 @@ import (
 	"context"
 )
 
+// Inspection is the resolver for the inspection field.
+func (r *machineInsightMiningTargetResolver) Inspection(ctx context.Context, obj *MachineInsightMiningTarget) (*EntityInspection, error) {
+	surface := ""
+	if obj.Surface != nil {
+		surface = *obj.Surface
+	}
+	return entityInspectionFor(r.Resolver, surface, obj.Name, nil, obj.Position)
+}
+
 // PlayerInsight is the resolver for the playerInsight field.
 func (r *queryResolver) PlayerInsight(ctx context.Context, input PlayerInsightInput) (*PlayerInsight, error) {
 	return playerInsight(r.Resolver, &input)
 }
+
+// MachineInsightMiningTarget returns MachineInsightMiningTargetResolver implementation.
+func (r *Resolver) MachineInsightMiningTarget() MachineInsightMiningTargetResolver {
+	return &machineInsightMiningTargetResolver{r}
+}
+
+type machineInsightMiningTargetResolver struct{ *Resolver }

@@ -23,8 +23,11 @@ extend type Query {
   entry as an alternative, not an additive requirement, while requestedMaterials (including modules and qualities) is
   additive; item-request proxies are buildable purely from their requests and take name/quality from a valid
   proxy_target. Availability is computed per entry with no reservation or sharing, so the same stock may satisfy several
-  entries and a buildable backlog for the scope as a whole is not implied. Out-of-range area dimensions, invalid
-  limit/offset or unknown surface/force name produce a GraphQL error; an empty ghostEntries list means no ghosts matched.
+  entries and a buildable backlog for the scope as a whole is not implied. Placement is checked separately: every entity
+  ghost is probed with the engine's own manual placement check and reports blocked plus the prototype of one colliding
+  entity, so a plan held up by a rock, tree or machine is visible instead of looking ready. Out-of-range area dimensions,
+  invalid limit/offset or unknown surface/force name produce a GraphQL error; an empty ghostEntries list means no ghosts
+  matched.
   """
   ghosts(input: GhostsInput!): GhostsPage!
 }
@@ -105,8 +108,12 @@ type GhostBacklogEntry {
   placementAlternatives: [GhostMaterial!]!
   """Engine item_requests for ghost/proxy, including requested modules and quality; additive requirements."""
   requestedMaterials: [GhostMaterial!]!
-  """Materials for one placement alternative plus all requests available in observed area stock. False without a placement alternative except for item-request proxies. Does not assert robot coverage, collisions, research, reach or delivery."""
+  """Materials for one placement alternative plus all requests available in observed area stock. False without a placement alternative except for item-request proxies. Material availability only: placement collisions are reported by blocked, and robot coverage, research, reach and delivery are still not asserted."""
   buildable: Boolean!
+  """Engine placement check for this ghost's own tile: true when a real entity (rock, tree, machine) or an unpaved tile would refuse the build, so no amount of stock and no robot can place it. Independent of buildable; item-request proxies and tile ghosts are never reported blocked because the engine check only covers entity ghosts."""
+  blocked: Boolean!
+  """Prototype name of one blocking entity found inside the ghost's footprint, when blocked by an entity; null when unblocked, when the blocker is a tile, or when no single entity could be named."""
+  blockingName: String
 }
 
 type GhostMaterial {
@@ -135,7 +142,7 @@ type FluidNetwork {
   totalCapacity: Float!
 }
 
-type FluidNetworkEntity { id: ID! unitNumber: UnitNumber name: String! type: String! surface: String! force: String! position: Position! }
+type FluidNetworkEntity { id: ID! unitNumber: UnitNumber name: String! type: String! surface: String! force: String! position: Position! inspection: EntityInspection @goField(forceResolver: true) }
 type FluidNetworkBox { id: ID! entityId: ID! index: Int! segmentId: ID! }
 type FluidNetworkConnection { fromBoxId: ID! toBoxId: ID! flowDirection: String! connectionType: String! }
 type FluidNetworkSegment {

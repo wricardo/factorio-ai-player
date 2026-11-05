@@ -14,6 +14,11 @@ func (r *queryResolver) WorldLogistics(ctx context.Context, input WorldLogistics
 	return worldLogisticsQuery(r.Resolver, &input)
 }
 
+// BeltTiles is the resolver for the beltTiles field.
+func (r *queryResolver) BeltTiles(ctx context.Context, input BeltTilesInput) (*BeltTilesPage, error) {
+	return beltTilesQuery(r.Resolver, &input)
+}
+
 // WorldResources is the resolver for the worldResources field.
 func (r *queryResolver) WorldResources(ctx context.Context, input WorldResourcesInput) (*WorldResourcesPage, error) {
 	return worldResourcesQuery(r.Resolver, &input)

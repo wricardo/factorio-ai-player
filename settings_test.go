@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -356,6 +357,102 @@ func TestSetContainerBarAllowedSlots(t *testing.T) {
 	}
 }
 
+func TestConfigureInfinityContainerWritesFilters(t *testing.T) {
+	response := `{"tick":9,"surface":"nauvis","force":"player","name":"infinity-chest","position":{"x":1.5,"y":2.5},"infinity":{"filters":[{"index":1,"name":"electric-mining-drill","quality":"normal","count":1000,"mode":"exactly"}],"removeUnfilteredItems":true}}`
+	fake := newFakeRCON(t, response)
+	remove := true
+	result, err := configureInfinityContainer(fake.resolver, ConfigureInfinityContainerInput{
+		Actor:  &ActorInput{Player: strPtr("wricardo")},
+		Target: &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("77")},
+		Filters: []*InfinityContainerFilterInput{{
+			Item:  "electric-mining-drill",
+			Count: 1000,
+			Mode:  InfinityFilterModeExactly,
+		}},
+		RemoveUnfilteredItems: &remove,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lua := fake.commands()[0]
+	for _, want := range []string{
+		`if e.type=="infinity-pipe" then`,
+		`elseif e.type=="infinity-container" then`,
+		"if not prototypes.item[",
+		"if not prototypes.quality[",
+		"filters[#filters+1]={index=1,name=",
+		"count=1000,mode=",
+		`filter.mode~="at-most"`,
+		"e.infinity_container_filters=filters",
+		"e.remove_unfiltered_items=true",
+	} {
+		if !strings.Contains(lua, want) {
+			t.Fatalf("Lua must contain %q:\n%s", want, lua)
+		}
+	}
+	if result.Infinity == nil || len(result.Infinity.Filters) != 1 {
+		t.Fatalf("infinity section = %+v", result.Infinity)
+	}
+	filter := result.Infinity.Filters[0]
+	if filter.Name != "electric-mining-drill" || filter.Count != 1000 || filter.Mode != "exactly" {
+		t.Fatalf("filter = %+v", filter)
+	}
+
+	cleared := newFakeRCON(t, `{"tick":9,"surface":"nauvis","force":"player","name":"infinity-chest","position":{"x":1.5,"y":2.5},"infinity":{"filters":[],"removeUnfilteredItems":false}}`)
+	if _, err := configureInfinityContainer(cleared.resolver, ConfigureInfinityContainerInput{
+		Actor:  &ActorInput{Player: strPtr("wricardo")},
+		Target: &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("77")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if lua := cleared.commands()[0]; strings.Contains(lua, "filters[#filters+1]") || !strings.Contains(lua, "e.infinity_container_filters=filters") {
+		t.Fatalf("an empty filter list must assign an empty array once:\n%s", lua)
+	}
+}
+
+func TestConfigureInfinityContainerValidation(t *testing.T) {
+	base := ConfigureInfinityContainerInput{
+		Actor:  &ActorInput{Player: strPtr("wricardo")},
+		Target: &EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("77")},
+	}
+	cases := []struct {
+		name   string
+		mutate func(*ConfigureInfinityContainerInput)
+	}{
+		{"blank item", func(in *ConfigureInfinityContainerInput) {
+			in.Filters = []*InfinityContainerFilterInput{{Item: " ", Count: 1, Mode: InfinityFilterModeAtLeast}}
+		}},
+		{"fractional count", func(in *ConfigureInfinityContainerInput) {
+			in.Filters = []*InfinityContainerFilterInput{{Item: "iron-plate", Count: 1.5, Mode: InfinityFilterModeAtLeast}}
+		}},
+		{"negative count", func(in *ConfigureInfinityContainerInput) {
+			in.Filters = []*InfinityContainerFilterInput{{Item: "iron-plate", Count: -1, Mode: InfinityFilterModeAtLeast}}
+		}},
+	}
+	for _, tc := range cases {
+		in := base
+		tc.mutate(&in)
+		if _, err := configureInfinityContainer(&Resolver{}, in); err == nil {
+			t.Fatalf("%s must fail before RCON", tc.name)
+		}
+	}
+	if _, err := infinityFilterModeName(InfinityFilterMode("sometimes")); err == nil {
+		t.Fatal("an unknown filter mode must be rejected")
+	}
+}
+
+func TestInfinityFilterModeName(t *testing.T) {
+	for mode, want := range map[InfinityFilterMode]string{
+		InfinityFilterModeAtLeast: "at-least",
+		InfinityFilterModeAtMost:  "at-most",
+		InfinityFilterModeExactly: "exactly",
+	} {
+		if got, err := infinityFilterModeName(mode); err != nil || got != want {
+			t.Fatalf("%s: got %q err %v, want %q", mode, got, err, want)
+		}
+	}
+}
+
 func TestLogisticSectionStatementsInfiniteMax(t *testing.T) {
 	check, writes, err := logisticSectionStatements([]*LogisticSectionInput{{Slots: []*LogisticRequestInput{
 		{Index: 1, Name: "iron-plate", Min: intPointer(200)},
@@ -599,3 +696,63 @@ func TestFactoryDecodeSettingsReviewFields(t *testing.T) {
 func boolPointer(value bool) *bool { return &value }
 
 func signalTypePointer(value SignalType) *SignalType { return &value }
+
+// Signal types from the engine are lowercase ("fluid", "space-location") while
+// the GraphQL SignalType enum is uppercase with underscores. Every serialized
+// signal must be normalized, or a fluid circuit condition cannot be decoded at
+// all: an inserter condition with sulfuric-acid failed with "fluid is not a
+// valid SignalType" before this was covered.
+func TestSignalTypeNormalizationInLuaReaders(t *testing.T) {
+	interpreter, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("Lua interpreter not installed")
+	}
+	fixture := `
+local function slot(value,min,max)
+  return {value=value,min=min,max=max}
+end
+local function section(slots)
+  return {filters_count=#slots,active=true,multiplier=1,group="",
+    get_slot=function(i) local s=slots[i]; if not s then return nil end; return s end}
+end
+local sections={
+  section({slot({name="sulfuric-acid",type="fluid",quality="normal"},0,100)}),
+  section({slot({name="iron-plate",quality="normal"},5,10)}),
+  section({slot({name="calcite",type="space-location",quality="normal"},1,1)}),
+}
+local logistic={sections_count=#sections,get_section=function(i) return sections[i] end}
+`
+	checks := `
+local serialized=settings_logistic_sections(logistic)
+assert(serialized[1].slots[1].type=="FLUID", "a fluid signal must normalize to FLUID, got "..tostring(serialized[1].slots[1].type))
+assert(serialized[2].slots[1].type=="ITEM", "a signal without a type must default to ITEM, got "..tostring(serialized[2].slots[1].type))
+assert(serialized[3].slots[1].type=="SPACE_LOCATION", "a hyphenated engine type must become SPACE_LOCATION, got "..tostring(serialized[3].slots[1].type))
+
+local fluid=inserter_signal({name="sulfuric-acid",type="fluid"})
+assert(fluid.type=="FLUID", "inserter_signal must normalize the engine type, got "..tostring(fluid.type))
+assert(fluid.quality==nil, "inserter_signal must not invent a quality")
+local item=inserter_signal({name="iron-plate"})
+assert(item.type=="ITEM", "inserter_signal must default a missing type to ITEM, got "..tostring(item.type))
+assert(inserter_signal(nil)==nil, "an absent signal must stay nil")
+`
+	cmd := exec.Command(interpreter, "-")
+	cmd.Stdin = strings.NewReader(fixture + luaSignalTypeName + luaInserterSettingsBody + settingsLogisticSectionsLua + checks)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("signal type normalization: %v\n%s", err, out)
+	}
+}
+
+// The composed read/write chunk must define signal_type_name before the bodies
+// that call it, because Lua locals are lexically scoped: a body spliced first
+// would resolve a nil global and fail at read time.
+func TestSettingsLuaDefinesSignalTypeNameFirst(t *testing.T) {
+	helper := strings.Index(settingsLua, "local function signal_type_name(value)")
+	body := strings.Index(settingsLua, "local function inserter_signal(s)")
+	sections := strings.Index(settingsLua, "local function settings_logistic_sections(logistic)")
+	if helper < 0 || body < 0 || sections < 0 {
+		t.Fatalf("settingsLua must contain the signal helper and both readers")
+	}
+	if helper > body || helper > sections {
+		t.Fatalf("signal_type_name must be defined before its callers (helper=%d body=%d sections=%d)", helper, body, sections)
+	}
+}

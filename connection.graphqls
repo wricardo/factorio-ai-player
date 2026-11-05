@@ -6,6 +6,10 @@ extend type Query {
 extend type Mutation {
   """Plan and then place one belt, pipe or power-pole run. The mutation requires the actor's character to be on the requested surface and force, and refuses to place anything when the plan has conflicts or the actor lacks the needed items, so a refusal leaves the world unchanged: a conflicted plan returns possible false with the typed conflicts and no placed tiles, while a missing-item shortfall fails the call as a GraphQL error before any tile is touched. Each existing tile is skipped and each placed tile consumes one normal-quality item from the actor's main inventory and raises a built event. Reach applies to every placed tile when reach enforcement is enabled; other per-tile failures (collision, inventory, engine rejection) are recorded in errors, capped at 20 entries, and the run continues so a call can end partially applied. The generated notification is printed only when at least one entity was placed, unless message overrides it. ASTAR plans first and then re-checks every tile while applying, so the applied run can still differ from the plan if the world changed between the two RCON reads."""
   connectEntities(input: ConnectEntitiesInput!): ConnectEntitiesResult!
+  """Places one belt run, equivalent to connectEntities with kind BELT. Use this instead of place/placeMany for transport belts: it routes the run, can tunnel under crossings with underground belts, and refuses foreign side-loads unless allowBeltAdjacency is true."""
+  placeBelt(input: BeltPipeRunInput!): ConnectEntitiesResult!
+  """Places one pipe run, equivalent to connectEntities with kind PIPE. Use this instead of place/placeMany for pipes: it routes the run, can tunnel under crossings with pipe-to-ground, and refuses foreign fluid adjacency unless allowFluidAdjacency is true."""
+  placePipe(input: BeltPipeRunInput!): ConnectEntitiesResult!
 }
 
 enum ConnectionKind {
@@ -129,6 +133,8 @@ input ConnectEntitiesInput {
   to: PositionInput!
   kind: ConnectionKind!
   item: String
+  """Engine direction of the single-tile run, 0 north, 4 east, 8 south or 12 west. Required when from and to resolve to the same tile, because the route itself cannot imply a heading there; rejected for runs of two or more tiles, whose directions follow the route. Without it a one-tile run used to place a north-facing entity silently."""
+  direction: Int
   bend: ConnectionBend! = AUTO
   allowFluidAdjacency: Boolean! = false
   """DIRECT (default) or ASTAR; ASTAR supports BELT and PIPE only."""
@@ -154,6 +160,32 @@ input ConnectEntitiesInput {
   """Accept an existing belt outside the run that points into a new route tile, which side-loads foreign items into the run or turns a planned corner into a straight belt."""
   allowBeltAdjacency: Boolean! = false
   """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Shared input for placeBelt and placePipe. kind is fixed by the mutation, so it is not accepted here."""
+input BeltPipeRunInput {
+  actor: ActorInput!
+  surface: String! = "nauvis"
+  force: String! = "player"
+  from: PositionInput
+  to: PositionInput
+  item: String
+  """Engine direction of the single-tile run, 0 north, 4 east, 8 south or 12 west. Required when from and to resolve to the same tile, because the route itself cannot imply a heading there; rejected for runs of two or more tiles, whose directions follow the route. Without it a one-tile run used to place a north-facing entity silently."""
+  direction: Int
+  bend: ConnectionBend! = AUTO
+  allowFluidAdjacency: Boolean! = false
+  routing: ConnectionRouting! = DIRECT
+  allowUnderground: Boolean! = false
+  undergroundItem: String
+  maxUndergroundDistance: Int
+  avoidAreas: [FactoryAreaInput!] = []
+  preferExisting: Boolean! = false
+  maxExpandedTiles: Int
+  searchMargin: Int
+  fromEntity: ConnectionEndpointInput
+  toEntity: ConnectionEndpointInput
+  allowBeltAdjacency: Boolean! = false
   message: String
 }
 

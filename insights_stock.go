@@ -42,6 +42,8 @@ func stockCategoryName(category *StockCategory) (string, error) {
 		return "player", nil
 	case StockCategoryWorker:
 		return "worker", nil
+	case StockCategoryAll:
+		return "", nil
 	default:
 		return "", fmt.Errorf("unknown stock category %q", *category)
 	}

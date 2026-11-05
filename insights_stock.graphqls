@@ -32,7 +32,7 @@ input StockInput {
   area: FactoryAreaInput
   """Exact non-empty item name, if supplied."""
   item: String
-  """Exact stock category; omit to include every category."""
+  """Exact stock category; omit or pass ALL to include every category."""
   category: StockCategory
   """Location page size from 1 through 10000."""
   limit: Int! = 100
@@ -48,13 +48,14 @@ input StockInput {
   itemsOffset: Int! = 0
 }
 
-"""Stock location category. STORED is an entity inventory, IN_TRANSIT is a belt or inserter hand, GROUND is a dropped stack, PLAYER is a game player's own main inventory whether connected or not, WORKER is a detached character created for courier or builder work."""
+"""Stock location category. STORED is an entity inventory, IN_TRANSIT is a belt or inserter hand, GROUND is a dropped stack, PLAYER is a game player's own main inventory whether connected or not, WORKER is a detached character created for courier or builder work, and ALL is every category, identical to omitting the filter."""
 enum StockCategory {
   STORED
   IN_TRANSIT
   GROUND
   PLAYER
   WORKER
+  ALL
 }
 
 type StockPage {

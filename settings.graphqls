@@ -73,6 +73,31 @@ type ContainerSettings {
   capacity: Int!
 }
 
+"""One configured infinity-container filter. mode is the engine's at-least, at-most or exactly policy."""
+type InfinityContainerFilter {
+  index: Int!
+  name: String!
+  quality: String!
+  count: Float!
+  mode: String!
+}
+
+"""Infinity-container filters and whether non-matching items are removed. filters is empty when the container has no configured item. For an infinity-pipe target, filters is empty and fluidFilters holds its single fluid filter."""
+type InfinityContainerSettings {
+  filters: [InfinityContainerFilter!]!
+  """The infinity-pipe fluid filter, or empty for containers and unfiltered pipes."""
+  fluidFilters: [InfinityFluidFilter!]!
+  removeUnfilteredItems: Boolean!
+}
+
+"""One infinity-pipe fluid filter. percentage is the fill level (0-1) and mode is the engine policy string."""
+type InfinityFluidFilter {
+  fluid: String!
+  percentage: Float
+  temperature: Float
+  mode: String!
+}
+
 """One logistic request slot."""
 type LogisticRequestSlot {
   index: Int!
@@ -224,6 +249,7 @@ type SettingsResult {
   inserter: InserterSettings
   lamp: LampSettings
   container: ContainerSettings
+  infinity: InfinityContainerSettings
   logistic: LogisticSettings
   trainStop: TrainStopSettings
   rocketSilo: RocketSiloSettings
@@ -296,6 +322,12 @@ extend type Mutation {
   `inventory` defaults to chest and must be chest, fuel, input (crafter_input), output, modules or turret-ammo; the target must be an entity on the actor's force whose inventory supports a bar, otherwise the mutation fails. `allowedSlots` is the number of usable slots: null removes the limit (engine nil), 0 blocks every slot, and a value above the inventory's slot count fails. The engine stores an index instead (the slot where the blocked red area starts), so this mutation writes allowedSlots+1 and the returned container section reports both the raw `bar` index and the derived `allowedSlots`. The actor is exactly one player or character and the target is addressed by `unitNumber` or by `entity` + `position`, on nauvis or the character's current surface. The returned container section reports the resulting bar index, its derived allowedSlots and the inventory capacity, and a generated announcement is printed unless `message` overrides it.
   """
   setContainerBar(input: ContainerBarInput!): SettingsResult!
+  """
+  Replaces every item filter of one infinity container and returns the post-write snapshot in the same tick.
+
+  This is the sandbox item-source writer: an infinity-container configured with an item and count supplies that item indefinitely, and inserters or `transfer TO_ACTOR` can draw it out. The actor is exactly one player or character and the target must be on that actor's force, addressed by `unitNumber` or by `entity` + `position`, on nauvis or the character's current surface. `filters` replaces all existing filters in list order: an empty list clears them, each `item` must exist, `quality` defaults to normal and must exist, `count` must be a whole number from 0 through 4294967295, and `mode` is AT_LEAST (default), AT_MOST or EXACTLY. An omitted `removeUnfilteredItems` keeps the engine value; set it explicitly to make the container discard or retain items that no filter matches. All item and quality prototypes are validated first, then the whole filter array is assigned once, so a rejected entry cannot leave the container half-rewritten. Filters share the container's slots: each AT_LEAST or EXACTLY filter reserves ceil(count / stack size) slots (AT_MOST requires no stock), and a set that needs more slots than the inventory holds fails before any write, because the engine would otherwise stock the earlier filters and silently leave later ones empty. Failures such as a non-infinity-container target or a missing actor are GraphQL errors; success announces a generated message unless `message` overrides it, and the result reports the `infinity` filters and `removeUnfilteredItems`.
+  """
+  configureInfinityContainer(input: ConfigureInfinityContainerInput!): SettingsResult!
   """
   Replaces or clears the logistic request sections of a logistic container, returning the post-write snapshot in the same tick.
 
@@ -451,6 +483,57 @@ input ContainerBarInput {
   allowedSlots: Int
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
+}
+
+"""One infinity-container filter to write. count is ItemCountType and mode is the engine policy string."""
+input InfinityContainerFilterInput {
+  """Existing item prototype name, for example electric-mining-drill."""
+  item: String!
+  """Existing quality prototype name; null or empty means normal."""
+  quality: String
+  """Whole number from 0 through 4294967295."""
+  count: Float! = 0
+  mode: InfinityFilterMode! = AT_LEAST
+}
+
+"""Engine infinity filter policy: at-least, at-most or exactly."""
+enum InfinityFilterMode {
+  AT_LEAST
+  AT_MOST
+  EXACTLY
+}
+
+input ConfigureInfinityContainerInput {
+  actor: ActorInput!
+  target: EntityRefInput!
+  """Replaces every existing item filter in list order; an empty list clears all filters. Must be empty for an infinity-pipe target."""
+  filters: [InfinityContainerFilterInput!]!
+  """Infinity-pipe only: exactly one fluid filter to write. Must be empty for an infinity-container target."""
+  fluidFilters: [InfinityFluidFilterInput!]
+  """Null keeps the engine value; true removes items that do not match a filter, false keeps them. Ignored for infinity pipes."""
+  removeUnfilteredItems: Boolean
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""One infinity-pipe fluid filter to write."""
+input InfinityFluidFilterInput {
+  """Existing fluid prototype name, for example crude-oil."""
+  fluid: String!
+  """Fill level from 0 through 1; null keeps the engine default."""
+  percentage: Float
+  """Fluid temperature; null keeps the engine default."""
+  temperature: Float
+  mode: InfinityPipeFilterMode! = AT_LEAST
+}
+
+"""Engine infinity-pipe filter policy."""
+enum InfinityPipeFilterMode {
+  AT_LEAST
+  AT_MOST
+  EXACTLY
+  ADD
+  REMOVE
 }
 
 input LogisticRequestInput {

@@ -50,7 +50,8 @@ for _,seed in ipairs(seeds) do
     local index=#components+1
     for k,_ in pairs(members) do component_of[k]=index end
     components[index]={members=members,nodes=queue,truncated=truncated,
-      inputs={},outputs={},raw={},inserters={},inserter_seen={},picked={},dropped={},pickup_counts={},machine_links=0}
+      inputs={},outputs={},raw={},inserters={},inserter_seen={},picked={},dropped={},pickup_counts={},machine_links=0,
+      mixed_tiles={},feeders={},feeder_seen={}}
     if truncated then truncated_any=true end
   end
 end
@@ -99,7 +100,10 @@ for _,e in ipairs(scan_inserters(surface,box_area(area_box,2.5))) do
         local inserter_key=key(e)
         if not c.inserter_seen[inserter_key] then
           c.inserter_seen[inserter_key]=true
-          c.inserters[#c.inserters+1]=connected_inserter(e,area_belt_index)
+          local entry=connected_inserter(e,area_belt_index)
+          c.inserters[#c.inserters+1]=entry
+          c.feeder_seen[inserter_key]=true
+          c.feeders[#c.feeders+1]=entry.inserter
         end
       end
     end
@@ -115,8 +119,20 @@ for _,e in pairs(surface.find_entities_filtered{area=box_area(area_box,2.5),forc
   if valid(target) and is_belt(target) then
     local index=component_of[key(target)]
     if index then
-      components[index].dropped[key(target)]=true
-      components[index].machine_links=components[index].machine_links+1
+      local c=components[index]
+      c.dropped[key(target)]=true
+      c.machine_links=c.machine_links+1
+      -- A machine that drops onto the belt is a feeder in its own right: the
+      -- inserter list cannot carry a drill. The mining target is read with a
+      -- protected call so an exhausted drill still reports as a feeder.
+      local machine_key=key(e)
+      if not c.feeder_seen[machine_key] then
+        c.feeder_seen[machine_key]=true
+        local feeder={name=e.name,type=e.type,surface=e.surface.name,position=e.position,unitNumber=e.unit_number}
+        local ok_mining,mining=pcall(function() return e.mining_target end)
+        if ok_mining and valid(mining) then feeder.miningTarget={name=mining.name,surface=e.surface.name,position=mining.position,amount=mining.amount} end
+        c.feeders[#c.feeders+1]=feeder
+      end
     end
   end
 end
@@ -142,9 +158,12 @@ for index,c in ipairs(components) do
     for _,lane in ipairs(obj.lanes or {}) do
       local side=lane.side or "unknown"
       side_names[side]=side_names[side] or {}
+      local lane_names={}
       for _,stack in ipairs(lane.items or {}) do
-        side_names[side][tostring(stack.name).."|"..tostring(stack.quality or "normal")]=true
-        local item_key=tostring(stack.name).."|"..tostring(stack.quality or "normal")
+        local stack_key=tostring(stack.name).."|"..tostring(stack.quality or "normal")
+        lane_names[stack_key]=true
+        side_names[side][stack_key]=true
+        local item_key=stack_key
         local entry=item_index[item_key]
         if not entry then
           entry={name=stack.name,count=0,quality=stack.quality or "normal"}
@@ -153,6 +172,14 @@ for index,c in ipairs(components) do
         end
         entry.count=entry.count+(stack.count or 0)
         item_total=item_total+(stack.count or 0)
+      end
+      -- A mixed tile is one lane with two or more prototype/quality
+      -- combinations: the exact tile behind the component-level mixed flag.
+      local lane_distinct=0
+      for _ in pairs(lane_names) do lane_distinct=lane_distinct+1 end
+      if lane_distinct>1 then
+        c.mixed_tiles[#c.mixed_tiles+1]={position=e.position,name=e.name,unitNumber=e.unit_number,
+          lineName=lane.lineName,side=side,index=lane.index,items=lane.items}
       end
     end
     for _,names in pairs(side_names) do
@@ -179,11 +206,26 @@ for index,c in ipairs(components) do
     if a.name~=b.name then return a.name<b.name end
     return tostring(a.quality)<tostring(b.quality)
   end)
+  -- Deterministic order: y, then x, then belt unit number, then lane index.
+  table.sort(c.mixed_tiles,function(a,b)
+    if a.position.y~=b.position.y then return a.position.y<b.position.y end
+    if a.position.x~=b.position.x then return a.position.x<b.position.x end
+    if (a.unitNumber or 0)~=(b.unitNumber or 0) then return (a.unitNumber or 0)<(b.unitNumber or 0) end
+    return a.index<b.index
+  end)
+  for _,tile in ipairs(c.mixed_tiles) do tile.index=nil end
+  table.sort(c.feeders,function(a,b)
+    if a.position.x~=b.position.x then return a.position.x<b.position.x end
+    if a.position.y~=b.position.y then return a.position.y<b.position.y end
+    if a.name~=b.name then return a.name<b.name end
+    return (a.unitNumber or 0)<(b.unitNumber or 0)
+  end)
   local edges=collect_edges(c.members,c.raw)
   out[#out+1]={id=tostring(index),dead=(#c.inserters==0 and c.machine_links==0),belts=#c.nodes,
     truncated=c.truncated,items=items,itemCount=item_total,
     mixed=side_mixed,sharedPickupSources=shared_pickups,nodes=nodes,edges=edges,
     sources=sources,sinks=sinks,inserters=c.inserters,stallEnds=stall,starveHeads=starve,
+    mixedTiles=c.mixed_tiles,feeders=c.feeders,
     first=key(c.nodes[1])}
 end
 table.sort(out,function(a,b)
@@ -192,7 +234,9 @@ table.sort(out,function(a,b)
   return a.first<b.first
 end)
 local filtered={}
-for _,c in ipairs(out) do if not dead_only or c.dead then filtered[#filtered+1]=c end end
+for _,c in ipairs(out) do
+  if (not dead_only or c.dead) and (not mixed_only or c.mixed) then filtered[#filtered+1]=c end
+end
 local total=#filtered
 local page={}
 for i=page_offset+1,math.min(page_offset+page_limit,total) do
@@ -224,17 +268,17 @@ func beltComponentsQuery(r *Resolver, input BeltComponentsInput) (*BeltComponent
 	if err != nil {
 		return nil, err
 	}
-	lua := topologyChunk(r, "belt_components",
+	lua := topologyChunkWithOp(r, "belt_components_filtered",
 		[]string{luaString(input.Surface), luaString(input.Force), areaLua,
 			strconv.Itoa(input.MaxEntities), strconv.Itoa(input.Limit), strconv.Itoa(input.Offset),
-			luaBool(input.DeadOnly), luaBool(input.IncludeLineLinks)},
+			luaBool(input.DeadOnly), luaBool(input.IncludeLineLinks), luaBool(input.MixedOnly)},
 		fmt.Sprintf(`
 local surface_name,force_name=%s,%s
 local area=%s
-local max_entities,page_limit,page_offset,dead_only,include_line_links=%d,%d,%d,%t,%t
+local max_entities,page_limit,page_offset,dead_only,include_line_links,mixed_only=%d,%d,%d,%t,%t,%t
 `, luaString(input.Surface), luaString(input.Force), areaLua,
-			input.MaxEntities, input.Limit, input.Offset, input.DeadOnly, input.IncludeLineLinks),
-		beltComponentsCallLua)
+			input.MaxEntities, input.Limit, input.Offset, input.DeadOnly, input.IncludeLineLinks, input.MixedOnly),
+		beltComponentsCallLua, true)
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

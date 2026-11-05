@@ -106,13 +106,16 @@ func briefingConstruction(r *Resolver, input *FactoryBriefingInput, collector *b
 		return nil, 0, err
 	}
 	note(ghosts.Tick)
-	total, buildable := 0, 0
+	total, buildable, blocked := 0, 0, 0
 	if ghosts.PageInfo != nil {
 		total = ghosts.PageInfo.Total
 	}
 	for _, entry := range ghosts.GhostEntries {
 		if entry.Buildable {
 			buildable++
+		}
+		if entry.Blocked {
+			blocked++
 		}
 	}
 	construction.Ghosts = &total
@@ -122,9 +125,13 @@ func briefingConstruction(r *Resolver, input *FactoryBriefingInput, collector *b
 	}
 	if total > 0 {
 		collector.counts[AttentionKindGhostBacklog] += total
+		message := fmt.Sprintf("%d ghosts queued, %d with observed material", total, buildable)
+		if blocked > 0 {
+			message = fmt.Sprintf("%d ghosts queued, %d with observed material, %d blocked by colliding entities", total, buildable, blocked)
+		}
 		collector.add(&AttentionItem{
 			Kind: AttentionKindGhostBacklog, Count: total,
-			Message: fmt.Sprintf("%d ghosts queued, %d with observed material", total, buildable),
+			Message: message,
 		})
 	}
 
@@ -154,16 +161,18 @@ func briefingConstruction(r *Resolver, input *FactoryBriefingInput, collector *b
 	return construction, tick, nil
 }
 
-// briefingStock reads factory stock once for every watched item and reports the
-// ones below their minimum. The actor inventory is also read once, not once per
-// stockout. It returns a nil tick when nothing is watched.
+// briefingStock reads factory stock once for every watched item in the
+// configured category and reports the ones below their minimum. The actor
+// inventory is also read once, not once per stockout. It returns a nil tick
+// when nothing is watched.
 func briefingStock(r *Resolver, input *FactoryBriefingInput, collector *briefingCollector) ([]*Stockout, *float64, error) {
 	stockouts := []*Stockout{}
 	if len(input.WatchItems) == 0 {
 		return stockouts, nil, nil
 	}
+	category := input.StockCategory
 	page, err := stockQuery(r, &StockInput{
-		Surface: input.Surface, Force: input.Force, Area: input.Area,
+		Surface: input.Surface, Force: input.Force, Area: input.Area, Category: &category,
 		Limit: 1, TotalsLimit: 1, ItemsLimit: briefingStockItems,
 	})
 	if err != nil {

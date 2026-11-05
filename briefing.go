@@ -454,6 +454,14 @@ func briefingInput(input *FactoryBriefingInput) (*FactoryBriefingInput, error) {
 	if len(input.WatchItems) > briefingMaxWatchItems {
 		return nil, fmt.Errorf("watchItems must contain at most %d items", briefingMaxWatchItems)
 	}
+	// The schema default only applies to parsed GraphQL inputs; direct callers
+	// get the same STORED scope here.
+	if input.StockCategory == "" {
+		input.StockCategory = StockCategoryStored
+	}
+	if _, err := stockCategoryName(&input.StockCategory); err != nil {
+		return nil, err
+	}
 	seen := map[string]bool{}
 	for i, watch := range input.WatchItems {
 		if watch == nil {

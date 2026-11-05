@@ -69,7 +69,7 @@ Rules:
 
 ## 4. Fuel and power discipline
 
-- Every burner entity (drill, furnace, inserter, boiler) is a recurring fuel demand: coal 4 MJ; one burner drill ~1 coal per 26 s; stone furnace 90 kW. Design the fuel path **with** the cell: coal belt past burners with inserters, or chest + inserter per cluster, bounded `bar 2-3`.
+- Every burner entity (drill, furnace, inserter, boiler) is a recurring fuel demand: coal 4 MJ; one burner drill ~1 coal per 26 s; stone furnace 90 kW. Design the fuel path **with** the cell: coal belt past burners with inserters, or a bounded chest (`bar 2-3`) filled by that belt with an inserter per cluster. A chest that is **fed by belt or requester logistics** is a valid fuel buffer; a chest someone refills by hand is a bootstrap-only shortcut (stage ≤ 2) — once coal production exists, the chest must be fed automatically, because a hand-filled fuel chest is a stall on a timer.
 - Replace burner drills/inserters with electric ones as soon as `electric-mining-drill` and power headroom exist; keep the burner path only as a cold-start fallback for the boiler.
 - Keep generation ahead of load (>= 30 % headroom): `electricNetworks` plus `powerConsumers(onlyIssues:true)`.
 

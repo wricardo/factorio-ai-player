@@ -243,7 +243,7 @@ for _,e in ipairs(found) do
       end
       if #bucket.members<%d then
         bucket.members[#bucket.members+1]={name=e.name,entityType=e.type,unitNumber=e.unit_number,
-          position={x=e.position.x,y=e.position.y},connector=entry.name}
+          surface=e.surface.name,position={x=e.position.x,y=e.position.y},connector=entry.name}
       else
         bucket.truncated=true
       end

@@ -135,7 +135,13 @@ const settingsLogisticSectionsLua = `local function settings_logistic_sections(l
         end
         if type(quality)~="string" then quality=quality and quality.name or nil end
         if name~=nil then
-          slots[#slots+1]={index=slot,name=name,type=signal_type or "item",quality=quality,min=filter.min or 0,max=filter.max}
+          -- Normalize here rather than calling signal_type_name: this reader is
+          -- also spliced into player snapshots that do not define the shared
+          -- helper, and a raw engine type ("fluid") cannot decode into the
+          -- SignalType enum.
+          if signal_type==nil or signal_type=="" then signal_type="ITEM"
+          else signal_type=string.upper((string.gsub(signal_type,"-","_"))) end
+          slots[#slots+1]={index=slot,name=name,type=signal_type,quality=quality,min=filter.min or 0,max=filter.max}
         end
       end
     end
@@ -158,7 +164,7 @@ end
 `
 
 // settingsLua is shared by every settings read and write.
-const settingsLua = luaInserterSettingsBody + settingsLogisticSectionsLua + luaSignalTypeName + `
+const settingsLua = luaSignalTypeName + luaInserterSettingsBody + settingsLogisticSectionsLua + `
 local function settings_field(object,key)
   local ok,value=pcall(function() return object[key] end)
   if ok then return value end
@@ -306,6 +312,28 @@ local function settings_container(e,inventory_name)
   end
   return {inventory=inventory_name,bar=bar,capacity=capacity,allowedSlots=allowed_slots}
 end
+local function settings_infinity(e)
+  if e.type=="infinity-pipe" then
+    local out={filters={},fluidFilters={},removeUnfilteredItems=false}
+    local ok_filter,filter=pcall(function() return e.get_infinity_pipe_filter() end)
+    if ok_filter and filter then
+      out.fluidFilters[#out.fluidFilters+1]={fluid=filter.name,percentage=filter.percentage,
+        temperature=filter.temperature,mode=filter.mode or "at-least"}
+    end
+    return out
+  end
+  if e.type~="infinity-container" then return nil end
+  local out={filters={},fluidFilters={},removeUnfilteredItems=false}
+  local ok_filters,filters=pcall(function() return e.infinity_container_filters end)
+  if not ok_filters or type(filters)~="table" then return out end
+  for index,filter in ipairs(filters) do
+    out.filters[#out.filters+1]={index=filter.index or index,name=filter.name,
+      quality=filter.quality or "normal",count=filter.count or 0,mode=filter.mode or "at-least"}
+  end
+  local ok_remove,remove=pcall(function() return e.remove_unfiltered_items end)
+  if ok_remove then out.removeUnfilteredItems=remove==true end
+  return out
+end
 local function settings_logistic_point(point)
   if not point then return nil end
   return {sections=settings_logistic_sections(point)}
@@ -369,6 +397,7 @@ local function settings_sections(e,inventory_name)
       colorMode=(control and settings_lamp_color_mode(control)) or "COLOR_MAPPING"}
   end
   if e.inventory_supports_bar then out.container=settings_container(e,inventory_name) end
+  if e.type=="infinity-container" or e.type=="infinity-pipe" then out.infinity=settings_infinity(e) end
   if e.type=="logistic-container" or e.type=="infinity-container" or e.type=="rocket-silo" then out.logistic=settings_logistic(e) end
   if e.type=="constant-combinator" then out.constantCombinator=settings_constant_combinator(e) end
   if e.type=="train-stop" then out.trainStop=settings_train_stop(e) end
@@ -690,6 +719,188 @@ e.set_inventory_bar(index,%s)
 		return nil, err
 	}
 	announceMutation(r, in.Message, containerSettingsSummary(result))
+	return result, nil
+}
+
+// infinityFilterModeName maps the GraphQL enum to the engine policy string
+// accepted by InfinityInventoryFilter.mode.
+func infinityFilterModeName(mode InfinityFilterMode) (string, error) {
+	switch mode {
+	case InfinityFilterModeAtLeast:
+		return "at-least", nil
+	case InfinityFilterModeAtMost:
+		return "at-most", nil
+	case InfinityFilterModeExactly:
+		return "exactly", nil
+	}
+	return "", fmt.Errorf("unsupported infinity filter mode %q", mode)
+}
+
+// infinityPipeFilterModeName maps the GraphQL enum to the engine policy string
+// accepted by InfinityPipeFilter.mode.
+func infinityPipeFilterModeName(mode InfinityPipeFilterMode) (string, error) {
+	switch mode {
+	case InfinityPipeFilterModeAtLeast:
+		return "at-least", nil
+	case InfinityPipeFilterModeAtMost:
+		return "at-most", nil
+	case InfinityPipeFilterModeExactly:
+		return "exactly", nil
+	case InfinityPipeFilterModeAdd:
+		return "add", nil
+	case InfinityPipeFilterModeRemove:
+		return "remove", nil
+	}
+	return "", fmt.Errorf("unsupported infinity pipe filter mode %q", mode)
+}
+
+// configureInfinityContainer replaces every infinity-container filter so a
+// sandbox save can expose an item source without an inventory-write shortcut.
+// The engine's setter takes one filter index at a time; existing filters are
+// cleared after every prototype has been validated, so a bad entry cannot leave
+// the container empty.
+func configureInfinityContainer(r *Resolver, in ConfigureInfinityContainerInput) (*SettingsResult, error) {
+	target, err := settingsTargetFromRef(in.Actor, in.Target)
+	if err != nil {
+		return nil, err
+	}
+	type filterWrite struct {
+		item, quality, mode, count string
+	}
+	writes := make([]filterWrite, 0, len(in.Filters))
+	var checks strings.Builder
+	for i, filter := range in.Filters {
+		if filter == nil {
+			return nil, fmt.Errorf("filter %d is null", i+1)
+		}
+		item := strings.TrimSpace(filter.Item)
+		if item == "" {
+			return nil, fmt.Errorf("filter %d needs a non-empty item", i+1)
+		}
+		if math.IsNaN(filter.Count) || math.IsInf(filter.Count, 0) || filter.Count < 0 || filter.Count > 4294967295 || math.Trunc(filter.Count) != filter.Count {
+			return nil, fmt.Errorf("filter %d count must be a whole number from 0 through 4294967295", i+1)
+		}
+		quality := "normal"
+		if filter.Quality != nil && strings.TrimSpace(*filter.Quality) != "" {
+			quality = strings.TrimSpace(*filter.Quality)
+		}
+		mode, err := infinityFilterModeName(filter.Mode)
+		if err != nil {
+			return nil, fmt.Errorf("filter %d: %w", i+1, err)
+		}
+		fmt.Fprintf(&checks, "if not prototypes.item[%s] then fail(\"item not found: \"..%s); return end\n",
+			luaString(item), luaString(item))
+		fmt.Fprintf(&checks, "if not prototypes.quality[%s] then fail(\"quality not found: \"..%s); return end\n",
+			luaString(quality), luaString(quality))
+		writes = append(writes, filterWrite{item: item, quality: quality, mode: mode, count: formatFloat(filter.Count)})
+	}
+	type fluidWrite struct {
+		fluid, mode             string
+		percentage, temperature *float64
+	}
+	fluids := make([]fluidWrite, 0, len(in.FluidFilters))
+	for i, filter := range in.FluidFilters {
+		if filter == nil {
+			return nil, fmt.Errorf("fluid filter %d is null", i+1)
+		}
+		fluid := strings.TrimSpace(filter.Fluid)
+		if fluid == "" {
+			return nil, fmt.Errorf("fluid filter %d needs a non-empty fluid", i+1)
+		}
+		if filter.Percentage != nil {
+			value := *filter.Percentage
+			if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value > 1 {
+				return nil, fmt.Errorf("fluid filter %d percentage must be from 0 through 1", i+1)
+			}
+		}
+		if filter.Temperature != nil {
+			value := *filter.Temperature
+			if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+				return nil, fmt.Errorf("fluid filter %d temperature must be a finite non-negative number", i+1)
+			}
+		}
+		mode, err := infinityPipeFilterModeName(filter.Mode)
+		if err != nil {
+			return nil, fmt.Errorf("fluid filter %d: %w", i+1, err)
+		}
+		fluids = append(fluids, fluidWrite{fluid: fluid, mode: mode, percentage: filter.Percentage, temperature: filter.Temperature})
+	}
+	if len(fluids) > 1 {
+		return nil, errors.New("an infinity pipe takes exactly one fluid filter")
+	}
+	if len(fluids) > 0 && len(writes) > 0 {
+		return nil, errors.New("fluidFilters cannot be combined with item filters")
+	}
+	prefix, err := target.lua()
+	if err != nil {
+		return nil, err
+	}
+	var body strings.Builder
+	body.WriteString(prefix)
+	body.WriteString(`if e.type=="infinity-pipe" then
+`)
+	if len(fluids) == 0 {
+		body.WriteString(`fail("infinity pipe needs exactly one fluid filter"); return
+`)
+	} else {
+		write := fluids[0]
+		fmt.Fprintf(&body, "if not prototypes.fluid[%s] then fail(\"fluid not found: \"..%s); return end\n",
+			luaString(write.fluid), luaString(write.fluid))
+		fmt.Fprintf(&body, "local filter={name=%s,mode=%s}\n", luaString(write.fluid), luaString(write.mode))
+		if write.percentage != nil {
+			fmt.Fprintf(&body, "filter.percentage=%s\n", formatFloat(*write.percentage))
+		}
+		if write.temperature != nil {
+			fmt.Fprintf(&body, "filter.temperature=%s\n", formatFloat(*write.temperature))
+		}
+		body.WriteString(`e.set_infinity_pipe_filter(filter)
+local applied=e.get_infinity_pipe_filter()
+if not applied or applied.name~=filter.name then fail("engine did not apply the infinity pipe filter"); return end
+`)
+	}
+	body.WriteString(`elseif e.type=="infinity-container" then
+`)
+	if len(fluids) > 0 {
+		body.WriteString(`fail("fluidFilters only apply to infinity pipes"); return
+`)
+	}
+	body.WriteString(checks.String())
+	// The engine exposes per-index setters, but clearing then setting can leave a
+	// container half-rewritten when a later setter rejects. Build the whole array
+	// and assign it once so the container keeps either the old or the new filters.
+	body.WriteString("local filters={}\n")
+	for index, write := range writes {
+		// Assignment through infinity_container_filters expects the index even
+		// though set_infinity_container_filter does not.
+		fmt.Fprintf(&body, "filters[#filters+1]={index=%d,name=%s,quality=%s,count=%s,mode=%s}\n",
+			index+1, luaString(write.item), luaString(write.quality), write.count, luaString(write.mode))
+	}
+	body.WriteString(`local capacity=0
+local inventory=e.get_inventory(defines.inventory.chest)
+if inventory then capacity=#inventory end
+local used=0
+for _,filter in ipairs(filters) do
+  local prototype=prototypes.item[filter.name]
+  local stack=prototype and prototype.stack_size or 1
+  local count=filter.count or 0
+  -- At-most filters do not require stock, so they consume no reserved slots.
+  if count>0 and stack>0 and filter.mode~="at-most" then used=used+math.ceil(count/stack) end
+end
+if used>capacity then fail("infinity filters need "..used.." slots but the container has "..capacity); return end
+e.infinity_container_filters=filters
+`)
+	if in.RemoveUnfilteredItems != nil {
+		fmt.Fprintf(&body, "e.remove_unfiltered_items=%t\n", *in.RemoveUnfilteredItems)
+	}
+	body.WriteString(`else
+fail("entity is not an infinity container or infinity pipe"); return
+end
+`)
+	result, err := executeSettings(r, settingsMutationLua(body.String(), "chest"))
+	if err != nil {
+		return nil, err
+	}
+	announceMutation(r, in.Message, infinityContainerSummary(result))
 	return result, nil
 }
 
@@ -1698,6 +1909,14 @@ func containerSettingsSummary(result *SettingsResult) string {
 	}
 	return fmt.Sprintf("container%s: %s bar %d of %d, %s", positionText(result.Position), result.Container.Inventory,
 		result.Container.Bar, result.Container.Capacity, allowed)
+}
+
+func infinityContainerSummary(result *SettingsResult) string {
+	if result.Infinity == nil {
+		return "updated infinity container"
+	}
+	return fmt.Sprintf("infinity container%s: %d filter(s), remove unfiltered %t", positionText(result.Position),
+		len(result.Infinity.Filters), result.Infinity.RemoveUnfilteredItems)
 }
 
 func logisticSettingsSummary(result *SettingsResult) string {

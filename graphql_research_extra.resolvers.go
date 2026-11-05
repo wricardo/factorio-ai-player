@@ -23,3 +23,8 @@ func (r *mutationResolver) ClearResearchQueue(ctx context.Context, input Researc
 func (r *mutationResolver) UnlockAllTechnologies(ctx context.Context, input UnlockTechnologiesInput) (*ResearchUnlockResult, error) {
 	return unlockAllTechnologies(r.Resolver, input)
 }
+
+// SetRecipeEnabled is the resolver for the setRecipeEnabled field.
+func (r *mutationResolver) SetRecipeEnabled(ctx context.Context, input RecipeEnabledInput) (*RecipeEnabledResult, error) {
+	return setRecipeEnabled(r.Resolver, input)
+}

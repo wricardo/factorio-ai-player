@@ -379,7 +379,7 @@ local function inserter_quality_name(q)
 end
 local function inserter_signal(s)
   if not s then return nil end
-  return {name=s.name, type=s.type or "item", quality=inserter_quality_name(s.quality)}
+  return {name=s.name, type=signal_type_name(s.type), quality=inserter_quality_name(s.quality)}
 end
 local function inserter_condition(c)
   if not c then return nil end
@@ -427,50 +427,45 @@ func inserterSettingsQuery(r *Resolver, obj *LogisticsEndpoint) (*InserterSettin
 	if err != nil {
 		return nil, err
 	}
-	lua := luaFail + entityLua + `
+	lua := luaFail + luaSignalTypeName + entityLua + `
 if e.type ~= "inserter" then fail("endpoint is no longer an inserter"); return end
-local function quality_name(q)
-  if type(q) == "string" then return q end
-  return q and q.name
-end
-local function signal(s)
-  if not s then return nil end
-  return {name=s.name, type=s.type or "item", quality=quality_name(s.quality)}
-end
-local function condition(c)
-  if not c then return nil end
-  return {comparator=c.comparator, constant=c.constant, fulfilled=c.fulfilled,
-    firstSignal=signal(c.first_signal), secondSignal=signal(c.second_signal)}
-end
-local result = {tick=game.tick, filterSlotCount=e.filter_slot_count, filterSlots={},
-  useFilters=e.use_filters, filterMode=e.inserter_filter_mode,
-  stackSizeOverride=e.inserter_stack_size_override, active=e.active,
-  pickupFromLeftLane=e.pickup_from_left_lane, pickupFromRightLane=e.pickup_from_right_lane}
-for index=1,e.filter_slot_count do
-  local filter = e.get_filter(index)
-  local slot = {index=index}
-  if type(filter) == "string" then
-    slot.name=filter
-  elseif filter then
-    slot.name=type(filter.name) == "string" and filter.name or (filter.name and filter.name.name)
-    slot.quality=quality_name(filter.quality)
-    slot.comparator=filter.comparator
-  end
-  result.filterSlots[#result.filterSlots+1]=slot
-end
-local control = e.get_control_behavior()
-if control then
-  result.circuit = {enabled=not control.disabled, circuitEnableDisable=control.circuit_enable_disable, disabledByControlBehavior=control.disabled,
-    setFilters=control.circuit_set_filters, readHandContents=control.circuit_read_hand_contents,
-    handReadMode=control.circuit_hand_read_mode, setStackSize=control.circuit_set_stack_size,
-    stackControlSignal=signal(control.circuit_stack_control_signal),
-    connectToLogisticNetwork=control.connect_to_logistic_network,
-    circuitCondition=condition(control.circuit_condition), logisticCondition=condition(control.logistic_condition)}
-end
-rcon.print(helpers.table_to_json(result))`
+` + luaInserterSettingsBody + `
+rcon.print(helpers.table_to_json(inserter_settings(e)))`
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
 	}
 	return factoryDecode[InserterSettings](response)
+}
+
+func logisticsEndpointInspectionQuery(r *Resolver, obj *LogisticsEndpoint) (*EntityInspection, error) {
+	if obj == nil {
+		return nil, nil
+	}
+	return entityInspectionFor(r, obj.Surface, obj.Name, obj.UnitNumber, obj.Position)
+}
+
+func entityInspectionFor(r *Resolver, surface, name string, unitNumber *string, position *Position) (*EntityInspection, error) {
+	if surface == "" {
+		surface = defaultSurface
+	}
+	target := &EntityRefInput{Surface: &surface}
+	if unitNumber != nil && *unitNumber != "" {
+		target.UnitNumber = unitNumber
+		if name != "" {
+			ent := name
+			target.Entity = &ent
+		}
+	} else if name != "" && position != nil {
+		ent := name
+		target.Entity = &ent
+		target.Position = &PositionInput{X: position.X, Y: position.Y}
+	} else {
+		return nil, nil
+	}
+	result, err := inspect(r, InspectInput{Target: target})
+	if err != nil {
+		return nil, nil
+	}
+	return result, nil
 }

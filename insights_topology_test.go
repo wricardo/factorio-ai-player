@@ -219,6 +219,7 @@ assert(stretch.seed.direction==4, "endpoints expose the engine direction")
 assert(stretch.left.itemCount==14, "left total "..tostring(stretch.left.itemCount))
 assert(stretch.right.itemCount==9, "right total "..tostring(stretch.right.itemCount))
 assert(stretch.left.mixed==false and stretch.right.mixed==false)
+assert(stretch.mixedEntityCount==0,"no belt in this stretch is mixed")
 local bounded=belt_stretch(a,2)
 assert(bounded.truncated and #bounded.nodes==2)
 local from_exit=belt_stretch(d,10)
@@ -232,6 +233,7 @@ assert(tunneled.right.itemCount==10,"tunnel contents must count, got "..tostring
 local side_mixed=belt_stretch(mixed_side,10)
 assert(side_mixed.left.mixed==true,"cross-line same-side items must be mixed")
 assert(side_mixed.right.mixed==false,"right side has no items")
+assert(side_mixed.mixedEntityCount==1,"one belt carries the mixed side")
 
 -- Forward boundary classification: the splitter end and the backward start of
 -- the stretch above are not classified.

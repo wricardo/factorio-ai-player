@@ -34,6 +34,7 @@ func removeMany(r *Resolver, input RemoveManyInput) (*RemoveManyResult, error) {
 	}
 	lua := luaFail + luaHarvestStumpCleanup + luaEntityResolve + luaBatchEntityIndexLua + inventoryItemHelpersLua + fmt.Sprintf(`local unit=%d; local p; if unit~=0 then p=game.get_entity_by_unit_number(unit); if not p or p.type~="character" then fail("character not found"); return end else p=game.get_player(%s); if not p then fail("player not found"); return end; if p.controller_type~=defines.controllers.character or not p.character then fail("player must control a character"); return end end
 local inv=p.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end
+local void_mode=%t
 local removals={%s}; local surface=p.surface; local removed,failed=0,0; local errors={}; local results={}
 local function fail_at(i,code,message,target)
   failed=failed+1
@@ -56,14 +57,18 @@ for i,target in ipairs(removals) do
   elseif e.force~=p.force and e.force.name~="neutral" then fail_at(i,"LOOKUP","entity is not on the actor's force",target)
   elseif target.unit~=0 and target.name~="" and e.name~=target.name then fail_at(i,"LOOKUP","entity name does not match unit number",target)
   elseif e.type=="character" then fail_at(i,"VALIDATION","cannot remove a character",target)
-  elseif %s then fail_at(i,"REACH","entity is out of reach",target)
+  elseif (not void_mode) and (%s) then fail_at(i,"REACH","entity is out of reach",target)
   else
     local name=e.name; local kind=e.type; local pos={x=e.position.x,y=e.position.y}; local entity_unit=e.unit_number
     local tree_box=(kind=="tree") and e.bounding_box or nil
     local before=inventory_item_counts(inv)
     local amount_before=(kind=="resource" and e.amount) or nil
     local mined
-    if kind=="corpse" then
+    if void_mode then
+      -- DESTROY mode: delete the entity and everything inside it. No item
+      -- transfer, so the actor's inventory never constrains demolition.
+      mined=e.destroy{raise_destroy=true}
+    elseif kind=="corpse" then
       -- Corpses are not mineable; destroy removes them without items.
       mined=e.destroy{raise_destroy=true}
     else
@@ -81,7 +86,7 @@ for i,target in ipairs(removals) do
   end
 end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=p.force.name,removed=removed,failed=failed,errors=errors,results=results,items=inventory_item_difference(before_all,inv)}))`,
-		character, luaString(player), removals.String(), reachViolation("p", "e"))
+		character, luaString(player), voidMode(input.Mode), removals.String(), reachViolation("p", "e"))
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err
@@ -93,4 +98,10 @@ rcon.print(helpers.table_to_json({tick=game.tick,surface=surface.name,force=p.fo
 	announceMutation(r, input.Message,
 		fmt.Sprintf("removed %d entities, %d failed", result.Removed, result.Failed))
 	return result, nil
+}
+
+// voidMode reports whether the removal deletes the entity outright instead of
+// mining it, which skips the item transfer and the reach requirement.
+func voidMode(mode *RemovalMode) bool {
+	return mode != nil && *mode == RemovalModeDestroy
 }

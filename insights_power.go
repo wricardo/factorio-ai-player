@@ -113,7 +113,7 @@ func electricNetworksQuery(r *Resolver, input *PowerInsightsInput) (*ElectricNet
 		return nil, err
 	}
 	lua := luaFail + args + filters + `
-local producers = {generator=true, ["burner-generator"]=true, ["solar-panel"]=true, ["fusion-generator"]=true}
+local producers = {generator=true, ["burner-generator"]=true, ["solar-panel"]=true, ["fusion-generator"]=true, ["electric-energy-interface"]=true}
 local status_names = {}
 for name, code in pairs(defines.entity_status) do status_names[code] = name end
 local capacity_by_network = {}

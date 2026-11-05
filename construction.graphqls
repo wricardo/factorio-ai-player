@@ -138,7 +138,7 @@ type RobotCount {
 }
 
 extend type Mutation {
-  """Revives entity ghosts of one force inside a required area of at most 1024 tiles per side, taking at most limit ghosts (1 through 10000, default 100) in engine scan order. REVIVE (default) uses the engine revive path with raise_revive set, so script_raised_revive is raised; SILENT uses silent_revive without raising any revive event and without sound or smoke. Script revival bypasses construction robots and item consumption, so a ghost is built whether or not the force owns its materials and stock is never withdrawn; a ghost that fails is reported in missing by its prototype cost, which in practice means its tile was blocked rather than that items were absent. revived and failed count attempts, entities lists each created entity, and errors carries at most 20 entries with COLLISION when the engine declined to place and ENGINE when the call raised. collidedItems holds items on the ground that a revived entity displaced, never missing materials; when actor is supplied those items are also transferred to the actor's main inventory as the engine overflow inventory. actor is validated but does not gate or reach-check the work, and the mutation prints the generated notification unless message overrides the text."""
+  """Revives entity ghosts of one force inside a required area of at most 1024 tiles per side, taking at most limit ghosts (1 through 10000, default 100) in engine scan order. Revival is script-level, so no construction robots are sent and everything happens in one tick, but each ghost prototype cost is charged: items come from the actor main inventory first and then from the optional source entity inventory (sourceInventory selects which inventory of it, CHEST by default), all or nothing per ghost, and are refunded when the engine refuses the revive. actor or source is therefore required, and an actorless call is an error. REVIVE (default) uses the engine revive path with raise_revive set, so script_raised_revive is raised; SILENT uses silent_revive without raising any revive event and without sound or smoke. A ghost short of materials is skipped, its shortfall summed into missing, and reported with code MATERIALS; a ghost whose tile is blocked is reported as COLLISION with its items returned. revived and failed count attempts, consumed reports what was actually withdrawn, entities lists each created entity, and errors carries at most 20 typed failures."""
   buildGhosts(input: BuildGhostsInput!): BuildGhostsResult!
   """Creates entity ghosts and tile ghosts at explicit map positions in one call, so a build can be planned without exporting or importing a blueprint string. Each entity entry names an existing entity prototype, the exact center position, an optional canonical direction 0-15 (default 0), an optional existing quality (default normal), and an optional recipe plus recipe quality that are set on the ghost's crafting machine. Each tile entry names an existing tile prototype at whole-tile map coordinates. At most 1000 entities plus 20000 tiles per call, and at least one entry is required. Ghost creation is script-level: no item is consumed, no reach check runs and no collision test is applied, so a ghost may overlap an existing entity, a resource or another ghost exactly like a blueprint ghost, and nothing is built — construction robots or buildGhosts must still build the plan. Entries are processed in request order and continue past per-entry failures; a failed recipe assignment removes the ghost it was set on, so every ghost the result lists is complete. Returns entitiesCreated, tilesCreated, failed, ghosts for every created ghost (engine prototype name, inner prototype, quality, position, unit number), and up to 100 typed errors (LOOKUP for an unknown entity, tile, quality or recipe prototype, ENGINE when the engine refused the ghost or its recipe). Emits an in-game notification unless message overrides it."""
   placeGhosts(input: PlaceGhostsInput!): GhostPlacementResult!
@@ -146,7 +146,12 @@ extend type Mutation {
 
 """Area limits are positive and at most 1024 tiles per side. limit is 1 through 10000."""
 input BuildGhostsInput {
+  """Character whose main inventory pays for the revival; omitted means only source supplies materials."""
   actor: ActorInput
+  """Entity whose inventory pays after the actor's main inventory, for example a supply chest."""
+  source: EntityRefInput
+  """Inventory of source that supplies materials; defaults to CHEST."""
+  sourceInventory: InventoryKind! = CHEST
   force: String = "player"
   surface: String = "nauvis"
   area: FactoryAreaInput!
@@ -171,8 +176,10 @@ type BuildGhostsResult {
   mode: BuildGhostsMode!
   revived: Int!
   failed: Int!
-  """Prototype cost of ghosts that could not be revived. A blocked tile, not absent stock: script revival never checks or withdraws items."""
+  """Prototype cost the actor and source could not supply for ghosts that were skipped."""
   missing: [ItemRequest!]!
+  """Items withdrawn from the actor and source and spent on revived ghosts."""
+  consumed: [ItemRequest!]!
   """Items on the ground that revived entities collided with and displaced. Never counted as missing materials; transferred to the actor's main inventory as overflow when actor is given."""
   collidedItems: [ItemRequest!]!
   entities: [PlacedEntity!]!

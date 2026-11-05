@@ -9,6 +9,15 @@ import (
 	"context"
 )
 
+// Inspection is the resolver for the inspection field.
+func (r *circuitNetworkMemberResolver) Inspection(ctx context.Context, obj *CircuitNetworkMember) (*EntityInspection, error) {
+	surface := ""
+	if obj.Surface != nil {
+		surface = *obj.Surface
+	}
+	return entityInspectionFor(r.Resolver, surface, obj.Name, obj.UnitNumber, obj.Position)
+}
+
 // AddChartTag is the resolver for the addChartTag field.
 func (r *mutationResolver) AddChartTag(ctx context.Context, input AddChartTagInput) (*ChartTagMutationResult, error) {
 	return addChartTag(r.Resolver, input)
@@ -38,3 +47,10 @@ func (r *queryResolver) ChartTags(ctx context.Context, input ChartTagsInput) (*C
 func (r *queryResolver) CircuitNetworks(ctx context.Context, input CircuitNetworksInput) (*CircuitNetworkPage, error) {
 	return circuitNetworksQuery(r.Resolver, input)
 }
+
+// CircuitNetworkMember returns CircuitNetworkMemberResolver implementation.
+func (r *Resolver) CircuitNetworkMember() CircuitNetworkMemberResolver {
+	return &circuitNetworkMemberResolver{r}
+}
+
+type circuitNetworkMemberResolver struct{ *Resolver }

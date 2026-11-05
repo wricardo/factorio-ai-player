@@ -97,5 +97,5 @@ func newGraphQLHandler(schema graphql.ExecutableSchema) http.Handler {
 	srv.AddTransport(transport.POST{})
 	srv.SetQueryCache(lru.New[*ast.QueryDocument](1000))
 	srv.Use(extension.Introspection{})
-	return http.MaxBytesHandler(srv, graphqlMaxBody)
+	return http.MaxBytesHandler(loggedGraphQLHandler(srv), graphqlMaxBody)
 }

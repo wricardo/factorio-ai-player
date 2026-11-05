@@ -5,7 +5,7 @@ type Query {
   status: Status!
   """Returns one entity snapshot with tick, prototype name, type, position, surface, force, direction, unitNumber, and remaining amount for resource tiles. Address by unitNumber, by unitNumber plus prototype name (validated), or by prototype name plus a position inside the entity (its exact centre is not required); the engine's get-by-unit-number path only covers flagged prototypes such as characters and vehicles, so other types are found by scanning the surface for that name. Supplying both a unitNumber and coordinates is rejected, an ambiguous center match is an error, and the lookup does not filter by force. The Entity.inspection field performs a separate, deeper snapshot."""
   entity(input: EntityRefInput!): EntitySnapshot!
-  """Finds entities on a surface within a radius of a finite center and returns one page with the true match total. radius must be greater than 0 and at most 1000; limit is 1 through 10000 and offset is zero-based. Results are ordered by distance by default (or by unit number) with a deterministic tie-break on unit number, name, y, x, and type, so paging is stable for the single snapshot the page comes from. Optional name and type filters are passed to the engine, resource tiles carry their amount, and no force filter is applied."""
+  """Finds entities on a surface within a radius of a finite center and returns one page with the true match total. The center is either position or, when unitNumber is set, that entity's current position on the same surface; unitNumber wins and position is then ignored. radius must be greater than 0 and at most 1000; limit is 1 through 10000 and offset is zero-based. Results are ordered by distance by default (or by unit number) with a deterministic tie-break on unit number, name, y, x, and type, so paging is stable for the single snapshot the page comes from. Optional name and type filters are passed to the engine, resource tiles carry their amount, and no force filter is applied."""
   nearby(input: NearbyInput = {}): Nearby!
   """Returns one actor's state: position, surface, force, health, hasCharacter, and, for player-addressed actors, connection status and controllerType. Address with exactly one of player (name) or character (unit number); both or neither is rejected before any game call. A player name resolves to its game player object, so a player who controls no character returns hasCharacter false with a null character instead of an error. Nested fields such as inventory, queue, recipe, and nearby issue their own RCON snapshots and may observe a later tick than the outer object."""
   player(input: ActorInput!): Actor!
@@ -13,11 +13,11 @@ type Query {
   inventory(input: ActorInput!): ActorInventory!
   """Returns the selected actor's crafting queue in engine order as entries carrying recipe name and count, plus queueSize, queueEntries, and progress. Address with exactly one of player or character; any other combination or an unknown unit number is an error, while an empty queue returns zero entries instead of failing. Per-entry recipe details need an extra backend call through recipeInfo. Values come from one snapshot."""
   queue(input: ActorInput!): CraftQueue!
-  """Returns one recipe of the actor's force: enabled, category, energy, ingredients, products, hiddenFromPlayerCrafting, and the craftableCount the engine computes for that actor. actor (exactly one of player or character) and a nonempty recipe name are required; an unknown recipe is an error. The lookup uses the actor's force, so recipes gated by other forces or technologies may be missing or disabled. ingredients and products are prototype data, not live stock."""
+  """Returns one recipe of one force: enabled, category, energy, ingredients, products, hiddenFromPlayerCrafting, and, only when an actor is given, the craftableCount the engine computes for that actor. Exactly one of actor or force selects the force: actor wins when both are set, force defaults to player, and an unknown force is an error before any world read. A nonempty recipe name is required and an unknown recipe is an error. craftableCount is null without an actor because it needs a character and its inventory. The lookup uses the selected force, so recipes gated by other forces or technologies may be missing or disabled. ingredients and products are prototype data, not live stock."""
   recipe(input: RecipeInput!): Recipe!
   """Plans the hand-craft dependency chain for count crafts of one enabled, hand-craftable recipe, without changing the game. The actor's main inventory is used as stock and every missing item ingredient is expanded through the enabled, non-hidden, hand-craftable recipe with the lowest name that produces it, so steps are returned bottom-up: each step's ingredients are either in stock or produced by an earlier step. count counts crafts of the named recipe, not products, matching craft. missing lists the ingredients that cannot be hand-crafted at all (fluids, or items whose only recipes are machine-only, disabled, hidden, or unavailable), with the aggregated shortfall; complete is true when missing is empty. Recipe prototypes may yield several products per craft; planning uses amount, then amountMin, and ignores quality and probabilistic yields, so a plan can over-craft rather than under-craft."""
   craftPlan(input: CraftPlanInput!): CraftPlan!
-  """Inspects one entity using the selected actor's force and returns a broad single-tick snapshot: health, status and statusName, inventories keyed by name, fluids, recipe and craftingProgress, belt lanes, inserter pickup/drop positions and held stack, mining progress/target/resources, force item-production totals, and deconstruction marking. Address the target by unitNumber or by prototype name plus a position inside the entity; the entity must exist on the actor's force, otherwise the call fails. Type-specific fields are only filled for the matching type, so an absent transportLines or heldStack means the entity cannot carry one rather than a failed read. forceItemProduction is the force's whole-surface lifetime statistic, not this entity's throughput, and every value comes from one snapshot."""
+  """Inspects one entity and returns a broad single-tick snapshot: health, status and statusName, inventories keyed by name, fluids, recipe and craftingProgress, belt lanes, inserter pickup/drop positions and held stack, mining progress/target/resources, force item-production totals, and deconstruction marking. Address the target by unitNumber or by prototype name plus a position inside the entity. actor is optional and only adds identity and validation: when it is supplied the actor must resolve, and when it is omitted the target is resolved with no force restriction at all, so neutral, enemy and other-force entities stay readable. Type-specific fields are only filled for the matching type, so an absent transportLines or heldStack means the entity cannot carry one rather than a failed read. forceItemProduction is the force's whole-surface lifetime statistic, not this entity's throughput, and every value comes from one snapshot."""
   inspect(input: InspectInput!): EntityInspection!
   """Inspects many entities in one backend call using the actor force, returning one result per target in input order. Each result carries the same snapshot as inspect, and a target that cannot be resolved fails only its own row (error is set, inspection is null) instead of failing the page. Use this instead of selecting inspection on entities or nearby pages, which issues one backend call per entity. includeSettings and includeDiagnostics add the matching per-entity sections to the same call."""
   inspectMany(input: InspectManyInput!): BatchInspectionPage!
@@ -48,9 +48,9 @@ type Mutation {
   characterDelete(input: CharacterDeleteInput!): ActionResult!
   """Creates a character for a connected player that controls none, such as a sandbox god controller, so player-addressed operations regain reach. The player's main inventory is left untouched, and a disconnected player or one that already controls a character is rejected. Returns the restored character unit number and its position. Emits an in-game notification unless message overrides it."""
   playerRestoreCharacter(input: PlayerRestoreInput!): ActionResult!
-  """Places one entity at a finite position on a surface, consuming exactly one item of the requested quality from the actor's main inventory and inserting it back if the engine refuses creation. direction is a canonical engine value 0-15; the actor must be on the target surface and within build distance when FACTORIO_ENFORCE_REACH=1. Without fastReplace a tile that already holds an entity whose collision mask intersects the placed prototype's mask is refused with the occupant named in the error before create_entity runs, because create_entity ignores collision boxes and would otherwise stack a second entity on the same tile; the tile is tested as a whole, so a neighbouring footprint that clips it counts, while ghosts, tile ghosts, item stacks, item request proxies, resources and corpses (whose mask is the tiles-only doodad layer, so a tree stump never blocks a build) do not; fastReplace instead replaces a fast-replaceable entity, returning it and its contents to the acting character (and so to the player when one is selected) rather than spilling them, and refuses the position when nothing there is fast-replaceable (it checks can_fast_replace first, because create_entity ignores collision boxes). For underground belts, pass undergroundType INPUT or OUTPUT; the engine pairs a half with the first facing half of the same tier, in this call or a later one. Both mutations treat underground halves identically. The engine can raise or return nil after it has already committed the entity, so the call probes the tile before refunding and reports the placement that exists instead of duplicating the item. Emits an in-game notification unless message overrides it."""
+  """Places one entity at a finite position on a surface, consuming exactly one item of the requested quality from the actor's main inventory and inserting it back if the engine refuses creation. direction is a canonical engine value 0-15; the actor must be on the target surface and within build distance when FACTORIO_ENFORCE_REACH=1. Without fastReplace a tile that already holds an entity whose collision mask intersects the placed prototype's mask is refused with the occupant named in the error before create_entity runs, because create_entity ignores collision boxes and would otherwise stack a second entity on the same tile; the tile is tested as a whole, so a neighbouring footprint that clips it counts, while ghosts, tile ghosts, item stacks, item request proxies, resources and corpses (whose mask is the tiles-only doodad layer, so a tree stump never blocks a build) do not; fastReplace instead replaces a fast-replaceable entity, returning it and its contents to the acting character (and so to the player when one is selected) rather than spilling them, and refuses the position when nothing there is fast-replaceable (it checks can_fast_replace first, because create_entity ignores collision boxes). For underground belts, pass undergroundType INPUT or OUTPUT; the engine pairs a half with the first facing half of the same tier, in this call or a later one. Both mutations treat underground halves identically. The engine can raise or return nil after it has already committed the entity, so the call probes the tile before refunding and reports the placement that exists instead of duplicating the item. Emits an in-game notification unless message overrides it. Transport belts (any tier) are rejected with a hint to use placeBelt, and pipes with a hint to use placePipe; underground-belt, pipe-to-ground, splitter and loader remain directly placeable because the routed mutations cannot place those single-tile or half forms."""
   place(input: PlaceInput!): ActionResult!
-  """Places the same item at 1 to 10000 explicit positions in one call, continuing past per-position failures and reporting placed, failed, the created entities, and up to 100 typed errors (REACH, INVENTORY, COLLISION, ENGINE). Each position needs its own direction 0-15 and may set fastReplace or an underground belt half (INPUT or OUTPUT, paired by the engine as soon as a facing half exists). A position whose tile holds an entity whose collision mask intersects the placed prototype's mask is reported as COLLISION before create_entity runs unless fastReplace applies, because create_entity ignores collision boxes; the rule is the same tile-wide mask test place uses, so a neighbouring footprint that clips the tile is a collision, while ghosts, tile ghosts, item stacks, item request proxies, resources and corpses (tiles-only doodad layer, so a tree stump never blocks) are not, and the message names only occupants whose collision box overlaps that tile. The actor must be on the surface, have the item in its main inventory, and be within build distance when FACTORIO_ENFORCE_REACH=1, checked per position; item count consumed equals placed. The engine can raise or return nil after it has already committed an entity, so each position is probed before the item is refunded: a committed entity counts as placed rather than as an ENGINE failure with a duplicated item. Emits one notification only when at least one entity was placed, unless message overrides it."""
+  """Places the same item at 1 to 10000 explicit positions in one call, continuing past per-position failures and reporting placed, failed, the created entities, and up to 100 typed errors (REACH, INVENTORY, COLLISION, ENGINE). Each position needs its own direction 0-15 and may set fastReplace or an underground belt half (INPUT or OUTPUT, paired by the engine as soon as a facing half exists). A position whose tile holds an entity whose collision mask intersects the placed prototype's mask is reported as COLLISION before create_entity runs unless fastReplace applies, because create_entity ignores collision boxes; the rule is the same tile-wide mask test place uses, so a neighbouring footprint that clips the tile is a collision, while ghosts, tile ghosts, item stacks, item request proxies, resources and corpses (tiles-only doodad layer, so a tree stump never blocks) are not, and the message names only occupants whose collision box overlaps that tile. The actor must be on the surface, have the item in its main inventory, and be within build distance when FACTORIO_ENFORCE_REACH=1, checked per position; item count consumed equals placed. The engine can raise or return nil after it has already committed an entity, so each position is probed before the item is refunded: a committed entity counts as placed rather than as an ENGINE failure with a duplicated item. Emits one notification only when at least one entity was placed, unless message overrides it. Transport belts (any tier) are rejected with a hint to use placeBelt, and pipes with a hint to use placePipe; underground-belt, pipe-to-ground, splitter and loader remain directly placeable because the routed mutations cannot place those single-tile or half forms."""
   placeMany(input: PlaceManyInput!): PlaceManyResult!
   """Places one tile item (landfill, concrete, foundation) at a finite whole-tile position when the prototype's placement condition allows it, consuming one item of the requested quality from the actor's main inventory. The item must have a single-tile placement result, the target tile must satisfy its condition, and the position must not be blocked by an entity whose collision layers overlap the result tile. The actor must be on the surface and within build distance when FACTORIO_ENFORCE_REACH=1; on a failed set_tiles write the item is returned. Returns the placed tile name and position. Emits an in-game notification unless message overrides it."""
   placeTile(input: PlaceTileInput!): PlaceTileResult!
@@ -78,7 +78,7 @@ type Mutation {
   deconstructArea(input: DeconstructAreaInput!): DeconstructionResult!
   """Cancels deconstruction orders for entities in the bounded area and returns orders canceled plus skipped counts. It takes the same area, names/types filters, and limit as deconstructArea but rejects instant true, needs no actor, and never mines or spills. The surface and force must exist and the area must be positive and at most 1024 tiles per side. Emits an in-game notification unless message overrides it."""
   cancelDeconstructArea(input: DeconstructAreaInput!): DeconstructionResult!
-  """Places deconstruction orders on 1 to 1000 explicitly addressed entities so the force's construction robots remove them and leave ghosts. Each target is addressed by unitNumber or by prototype name plus a position inside the entity, all targets must resolve on one surface (the first target's surface, defaults nauvis), and the force must exist; nothing is mined and no reach is required. Lookup misses, already-marked entities, and engine refusals are counted as skipped with typed LOOKUP, VALIDATION, or ENGINE errors instead of aborting the batch. Returns orders and skipped counts plus up to 20 errors. Emits an in-game notification unless message overrides it."""
+  """Places deconstruction orders on 1 to 1000 explicitly addressed entities so the force's construction robots remove them and leave ghosts. Each target is addressed by unitNumber or by prototype name plus a position inside the entity, all targets must resolve on one surface (the first target's surface, defaults nauvis), and the force must exist; nothing is mined and no reach is required. An entity-ghost target cannot hold an order: the engine cancels the ghost itself, which is counted as one order and does not abort the batch. Lookup misses, already-marked entities, and engine refusals are counted as skipped with typed LOOKUP, VALIDATION, or ENGINE errors instead of aborting the batch. Returns orders and skipped counts plus up to 20 errors. Emits an in-game notification unless message overrides it."""
   deconstructEntities(input: DeconstructEntitiesInput!): DeconstructionResult!
   """Cancels deconstruction orders on 1 to 1000 explicitly addressed entities and reports orders canceled and skipped counts. Addressing and same-surface rules match deconstructEntities; an entity that is not marked is skipped with a VALIDATION error, and each cancellation is verified afterwards so an engine refusal counts as skipped rather than success. Requires an existing force. Emits an in-game notification unless message overrides it."""
   cancelDeconstructEntities(input: DeconstructEntitiesInput!): DeconstructionResult!
@@ -90,12 +90,16 @@ type Mutation {
   removeMany(input: RemoveManyInput!): RemoveManyResult!
   """Moves one dropped item stack at a finite position into the acting character's main inventory, possibly only partially when the inventory cannot take every item. Exactly one item-entity must sit at the position, the stack must be nonempty, and the character must be in reach when FACTORIO_ENFORCE_REACH=1. Returns the item name and quality, moved, and remaining; the stack entity is destroyed only when fully emptied, and moved=0 is an error. Emits an in-game notification unless message overrides it."""
   pickup(input: PickupInput!): ActionResult!
-  """Removes up to count items of one item and quality from a transport belt's two lanes into the acting character's main inventory. Only transport-belt targets are accepted, the belt must be on the character's surface and in reach when FACTORIO_ENFORCE_REACH=1, and moved is capped by inventory capacity. If the inventory rejects part of the removed items the remainder is spilled near the character and the call fails. Returns requested, moved, and the belt position and unit number. Emits an in-game notification unless message overrides it."""
+  """Removes up to count items of one item and quality from a transport belt's lanes into the acting character's main inventory. Only transport-belt targets are accepted, the belt must be on the character's surface and in reach when FACTORIO_ENFORCE_REACH=1, and moved is capped by inventory capacity. lanes selects the engine transport lines to take from, with an omitted or empty list meaning both lanes, which is the backward-compatible default; each requested lane must exist on the belt and duplicate entries are ignored. The left lane is walked before the right one, so a count that the first lane satisfies never touches the second. If the inventory rejects part of the removed items the remainder is spilled near the character and the call fails. Returns requested, moved, and the belt position and unit number. Emits an in-game notification unless message overrides it."""
   beltTake(input: BeltTakeInput!): ActionResult!
+  """Removes one item and quality from selected lanes of transport belts in one bounded area or on one target belt, leaving every other item and lane untouched. Exactly one of area or target is required: area is capped at 1024 tiles per side and scans transport-belt entities only, while target addresses one belt by unitNumber or by name plus a position inside it. lanes selects the engine transport lines, with an omitted or empty list meaning both lanes, and duplicate entries are ignored. limit is 1 through 1000 and counts belt tiles, not items: the sweep stops once that many belts had items removed, so one call never touches more belts than requested. Every source lane is removed with the engine's remove_item, so no items are created or duplicated. A belt without a requested lane is visited but left unchanged. Returns the tick, the number of belt tiles visited, the number of tiles where the item was removed, and the number of removed items. Emits an in-game notification unless message overrides it."""
+  beltPurge(input: BeltPurgeInput!): BeltPurgeResult!
   """Rotates a reachable entity by 1 to 3 clockwise quarter turns using the engine's player rotation, then reports the direction before and after plus the turns completed. The actor is a player controlling a character or a character unit number, must share the entity's surface, and must be in reach when FACTORIO_ENFORCE_REACH=1. If the engine refuses any single turn the call errors and earlier turns stay applied. Emits an in-game notification unless message overrides it."""
   rotate(input: RotateInput!): ActionResult!
   """Moves up to count items of one item and quality between the actor's main inventory and one entity inventory selected by InventoryKind; TO_ENTITY loads the entity and TO_ACTOR unloads it. The moved amount is the minimum of the requested count, the source's available items, and the destination's insertable capacity, destination slot bars are respected, and partial moves are normal. The actor must share the entity's surface, the entity must expose the requested inventory, and reach applies when FACTORIO_ENFORCE_REACH=1. Returns requested, available, capacity, moved, and the inventory key. Emits an in-game notification unless message overrides it."""
   transfer(input: TransferInput!): ActionResult!
+  """Moves up to count items of one item and quality directly between two explicitly addressed entity inventories, so a chest can feed a chest or a machine input without routing the stack through a character. Both inventories are selected by InventoryKind, fromInventory defaults to CHEST and toInventory defaults to fromInventory; the moved amount is the minimum of the requested count, the source's available items, and the destination's insertable capacity, and destination slot bars are respected, so partial moves are normal. The two references resolve independently by unitNumber or by prototype name plus center position on their own surfaces; no actor is required and reach never applies. A destination that would take nothing reports why in reason (NO_SOURCE, NO_CAPACITY, BAR_LIMITED, FILTERED, MARKED_FOR_DECONSTRUCTION) instead of failing, while a missing entity, an entity without the selected inventory, or an unknown item or quality is an error. Emits an in-game notification when items moved unless message overrides it."""
+  transferBetween(input: TransferBetweenInput!): TransferBetweenResult!
   """Moves up to count items of one item and quality between the actor's main inventory and one of the character equipment inventories guns, ammo, armor, or trash. TO_EQUIPMENT loads that slot from main and TO_MAIN unloads it back; the inventory string must be one of those four values. The actor must control a character that exposes the slot, and the moved count is capped by available items and destination capacity. Returns moved, the inventory name, and the equipment direction. Emits an in-game notification unless message overrides it."""
   equip(input: EquipInput!): ActionResult!
   """Assigns a recipe and recipe quality to one assembling machine or furnace after confirming the actor's force has that enabled recipe, the machine's crafting categories accept it, and the machine is not currently crafting. Actor and machine must share a surface, and reach applies when FACTORIO_ENFORCE_REACH=1. drain decides how held contents are handled: ABORT fails if any input, output, or fluid remains, TO_ACTOR requires empty fluids and moves input and output into the actor's main inventory (spilling the overflow near the actor), and SPILL clears fluids and spills everything at the machine. Assembling machines get the recipe from the engine directly. A furnace cannot take a recipe from the engine (LuaEntity::set_recipe is assembling-machine only) and chooses its recipe from its input instead, so the furnace path moves one unit of the recipe's item ingredient and quality from the actor's main inventory into the furnace input, which stays there and is smelted; that ingredient is reported as item and count, and the call fails when the actor inventory has none or the furnace selects another recipe. Every other entity type is rejected. Returns the drain mode and the items the engine returned. Emits an in-game notification unless message overrides it."""
@@ -113,10 +117,12 @@ type Mutation {
   """Requests server shutdown over RCON (/quit) and returns the server's response text, tolerating the connection closing because the server exited. Requires FACTORIO_RCON_PASSWORD and takes no arguments; shutdown does not save, so call save first or unsaved progress is lost. The trailing chat notification is best-effort, since the server may already be gone."""
   shutdown: ServerResult!
 }
-"""Search around a finite position on a nonempty surface. Radius must be greater than 0 and at most 1000; limit is 1 through 10000 and offset is zero-based."""
+"""Search around a finite position or around an existing entity's current position on a nonempty surface. Radius must be greater than 0 and at most 1000; limit is 1 through 10000 and offset is zero-based."""
 input NearbyInput {
   surface: String = "nauvis"
   position: PositionInput = {x: 0, y: 0}
+  """Anchors the scan on an existing entity's current position, resolved on the input surface (default nauvis); the entity must exist on that surface. When unitNumber is set, position is ignored, because the input defaults make an omitted position indistinguishable from an explicit {x: 0, y: 0}. Prototypes that carry no unit number (trees, rocks, resources, items, fish, cliffs) cannot be anchored this way and still need position."""
+  unitNumber: UnitNumber
   radius: FiniteFloat = 10
   """Prototype name filter (exact)."""
   name: String
@@ -129,16 +135,26 @@ input NearbyInput {
   limit: Int = 100
 }
 enum NearbyOrder { DISTANCE UNIT_NUMBER }
-"""Select one actor and a nonempty recipe name."""
-input RecipeInput { actor: ActorInput! recipe: String! }
-"""Inspect one entity using the selected actor's force."""
+"""Select one force and a nonempty recipe name. actor is optional: when set it selects the force and enables craftableCount; force is used otherwise."""
+input RecipeInput {
+  """Acting actor. When set its force wins and force is ignored, and it supplies the character whose inventory craftableCount counts."""
+  actor: ActorInput
+  """Force used when actor is omitted; an unknown force fails before any world read. A default already makes it optional to clients, so it is non-null and never carries a third "explicit null" state."""
+  force: String! = "player"
+  recipe: String!
+}
+"""Inspect one entity. actor is optional and only adds identity and validation; without it the target is resolved with no force restriction."""
 input InspectInput {
-  actor: ActorInput!
+  """Acting actor. When supplied it must resolve and its input selects the actor identity; the inspection itself is force-agnostic, so neutral, enemy and other-force entities stay readable."""
+  actor: ActorInput
   target: EntityRefInput!
 }
-"""Inspect up to 1000 entities in one call. includeSettings adds SettingsResult rows and includeDiagnostics adds MachineDiagnostics rows, both computed in the same backend call."""
+"""Inspect up to 1000 entities in one call. includeSettings adds SettingsResult rows and includeDiagnostics adds MachineDiagnostics rows, both computed in the same backend call. actor is optional: when it is set its force decides which entities resolve and actor errors surface, and when it is omitted the call runs as the force given by force, whose existence is checked before any target is scanned."""
 input InspectManyInput {
-  actor: ActorInput!
+  """Acting actor. When set, its force wins and force is ignored; when omitted, force selects the force instead."""
+  actor: ActorInput
+  """Force used when actor is omitted; an unknown force fails the call before any target is scanned. Non-null with a default like every other context force, so it has no third "explicit null" state."""
+  force: String! = "player"
   surface: String = "nauvis"
   targets: [EntityRefInput!]!
   includeSettings: Boolean = false
@@ -343,6 +359,8 @@ input MineInput {
 input RemoveInput {
   actor: ActorInput!
   target: EntityRefInput!
+  """How the entity leaves the world. MINE (default) recovers its contents into the actor's main inventory and requires the entity to be in reach. DESTROY deletes the entity together with everything inside it: no items are transferred or spilled, the actor's inventory is never touched, and reach does not apply, so it is the mode for demolition and large clear-outs."""
+  mode: RemovalMode
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
@@ -350,8 +368,17 @@ input RemoveInput {
 input RemoveManyInput {
   actor: ActorInput!
   targets: [EntityRefInput!]!
+  """How the entities leave the world. MINE (default) recovers contents into the actor's main inventory and requires every entity to be in reach. DESTROY deletes each entity and its contents with no item transfer, no spill and no reach requirement."""
+  mode: RemovalMode
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
+}
+"""How an entity is removed from the world."""
+enum RemovalMode {
+  """Recover contents into the actor's main inventory; requires reach."""
+  MINE
+  """Delete the entity and its contents outright; no items, no reach requirement."""
+  DESTROY
 }
 """Pick up one dropped stack at a finite position."""
 input PickupInput {
@@ -360,6 +387,8 @@ input PickupInput {
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
+"""One side of a transport belt, relative to the belt's own direction."""
+enum BeltLane { LEFT RIGHT }
 """Take items from one transport belt of any tier (transport-belt, fast-, express-, turbo-transport-belt)."""
 input BeltTakeInput {
   actor: ActorInput!
@@ -368,9 +397,32 @@ input BeltTakeInput {
   """Item quality prototype name; defaults to normal."""
   quality: String = "normal"
   count: Float = 1
+  """Engine transport lines to take from, by side relative to the belt's direction. Omitted or empty takes both lanes, which is the backward-compatible default; a requested lane the belt does not expose is an error and duplicate entries are ignored. The left lane is emptied before the right one."""
+  lanes: [BeltLane!]
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }
+"""Purge one item and quality from selected lanes of transport belts in an area or on one belt. Exactly one of area or target is required, and limit counts belt tiles, not items."""
+input BeltPurgeInput {
+  actor: ActorInput!
+  """Surface to sweep in area mode and the default surface for target mode, where a surface on target overrides it."""
+  surface: String = "nauvis"
+  """Bounded area to sweep; it must have positive dimensions no greater than 1024 tiles per side. Exactly one of area or target is required."""
+  area: FactoryAreaInput
+  """One belt to purge instead of an area; address it by unitNumber or by name plus a position inside it. Exactly one of area or target is required."""
+  target: EntityRefInput
+  item: String!
+  """Item quality prototype name; defaults to normal."""
+  quality: String = "normal"
+  """Engine transport lines to purge, by side relative to each belt's direction. Omitted or empty purges both lanes and duplicate entries are ignored; a belt that does not expose a requested lane is counted as visited but left unchanged."""
+  lanes: [BeltLane!]
+  """Largest number of belt tiles that may lose items in one call, from 1 through 1000."""
+  limit: Int = 1000
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+"""Counts from one beltPurge sweep. tilesChanged counts the belts where at least one item was removed, and removed counts those items."""
+type BeltPurgeResult { tick: Float! surface: String! tilesVisited: Int! tilesChanged: Int! removed: Int! }
 """Rotate one entity by one to three clockwise quarter turns."""
 input RotateInput {
   actor: ActorInput!
@@ -391,6 +443,47 @@ input TransferInput {
   count: Float!
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
+}
+"""Move items between two entity inventories without an actor."""
+input TransferBetweenInput {
+  """Source entity, addressed by unitNumber or by prototype name plus center position."""
+  from: EntityRefInput!
+  """Destination entity, addressed the same way as from."""
+  to: EntityRefInput!
+  item: String!
+  """Item quality prototype name; defaults to normal."""
+  quality: String = "normal"
+  """Requested item count; a whole number from 1 through 4294967295."""
+  count: Float!
+  """Source inventory selector; defaults to CHEST."""
+  fromInventory: InventoryKind
+  """Destination inventory selector; defaults to fromInventory."""
+  toInventory: InventoryKind
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+"""Outcome of one entity-to-entity transfer."""
+type TransferBetweenResult {
+  """Game tick the backend read the result at."""
+  tick: Float!
+  item: String!
+  quality: String!
+  fromInventory: InventoryKind!
+  toInventory: InventoryKind!
+  requested: Float!
+  """Items of that item and quality in the source inventory."""
+  available: Float!
+  """Items the destination inventory could accept."""
+  capacity: Float!
+  moved: Float!
+  """Source stacks that contributed at least one item."""
+  transferredStacks: Int!
+  fromUnitNumber: UnitNumber
+  toUnitNumber: UnitNumber
+  fromName: String!
+  toName: String!
+  """Why a transfer that moved nothing moved nothing; null when moved is above zero."""
+  reason: String
 }
 """Move items between actor main inventory and an equipment inventory."""
 input EquipInput {
@@ -466,7 +559,7 @@ input MachinesInput { surface: String! = "nauvis" force: String! = "player" stat
 type ProductionItem { item: String! produced: Float! consumed: Float! producedPerMinute: Float! consumedPerMinute: Float! }
 type FactoryProduction { tick: Float! surface: String! force: String! window: ProductionWindow! items: [ProductionItem!]! """Fluid flows from the force fluid statistics over the same window; item and fluid rows share the ProductionItem shape.""" fluids: [ProductionItem!]! }
 type MachineSummary { type: String! total: Int! working: Int! idle: Int! noFuel: Int! "Machines reporting no_power, low_power, not_plugged_in_electric_network, or recharging_after_power_outage. Machine scans cover assembling machines, furnaces, mining drills, labs, and rocket silos; inserter power faults are visible through powerConsumers." noPower: Int! noIngredients: Int! "Machines reporting no_minable_resources: their current mining target is exhausted or gone, so relocate or remove them." resourceDepleted: Int! outputFull: Int! "Machines whose engine status is not classified into another bucket, including no_recipe, no_research_in_progress, disabled, frozen, paused and marked_for_deconstruction." other: Int! }
-type FactoryMachine { name: String! type: String! position: Position! status: String! fuel: [InventoryStack!]! }
+type FactoryMachine { name: String! type: String! position: Position! status: String! fuel: [InventoryStack!]! inspection: EntityInspection @goField(forceResolver: true) }
 type MachinePage { tick: Float! surface: String! force: String! pageInfo: PageInfo! machines: [FactoryMachine!]! summaries: [MachineSummary!]! }
 """Omit area to scan the whole surface; a supplied area must have positive dimensions and has no size cap. limit is 1 to 10000 and offset is non-negative; whole-surface listings page through one deterministic order."""
 input EntitiesInput { surface: String! = "nauvis" area: FactoryAreaInput name: String """Entity type filter (engine type, not a prototype name); an unknown type is an error.""" type: String """Optional force filter; every row also carries Entity.force.""" force: String limit: Int! = 100 offset: Int! = 0 }
@@ -477,8 +570,8 @@ input EntityCountInput { surface: String! = "nauvis" area: FactoryAreaInput forc
 type EntityCountRow { name: String! type: String! status: Int statusName: String count: Int! }
 """Area bounds match FactoryAreaInput. limit is 1 through 10000 and offset is zero-based. Only type=transport-belt entities are returned; line1 is the left line and line2 the right line relative to each belt's direction."""
 input BeltsInput { surface: String! = "nauvis" area: FactoryAreaInput! limit: Int! = 100 offset: Int! = 0 }
-"""Lane contents of one transport belt. line1 is the engine's left_line and line2 its right_line, both relative to the belt's own direction; belts returns transport belts only, so both lanes always exist."""
-type BeltLine { items: [InventoryStack!]! }
+"""Lane contents of one transport belt. line1 is the engine's left_line and line2 its right_line, both relative to the belt's own direction; belts returns transport belts only, so both lanes always exist. lineName is the engine's defines.transport_line name for that line (left_line, right_line, and for other entity types secondary_left_line or a splitter line), side is left or right taken from that name, and mixed is true when the line carries more than one distinct item prototype or quality combination."""
+type BeltLine { items: [InventoryStack!]! lineName: String! side: String! mixed: Boolean! }
 type BeltInfo { name: String! position: Position! direction: Int unitNumber: UnitNumber line1: BeltLine! line2: BeltLine! }
 type BeltPage { tick: Float! surface: String! pageInfo: PageInfo! belts: [BeltInfo!]! }
 type CharacterInfo { unitNumber: UnitNumber! position: Position! surface: String! force: String! health: Float player: String }
@@ -490,29 +583,29 @@ type ConnectedPlayer { name: String! surface: String! position: Position! charac
 type Status { tick: Float! players: [ConnectedPlayer!]! }
 type Nearby { tick: Float! surface: String! pageInfo: PageInfo! entities: [Entity!]! }
 """One entity row. status and statusName are the engine entity_status code and name (for example 53 and no_fuel), and health is the entity's current health, so a listing shows what each entity is doing without a follow-up inspect. Fields are null when the engine reports nothing for that entity."""
-type Entity { tick: Float force: String name: String! type: String position: Position surface: String direction: Int unitNumber: UnitNumber amount: Float distance: Float status: Int statusName: String health: Float inspection(actor: ActorInput!): EntityInspection @goField(forceResolver: true) }
+type Entity { tick: Float force: String name: String! type: String position: Position surface: String direction: Int unitNumber: UnitNumber amount: Float distance: Float status: Int statusName: String health: Float inspection(actor: ActorInput): EntityInspection @goField(forceResolver: true) logistics: InspectionLogistics @goField(forceResolver: true) }
 type EntitySnapshot { tick: Float! surface: String! force: String! entity: Entity! }
 """Actor resolved for an actor-scoped operation. Input selector is preserved."""
 type ActorIdentity { player: String character: UnitNumber }
-type Actor { tick: Float! player: String character: UnitNumber force: String! surface: String! position: Position hasCharacter: Boolean health: Float connected: Boolean controllerType: Int inventory: ActorInventory! @goField(forceResolver: true) queue: CraftQueue! @goField(forceResolver: true) recipe(name: String!): Recipe! @goField(forceResolver: true) nearby(radius: FiniteFloat = 10, name: String, type: String, order: NearbyOrder = DISTANCE, offset: Int = 0, limit: Int = 100): Nearby! @goField(forceResolver: true) }
+type Actor { tick: Float! player: String character: UnitNumber force: String! surface: String! position: Position hasCharacter: Boolean health: Float connected: Boolean controllerType: Int inventory: ActorInventory! @goField(forceResolver: true) queue: CraftQueue! @goField(forceResolver: true) recipe(name: String!): Recipe! @goField(forceResolver: true) nearby(radius: FiniteFloat = 10, name: String, type: String, order: NearbyOrder = DISTANCE, offset: Int = 0, limit: Int = 100): Nearby! @goField(forceResolver: true) characterInspection: EntityInspection @goField(forceResolver: true) }
 """Aggregated fluid amount in an inspected entity."""
 type FluidContent { name: String! amount: Float! }
 type ActorInventory { tick: Float! surface: String! force: String! player: String character: UnitNumber inventory: String items: [InventoryStack!]! itemEntries: Int }
-type QueueEntry { recipe: String count: Float recipeInfo(actor: ActorInput!): Recipe @goField(forceResolver: true) }
+type QueueEntry { recipe: String count: Float recipeInfo(actor: ActorInput, force: String! = "player"): Recipe @goField(forceResolver: true) }
 type CraftQueue { tick: Float! surface: String! force: String! actor: ActorIdentity! player: String character: UnitNumber queue: [QueueEntry!]! queueEntries: Int queueSize: Float progress: Float }
 type Recipe { tick: Float! player: String character: UnitNumber force: String! name: String enabled: Boolean category: String energy: Float ingredients: [RecipeIngredient!]! products: [RecipeProduct!]! hiddenFromPlayerCrafting: Boolean craftableCount: Float }
-type Inventories { input: [InventoryStack!] output: [InventoryStack!] fuel: [InventoryStack!] chest: [InventoryStack!] modules: [InventoryStack!] turretAmmo: [InventoryStack!] main: [InventoryStack!] guns: [InventoryStack!] ammo: [InventoryStack!] armor: [InventoryStack!] trash: [InventoryStack!] roboportRobot: [InventoryStack!] roboportMaterial: [InventoryStack!] cargoWagon: [InventoryStack!] carTrunk: [InventoryStack!] spiderTrunk: [InventoryStack!] artilleryWagonAmmo: [InventoryStack!] }
+type Inventories { input: [InventoryStack!] output: [InventoryStack!] fuel: [InventoryStack!] chest: [InventoryStack!] modules: [InventoryStack!] turretAmmo: [InventoryStack!] main: [InventoryStack!] guns: [InventoryStack!] ammo: [InventoryStack!] armor: [InventoryStack!] trash: [InventoryStack!] roboportRobot: [InventoryStack!] roboportMaterial: [InventoryStack!] cargoWagon: [InventoryStack!] carTrunk: [InventoryStack!] spiderTrunk: [InventoryStack!] artilleryWagonAmmo: [InventoryStack!] rocket: [InventoryStack!] }
 type ProductionCount { name: String! count: Float! }
 type ProductionStatistics { produced: [ProductionCount!]! consumed: [ProductionCount!]! }
 type TransportLine { items: [InventoryStack!]! }
-type EntityInspection { tick: Float! name: String type: String position: Position surface: String! force: String! health: Float maxHealth: Float inventories: Inventories fluids: [FluidContent!]! status: Int statusName: String recipe: String craftingProgress: Float transportLines: [TransportLine!] pickupPosition: Position dropPosition: Position heldStack: InventoryStack miningProgress: Float miningTarget: Entity miningResources: [Entity!] forceItemProduction: ProductionStatistics toBeDeconstructed: Boolean! recipeInfo(actor: ActorInput!): Recipe @goField(forceResolver: true) logistics: InspectionLogistics! @goField(forceResolver: true) }
+type EntityInspection { tick: Float! name: String type: String position: Position surface: String! force: String! health: Float maxHealth: Float inventories: Inventories fluids: [FluidContent!]! status: Int statusName: String recipe: String craftingProgress: Float transportLines: [TransportLine!] pickupPosition: Position dropPosition: Position heldStack: InventoryStack miningProgress: Float miningTarget: Entity miningResources: [Entity!] forceItemProduction: ProductionStatistics toBeDeconstructed: Boolean! recipeInfo(actor: ActorInput, force: String! = "player"): Recipe @goField(forceResolver: true) logistics: InspectionLogistics! @goField(forceResolver: true) }
 type ActionResult { actor: ActorIdentity! character: UnitNumber player: String """Game tick the performing backend read the result at; a real write always advances it. 0 means the payload for that command carries no tick, which is not evidence of a no-op.""" tick: Float! position: Position surface: String! force: String! name: String entity: String item: String quality: String recipe: String direction: Int transferDirection: TransferDirection equipmentDirection: EquipmentTransferDirection before: Int turns: Int count: Float requested: Float started: Float queueSize: Float moved: Float remaining: Float available: Float capacity: Float inventory: String returned: [InventoryStack!] items: [InventoryStack!] unitNumber: UnitNumber inserted: Float transferredStacks: Int returnedStacks: Int craftingComplete: Boolean waitTimedOut: Boolean waitedSeconds: Float instant: Boolean mined: Boolean """Why a mutating action moved nothing (BAR_LIMITED, NO_CAPACITY, NO_SOURCE, MARKED_FOR_DECONSTRUCTION, FILTERED); null when moved is nonzero or the reason does not apply.""" reason: String """Destination slot bar index reported by transfer (usable slots are bar-1).""" bar: Int """True when the transfer destination is marked for deconstruction, which blocks insertion.""" toBeDeconstructed: Boolean """Underground belt half created by place.""" undergroundType: UndergroundBeltType """Unit number of the facing underground half the engine paired with this one.""" pairedUnitNumber: UnitNumber }
 """Batch placement counts and typed per-position failures."""
 type PlaceManyResult { tick: Float! surface: String! force: String! actor: ActorIdentity! item: String! placed: Int! failed: Int! errors: [BatchError!]! entities: [PlacedEntity!]! }
 """One entity reference used by placement and action results."""
-type PlacedEntity { """Zero-based index of the placement input that produced this entity.""" index: Int name: String! type: String position: Position unitNumber: UnitNumber direction: Int undergroundType: UndergroundBeltType """Facing underground half this entity was paired with, when any.""" pairedUnitNumber: UnitNumber }
+type PlacedEntity { """Zero-based index of the placement input that produced this entity.""" index: Int name: String! type: String position: Position unitNumber: UnitNumber direction: Int undergroundType: UndergroundBeltType """Facing underground half this entity was paired with, when any.""" pairedUnitNumber: UnitNumber surface: String inspection: EntityInspection @goField(forceResolver: true) }
 """Entity inventory key for transfer."""
-enum InventoryKind { INPUT OUTPUT FUEL CHEST MODULES TURRET_AMMO ROBO_PORT_ROBOT ROBO_PORT_MATERIAL CARGO_WAGON CAR_TRUNK SPIDER_TRUNK ARTILLERY_WAGON_AMMO }
+enum InventoryKind { INPUT OUTPUT FUEL CHEST MODULES TURRET_AMMO ROBO_PORT_ROBOT ROBO_PORT_MATERIAL CARGO_WAGON CAR_TRUNK SPIDER_TRUNK ARTILLERY_WAGON_AMMO ROCKET ASTEROID_COLLECTOR_OUTPUT }
 """How setRecipe handles a machine that still holds items or fluid."""
 enum RecipeDrainMode { ABORT TO_ACTOR SPILL }
 """Tile placed by placeTile."""

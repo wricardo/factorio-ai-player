@@ -194,7 +194,7 @@ func TestOperationsGhostsAreaFilter(t *testing.T) {
 		t.Skip("Lua interpreter not installed")
 	}
 	fixture := `
-defines={inventory={chest=1}}
+defines={inventory={chest=1},build_check_type={manual=1,script=2,ghost_revive=3}}
 game={tick=50}
 local surface={name="nauvis",index=1}
 local force={name="player"}
@@ -207,7 +207,17 @@ local function inside(e,area)
   if not area then return true end
   return e.position.x>=area[1][1] and e.position.x<=area[2][1] and e.position.y>=area[1][2] and e.position.y<=area[2][2]
 end
+local rock={type="simple-entity",name="big-sand-rock",quality={name="normal"},position={x=1.5,y=1.5},valid=true}
+surface.can_place_entity=function(spec)
+  if spec.position and math.abs(spec.position.x-1.5)<0.01 and math.abs(spec.position.y-1.5)<0.01 then return false end
+  return true
+end
 surface.find_entities_filtered=function(filter)
+  if filter.area and not filter.type and not filter.name then
+    local a=filter.area
+    if a[1][1]<=rock.position.x and rock.position.x<=a[2][1] and a[1][2]<=rock.position.y and rock.position.y<=a[2][2] then return {rock} end
+    return {}
+  end
   if filter.type and type(filter.type)=="table" and filter.type[1]=="entity-ghost" then
     ghost_filter=filter
     local out={}
@@ -227,6 +237,14 @@ local whole=run(nil,10,0)
 assert(whole.filter.area==nil,"whole-surface scan must omit the area key")
 assert(whole.total==2 and #whole.entries==2,"whole-surface scan must see ghosts outside any box")
 assert(whole.entries[1].buildable==false ,"no stock means unbuildable")
+local function entry_named(target)
+  for _,row in ipairs(whole.entries) do if row.name==target then return row end end
+end
+local belt=entry_named("transport-belt"); local inserter=entry_named("inserter")
+assert(belt and belt.blocked==true,"a colliding simple entity must mark the ghost blocked")
+assert(belt.blockingName=="big-sand-rock","the blocking entity must be named")
+assert(inserter and inserter.blocked==false,"a clear tile must stay unblocked")
+assert(inserter.blockingName==nil,"an unblocked ghost must not name a blocker")
 local paged=run(nil,1,1)
 assert(paged.total==2 and #paged.entries==1,"whole-surface total must count every ghost while the page stays bounded")
 local boxed=run({{0,0},{10,10}},10,0)

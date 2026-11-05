@@ -13,3 +13,8 @@ import (
 func (r *logisticsEndpointResolver) InserterSettings(ctx context.Context, obj *LogisticsEndpoint) (*InserterSettings, error) {
 	return inserterSettingsQuery(r.Resolver, obj)
 }
+
+// Inspection is the resolver for the inspection field.
+func (r *logisticsEndpointResolver) Inspection(ctx context.Context, obj *LogisticsEndpoint) (*EntityInspection, error) {
+	return logisticsEndpointInspectionQuery(r.Resolver, obj)
+}

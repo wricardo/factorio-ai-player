@@ -163,7 +163,7 @@ for i=offset+1, math.min(#matches, offset+limit) do
     machine.miningProgress=entity.mining_progress
     local target=entity.mining_target
     if target and target.valid then
-      machine.miningTarget={name=target.name, position=target.position, amount=target.amount}
+      machine.miningTarget={name=target.name, surface=surface.name, position=target.position, amount=target.amount}
     end
   end
   if t=="furnace" or t=="assembling-machine" or t=="rocket-silo" then

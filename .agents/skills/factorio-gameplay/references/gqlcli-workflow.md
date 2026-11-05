@@ -135,9 +135,9 @@ These exact mistakes appeared repeatedly in a 2026-10-31/11-01 gameplay session.
 |---|---|
 | `ActorInput { actor: ... }` | `ActorInput { player: "name" }` or `{ character: "123" }` |
 | `inventory(input:{actor:{player:"x"}})` | `inventory(input:{player:"x"})` |
-| `RecipeInput { item: "..." }` | `RecipeInput { actor: ActorInput!, recipe: "name" }` |
+| `RecipeInput { item: "..." }` | `RecipeInput { actor: ActorInput, force: "player", recipe: "name" }` (actor optional) |
 | `EntityRefInput { type: "..." }` | use `entity: "prototype"`; `type` is not an input field |
-| `entity(input:{unitNumber:"42"}) { inspection { ... } }` | `entity(input:{entity:"lab",unitNumber:"42"}) { entity { inspection(actor:{character:"7"}) { ... } } }` |
+| `entity(input:{unitNumber:"42"}) { inspection { ... } }` | `entity(input:{entity:"lab",unitNumber:"42"}) { entity { inspection(actor:{character:"7"}) { ... } } }`; the actor argument is optional |
 | `Entity.recipeName`; `EntitySnapshot.inspection` | recipe is in `EntityInspection.recipe`; snapshot wraps `.entity` |
 | `EntityInspection { power }` | power is in `machines.diagnostics.power` or `powerConsumers` |
 | `StockLocation { item count name inventory }` | `StockLocation { stack { name quality count } inventoryKind }` |

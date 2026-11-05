@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 )
 
 // resourceLua mines one selected resource, tree, or rock with the engine's
@@ -80,11 +81,16 @@ func removeLua(args []string, out io.Writer) (string, error) {
 	fs.StringVar(&unitNumber, "unitNumber", "", "Target entity unit number, alternative to entity and x/y")
 	x := fs.Float64("x", math.NaN(), "Entity center X on the actor's surface (required unless a unit number is given)")
 	y := fs.Float64("y", math.NaN(), "Entity center Y on the actor's surface (required unless a unit number is given)")
+	mode := fs.String("mode", "MINE", "RemovalMode: MINE recovers contents into the actor inventory and needs reach; DESTROY deletes the entity and its contents with no items and no reach requirement")
 	if err := fs.Parse(args); err != nil {
 		return "", err
 	}
 	if fs.NArg() != 0 || (*player == "") == (*character == 0) || *character > math.MaxUint32 {
 		return "", errors.New("exactly one of player or character (unit number 1 to 4294967295) is required; no positional arguments allowed")
+	}
+	void := strings.EqualFold(*mode, "DESTROY")
+	if !void && !strings.EqualFold(*mode, "MINE") {
+		return "", errors.New("mode must be MINE or DESTROY")
 	}
 	targetUnit, err := entityTarget(*entity, unitNumber, *x, *y)
 	if err != nil {
@@ -92,14 +98,18 @@ func removeLua(args []string, out io.Writer) (string, error) {
 	}
 	lua := fmt.Sprintf(luaFail+`local player=%s; local unit=%d; local actor; if unit~=0 then actor=game.get_entity_by_unit_number(unit); if not actor or actor.type~="character" then fail("character unit not found"); return end else actor=game.get_player(player); if not actor then fail("player not found"); return end; if actor.controller_type~=defines.controllers.character or not actor.character then fail("player must control a character"); return end end; local inv=actor.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end; local p=actor; `, luaString(*player), *character) +
 		targetLocals(targetUnit, *entity, *x, *y, *surface) + `if surface_name=="" then surface_name=actor.surface.name end
-` + luaEntityResolve + resolveTargetNeutralLua() + `if e.type=="character" then fail("cannot remove a character"); return end; if e.surface~=actor.surface then fail("entity is on another surface than the actor"); return end; if ` + reachViolation("actor", "e") + ` then fail("entity is out of reach"); return end; local name=e.name; local kind=e.type; local pos=e.position; local surface=s.name
+` + luaEntityResolve + resolveTargetNeutralLua() + `if e.type=="character" then fail("cannot remove a character"); return end; if e.surface~=actor.surface then fail("entity is on another surface than the actor"); return end; local void_mode=` + luaBool(void) + `; if (not void_mode) and (` + reachViolation("actor", "e") + `) then fail("entity is out of reach"); return end; local name=e.name; local kind=e.type; local pos=e.position; local surface=s.name
 `
 	return lua + luaHarvestStumpCleanup + inventoryItemHelpersLua + `
 local before=inventory_item_counts(inv)
 local tree_box=(kind=="tree") and e.bounding_box or nil
 local amount_before=(kind=="resource" and e.amount) or nil
 local removed
-if kind=="corpse" then
+if void_mode then
+  -- DESTROY mode: delete the entity and everything inside it, with no item
+  -- transfer, so the actor inventory never limits demolition.
+  removed=e.destroy{raise_destroy=true}
+elseif kind=="corpse" then
   -- A corpse (a tree stump left by Factorio 2.0 tree mining, or a remnant) is
   -- not mineable, but destroy removes it; it carries no items, so nothing is
   -- lost and the tile becomes placeable again.

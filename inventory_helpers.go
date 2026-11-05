@@ -29,7 +29,7 @@ end
 local function inventories(entity)
   local result={}
   local t=entity.type
-  if t=="container" or t=="logistic-container" then result.chest=entity.get_inventory(defines.inventory.chest) end
+  if t=="container" or t=="logistic-container" or t=="infinity-container" then result.chest=entity.get_inventory(defines.inventory.chest) end
   if t=="furnace" then
     result.input=entity.get_inventory(defines.inventory.furnace_source)
     result.output=entity.get_inventory(defines.inventory.furnace_result)
@@ -39,7 +39,20 @@ local function inventories(entity)
   elseif t=="lab" then
     result.input=entity.get_inventory(defines.inventory.lab_input)
   end
-  if t=="assembling-machine" or t=="rocket-silo" then
+  if t=="asteroid-collector" then
+    result.asteroid_collector_output=get_inv(entity,"asteroid_collector_output")
+  end
+  if t=="rocket-silo" then
+    -- The rocket cargo is separate from the crafting input and is the only
+    -- inventory holding items loaded for launch, so a silo with a loaded
+    -- rocket otherwise looks empty.
+    result.rocket=get_inv(entity,"rocket_silo_rocket")
+  end
+  if t=="furnace" then
+    -- Furnaces keep modules in their own inventory index, not crafter_modules,
+    -- so the shared MODULES selector otherwise reports "no such inventory".
+    result.modules=entity.get_inventory(defines.inventory.furnace_modules)
+  elseif t=="assembling-machine" or t=="rocket-silo" then
     result.modules=entity.get_inventory(defines.inventory.crafter_modules)
   elseif t=="lab" then
     result.modules=entity.get_inventory(defines.inventory.lab_modules)

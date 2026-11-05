@@ -40,6 +40,39 @@ func worldAreaBoundsLua(area *FactoryAreaInput, maxTiles float64) (string, strin
 	return fmt.Sprintf("{{%s,%s},{%s,%s}}", n[0], n[1], n[2], n[3]), fmt.Sprintf("{leftTopX=%s,leftTopY=%s,rightBottomX=%s,rightBottomY=%s}", n[0], n[1], n[2], n[3]), nil
 }
 
+// beltFamilyTypes is the belt-family census type set used by beltTiles and as
+// the default when BeltTilesInput.types is empty.
+var beltFamilyTypes = []string{"transport-belt", "underground-belt", "splitter", "loader", "loader-1x1", "linked-belt"}
+
+// markWorldLaneMixed sets WorldLane.mixed from lane contents: true when the lane
+// carries more than one distinct item prototype or quality combination. mixed is
+// not a wire value, so every resolver that returns WorldLane lanes must call it.
+func markWorldLaneMixed(lanes []*WorldLane) {
+	for _, lane := range lanes {
+		if lane != nil {
+			lane.Mixed = worldLaneMixed(lane)
+		}
+	}
+}
+
+func worldLaneMixed(lane *WorldLane) bool {
+	seen := make(map[string]bool, len(lane.Items))
+	for _, stack := range lane.Items {
+		if stack == nil {
+			continue
+		}
+		key := stack.Name + "|" + stack.Quality
+		if seen[key] {
+			continue
+		}
+		if len(seen) > 0 {
+			return true
+		}
+		seen[key] = true
+	}
+	return false
+}
+
 const worldCommonLua = `
 local surface=game.surfaces[surface_name]
 if not surface then fail("surface not found"); return end
@@ -66,7 +99,7 @@ func worldLogisticsQuery(r *Resolver, input *WorldLogisticsInput) (*WorldLogisti
 	if input.Type != nil {
 		requested = *input.Type
 	}
-	lua := luaFail + transportLineLua + fmt.Sprintf(`local surface_name,force_name=%s,%s; local area,area_result=%s,%s; local limit,offset=%d,%d; local requested=%s
+	lua := luaFail + luaUndergroundInfoLua + transportLineLua + fmt.Sprintf(`local surface_name,force_name=%s,%s; local area,area_result=%s,%s; local limit,offset=%d,%d; local requested=%s
 `, luaString(input.Surface), luaString(input.Force), area, areaResult, input.Limit, input.Offset, luaString(requested)) + worldCommonLua + `
 local types={"transport-belt","underground-belt","splitter","loader","loader-1x1","linked-belt","inserter","pipe","pipe-to-ground","storage-tank","boiler","pump","offshore-pump"}
 local valid_type=false
@@ -96,6 +129,14 @@ for i=offset+1,math.min(#matches,offset+limit) do
     obj.pickupPosition=e.pickup_position; obj.dropPosition=e.drop_position
     local stack=e.held_stack; if stack and stack.valid_for_read then obj.heldStack={name=stack.name,count=stack.count,quality=stack.quality.name} end
   end
+  if e.type=="underground-belt" then
+    local underground_type,paired=underground_info(e)
+    obj.undergroundType=underground_type
+    -- UnitNumber is a string scalar on the wire, so the numeric engine id is
+    -- converted here instead of relying on a normalizer key that does not cover
+    -- every UnitNumber field.
+    obj.pairedUnitNumber=(paired~=nil) and tostring(paired) or nil
+  end
   local boxes=e.fluidbox
   if boxes then for j=1,#boxes do local f=boxes[j]; local item={index=j,capacity=boxes.get_capacity(j)}; if f then item.name=f.name; item.amount=f.amount; item.temperature=f.temperature end; obj.fluids[#obj.fluids+1]=item end end
   local fuel=e.get_fuel_inventory(); if fuel then obj.worldInventories[#obj.worldInventories+1]={kind="fuel",items=contents(fuel)} end
@@ -108,7 +149,80 @@ rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force
 	if err != nil {
 		return nil, err
 	}
-	return factoryDecode[WorldLogisticsPage](response)
+	page, err := factoryDecode[WorldLogisticsPage](response)
+	if err != nil {
+		return nil, err
+	}
+	for _, entity := range page.LogisticsEntities {
+		markWorldLaneMixed(entity.Lanes)
+	}
+	return page, nil
+}
+
+func beltTilesQuery(r *Resolver, input *BeltTilesInput) (*BeltTilesPage, error) {
+	if input == nil || input.Surface == "" {
+		return nil, errors.New("surface is required")
+	}
+	area, areaResult, err := worldAreaLua(input.Area, input.Limit, input.Offset)
+	if err != nil {
+		return nil, err
+	}
+	requested := beltFamilyTypes
+	if len(input.Types) > 0 {
+		requested = input.Types
+	}
+	validTypes := make(map[string]bool, len(beltFamilyTypes))
+	for _, t := range beltFamilyTypes {
+		validTypes[t] = true
+	}
+	literals := make([]string, len(requested))
+	for i, t := range requested {
+		if !validTypes[t] {
+			return nil, fmt.Errorf("unsupported belt type %q", t)
+		}
+		literals[i] = luaString(t)
+	}
+	lua := luaFail + transportLineLua + fmt.Sprintf(`local surface_name=%s; local area,area_result=%s,%s; local limit,offset=%d,%d; local type_list={%s}
+`, luaString(input.Surface), area, areaResult, input.Limit, input.Offset, strings.Join(literals, ",")) + `
+local surface=game.surfaces[surface_name]
+if not surface then fail("surface not found"); return end
+local type_set={}
+for _,t in ipairs(type_list) do type_set[t]=true end
+local entities=surface.find_entities_filtered{area=area,type=type_list}
+local matches={}
+for _,e in pairs(entities) do
+  if type_set[e.type] then matches[#matches+1]={entity=e,position=e.position,unitNumber=e.unit_number} end
+end
+table.sort(matches,function(a,b)
+  if a.position.y~=b.position.y then return a.position.y<b.position.y end
+  if a.position.x~=b.position.x then return a.position.x<b.position.x end
+  return (a.unitNumber or 0)<(b.unitNumber or 0)
+end)
+local result={}
+for i=offset+1,math.min(#matches,offset+limit) do
+  local e=matches[i].entity
+  local obj={name=e.name,type=e.type,position=e.position,direction=e.direction,unitNumber=e.unit_number,lanes={}}
+  for j=1,e.get_max_transport_line_index() do
+    local name=transport_line_name(j)
+    local items=e.get_transport_line(j).get_contents()
+    table.sort(items,function(a,b) if a.name~=b.name then return a.name<b.name end return (a.quality or "")<(b.quality or "") end)
+    obj.lanes[#obj.lanes+1]={index=j,lineName=name,side=transport_line_side(name),items=items}
+  end
+  result[#result+1]=obj
+end
+rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,area=area_result,pageInfo={total=#matches,limit=limit,offset=offset,hasMore=#matches>offset+limit},total=#matches,tiles=result})`
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
+		return nil, err
+	}
+	page, err := factoryDecode[BeltTilesPage](response)
+	if err != nil {
+		return nil, err
+	}
+	for _, tile := range page.Tiles {
+		markWorldLaneMixed(tile.Lanes)
+	}
+	return page, nil
 }
 
 func worldResourcesQuery(r *Resolver, input *WorldResourcesInput) (*WorldResourcesPage, error) {
@@ -213,10 +327,11 @@ if group_patches and #resources>0 then
     local root=find(item.key)
     local group=groups[root]
     if not group then
-      group={name=item.name,tiles=0,totalAmount=0,yieldPercent=0,infinite=false,minx=math.huge,miny=math.huge,maxx=-math.huge,maxy=-math.huge,sumx=0,sumy=0}
+      group={name=item.name,tiles=0,totalAmount=0,yieldPercent=0,infinite=false,minx=math.huge,miny=math.huge,maxx=-math.huge,maxy=-math.huge,sumx=0,sumy=0,tileKeys={}}
       groups[root]=group
     end
     group.tiles=group.tiles+1
+    group.tileKeys[math.floor(item.position.x)..":"..math.floor(item.position.y)]=true
     -- Infinite resources (crude oil) carry a yield percentage, not a finite
     -- amount, so they are reported separately instead of inflating totalAmount.
     if item.infinite then
@@ -270,11 +385,16 @@ if group_patches and #resources>0 then
         local mine_area={{d.position.x-r,d.position.y-r},{d.position.x+r,d.position.y+r}}
         local drill_tiles,drill_amount=0,0
         for _,resource in pairs(surface.find_entities_filtered{area=mine_area,type="resource",name=group.name}) do
-          local amount=resource.amount or 0
-          drill_tiles=drill_tiles+1
-          drill_amount=drill_amount+amount
-          local key=resource.position.x..":"..resource.position.y
-          if not covered[key] then covered[key]=true; covered_tiles=covered_tiles+1; covered_amount=covered_amount+amount end
+          local key=math.floor(resource.position.x)..":"..math.floor(resource.position.y)
+          -- A drill next to several patches must only credit tiles of this
+          -- group; otherwise a one-tile patch can report more covered tiles
+          -- than it owns.
+          if group.tileKeys[key] then
+            local amount=resource.amount or 0
+            drill_tiles=drill_tiles+1
+            drill_amount=drill_amount+amount
+            if not covered[key] then covered[key]=true; covered_tiles=covered_tiles+1; covered_amount=covered_amount+amount end
+          end
         end
         if drill_tiles>0 then
           drills[#drills+1]={kind="drill",name=d.name,position=d.position,unitNumber=d.unit_number,status=status_names[d.status],coveredTiles=drill_tiles,coveredAmount=drill_amount}

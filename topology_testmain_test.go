@@ -4,6 +4,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -15,6 +16,14 @@ import (
 func TestMain(m *testing.M) {
 	fallback := false
 	topologyInterfaceOverride = &fallback
+	// Keep the suite's GraphQL operation log out of the developer's live log.
+	logDir, err := os.MkdirTemp("", "factorio-ai-player-test-log-")
+	if err == nil {
+		_ = os.Setenv(graphqlLogEnv, filepath.Join(logDir, "graphql-log.jsonl"))
+	}
 	code := m.Run()
+	if logDir != "" {
+		_ = os.RemoveAll(logDir)
+	}
 	os.Exit(code)
 }

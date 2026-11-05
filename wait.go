@@ -263,7 +263,7 @@ rcon.print(helpers.table_to_json{tick=game.tick,satisfied=size==0,queueSize=size
 			}
 			allowed = append(allowed, "["+luaString(status)+"]=true")
 		}
-		return WaitConditionKindMachineStatus, luaFail + entityRefPrelude(unit, name, x, y, surface) + fmt.Sprintf(`
+		return WaitConditionKindMachineStatus, luaFail + entityRefPrelude("target", unit, name, x, y, surface) + fmt.Sprintf(`
 local allowed={%s}
 local statuses={}; for k,v in pairs(defines.entity_status) do statuses[v]=k end
 local ok,raw=pcall(function() return target.status end)
@@ -295,7 +295,7 @@ rcon.print(helpers.table_to_json{tick=game.tick,satisfied=researched,researched=
 		if math.IsNaN(cond.AtLeast) || math.IsInf(cond.AtLeast, 0) || cond.AtLeast < 0 {
 			return "", "", errors.New("fluid atLeast must be finite and non-negative")
 		}
-		return WaitConditionKindFluid, luaFail + entityRefPrelude(unit, name, x, y, surface) + fmt.Sprintf(`
+		return WaitConditionKindFluid, luaFail + entityRefPrelude("target", unit, name, x, y, surface) + fmt.Sprintf(`
 local wanted=%s; local target_amount=%s
 local contents=target.get_fluid_contents()
 local total=0
@@ -371,29 +371,32 @@ func entityRefTarget(target *EntityRefInput) (uint64, string, float64, float64, 
 	return unit, name, x, y, surface, nil
 }
 
-// waitEntityPrelude resolves one entity by unit number or by prototype and
-// center position, binding `target`, and binds `surface`.
-func entityRefPrelude(unit uint64, name string, x, y float64, surface string) string {
-	return fmt.Sprintf(`local surface_name=%s
-local surface=game.surfaces[surface_name]; if not surface then fail("surface not found"); return end
-local target_unit=%d; local target_name=%s; local target_position={x=%s,y=%s}
-local target=nil
-if target_unit~=0 then
-  target=game.get_entity_by_unit_number(target_unit)
-  if not target and target_name~="" then
-    for _,candidate in pairs(surface.find_entities_filtered{name=target_name}) do
-      if candidate.unit_number==target_unit then target=candidate; break end
+// entityRefPrelude resolves one entity reference by unit number or by
+// prototype and center position, binding `<label>`, `<label>_surface` and
+// `<label>_position`. The label keeps two references apart in one script, so a
+// pairwise transfer can resolve a source and a destination without name
+// collisions.
+func entityRefPrelude(label string, unit uint64, name string, x, y float64, surface string) string {
+	return fmt.Sprintf(`local %[1]s_surface_name=%[2]s
+local %[1]s_surface=game.surfaces[%[1]s_surface_name]; if not %[1]s_surface then fail("%[1]s surface not found"); return end
+local %[1]s_unit=%[3]d; local %[1]s_name=%[4]s; local %[1]s_position={x=%[5]s,y=%[6]s}
+local %[1]s=nil
+if %[1]s_unit~=0 then
+  %[1]s=game.get_entity_by_unit_number(%[1]s_unit)
+  if not %[1]s and %[1]s_name~="" then
+    for _,candidate in pairs(%[1]s_surface.find_entities_filtered{name=%[1]s_name}) do
+      if candidate.unit_number==%[1]s_unit then %[1]s=candidate; break end
     end
   end
 else
-  if target_name=="" then fail("entity name or unitNumber is required"); return end
-  for _,candidate in pairs(surface.find_entities_filtered{name=target_name,position=target_position,radius=0.01}) do
-    if math.abs(candidate.position.x-target_position.x)<0.001 and math.abs(candidate.position.y-target_position.y)<0.001 then target=candidate; break end
+  if %[1]s_name=="" then fail("%[1]s entity name or unitNumber is required"); return end
+  for _,candidate in pairs(%[1]s_surface.find_entities_filtered{name=%[1]s_name,position=%[1]s_position,radius=0.01}) do
+    if math.abs(candidate.position.x-%[1]s_position.x)<0.001 and math.abs(candidate.position.y-%[1]s_position.y)<0.001 then %[1]s=candidate; break end
   end
 end
-if not target or not target.valid then
-  if target_unit~=0 and target_name=="" then fail("entity not found by unit number; pass entity too"); return end
-  fail("target entity not found"); return
+if not %[1]s or not %[1]s.valid then
+  if %[1]s_unit~=0 and %[1]s_name=="" then fail("entity not found by unit number; pass entity too"); return end
+  fail("%[1]s entity not found"); return
 end
-`, luaString(surface), unit, luaString(name), luaCoordinate(x), luaCoordinate(y))
+`, label, luaString(surface), unit, luaString(name), luaCoordinate(x), luaCoordinate(y))
 }

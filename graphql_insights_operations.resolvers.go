@@ -19,6 +19,11 @@ func (r *entityInspectionResolver) FluidNetwork(ctx context.Context, obj *Entity
 	return inspectionFluidNetwork(r.Resolver, obj, maxBoxes)
 }
 
+// Inspection is the resolver for the inspection field.
+func (r *fluidNetworkEntityResolver) Inspection(ctx context.Context, obj *FluidNetworkEntity) (*EntityInspection, error) {
+	return entityInspectionFor(r.Resolver, obj.Surface, obj.Name, obj.UnitNumber, obj.Position)
+}
+
 // ScienceBudget is the resolver for the scienceBudget field.
 func (r *queryResolver) ScienceBudget(ctx context.Context, force string, surface string) (*ScienceBudget, error) {
 	return scienceBudgetQuery(r.Resolver, force, surface)
@@ -28,3 +33,10 @@ func (r *queryResolver) ScienceBudget(ctx context.Context, force string, surface
 func (r *queryResolver) Ghosts(ctx context.Context, input GhostsInput) (*GhostsPage, error) {
 	return ghostsQuery(r.Resolver, &input)
 }
+
+// FluidNetworkEntity returns FluidNetworkEntityResolver implementation.
+func (r *Resolver) FluidNetworkEntity() FluidNetworkEntityResolver {
+	return &fluidNetworkEntityResolver{r}
+}
+
+type fluidNetworkEntityResolver struct{ *Resolver }

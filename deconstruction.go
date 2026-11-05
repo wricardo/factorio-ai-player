@@ -12,9 +12,11 @@ import (
 // need no reach, and return counts of orders placed or canceled. Area requests
 // select targets with find_entities_filtered across the requested force AND the
 // neutral force (trees, rocks, cliffs and ground items belong to neutral), then
-// order_deconstruction per entity. Characters and ghosts are never targets: the
-// engine cannot deconstruct them, so they are skipped before any order is
-// attempted instead of surfacing as per-target ENGINE errors.
+// order_deconstruction per entity. The area path skips characters, ghosts and
+// tile ghosts before any order is attempted. The batch path cannot skip a target
+// the caller chose explicitly, so a ghost there is cancelled by the engine during
+// order_deconstruction: that cancellation counts as the order and must not abort
+// the batch (the entity is already invalid when the call returns).
 
 // deconstructArea marks every deconstructible entity in the area for
 // deconstruction by the force's construction robots.
@@ -116,40 +118,12 @@ func cancelDeconstructEntities(r *Resolver, input DeconstructEntitiesInput) (*De
 	return deconstructionEntities(r, input, true)
 }
 
-func deconstructionEntities(r *Resolver, input DeconstructEntitiesInput, cancel bool) (*DeconstructionResult, error) {
-	force, err := deconstructionForce(input.Force)
-	if err != nil {
-		return nil, err
-	}
-	if len(input.Targets) < 1 || len(input.Targets) > maxBatchTargets {
-		return nil, fmt.Errorf("targets must contain between 1 and %d entries", maxBatchTargets)
-	}
-	surface := stringValueOr(input.Targets[0].Surface, "nauvis")
-	if _, err := deconstructionSurface(surface); err != nil {
-		return nil, err
-	}
-	var targets strings.Builder
-	for i, target := range input.Targets {
-		if target == nil {
-			return nil, fmt.Errorf("target %d is missing", i+1)
-		}
-		targetSurface := stringValueOr(target.Surface, "nauvis")
-		if targetSurface != surface {
-			return nil, fmt.Errorf("target %d surface %s differs from %s", i+1, targetSurface, surface)
-		}
-		unitNumber := stringValueOr(target.UnitNumber, "")
-		name := stringValueOr(target.Entity, "")
-		x, y := entityRefCoordinates(target)
-		unit, err := entityTarget(name, unitNumber, x, y)
-		if err != nil {
-			return nil, fmt.Errorf("target %d: %w", i+1, err)
-		}
-		if i > 0 {
-			targets.WriteString(",")
-		}
-		fmt.Fprintf(&targets, "{unit=%d,name=%s,x=%s,y=%s,surface=%s}", unit, luaString(name), luaCoordinate(x), luaCoordinate(y), luaString(surface))
-	}
-	lua := luaFail + fmt.Sprintf(`local surface_name=%s; local force_name=%s; local cancel=%t; local targets={%s}
+// deconstructionEntitiesLua builds the batch order/cancel script. It is split
+// out so the Lua harness can run it against stubbed entities: the marking path
+// must survive an entity that ends during order_deconstruction (entity ghosts
+// are cancelled by the engine and cannot hold an order).
+func deconstructionEntitiesLua(surface, force string, cancel bool, targets string) string {
+	return luaFail + fmt.Sprintf(`local surface_name=%s; local force_name=%s; local cancel=%t; local targets={%s}
 local s=game.surfaces[surface_name]; if not s then fail("surface not found"); return end
 local f=game.forces[force_name]; if not f then fail("force not found"); return end
 local orders,skipped=0,0; local errors={}
@@ -190,23 +164,72 @@ for i,t in ipairs(targets) do
     if cancel then
       if not marked then skipped=skipped+1; add_error(i,"VALIDATION","entity is not marked for deconstruction",t)
       else
-        e.cancel_deconstruction(f)
-        local ok_after,after=pcall(e.to_be_deconstructed,e)
-        if ok_after and after then skipped=skipped+1; add_error(i,"ENGINE","deconstruction order could not be canceled",t)
-        else orders=orders+1 end
+        -- Wrapped: cancelling can end the entity (placing an order on a ghost
+        -- is impossible, but an entity can be gone by the time the order is
+        -- written), and an unprotected raise would abort the whole batch.
+        local ok_cancel=pcall(function() return e.cancel_deconstruction(f) end)
+        if not e.valid then orders=orders+1
+        else
+          local ok_after,after=pcall(e.to_be_deconstructed,e)
+          if ok_cancel and ok_after and after then skipped=skipped+1; add_error(i,"ENGINE","deconstruction order could not be canceled",t)
+          else orders=orders+1 end
+        end
       end
     elseif marked then
       skipped=skipped+1; add_error(i,"VALIDATION","entity is already marked for deconstruction",t)
     else
-      local ok_order=e.order_deconstruction(f)
-      local ok_after,after=pcall(e.to_be_deconstructed,e)
-      if ok_order and ok_after and after then orders=orders+1
-      else skipped=skipped+1; add_error(i,"ENGINE","engine refused the deconstruction order",t) end
+      -- Entity ghosts cannot hold an order: the engine cancels the ghost during
+      -- order_deconstruction and raises because the entity is invalid
+      -- afterwards. Refuse nothing, count the cancellation as the order, and
+      -- keep the rest of the batch alive.
+      local ok_order=pcall(function() return e.order_deconstruction(f) end)
+      if not e.valid then orders=orders+1
+      else
+        local ok_after,after=pcall(e.to_be_deconstructed,e)
+        if ok_order and ok_after and after then orders=orders+1
+        else skipped=skipped+1; add_error(i,"ENGINE","engine refused the deconstruction order",t) end
+      end
     end
   end
 end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=f.name,orders=orders,skipped=skipped,errors=errors}))`,
-		luaString(surface), luaString(force), cancel, targets.String())
+		luaString(surface), luaString(force), cancel, targets)
+}
+
+func deconstructionEntities(r *Resolver, input DeconstructEntitiesInput, cancel bool) (*DeconstructionResult, error) {
+	force, err := deconstructionForce(input.Force)
+	if err != nil {
+		return nil, err
+	}
+	if len(input.Targets) < 1 || len(input.Targets) > maxBatchTargets {
+		return nil, fmt.Errorf("targets must contain between 1 and %d entries", maxBatchTargets)
+	}
+	surface := stringValueOr(input.Targets[0].Surface, "nauvis")
+	if _, err := deconstructionSurface(surface); err != nil {
+		return nil, err
+	}
+	var targets strings.Builder
+	for i, target := range input.Targets {
+		if target == nil {
+			return nil, fmt.Errorf("target %d is missing", i+1)
+		}
+		targetSurface := stringValueOr(target.Surface, "nauvis")
+		if targetSurface != surface {
+			return nil, fmt.Errorf("target %d surface %s differs from %s", i+1, targetSurface, surface)
+		}
+		unitNumber := stringValueOr(target.UnitNumber, "")
+		name := stringValueOr(target.Entity, "")
+		x, y := entityRefCoordinates(target)
+		unit, err := entityTarget(name, unitNumber, x, y)
+		if err != nil {
+			return nil, fmt.Errorf("target %d: %w", i+1, err)
+		}
+		if i > 0 {
+			targets.WriteString(",")
+		}
+		fmt.Fprintf(&targets, "{unit=%d,name=%s,x=%s,y=%s,surface=%s}", unit, luaString(name), luaCoordinate(x), luaCoordinate(y), luaString(surface))
+	}
+	lua := deconstructionEntitiesLua(surface, force, cancel, targets.String())
 	response, _, err := executeLua(r.addr, r.password, lua)
 	if err != nil {
 		return nil, err

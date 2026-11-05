@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -58,6 +59,9 @@ func TestTopologyModPreludeParity(t *testing.T) {
 		"factorio_ai_topology.adjacency":            adjacencyLua,
 		"factorio_ai_topology.belt_components":      beltComponentsCallLua,
 		"factorio_ai_topology.inspection_logistics": inspectionLogisticsCallLua,
+		"factorio_ai_topology.graph_prelude":        graphPreludeLua,
+		"factorio_ai_topology.graph_leaf":           graphLeafCallLua,
+		"factorio_ai_topology.graph_mobile":         graphMobileCallLua,
 	}
 	for name, want := range regions {
 		got := topologyModRegion(t, source, name)
@@ -73,7 +77,7 @@ func TestTopologyModInterface(t *testing.T) {
 	source := topologyModSource(t)
 	for _, need := range []string{
 		`remote.add_interface("factorio_ai_topology"`,
-		"version = function() return 3 end",
+		fmt.Sprintf("version = function() return %d end", topologyModProtocol),
 		"belt_run = guarded(belt_run_op)",
 		"belt_stretch = guarded(belt_stretch_op)",
 		"belt_runs = guarded(belt_runs_op)",
@@ -81,6 +85,8 @@ func TestTopologyModInterface(t *testing.T) {
 		"adjacency = guarded(adjacency_op)",
 		"belt_components = guarded(belt_components_op)",
 		"inspection_logistics = guarded(inspection_logistics_op)",
+		"graph_leaf = guarded(graph_leaf_op)",
+		"graph_mobile = guarded(graph_mobile_op)",
 	} {
 		if !strings.Contains(source, need) {
 			t.Fatalf("topology.lua missing %q", need)

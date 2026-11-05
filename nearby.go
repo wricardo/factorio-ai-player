@@ -7,10 +7,24 @@ import "fmt"
 // pagination is stable for a single snapshot; limit is capped by the caller.
 // Every row carries its force and the page tick, and force narrows the engine
 // filter when given, so one scan can separate own, neutral and enemy entities.
-func nearbyLua(surface string, x, y, radius float64, name, kind, force, ordering string, offset, limit int) string {
-	return luaFail + luaValidateEntityType + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
+// A nonzero unit anchors the scan on that entity's current position on the
+// requested surface, and then the point arguments are ignored.
+func nearbyLua(surface string, x, y, radius float64, name, kind, force, ordering string, offset, limit int, unit uint64) string {
+	prelude := luaFail + luaValidateEntityType
+	anchor := fmt.Sprintf("local cx,cy=%s,%s", formatFloat(x), formatFloat(y))
+	if unit != 0 {
+		// The engine only resolves unit numbers for flagged prototypes, so fall
+		// back to the surface scan once before failing.
+		prelude = luaFail + luaUnitNumberEntityTypes + luaValidateEntityType
+		anchor = fmt.Sprintf(`local anchor=game.get_entity_by_unit_number(%[1]d)
+if not anchor then anchor=find_entity_by_unit_number(s,%[1]d,"") end
+if not anchor then fail("entity not found by unit number on that surface"); return end
+if anchor.surface.name~=s.name then fail("entity %[1]d is on surface "..anchor.surface.name..", not "..s.name); return end
+local cx,cy=anchor.position.x,anchor.position.y`, unit)
+	}
+	return prelude + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
 if not validate_entity_type(%s) then return end
-local cx,cy=%s,%s
+%s
 local filter={position={x=cx,y=cy},radius=%s}
 local name=%s; local kind=%s; local required_force=%s
 if name~="" then filter.name=name end
@@ -46,6 +60,6 @@ for i=first,last do
   entities[#entities+1]=entry
 end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,page_info={total=#items,limit=limit,offset=offset,has_more=#items>last},entities=entities}))`,
-		luaString(surface), luaString(kind), formatFloat(x), formatFloat(y), formatFloat(radius),
+		luaString(surface), luaString(kind), anchor, formatFloat(radius),
 		luaString(name), luaString(kind), luaString(force), luaString(ordering), offset, limit)
 }

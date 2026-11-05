@@ -1,0 +1,42 @@
+# Memgraph for the factory graph (`go run . graph ...`, `just graph-*`).
+# Bound to localhost only: Bolt and Lab have no authentication here.
+name: factorio-graph
+
+services:
+  memgraph:
+    image: memgraph/memgraph-mage:3.14.0
+    command:
+      - --also-log-to-stderr=true
+      - --log-level=WARNING
+      - --storage-properties-on-edges=true
+      - --telemetry-enabled=false
+      # Seed constraints and indexes on every start. One statement per line and
+      # no comments: the init file is parsed line by line. Memgraph treats an
+      # existing constraint or index as a no-op, and graph load reapplies it.
+      - --init-file=/init/schema.cypherl
+    ports:
+      - "127.0.0.1:${MEMGRAPH_BOLT_PORT:-7687}:7687"
+      - "127.0.0.1:${MEMGRAPH_LOG_PORT:-7444}:7444"
+    volumes:
+      - memgraph-data:/var/lib/memgraph
+      - ./schema.cypherl:/init/schema.cypherl:ro
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'RETURN 1;' | mgconsole --host 127.0.0.1 --port 7687 >/dev/null 2>&1"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 5s
+
+  lab:
+    image: memgraph/lab:3.14.2
+    depends_on:
+      memgraph:
+        condition: service_healthy
+    environment:
+      QUICK_CONNECT_MG_HOST: memgraph
+      QUICK_CONNECT_MG_PORT: "7687"
+    ports:
+      - "127.0.0.1:${MEMGRAPH_LAB_PORT:-3000}:3000"
+
+volumes:
+  memgraph-data:

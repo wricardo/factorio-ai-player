@@ -27,6 +27,20 @@ type Resolver struct {
 // command names, which are kebab-case, can be told apart from query commands.
 var mutationFields = map[string]bool{}
 
+// defaultSurface is the fallback surface for resolvers that have no surface
+// context of their own (for example a PlacedEntity whose Lua payload omits it).
+// It is configurable so multi-surface saves do not silently resolve on one
+// surface: FACTORIO_DEFAULT_SURFACE overrides it, and the built-in default is
+// only the engine's first surface renamed in the base game.
+var defaultSurface = configuredDefaultSurface()
+
+func configuredDefaultSurface() string {
+	if surface := os.Getenv("FACTORIO_DEFAULT_SURFACE"); surface != "" {
+		return surface
+	}
+	return "nauvis"
+}
+
 func newGraphQLSchema(addr, password string) graphql.ExecutableSchema {
 	schema := NewExecutableSchema(Config{Resolvers: &Resolver{
 		addr:          addr,
@@ -149,11 +163,11 @@ func factoryMachinesQuery(r *Resolver, input *MachinesInput) (*MachinePage, erro
 	return factoryDecode[MachinePage](response)
 }
 
-func recipeInfo(r *Resolver, name *string, actor ActorInput) (*Recipe, error) {
+func recipeInfo(r *Resolver, name *string, actor *ActorInput, force string) (*Recipe, error) {
 	if name == nil {
 		return nil, nil
 	}
-	return command[Recipe](r, "recipe", RecipeInput{Actor: &actor, Recipe: *name})
+	return command[Recipe](r, "recipe", RecipeInput{Actor: actor, Force: force, Recipe: *name})
 }
 
 // command invokes the private game backend for GraphQL resolvers and announces mutations.
@@ -416,7 +430,7 @@ func directionValue(text string) (int, bool) {
 func normalizeGraphQL(value any, key, command string) any {
 	switch v := value.(type) {
 	case json.Number:
-		if key == "character" || key == "unitNumber" || key == "relativeTo" {
+		if key == "character" || key == "unitNumber" || key == "relativeTo" || key == "pairedUnitNumber" {
 			return v.String()
 		}
 		return v
@@ -494,12 +508,26 @@ func normalizeGraphQL(value any, key, command string) any {
 	}
 }
 
+// conveyorPlacementError keeps direct placement from bypassing the routed
+// belt/pipe mutations. Underground halves, splitters and loaders stay allowed
+// because the run mutations cannot place those one-tile forms directly.
+func conveyorPlacementError(item string) error {
+	name := strings.ToLower(item)
+	switch {
+	case strings.HasSuffix(name, "transport-belt"):
+		return fmt.Errorf("%q must be placed with placeBelt(...), which routes the run and can tunnel under crossings instead of place/placeMany", item)
+	case name == "pipe":
+		return fmt.Errorf("%q must be placed with placePipe(...), which routes the run and can tunnel under crossings instead of place/placeMany", item)
+	}
+	return nil
+}
+
 func isListField(key string) bool {
 	switch key {
 	case "players", "entities", "items", "itemsPickedUp", "itemsRemaining", "queue", "ingredients", "products", "input", "output", "fuel", "chest", "modules", "turretAmmo", "main", "guns", "ammo", "armor", "trash", "fluids", "errors", "inserters", "belts", "returned", "miningResources", "transportLines", "machines", "summaries", "recipes", "craftingMachines", "researchQueue", "technologies", "prerequisites", "scienceIngredients", "effects", "machineFluids", "recipeIngredients", "locations", "totals", "networks", "powerEntities", "powerFluids", "logisticsEntities", "lanes", "worldInventories", "worldEntries", "nearbyDrills", "alerts", "queued", "remaining":
 		return true
 	case "nodes", "edges", "boundaryEdges", "sources", "sinks", "chests", "beltRuns", "pairs",
-		"filterSlots", "producers", "consumers", "bufferedItems", "materials", "steps",
+		"filterSlots", "filters", "producers", "consumers", "bufferedItems", "materials", "steps",
 		"rawRequirements", "unresolved", "warnings", "alternatives", "bomRecipes", "bomStock",
 		"bomMined", "bomIngredients", "bomProducts", "sciencePacks", "missingSciencePacks",
 		"ghostEntries", "placementAlternatives", "requestedMaterials", "rootBoxIds",
@@ -507,13 +535,14 @@ func isListField(key string) bool {
 		"sections", "slots", "trains", "schedule", "contents", "grid", "signals", "craftingCategories", "resourceCategories",
 		"conditions", "outputs", "killCounts", "missing", "created", "cargo", "equipmentGrid", "packs", "legend", "attention", "attentionCounts", "stockouts", "existing", "openTunnel", "results",
 		"roboportRobot", "roboportMaterial", "cargoWagon", "carTrunk", "spiderTrunk", "artilleryWagonAmmo", "orders",
-		"beltNeighbours", "fluidboxNeighbours", "produced", "consumed", "production", "seedRequirements",
+		"beltNeighbours", "fluidboxNeighbours", "produced", "consumed", "production", "seedRequirements", "platforms", "rocket",
 		"shortfall", "surfaces", "tags", "theoreticalBaseProducts", "ends", "targets",
-		"components", "stallEnds", "starveHeads", "ghosts",
+		"components", "stallEnds", "starveHeads", "ghosts", "blueprintBooks", "entries",
 		"starvedConsumers", "byCategory", "additionalCategories", "fuelItems",
 		"compactEdges", "compactBoundaryEdges", "compactInserters", "compactNodes", "groundPositions",
 		"members", "segments", "problems", "trainStops", "carriages", "waitConditions", "collidedItems", "groundItems",
-		"entityCount", "defects", "counts":
+		"entityCount", "defects", "counts", "mixedTiles", "feeders", "tiles", "fluidFilters", "fluidPorts", "labelCounts", "edgeTypes", "columns",
+		"labels", "relationships", "properties":
 		return true
 	}
 	return false

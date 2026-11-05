@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -149,5 +150,46 @@ func unlockAllTechnologies(r *Resolver, in UnlockTechnologiesInput) (*ResearchUn
 		return nil, err
 	}
 	announceMutation(r, in.Message, "unlocked "+strconv.Itoa(result.Technologies)+" technologies")
+	return result, nil
+}
+
+// setRecipeEnabledLua writes one recipe's unlocked flag without touching any
+// technology, so a recipe blocked by an engine trigger that scripting cannot
+// satisfy can still be produced.
+func setRecipeEnabledLua(in RecipeEnabledInput) (string, error) {
+	if strings.TrimSpace(in.Force) == "" {
+		return "", errors.New("force must not be empty")
+	}
+	if strings.TrimSpace(in.Recipe) == "" {
+		return "", errors.New("recipe must not be empty")
+	}
+	lua := luaFail + researchForceLua(in.Force) +
+		"local recipe=f.recipes[" + luaString(in.Recipe) + "]\n" +
+		`if not recipe then fail("recipe not found"); return end
+recipe.enabled=` + fmt.Sprintf("%t", in.Enabled) + `
+rcon.print(helpers.table_to_json({tick=game.tick,force=f.name,recipe=recipe.name,enabled=recipe.enabled}))
+`
+	return lua, nil
+}
+
+// setRecipeEnabled applies the sandbox recipe unlock.
+func setRecipeEnabled(r *Resolver, in RecipeEnabledInput) (*RecipeEnabledResult, error) {
+	lua, err := setRecipeEnabledLua(in)
+	if err != nil {
+		return nil, err
+	}
+	response, _, err := executeLua(r.addr, r.password, lua)
+	if err != nil {
+		return nil, err
+	}
+	result, err := factoryDecode[RecipeEnabledResult](response)
+	if err != nil {
+		return nil, err
+	}
+	state := "disabled"
+	if result.Enabled {
+		state = "enabled"
+	}
+	announceMutation(r, in.Message, "recipe "+result.Recipe+" "+state+" on "+result.Force)
 	return result, nil
 }

@@ -433,6 +433,8 @@ func TestTransferVehicleInventoriesEndToEnd(t *testing.T) {
 		{InventoryKindCarTrunk, "car_trunk"},
 		{InventoryKindSpiderTrunk, "spider_trunk"},
 		{InventoryKindArtilleryWagonAmmo, "artillery_wagon_ammo"},
+		{InventoryKindRocket, "rocket_silo_rocket"},
+		{InventoryKindAsteroidCollectorOutput, "asteroid_collector_output"},
 	}
 	for _, tc := range cases {
 		fake := newFakeRCON(t, `{"entity":"entity","inventory":"`+tc.key+`","transfer_direction":"TO_ACTOR","item":"coal","moved":5,"requested":5,"available":5,"capacity":4000}`)

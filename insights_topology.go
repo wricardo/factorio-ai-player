@@ -16,7 +16,7 @@ import (
 // (TestTopologyModPreludeParity) so an old save without the interface still works.
 const (
 	topologyModInterface = "factorio_ai_topology"
-	topologyModProtocol  = 3
+	topologyModProtocol  = 5
 )
 
 // topologyInterfaceState memoizes whether this save has the compiled topology mod.
@@ -653,9 +653,11 @@ local function belt_stretch(seed,limit)
   ordered[#ordered+1]=seed
   for _,e in ipairs(forward) do ordered[#ordered+1]=e end
   local nodes,lines,mixed={},{},{left=false,right=false,unknown=false}
+  local mixed_entities=0
   for _,e in ipairs(ordered) do
     local node={name=e.name,type=e.type,position=e.position,unitNumber=e.unit_number,direction=e.direction,lanes={}}
     local node_side={}
+    local node_mixed=false
     local max_index=1
     local ok,value=pcall(function() return e.get_max_transport_line_index() end)
     if ok and type(value)=="number" and value>=1 then max_index=value end
@@ -683,8 +685,9 @@ local function belt_stretch(seed,limit)
     for side,names in pairs(node_side) do
       local distinct=0
       for _ in pairs(names) do distinct=distinct+1 end
-      if distinct>1 then mixed[side]=true end
+      if distinct>1 then mixed[side]=true; node_mixed=true end
     end
+    if node_mixed then mixed_entities=mixed_entities+1 end
     nodes[#nodes+1]=node
   end
   local totals={left={},right={},unknown={}}
@@ -711,7 +714,7 @@ local function belt_stretch(seed,limit)
   end
   local members={}
   for _,e in ipairs(ordered) do members[key(e)]=e end
-  return {tick=game.tick,surface=seed.surface.name,seed=endpoint(seed),maxEntities=limit,truncated=truncated,nodes=nodes,ends=ends,inserters=component_inserters(members,ordered),left=total("left"),right=total("right"),unknown=total("unknown")}
+  return {tick=game.tick,surface=seed.surface.name,seed=endpoint(seed),maxEntities=limit,truncated=truncated,nodes=nodes,ends=ends,inserters=component_inserters(members,ordered),left=total("left"),right=total("right"),unknown=total("unknown"),mixedEntityCount=mixed_entities}
 end`
 
 const beltRunCallLua = `
@@ -880,7 +883,58 @@ func beltStretchQuery(r *Resolver, surface string, inputX, inputY *float64, unit
 	if err != nil {
 		return nil, err
 	}
-	return factoryDecode[BeltStretch](response)
+	stretch, err := factoryDecode[BeltStretch](response)
+	if err != nil {
+		return nil, err
+	}
+	// An older loaded mod's belt_stretch payload has no mixedEntityCount, and a
+	// missing count is indistinguishable from zero. Recompute it from the same
+	// node lanes the response carries so the field is correct without waiting
+	// for a mod reload; the rule matches BeltStretchTotal.mixed (per belt, per
+	// side, across every line that side exposes).
+	if stretch != nil {
+		stretch.MixedEntityCount = countMixedStretchEntities(stretch)
+	}
+	return stretch, nil
+}
+
+// countMixedStretchEntities counts stretch nodes carrying at least one side
+// with more than one distinct prototype/quality combination.
+func countMixedStretchEntities(stretch *BeltStretch) int {
+	mixed := 0
+	for _, node := range stretch.Nodes {
+		if node == nil {
+			continue
+		}
+		sides := make(map[string]map[string]bool, 3)
+		for _, lane := range node.Lanes {
+			if lane == nil {
+				continue
+			}
+			side := lane.Side
+			if side == "" {
+				side = "unknown"
+			}
+			seen := sides[side]
+			if seen == nil {
+				seen = make(map[string]bool, len(lane.Items))
+				sides[side] = seen
+			}
+			for _, stack := range lane.Items {
+				if stack == nil {
+					continue
+				}
+				seen[stack.Name+"|"+stack.Quality] = true
+			}
+		}
+		for _, seen := range sides {
+			if len(seen) > 1 {
+				mixed++
+				break
+			}
+		}
+	}
+	return mixed
 }
 
 func inspectionBeltRuns(r *Resolver, obj *InspectionLogistics, maxEntities int, includeLineLinks bool) ([]*BeltRun, error) {

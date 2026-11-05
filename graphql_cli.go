@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v2"
 	gqlcli "github.com/wricardo/gqlcli/pkg"
@@ -23,13 +24,18 @@ func isGraphQLCommand(name string) bool {
 
 func runGraphQL(args []string, out io.Writer, addr, password string) error {
 	exec := gqlcli.NewInlineExecutor(newGraphQLSchema(addr, password))
+	describerFor := func(command string) *gqlcli.Describer {
+		return gqlcli.NewDescriberFromExecFunc(logGraphQLOperations(exec, "cli", command).Execute)
+	}
 	set := gqlcli.NewInlineCommandSet(exec)
 	var commands []*cli.Command
 	for _, cmd := range set.Commands() {
 		switch cmd.Name {
 		case "query", "mutation":
 			kind := cmd.Name
-			cmd.Action = func(c *cli.Context) error { return runGraphQLOperation(c, exec, out, kind) }
+			cmd.Action = func(c *cli.Context) error {
+				return runGraphQLOperation(c, logGraphQLOperations(exec, "cli", kind), out, kind)
+			}
 			commands = append(commands, cmd)
 		case "describe":
 			cmd.Action = func(c *cli.Context) error {
@@ -39,7 +45,7 @@ func runGraphQL(args []string, out io.Writer, addr, password string) error {
 				if c.Int("depth") < 0 {
 					return fmt.Errorf("--depth must be >= 0")
 				}
-				text, err := gqlcli.NewDescriber(exec).DescribeWithDepth(c.Context, c.Args().First(), c.Bool("args"), c.Bool("desc"), c.Int("depth"))
+				text, err := describerFor("describe").DescribeWithDepth(c.Context, c.Args().First(), c.Bool("args"), c.Bool("desc"), c.Int("depth"))
 				if err != nil {
 					return err
 				}
@@ -48,7 +54,9 @@ func runGraphQL(args []string, out io.Writer, addr, password string) error {
 			}
 			commands = append(commands, cmd)
 		case "types":
-			cmd.Action = func(c *cli.Context) error { return listGraphQLTypes(c, exec, out) }
+			cmd.Action = func(c *cli.Context) error {
+				return listGraphQLTypes(c, logGraphQLOperations(exec, "cli", "types"), out)
+			}
 			commands = append(commands, cmd)
 		}
 	}
@@ -63,7 +71,7 @@ func runGraphQL(args []string, out io.Writer, addr, password string) error {
 			if c.Int("depth") < 0 {
 				return fmt.Errorf("--depth must be >= 0")
 			}
-			text, err := gqlcli.NewDescriber(exec).DescribeWithOptions(c.Context, root.typeName, gqlcli.DescribeOptions{FieldFilter: c.String("filter"), ShowArgs: c.Bool("args"), ShowDescriptions: c.Bool("desc"), Depth: c.Int("depth")})
+			text, err := describerFor(root.name).DescribeWithOptions(c.Context, root.typeName, gqlcli.DescribeOptions{FieldFilter: c.String("filter"), ShowArgs: c.Bool("args"), ShowDescriptions: c.Bool("desc"), Depth: c.Int("depth")})
 			if err != nil {
 				return err
 			}
@@ -71,7 +79,7 @@ func runGraphQL(args []string, out io.Writer, addr, password string) error {
 			return err
 		}})
 	}
-	commands = append(commands, scriptCommand(exec, out))
+	commands = append(commands, scriptCommand(logGraphQLOperations(exec, "cli", "script"), out))
 	app := &cli.App{Name: "factorio-ai-player", Writer: out, ErrWriter: out, Commands: commands}
 	// urfave/cli stops parsing flags at the first positional argument. Move a
 	// leading document/type behind flags so the usual gqlcli ordering works.
@@ -83,7 +91,7 @@ func runGraphQL(args []string, out io.Writer, addr, password string) error {
 	return app.RunContext(context.Background(), argv)
 }
 
-func runGraphQLOperation(c *cli.Context, exec *gqlcli.InlineExecutor, out io.Writer, kind string) error {
+func runGraphQLOperation(c *cli.Context, exec graphQLExecutor, out io.Writer, kind string) error {
 	var document string
 	switch {
 	case c.String("file") != "":
@@ -100,6 +108,7 @@ func runGraphQLOperation(c *cli.Context, exec *gqlcli.InlineExecutor, out io.Wri
 		return fmt.Errorf("operation required: pass as argument, --query, or --file")
 	}
 	if err := gqlcli.RequireOperationKind(document, kind); err != nil {
+		recordGraphQLOperation("cli", kind, document, nil, "", time.Now(), nil, 0, err)
 		return err
 	}
 	var vars map[string]interface{}
@@ -115,7 +124,9 @@ func runGraphQLOperation(c *cli.Context, exec *gqlcli.InlineExecutor, out io.Wri
 	}
 	if len(rawVars) > 0 {
 		if err := json.Unmarshal(rawVars, &vars); err != nil {
-			return fmt.Errorf("invalid variables JSON: %w", err)
+			err = fmt.Errorf("invalid variables JSON: %w", err)
+			recordGraphQLOperation("cli", kind, document, nil, "", time.Now(), nil, 0, err)
+			return err
 		}
 	}
 	raw, err := exec.Execute(c.Context, document, vars)
@@ -152,19 +163,43 @@ func graphqlPartialData(result map[string]interface{}) (map[string]interface{}, 
 }
 
 // writeGraphQLResult formats and writes a response document as requested.
+//
+// The json formats are rendered here instead of through the shared formatter
+// registry because that formatter drops null values: a GraphQL response must
+// carry every field the client selected, so a nullable field that resolved to
+// null has to appear. Without this, clients cannot tell an absent field from a
+// null one and cannot verify that, for example, ghost-only fields stay null on
+// a real entity. The other formats (table, compact, toon, llm) keep the shared
+// behaviour.
 func writeGraphQLResult(c *cli.Context, out io.Writer, result map[string]interface{}) error {
-	formatter, err := gqlcli.NewFormatterRegistry().Get(c.String("format"))
-	if err != nil {
-		return err
-	}
-	text, err := formatter.Format(result)
-	if err != nil {
-		return err
+	var text string
+	switch c.String("format") {
+	case "json", "json-pretty":
+		var encoded []byte
+		var err error
+		if c.String("format") == "json-pretty" {
+			encoded, err = json.MarshalIndent(result, "", "  ")
+		} else {
+			encoded, err = json.Marshal(result)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to marshal JSON: %w", err)
+		}
+		text = string(encoded)
+	default:
+		formatter, err := gqlcli.NewFormatterRegistry().Get(c.String("format"))
+		if err != nil {
+			return err
+		}
+		text, err = formatter.Format(result)
+		if err != nil {
+			return err
+		}
 	}
 	if path := c.String("output"); path != "" {
 		return os.WriteFile(path, []byte(text), 0644)
 	}
-	_, err = fmt.Fprintln(out, text)
+	_, err := fmt.Fprintln(out, text)
 	return err
 }
 
@@ -208,7 +243,7 @@ func graphqlErrorPath(value interface{}) string {
 	return strings.Join(parts, ".")
 }
 
-func listGraphQLTypes(c *cli.Context, exec *gqlcli.InlineExecutor, out io.Writer) error {
+func listGraphQLTypes(c *cli.Context, exec graphQLExecutor, out io.Writer) error {
 	raw, err := exec.Execute(c.Context, `{ __schema { types { name kind } } }`, nil)
 	if err != nil {
 		return err

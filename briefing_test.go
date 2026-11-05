@@ -327,6 +327,11 @@ func TestFactoryBriefingStockReadsOnce(t *testing.T) {
 	if got := recorder.seen("totals_by_key"); got != 1 {
 		t.Fatalf("stock scans=%d, want exactly one for four watched items", got)
 	}
+	// A factory minimum must not be satisfied by items a player, a worker, the
+	// ground or a belt happens to carry, so the default scope is STORED.
+	if got := recorder.seen(stockScopeMarker("stored")); got != 1 {
+		t.Fatalf("stock scans in the stored scope=%d, want exactly one", got)
+	}
 	if got := recorder.seen(`subject.inventory="main"`); got != 1 {
 		t.Fatalf("actor inventory reads=%d, want exactly one for four stockouts", got)
 	}
@@ -352,6 +357,55 @@ func TestFactoryBriefingStockReadsOnce(t *testing.T) {
 	}
 	if len(result.Warnings) != 1 || !enemyWarning {
 		t.Fatalf("warnings: %v", result.Warnings)
+	}
+}
+
+// stockScopeMarker identifies the stock read that filters for one category.
+func stockScopeMarker(category string) string {
+	return "item, category_filter = " + luaString("nauvis") + ", " + luaString("player") + ", " + luaString("") + ", " + luaString(category)
+}
+
+// The stock scope must follow stockCategory, and ALL must restore the
+// unfiltered read, so a caller can still audit every inventory kind.
+func TestFactoryBriefingStockCategoryScope(t *testing.T) {
+	cases := []struct {
+		category StockCategory
+		filter   string
+	}{
+		{StockCategoryStored, "stored"},
+		{StockCategoryInTransit, "in-transit"},
+		{StockCategoryPlayer, "player"},
+		{StockCategoryAll, ""},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.category), func(t *testing.T) {
+			r, recorder := serveScriptedRCON(t, briefingRules())
+			_, err := factoryBriefingQuery(r, &FactoryBriefingInput{
+				Surface: "nauvis", Force: "player", Window: ProductionWindowOneMinute, AttentionLimit: 20,
+				StockCategory: tc.category,
+				WatchItems:    []*BriefingWatchItemInput{{Item: "iron-plate", Minimum: 100}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := recorder.seen(stockScopeMarker(tc.filter)); got != 1 {
+				t.Fatalf("stock scans with category %q=%d, want exactly one", tc.filter, got)
+			}
+		})
+	}
+}
+
+// An unknown category must fail before any read instead of silently watching
+// every inventory.
+func TestFactoryBriefingRejectsUnknownStockCategory(t *testing.T) {
+	r, _ := serveScriptedRCON(t, briefingRules())
+	_, err := factoryBriefingQuery(r, &FactoryBriefingInput{
+		Surface: "nauvis", Force: "player", Window: ProductionWindowOneMinute, AttentionLimit: 20,
+		StockCategory: StockCategory("BOGUS"),
+		WatchItems:    []*BriefingWatchItemInput{{Item: "iron-plate", Minimum: 100}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "unknown stock category") {
+		t.Fatalf("err=%v, want unknown stock category", err)
 	}
 }
 

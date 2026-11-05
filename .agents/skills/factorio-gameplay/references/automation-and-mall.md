@@ -11,7 +11,7 @@ Use hand crafting only when one of these conditions holds:
 - recovering from a broken factory when the repair item is unavailable;
 - proving a recipe before committing space and infrastructure.
 
-Repeated hand crafting, repeated manual machine loading, or repeated chest-to-chest transfers reveal missing automation. Record the repeated item, identify its recipe and consumers, then add it to a production cell or mall.
+Repeated hand crafting, repeated manual machine loading, or repeated chest-to-chest transfers reveal missing automation. Record the repeated item, identify its recipe and consumers, then add it to a production cell or mall. **Bulk hand-shuttling of production input/output is not a supply method** (MUST NOT 12): `transfer`/`transferMany` batches and chest shuttling that keep a cell running belong in a belt, robot route or producing cell — if the item has to move again, build that instead. Setup and hand-off transfers are exempt: worker craft-ingredient staging, robot loading, provider-chest bulk loads for construction, construction kits, and actor hand-offs. When the player directs a bulk move, record it and name the automated path that replaces it.
 
 ## Automation ladder
 

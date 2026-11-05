@@ -34,13 +34,21 @@ func (r *actorResolver) Nearby(ctx context.Context, obj *Actor, radius *float64,
 	return nearby(r.Resolver, &NearbyInput{Surface: &obj.Surface, Position: position, Radius: radius, Name: name, Type: typeArg, Order: order, Offset: offset, Limit: limit})
 }
 
+// CharacterInspection is the resolver for the characterInspection field.
+func (r *actorResolver) CharacterInspection(ctx context.Context, obj *Actor) (*EntityInspection, error) {
+	if obj == nil || obj.Character == nil || *obj.Character == "" {
+		return nil, nil
+	}
+	return entityInspectionFor(r.Resolver, obj.Surface, "character", obj.Character, obj.Position)
+}
+
 // Actor is the resolver for the actor field.
 func (r *connectedPlayerResolver) Actor(ctx context.Context, obj *ConnectedPlayer) (*Actor, error) {
 	return command[Actor](r.Resolver, "player", ActorInput{Player: &obj.Name})
 }
 
 // Inspection is the resolver for the inspection field.
-func (r *entityResolver) Inspection(ctx context.Context, obj *Entity, actor ActorInput) (*EntityInspection, error) {
+func (r *entityResolver) Inspection(ctx context.Context, obj *Entity, actor *ActorInput) (*EntityInspection, error) {
 	name := obj.Name
 	target := &EntityRefInput{Surface: obj.Surface, UnitNumber: obj.UnitNumber, Entity: &name}
 	if obj.UnitNumber == nil {
@@ -49,17 +57,38 @@ func (r *entityResolver) Inspection(ctx context.Context, obj *Entity, actor Acto
 		}
 		target.Position = &PositionInput{X: obj.Position.X, Y: obj.Position.Y}
 	}
-	return inspect(r.Resolver, InspectInput{Actor: &actor, Target: target})
+	return inspect(r.Resolver, InspectInput{Actor: actor, Target: target})
+}
+
+// Logistics is the resolver for the logistics field.
+func (r *entityResolver) Logistics(ctx context.Context, obj *Entity) (*InspectionLogistics, error) {
+	if obj == nil {
+		return nil, nil
+	}
+	surface := ""
+	if obj.Surface != nil {
+		surface = *obj.Surface
+	}
+	inspection, err := entityInspectionFor(r.Resolver, surface, obj.Name, obj.UnitNumber, obj.Position)
+	if err != nil || inspection == nil {
+		return nil, err
+	}
+	return inspectionLogistics(r.Resolver, inspection)
 }
 
 // RecipeInfo is the resolver for the recipeInfo field.
-func (r *entityInspectionResolver) RecipeInfo(ctx context.Context, obj *EntityInspection, actor ActorInput) (*Recipe, error) {
-	return recipeInfo(r.Resolver, obj.Recipe, actor)
+func (r *entityInspectionResolver) RecipeInfo(ctx context.Context, obj *EntityInspection, actor *ActorInput, force string) (*Recipe, error) {
+	return recipeInfo(r.Resolver, obj.Recipe, actor, force)
 }
 
 // Logistics is the resolver for the logistics field.
 func (r *entityInspectionResolver) Logistics(ctx context.Context, obj *EntityInspection) (*InspectionLogistics, error) {
 	return inspectionLogistics(r.Resolver, obj)
+}
+
+// Inspection is the resolver for the inspection field.
+func (r *factoryMachineResolver) Inspection(ctx context.Context, obj *FactoryMachine) (*EntityInspection, error) {
+	return entityInspectionFor(r.Resolver, obj.Surface, obj.Name, obj.UnitNumber, obj.Position)
 }
 
 // CharacterCreate is the resolver for the characterCreate field.
@@ -89,11 +118,17 @@ func (r *mutationResolver) PlayerRestoreCharacter(ctx context.Context, input Pla
 
 // Place is the resolver for the place field.
 func (r *mutationResolver) Place(ctx context.Context, input PlaceInput) (*ActionResult, error) {
+	if err := conveyorPlacementError(input.Item); err != nil {
+		return nil, err
+	}
 	return command[ActionResult](r.Resolver, "place", input)
 }
 
 // PlaceMany is the resolver for the placeMany field.
 func (r *mutationResolver) PlaceMany(ctx context.Context, input PlaceManyInput) (*PlaceManyResult, error) {
+	if err := conveyorPlacementError(input.Item); err != nil {
+		return nil, err
+	}
 	result, err := placeMany(r.Resolver, input)
 	return setActorResult(result, input.Actor, err)
 }
@@ -199,7 +234,12 @@ func (r *mutationResolver) Pickup(ctx context.Context, input PickupInput) (*Acti
 
 // BeltTake is the resolver for the beltTake field.
 func (r *mutationResolver) BeltTake(ctx context.Context, input BeltTakeInput) (*ActionResult, error) {
-	return command[ActionResult](r.Resolver, "belt-take", input)
+	return beltTakeMutation(r.Resolver, input)
+}
+
+// BeltPurge is the resolver for the beltPurge field.
+func (r *mutationResolver) BeltPurge(ctx context.Context, input BeltPurgeInput) (*BeltPurgeResult, error) {
+	return beltPurge(r.Resolver, input)
 }
 
 // Rotate is the resolver for the rotate field.
@@ -210,6 +250,11 @@ func (r *mutationResolver) Rotate(ctx context.Context, input RotateInput) (*Acti
 // Transfer is the resolver for the transfer field.
 func (r *mutationResolver) Transfer(ctx context.Context, input TransferInput) (*ActionResult, error) {
 	return command[ActionResult](r.Resolver, "transfer", input)
+}
+
+// TransferBetween is the resolver for the transferBetween field.
+func (r *mutationResolver) TransferBetween(ctx context.Context, input TransferBetweenInput) (*TransferBetweenResult, error) {
+	return transferBetween(r.Resolver, input)
 }
 
 // Equip is the resolver for the equip field.
@@ -250,6 +295,15 @@ func (r *mutationResolver) Save(ctx context.Context) (*ServerResult, error) {
 // Shutdown is the resolver for the shutdown field.
 func (r *mutationResolver) Shutdown(ctx context.Context) (*ServerResult, error) {
 	return command[ServerResult](r.Resolver, "shutdown", nil)
+}
+
+// Inspection is the resolver for the inspection field.
+func (r *placedEntityResolver) Inspection(ctx context.Context, obj *PlacedEntity) (*EntityInspection, error) {
+	surface := ""
+	if obj.Surface != nil {
+		surface = *obj.Surface
+	}
+	return entityInspectionFor(r.Resolver, surface, obj.Name, obj.UnitNumber, obj.Position)
 }
 
 // Status is the resolver for the status field.
@@ -353,8 +407,8 @@ func (r *queryResolver) Characters(ctx context.Context, input *CharactersInput) 
 }
 
 // RecipeInfo is the resolver for the recipeInfo field.
-func (r *queueEntryResolver) RecipeInfo(ctx context.Context, obj *QueueEntry, actor ActorInput) (*Recipe, error) {
-	return recipeInfo(r.Resolver, obj.Recipe, actor)
+func (r *queueEntryResolver) RecipeInfo(ctx context.Context, obj *QueueEntry, actor *ActorInput, force string) (*Recipe, error) {
+	return recipeInfo(r.Resolver, obj.Recipe, actor, force)
 }
 
 // Actor returns ActorResolver implementation.
@@ -369,8 +423,14 @@ func (r *Resolver) Entity() EntityResolver { return &entityResolver{r} }
 // EntityInspection returns EntityInspectionResolver implementation.
 func (r *Resolver) EntityInspection() EntityInspectionResolver { return &entityInspectionResolver{r} }
 
+// FactoryMachine returns FactoryMachineResolver implementation.
+func (r *Resolver) FactoryMachine() FactoryMachineResolver { return &factoryMachineResolver{r} }
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
+
+// PlacedEntity returns PlacedEntityResolver implementation.
+func (r *Resolver) PlacedEntity() PlacedEntityResolver { return &placedEntityResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
@@ -382,6 +442,8 @@ type actorResolver struct{ *Resolver }
 type connectedPlayerResolver struct{ *Resolver }
 type entityResolver struct{ *Resolver }
 type entityInspectionResolver struct{ *Resolver }
+type factoryMachineResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
+type placedEntityResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type queueEntryResolver struct{ *Resolver }

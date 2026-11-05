@@ -12,6 +12,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -23,6 +24,7 @@ Commands:
   query, mutation  Execute an inline GraphQL operation
   script, js       Run a JavaScript workflow over the GraphQL schema
   serve            Serve the GraphQL schema over HTTP
+  graph            Export the factory into Memgraph (export, load, schema, sync)
   queries, mutations, types, describe  Discover the GraphQL schema
   help      Show this help
 
@@ -59,6 +61,9 @@ func runWithCredentials(args []string, out io.Writer, password string) error {
 	}
 	if args[0] == "serve" {
 		return runServer(args[1:], out, *addr, password)
+	}
+	if args[0] == "graph" {
+		return runGraph(args[1:], out, *addr, password)
 	}
 	if !isGraphQLCommand(args[0]) {
 		return fmt.Errorf("unknown command %q; use help", args[0])
@@ -304,6 +309,7 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 		surface := fs.String("surface", "nauvis", "Surface name")
 		x := fs.Float64("x", 0, "Center X coordinate")
 		y := fs.Float64("y", 0, "Center Y coordinate")
+		unitNumber := fs.String("unitNumber", "", "Anchor the search on this entity's current position, ignoring x and y")
 		radius := fs.Float64("radius", 10, "Search radius (greater than 0, at most 100)")
 		name := fs.String("name", "", "Filter by entity prototype name")
 		kind := fs.String("type", "", "Filter by entity type")
@@ -320,8 +326,19 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 		if fs.NArg() != 0 {
 			return errors.New("nearby takes no positional arguments")
 		}
-		if *surface == "" || math.IsNaN(*x) || math.IsInf(*x, 0) || math.IsNaN(*y) || math.IsInf(*y, 0) || math.IsNaN(*radius) || math.IsInf(*radius, 0) || *radius <= 0 || *radius > maxNeighborRadius {
-			return errors.New("invalid surface, coordinates, or radius")
+		var unit uint64
+		if *unitNumber != "" {
+			parsed, err := strconv.ParseUint(*unitNumber, 10, 32)
+			if err != nil || parsed == 0 {
+				return errors.New("unitNumber must be an entity unit number from 1 to 4294967295")
+			}
+			unit = parsed
+		}
+		if *surface == "" || math.IsNaN(*radius) || math.IsInf(*radius, 0) || *radius <= 0 || *radius > maxNeighborRadius {
+			return errors.New("invalid surface or radius")
+		}
+		if unit == 0 && (math.IsNaN(*x) || math.IsInf(*x, 0) || math.IsNaN(*y) || math.IsInf(*y, 0)) {
+			return errors.New("center x and y must be finite unless unitNumber anchors the search")
 		}
 		ordering := strings.ToLower(*order)
 		if ordering != "distance" && ordering != "unit-number" && ordering != "unit_number" {
@@ -330,7 +347,7 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 		if *offset < 0 || *limit < 1 || *limit > maxPageSize {
 			return fmt.Errorf("offset must be non-negative and limit must be between 1 and %d", maxPageSize)
 		}
-		lua = nearbyLua(*surface, *x, *y, *radius, *name, *kind, *force, ordering, *offset, *limit)
+		lua = nearbyLua(*surface, *x, *y, *radius, *name, *kind, *force, ordering, *offset, *limit, unit)
 	default:
 		return fmt.Errorf("unknown command %q; use help", args[0])
 	}

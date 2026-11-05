@@ -126,8 +126,10 @@ type CircuitNetworkMember {
   entityType: String!
   unitNumber: UnitNumber
   position: Position!
+  surface: String
   """Engine wire connector the entity attaches to the network with."""
   connector: String!
+  inspection: EntityInspection @goField(forceResolver: true)
 }
 
 """One circuit network with its signals and member connectors. Signals cover the whole network, so a network extending past the queried area reports signals from outside it."""

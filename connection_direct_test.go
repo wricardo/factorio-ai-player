@@ -15,7 +15,7 @@ func directPlanHarness(t *testing.T, kind ConnectionKind, item string, from, to 
 	if err != nil {
 		t.Skip("standalone Lua interpreter not installed")
 	}
-	body := fixture + connectionLuaPreamble("nauvis", "player", item, from, to, kind, ConnectionBendAuto, false, allowBeltAdjacency) + connectionLuaHelpers + assertion
+	body := fixture + connectionLuaPreamble("nauvis", "player", item, from, to, kind, ConnectionBendAuto, runDirectionValue(nil), false, allowBeltAdjacency) + connectionLuaHelpers + assertion
 	cmd := exec.Command(lua, "-")
 	cmd.Stdin = strings.NewReader(body)
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -173,4 +173,42 @@ assert(not found,"a port connected elsewhere must not conflict")
 `
 	y := 0.0
 	directPlanHarness(t, ConnectionKindPipe, "pipe", &PositionInput{X: 0, Y: y}, &PositionInput{X: 2, Y: y}, false, fixture, assertion)
+}
+
+// A single-tile run has no heading of its own; before this test it silently
+// became a north-facing belt. The route builder must use the explicit direction
+// for a one-tile run and keep deriving every direction from the route otherwise.
+func TestDirectRouteUsesExplicitDirectionForSingleTile(t *testing.T) {
+	lua, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("standalone Lua interpreter not installed")
+	}
+	from := &PositionInput{X: 10.5, Y: 10.5}
+	to := &PositionInput{X: 10.5, Y: 10.5}
+	run := func(direction int, assertion string) {
+		t.Helper()
+		body := directPlanFixture + connectionLuaPreamble("nauvis", "player", "transport-belt", from, to, ConnectionKindBelt, ConnectionBendAuto, direction, false, false) + connectionLuaHelpers + assertion
+		cmd := exec.Command(lua, "-")
+		cmd.Stdin = strings.NewReader(body)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("single-tile harness: %v\n%s", err, output)
+		}
+	}
+	run(8, `
+local steps=build("AUTO")
+assert(#steps==1, "want one step, got "..#steps)
+assert(steps[1].direction==8, "want south (8), got "..tostring(steps[1].direction))
+assert(steps[1].x==10.5 and steps[1].y==10.5, "want tile centre 10.5,10.5 got "..tostring(steps[1].x)..","..tostring(steps[1].y))
+`)
+	// A two-tile run still derives both directions from the route.
+	from = &PositionInput{X: 10.5, Y: 10.5}
+	to = &PositionInput{X: 13.5, Y: 10.5}
+	run(-1, `
+local steps=build("AUTO")
+assert(#steps==4, "want four steps, got "..#steps)
+for i=1,3 do
+  assert(steps[i].direction==4, "step "..i.." want east (4), got "..tostring(steps[i].direction))
+end
+assert(steps[4].direction==4, "last step want east (4), got "..tostring(steps[4].direction))
+`)
 }

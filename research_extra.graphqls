@@ -5,6 +5,25 @@ extend type Mutation {
   clearResearchQueue(input: ResearchQueueInput!): ResearchState!
   """Sandbox shortcut that unlocks every technology on the named force at once: RESEARCH calls the engine's research_all_technologies to apply full research effects, ENABLE only enables the prototypes without those effects. force must exist and mode must be RESEARCH or ENABLE; engine failure is a GraphQL error. Returns the tick, force, mode, and the count of technologies whose researched (RESEARCH) or enabled (ENABLE) flag is true after the call, so the number reflects the whole force rather than this call's delta. Emits one in-game notification unless message overrides it."""
   unlockAllTechnologies(input: UnlockTechnologiesInput!): ResearchUnlockResult!
+  """:writes one recipe's unlocked flag on a force without researching anything else, which is the narrow sandbox alternative to unlockAllTechnologies when a single recipe is blocked by an engine trigger that scripting cannot satisfy (for example the build-entity trigger of space-science-pack, whose asteroid-collector cannot be built from script on a space platform). force and recipe must exist, enabled is written straight to LuaRecipe.enabled, and the returned snapshot reads the flag back in the same tick. This is a sandbox shortcut: it neither applies research effects nor marks any technology researched, so a recipe can become craftable while its technology stays unresearched."""
+  setRecipeEnabled(input: RecipeEnabledInput!): RecipeEnabledResult!
+}
+
+"""Set one recipe's unlocked flag on a force without researching its technology."""
+input RecipeEnabledInput {
+  force: String! = "player"
+  recipe: String!
+  enabled: Boolean!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Post-write recipe unlock state."""
+type RecipeEnabledResult {
+  tick: Float!
+  force: String!
+  recipe: String!
+  enabled: Boolean!
 }
 
 """technology must be a non-empty name of an existing technology on the force."""

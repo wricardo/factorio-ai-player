@@ -109,13 +109,23 @@ func beltsQuery(r *Resolver, input BeltsInput) (*BeltPage, error) {
 	if input.Offset < 0 {
 		return nil, errors.New("offset must be non-negative")
 	}
-	lua := luaFail + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
+	lua := luaFail + transportLineLua + fmt.Sprintf(`local s=game.surfaces[%s]; if not s then fail("surface not found"); return end
+local function belt_line(e,index)
+  local items=e.get_transport_line(index).get_contents()
+  local name=transport_line_name(index)
+  local seen={}; local distinct=0
+  for _,stack in ipairs(items) do
+    local key=tostring(stack.name).."|"..tostring(stack.quality or "normal")
+    if not seen[key] then seen[key]=true; distinct=distinct+1 end
+  end
+  return {items=items,mixed=distinct>1,line_name=name,side=transport_line_side(name)}
+end
 local found=s.find_entities_filtered{area=%s,type="transport-belt"}
 table.sort(found,function(a,b) if a.position.y~=b.position.y then return a.position.y<b.position.y end return a.position.x<b.position.x end)
 local page={}
 for i=%d+1, math.min(#found, %d+%d) do
   local e=found[i]
-  page[#page+1]={name=e.name,position=e.position,direction=e.direction,unit_number=e.unit_number,line1={items=e.get_transport_line(1).get_contents()},line2={items=e.get_transport_line(2).get_contents()}}
+  page[#page+1]={name=e.name,position=e.position,direction=e.direction,unit_number=e.unit_number,line1=belt_line(e,1),line2=belt_line(e,2)}
 end
 rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,page_info={total=#found,limit=%d,offset=%d,has_more=#found>%d},belts=page}))`,
 		luaString(input.Surface), bounds.lua(), input.Offset, input.Offset, input.Limit,

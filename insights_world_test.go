@@ -89,6 +89,8 @@ func TestWorldResourcesPatchCoverageLua(t *testing.T) {
 		`local function drill_radius(d)`,
 		`local mine_area={{d.position.x-r,d.position.y-r},{d.position.x+r,d.position.y+r}}`,
 		`surface.find_entities_filtered{area=mine_area,type="resource",name=group.name}`,
+		`if group.tileKeys[key] then`,
+		`group.tileKeys[math.floor(item.position.x)..":"..math.floor(item.position.y)]=true`,
 		`if drill_tiles>0 then`,
 		`status=status_names[d.status],coveredTiles=drill_tiles,coveredAmount=drill_amount`,
 		`local clipped=(group.minx<=area[1][1]+0.5`,
@@ -162,5 +164,167 @@ func TestWorldPlacementClear(t *testing.T) {
 	}
 	if !result.CanPlace || result.Blockers == nil || len(result.Blockers) != 0 {
 		t.Fatalf("clear placement: %+v", result)
+	}
+}
+
+// beltTiles must page one belt-family census with the true total, sort within
+// the Lua, default to every belt type, and mark lane contamination in Go.
+func TestBeltTilesPageAndMixed(t *testing.T) {
+	r, commands := serveLuaOnce(t, `{"tick":10,"surface":"nauvis","area":{"leftTopX":-2,"leftTopY":-1,"rightBottomX":4,"rightBottomY":3},"pageInfo":{"total":3,"limit":2,"offset":0,"hasMore":true},"total":3,"tiles":[{"name":"transport-belt","type":"transport-belt","position":{"x":0.5,"y":0.5},"direction":4,"unitNumber":11,"lanes":[{"index":1,"lineName":"left_line","side":"left","items":[{"name":"iron-plate","count":2,"quality":"normal"},{"name":"copper-plate","count":1,"quality":"normal"}]},{"index":2,"lineName":"right_line","side":"right","items":[{"name":"iron-plate","count":3,"quality":"normal"}]}]},{"name":"underground-belt","type":"underground-belt","position":{"x":1.5,"y":0.5},"direction":4,"unitNumber":12,"lanes":{}}]}`)
+	result, err := beltTilesQuery(r, &BeltTilesInput{
+		Surface: "nauvis",
+		Area:    &FactoryAreaInput{LeftTopX: -2, LeftTopY: -1, RightBottomX: 4, RightBottomY: 3},
+		Limit:   2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 3 || result.PageInfo == nil || result.PageInfo.Total != 3 || !result.PageInfo.HasMore {
+		t.Fatalf("totals: %+v", result)
+	}
+	if len(result.Tiles) != 2 {
+		t.Fatalf("tiles: %+v", result.Tiles)
+	}
+	belt := result.Tiles[0]
+	if belt.UnitNumber == nil || *belt.UnitNumber != "11" || belt.Direction != 4 {
+		t.Fatalf("belt identity: %+v", belt)
+	}
+	if len(belt.Lanes) != 2 || !belt.Lanes[0].Mixed || belt.Lanes[1].Mixed {
+		t.Fatalf("lane mixed flags: %+v", belt.Lanes)
+	}
+	if result.Tiles[1].Lanes == nil || len(result.Tiles[1].Lanes) != 0 {
+		t.Fatalf("empty lanes must decode as an empty list: %#v", result.Tiles[1].Lanes)
+	}
+	lua := <-commands
+	wantTypes := "local type_list={" + strings.Join([]string{
+		luaString("transport-belt"), luaString("underground-belt"), luaString("splitter"),
+		luaString("loader"), luaString("loader-1x1"), luaString("linked-belt"),
+	}, ",") + "}"
+	for _, want := range []string{
+		wantTypes,
+		"local limit,offset=2,0",
+		"if a.position.y~=b.position.y then return a.position.y<b.position.y end",
+		"if a.position.x~=b.position.x then return a.position.x<b.position.x end",
+		"return (a.unitNumber or 0)<(b.unitNumber or 0)",
+		"transport_line_name(j)",
+		"total=#matches,tiles=result",
+	} {
+		if !strings.Contains(lua, want) {
+			t.Fatalf("beltTiles Lua missing %q\n%s", want, lua)
+		}
+	}
+}
+
+// A requested type list must be passed as the engine type filter and validated
+// in Go, so an unknown belt type never reaches RCON.
+func TestBeltTilesTypeFilterAndValidation(t *testing.T) {
+	r, commands := serveLuaOnce(t, `{"tick":10,"surface":"nauvis","area":{"leftTopX":0,"leftTopY":0,"rightBottomX":4,"rightBottomY":4},"pageInfo":{"total":0,"limit":1,"offset":0,"hasMore":false},"total":0,"tiles":{}}`)
+	result, err := beltTilesQuery(r, &BeltTilesInput{
+		Surface: "nauvis",
+		Area:    &FactoryAreaInput{RightBottomX: 4, RightBottomY: 4},
+		Types:   []string{"splitter"},
+		Limit:   1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Tiles == nil || len(result.Tiles) != 0 {
+		t.Fatalf("empty tiles must decode as an empty list: %#v", result.Tiles)
+	}
+	lua := <-commands
+	if !strings.Contains(lua, "local type_list={"+luaString("splitter")+"}") {
+		t.Fatalf("requested types must replace the default list:\n%s", lua)
+	}
+	if !strings.Contains(lua, "surface.find_entities_filtered{area=area,type=type_list}") {
+		t.Fatalf("the requested types must be the engine filter:\n%s", lua)
+	}
+
+	static := &Resolver{addr: "127.0.0.1:1", password: "password"}
+	base := BeltTilesInput{Surface: "nauvis", Area: &FactoryAreaInput{RightBottomX: 4, RightBottomY: 4}, Limit: 1}
+	cases := []struct {
+		name string
+		edit func(*BeltTilesInput)
+		want string
+	}{
+		{"unknown type", func(in *BeltTilesInput) { in.Types = []string{"inserter"} }, `unsupported belt type "inserter"`},
+		{"zero limit", func(in *BeltTilesInput) { in.Limit = 0 }, "limit must be between 1 and 10000"},
+		{"large limit", func(in *BeltTilesInput) { in.Limit = 10001 }, "limit must be between 1 and 10000"},
+		{"negative offset", func(in *BeltTilesInput) { in.Offset = -1 }, "limit must be between 1 and 10000"},
+		{"oversized area", func(in *BeltTilesInput) { in.Area = &FactoryAreaInput{RightBottomX: 2000, RightBottomY: 4} }, "no greater than 1024"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			in := base
+			tc.edit(&in)
+			if _, err := beltTilesQuery(static, &in); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected %q, got %v", tc.want, err)
+			}
+		})
+	}
+}
+
+// Underground halves must report their ground type and paired unit number on
+// worldLogistics, and every other type must leave both null.
+func TestWorldLogisticsUndergroundFields(t *testing.T) {
+	r, commands := serveLuaOnce(t, `{"tick":10,"surface":"nauvis","force":"player","area":{"leftTopX":-26,"leftTopY":79,"rightBottomX":-25,"rightBottomY":80},"pageInfo":{"total":2,"limit":10,"offset":0,"hasMore":false},"logisticsEntities":[{"name":"underground-belt","type":"underground-belt","position":{"x":-25.5,"y":79.5},"direction":4,"unitNumber":700,"lanes":[{"index":1,"lineName":"left_line","side":"left","items":[{"name":"iron-plate","count":1,"quality":"normal"}]}],"undergroundType":"INPUT","pairedUnitNumber":"701","fluids":{},"worldInventories":{}},{"name":"transport-belt","type":"transport-belt","position":{"x":-25.5,"y":78.5},"direction":4,"unitNumber":702,"lanes":{},"fluids":{},"worldInventories":{}}]}`)
+	result, err := worldLogisticsQuery(r, &WorldLogisticsInput{
+		Surface: "nauvis", Force: "player",
+		Area:  &FactoryAreaInput{LeftTopX: -26, LeftTopY: 79, RightBottomX: -25, RightBottomY: 80},
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.LogisticsEntities) != 2 {
+		t.Fatalf("entities: %+v", result.LogisticsEntities)
+	}
+	half := result.LogisticsEntities[0]
+	if half.UndergroundType == nil || *half.UndergroundType != UndergroundBeltTypeInput {
+		t.Fatalf("undergroundType: %+v", half.UndergroundType)
+	}
+	if half.PairedUnitNumber == nil || *half.PairedUnitNumber != "701" {
+		t.Fatalf("pairedUnitNumber: %+v", half.PairedUnitNumber)
+	}
+	plain := result.LogisticsEntities[1]
+	if plain.UndergroundType != nil || plain.PairedUnitNumber != nil {
+		t.Fatalf("non-underground entity must report null: %+v", plain)
+	}
+	lua := <-commands
+	for _, want := range []string{
+		"local underground_type,paired=underground_info(e)",
+		"e.belt_to_ground_type",
+		"e.neighbours",
+		"obj.undergroundType=underground_type",
+		"obj.pairedUnitNumber=(paired~=nil) and tostring(paired) or nil",
+	} {
+		if !strings.Contains(lua, want) {
+			t.Fatalf("worldLogistics underground Lua missing %q\n%s", want, lua)
+		}
+	}
+}
+
+// markWorldLaneMixed must flag lane contamination by distinct name|quality
+// combinations, including the same item in two qualities.
+func TestMarkWorldLaneMixed(t *testing.T) {
+	cases := []struct {
+		name  string
+		items []*InventoryStack
+		want  bool
+	}{
+		{"empty", nil, false},
+		{"one stack", []*InventoryStack{{Name: "iron-plate", Count: 4, Quality: "normal"}}, false},
+		{"duplicate stack", []*InventoryStack{{Name: "iron-plate", Count: 4, Quality: "normal"}, {Name: "iron-plate", Count: 2, Quality: "normal"}}, false},
+		{"two items", []*InventoryStack{{Name: "iron-plate", Count: 4, Quality: "normal"}, {Name: "copper-plate", Count: 2, Quality: "normal"}}, true},
+		{"two qualities", []*InventoryStack{{Name: "iron-plate", Count: 4, Quality: "normal"}, {Name: "iron-plate", Count: 2, Quality: "uncommon"}}, true},
+		{"nil stack ignored", []*InventoryStack{nil, {Name: "iron-plate", Count: 4, Quality: "normal"}}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			lanes := []*WorldLane{nil, {Index: 1, Items: tc.items}}
+			markWorldLaneMixed(lanes)
+			if lanes[1].Mixed != tc.want {
+				t.Fatalf("mixed = %v, want %v", lanes[1].Mixed, tc.want)
+			}
+		})
 	}
 }

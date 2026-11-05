@@ -58,6 +58,44 @@ local fluids={}
 for name,amount in pairs(e.get_fluid_contents()) do fluids[#fluids+1]={name=name,amount=amount} end
 table.sort(fluids,function(a,b) return a.name<b.name end)
 result.fluids=fluids
+-- Pipe ports are otherwise only discoverable by trial placement: fluidSegments
+-- reports box members, never the connection tiles. Expose every connection the
+-- engine reports so callers can route pipes directly.
+local ports={}
+local ok_fb,fb=pcall(function() return e.fluidbox end)
+if ok_fb and fb then
+  local ok_count,count=pcall(function() return #fb end)
+  if ok_count and type(count)=="number" then
+    for box=1,count do
+      local ok_connections,connections=pcall(function() return fb.get_pipe_connections(box) end)
+      if ok_connections and type(connections)=="table" then
+        for index,connection in pairs(connections) do
+          local position=connection.position
+          local target=connection.target_position
+          if position and target then
+            local direction=nil
+            local dx,dy=target.x-position.x,target.y-position.y
+            if dx>0.5 then direction=4 elseif dx<-0.5 then direction=12 elseif dy>0.5 then direction=8 elseif dy<-0.5 then direction=0 end
+            local flow=connection.flow_direction
+            local flow_name=nil
+            if type(flow)=="number" then
+              local ok_dirs,dirs=pcall(function() return defines.fluid_flow_direction end)
+              if ok_dirs and type(dirs)=="table" then
+                for name,number in pairs(dirs) do if number==flow then flow_name=name; break end end
+              end
+            end
+            if not flow_name and flow~=nil then flow_name=tostring(flow) end
+            ports[#ports+1]={box_index=box,connection_index=index,position=position,target=target,
+              direction=direction,flow_direction=flow_name,
+              target_fluidbox_index=connection.target_fluidbox_index,
+              target_pipe_connection_index=connection.target_pipe_connection_index}
+          end
+        end
+      end
+    end
+  end
+end
+result.fluid_ports=ports
 return result
 end
 `
@@ -188,7 +226,7 @@ for i=1,#targets do
     local ok,e,err=pcall(locate_entity,t.unit,t.name,t.position,t.surface,p,false,t.has_position)
     if not ok then err=tostring(e); e=nil end
     if not e then
-      results[#results+1]={index=t.index,error=err or "entity not found"}
+      results[#results+1]={index=t.index,error=(err or "entity not found").." DBG[s="..tostring(t.surface).." n="..tostring(t.name).." hp="..tostring(t.has_position).." p="..tostring(t.position and t.position.x)..","..tostring(t.position and t.position.y).."]"}
     else
       local row={index=t.index,tick=game.tick,name=e.name,type=e.type,position=e.position,unit_number=e.unit_number}
       local ok_snapshot,snapshot=pcall(inspect_snapshot,e,e.surface)
@@ -212,13 +250,13 @@ for i=1,#targets do
     end
   end
 end
-rcon.print(helpers.table_to_json({tick=game.tick,surface=result_surface,force=p.force.name,results=results}))
+rcon.print(helpers.table_to_json({tick=game.tick,surface=result_surface,force=result_force,results=results}))
 `)
 	return b.String()
 }
 
-// inspectManyActorLua binds p (the actor) and result_surface, accepting exactly
-// one of a player name or a character unit number.
+// inspectManyActorLua binds p (the actor), result_force and result_surface,
+// accepting exactly one of a player name or a character unit number.
 func inspectManyActorLua(actor *ActorInput, surface string) (string, error) {
 	character, player, err := settingsActorFrom(actor)
 	if err != nil {
@@ -226,12 +264,29 @@ func inspectManyActorLua(actor *ActorInput, surface string) (string, error) {
 	}
 	if character != 0 {
 		return fmt.Sprintf(`local p=game.get_entity_by_unit_number(%d); if not p or p.type~="character" then fail("character not found"); return end
+local result_force=p.force.name
 local result_surface=%s; if not game.surfaces[result_surface] then fail("surface not found"); return end
 `, character, luaString(surface)), nil
 	}
 	return fmt.Sprintf(`local p=game.players[%s]; if not p then fail("player not found"); return end
+local result_force=p.force.name
 local result_surface=%s; if not game.surfaces[result_surface] then fail("surface not found"); return end
 `, luaString(player), luaString(surface)), nil
+}
+
+// inspectManyForceLua binds the same p, result_force and result_surface locals
+// as inspectManyActorLua for a call that names a force instead of an actor. An
+// unknown force fails before the target list runs, so a typo never reads a page
+// as another force. p is a LuaForce here, so it carries no .force of its own;
+// the batch reads the name from result_force.
+func inspectManyForceLua(force, surface string) (string, error) {
+	if force == "" {
+		return "", errors.New("force must not be empty")
+	}
+	return fmt.Sprintf(`local p=game.forces[%s]; if not p then fail("force not found"); return end
+local result_force=p.name
+local result_surface=%s; if not game.surfaces[result_surface] then fail("surface not found"); return end
+`, luaString(force), luaString(surface)), nil
 }
 
 // batchInspectionRow mirrors one row of the inspectMany Lua response. The
@@ -267,14 +322,29 @@ func inspectManyQuery(r *Resolver, input InspectManyInput) (*BatchInspectionPage
 	if input.Surface != nil {
 		surface = *input.Surface
 	}
-	actorLua, err := inspectManyActorLua(input.Actor, surface)
+	if surface == "" {
+		return nil, errors.New("surface must not be empty")
+	}
+	force := input.Force
+	if force == "" {
+		force = "player"
+	}
+	var actorLua string
+	if input.Actor != nil {
+		actorLua, err = inspectManyActorLua(input.Actor, surface)
+	} else {
+		actorLua, err = inspectManyForceLua(force, surface)
+	}
 	if err != nil {
 		return nil, err
 	}
 	includeSettings := input.IncludeSettings != nil && *input.IncludeSettings
 	includeDiagnostics := input.IncludeDiagnostics != nil && *input.IncludeDiagnostics
 	body := inspectManyLua(targets, includeSettings, includeDiagnostics)
-	response, _, err := executeLua(r.addr, r.password, actorLua+body)
+	// luaFail is declared before the prelude because the prelude reports its own
+	// errors; without it an unknown player, character or force would raise a Lua
+	// error instead of the structured error payload.
+	response, _, err := executeLua(r.addr, r.password, luaFail+actorLua+body)
 	if err != nil {
 		return nil, err
 	}

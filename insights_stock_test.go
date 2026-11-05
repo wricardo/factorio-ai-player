@@ -60,17 +60,19 @@ func TestStockCategoryName(t *testing.T) {
 		name     string
 		category *StockCategory
 		want     string
+		wantErr  bool
 	}{
-		{"all", nil, ""},
-		{"stored", stockCategoryPointer(StockCategoryStored), "stored"},
-		{"in-transit", stockCategoryPointer(StockCategoryInTransit), "in-transit"},
-		{"ground", stockCategoryPointer(StockCategoryGround), "ground"},
-		{"player", stockCategoryPointer(StockCategoryPlayer), "player"},
-		{"worker", stockCategoryPointer(StockCategoryWorker), "worker"},
-		{"unknown", stockCategoryPointer(StockCategory("BOGUS")), ""},
+		{"unfiltered", nil, "", false},
+		{"stored", stockCategoryPointer(StockCategoryStored), "stored", false},
+		{"in-transit", stockCategoryPointer(StockCategoryInTransit), "in-transit", false},
+		{"ground", stockCategoryPointer(StockCategoryGround), "ground", false},
+		{"player", stockCategoryPointer(StockCategoryPlayer), "player", false},
+		{"worker", stockCategoryPointer(StockCategoryWorker), "worker", false},
+		{"all", stockCategoryPointer(StockCategoryAll), "", false},
+		{"unknown", stockCategoryPointer(StockCategory("BOGUS")), "", true},
 	} {
 		got, err := stockCategoryName(tc.category)
-		if tc.want == "" && tc.category != nil {
+		if tc.wantErr {
 			if err == nil {
 				t.Fatalf("%s: expected error", tc.name)
 			}

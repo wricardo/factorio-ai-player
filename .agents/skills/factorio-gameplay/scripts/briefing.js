@@ -3,7 +3,8 @@
 // gqlcli script --file .agents/skills/factorio-gameplay/scripts/briefing.js \
 //   --arg '{"watch":[{"item":"iron-plate","minimum":100}],"area":{"leftTopX":-128,"leftTopY":-128,"rightBottomX":128,"rightBottomY":128}}'
 // Input (all optional): surface, force, window (ONE_MINUTE|TEN_MINUTES|ONE_HOUR),
-//   area (<=1024 tiles/side; omit = whole surface), watch [{item,minimum}], limit.
+//   area (<=1024 tiles/side; omit = whole surface), watch [{item,minimum}],
+//   stockCategory (STORED|IN_TRANSIT|GROUND|PLAYER|WORKER|ALL; default STORED), limit.
 async function run(gql, input) {
   input = input || {}
   const vars = {
@@ -16,6 +17,7 @@ async function run(gql, input) {
     },
   }
   if (input.area) vars.input.area = input.area
+  if (input.stockCategory) vars.input.stockCategory = input.stockCategory
   const r = await gql.query(
     `query($input: FactoryBriefingInput!) {
       status { tick speed paused players { name } }

@@ -28,6 +28,15 @@ local function call(proto,method)
   if ok then return value end
   return nil
 end
+-- JSON has no representation for Lua's inf/nan, and helpers.table_to_json emits
+-- them as bare tokens that break the response decoder. Some prototypes (for
+-- example electric-energy-interface, whose usage is infinite) report math.huge,
+-- so every numeric field is clamped to nil when it is not finite.
+local function finite(value)
+  if type(value)~="number" then return value end
+  if value~=value or value==math.huge or value==-math.huge then return nil end
+  return value
+end
 local item_info=nil
 if item then
   item_info={name=item.name,stackSize=get(item,"stack_size"),stackable=get(item,"stackable"),fuelCategory=get(item,"fuel_category"),fuelValue=get(item,"fuel_value")}
@@ -57,22 +66,22 @@ if entity then
     tileHeight=get(entity,"tile_height") or 1,
     collisionBox=get(entity,"collision_box"),
     selectionBox=get(entity,"selection_box"),
-    beltSpeed=get(entity,"belt_speed"),
-    maxUndergroundDistance=get(entity,"max_underground_distance"),
+    beltSpeed=finite(get(entity,"belt_speed")),
+    maxUndergroundDistance=finite(get(entity,"max_underground_distance")),
     inserterPickup=get(entity,"inserter_pickup_position"),
     inserterDrop=get(entity,"inserter_drop_position"),
     craftingCategories=categories,
     resourceCategories=resource_categories,
     fluidBoxCount=(boxes and #boxes) or 0,
     mineable=(mineable and mineable.minable) or false,
-    maxHealth=call(entity,"get_max_health"),
-    wireReach=call(entity,"get_max_wire_distance"),
-    supplyArea=call(entity,"get_supply_area_distance"),
-    craftingSpeed=call(entity,"get_crafting_speed"),
-    miningRadius=(call(entity,"get_mining_drill_radius") or get(entity,"mining_drill_radius")),
-    miningSpeed=get(entity,"mining_speed"),
-    energyUsageWatts=(max_energy_usage and max_energy_usage*60),
-    moduleSlots=get(entity,"module_inventory_size")
+    maxHealth=finite(call(entity,"get_max_health")),
+    wireReach=finite(call(entity,"get_max_wire_distance")),
+    supplyArea=finite(call(entity,"get_supply_area_distance")),
+    craftingSpeed=finite(call(entity,"get_crafting_speed")),
+    miningRadius=finite(call(entity,"get_mining_drill_radius") or get(entity,"mining_drill_radius")),
+    miningSpeed=finite(get(entity,"mining_speed")),
+    energyUsageWatts=finite(max_energy_usage and max_energy_usage*60),
+    moduleSlots=finite(get(entity,"module_inventory_size"))
   }
 end
 rcon.print(helpers.table_to_json{name=name,item=item_info,entity=entity_info})`, luaString(name))
@@ -127,8 +136,8 @@ else actor=game.get_player(player); if not actor then fail("player not found"); 
 local inv=actor.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end
 local item=%s; local quality=%s; local side=%s; local gap=%d; local direction=%d
 `, luaString(player), character, luaString(input.Item), luaString(quality), luaString(string(input.Side)), input.Gap, input.Direction) +
-		entityRefPrelude(unit, name, x, y, input.Surface) + fmt.Sprintf(`
-if c.surface.name~=surface.name then fail("actor is on another surface"); return end
+		entityRefPrelude("target", unit, name, x, y, input.Surface) + fmt.Sprintf(`
+if c.surface.name~=target_surface.name then fail("actor is on another surface"); return end
 if c.force.name~=target.force.name then fail("target is not on the actor's force"); return end
 local item_proto=prototypes.item[item]
 if not item_proto then fail("item prototype not found"); return end
@@ -173,7 +182,7 @@ for _,offset in ipairs(offsets) do
     local dx=c.position.x-position.x; local dy=c.position.y-position.y
     if %s then
       out_of_reach=true
-    elseif #tile_occupants(surface,position)>0 then
+    elseif #tile_occupants(target_surface,position)>0 then
       -- create_entity ignores collision boxes, so an occupied candidate tile
       -- would stack a second entity instead of failing; try the next offset.
       refused=true
@@ -184,14 +193,14 @@ for _,offset in ipairs(offsets) do
     else
       -- Entity creation is the success test; can_place_entity can reject a
       -- box the engine would snap onto a free tile, so it must not decide.
-      local before=tile_unit_set(surface,position)
-      local created,err=pcall(function() return surface.create_entity{name=new_proto.name,position=position,direction=direction,quality=quality,force=c.force,raise_built=true} end)
+      local before=tile_unit_set(target_surface,position)
+      local created,err=pcall(function() return target_surface.create_entity{name=new_proto.name,position=position,direction=direction,quality=quality,force=c.force,raise_built=true} end)
       local e=nil; if created then e=err end
       -- The engine can raise or return nil after committing the entity;
       -- refunding then would duplicate the item and report a false failure.
-      if not e then e=new_tile_entity(surface,position,before) end
+      if not e then e=new_tile_entity(target_surface,position,before) end
       if e then
-        rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=c.force.name,item=item,name=e.name,unitNumber=e.unit_number,position={x=e.position.x,y=e.position.y},relativeTo=target.unit_number,side=side,gap=gap})
+        rcon.print(helpers.table_to_json{tick=game.tick,surface=target_surface.name,force=c.force.name,item=item,name=e.name,unitNumber=e.unit_number,position={x=e.position.x,y=e.position.y},relativeTo=target.unit_number,side=side,gap=gap})
         return
       end
       inv.insert{name=item,quality=quality,count=1}

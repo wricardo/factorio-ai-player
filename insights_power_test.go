@@ -135,6 +135,7 @@ func TestElectricNetworksCapacityWindowAndAccumulators(t *testing.T) {
 	for _, want := range []string{
 		`local flow_precision = defines.flow_precision_index.ten_minutes`,
 		`get_max_energy_production`,
+		`["electric-energy-interface"]=true`,
 		`electric_energy_source_prototype.buffer_capacity`,
 		`if capacity.capacity > 0 then network.satisfaction = consumption / capacity.capacity end`,
 		`if status_names[entity.status] == "low_power" then entry.lowPower = entry.lowPower + 1 end`,

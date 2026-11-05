@@ -38,6 +38,11 @@ func (r *mutationResolver) SetContainerBar(ctx context.Context, input ContainerB
 	return setActorResult(result, input.Actor, err)
 }
 
+// ConfigureInfinityContainer is the resolver for the configureInfinityContainer field.
+func (r *mutationResolver) ConfigureInfinityContainer(ctx context.Context, input ConfigureInfinityContainerInput) (*SettingsResult, error) {
+	return configureInfinityContainer(r.Resolver, input)
+}
+
 // SetLogisticRequests is the resolver for the setLogisticRequests field.
 func (r *mutationResolver) SetLogisticRequests(ctx context.Context, input LogisticRequestsInput) (*SettingsResult, error) {
 	result, err := setLogisticRequests(r.Resolver, input)

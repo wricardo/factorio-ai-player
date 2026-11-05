@@ -9,6 +9,15 @@ import (
 	"context"
 )
 
+// Inspection is the resolver for the inspection field.
+func (r *beltFeederMiningTargetResolver) Inspection(ctx context.Context, obj *BeltFeederMiningTarget) (*EntityInspection, error) {
+	surface := ""
+	if obj.Surface != nil {
+		surface = *obj.Surface
+	}
+	return entityInspectionFor(r.Resolver, surface, obj.Name, nil, obj.Position)
+}
+
 // BeltRuns is the resolver for the beltRuns field.
 func (r *inspectionLogisticsResolver) BeltRuns(ctx context.Context, obj *InspectionLogistics, maxEntities int, includeLineLinks bool) ([]*BeltRun, error) {
 	return inspectionBeltRuns(r.Resolver, obj, maxEntities, includeLineLinks)
@@ -17,13 +26,13 @@ func (r *inspectionLogisticsResolver) BeltRuns(ctx context.Context, obj *Inspect
 // BeltRun is the resolver for the beltRun field.
 func (r *queryResolver) BeltRun(ctx context.Context, target EntityRefInput, maxEntities int, includeLineLinks bool) (*BeltRun, error) {
 	surface, _, unitNumber, x, y := entityRefFields(&target)
-	return beltRunQuery(r.Resolver, stringValueOr(surface, "nauvis"), x, y, unitNumber, maxEntities, includeLineLinks)
+	return beltRunQuery(r.Resolver, stringValueOr(surface, defaultSurface), x, y, unitNumber, maxEntities, includeLineLinks)
 }
 
 // BeltStretch is the resolver for the beltStretch field.
 func (r *queryResolver) BeltStretch(ctx context.Context, target EntityRefInput, maxEntities int) (*BeltStretch, error) {
 	surface, _, unitNumber, x, y := entityRefFields(&target)
-	return beltStretchQuery(r.Resolver, stringValueOr(surface, "nauvis"), x, y, unitNumber, maxEntities)
+	return beltStretchQuery(r.Resolver, stringValueOr(surface, defaultSurface), x, y, unitNumber, maxEntities)
 }
 
 // FactoryGraph is the resolver for the factoryGraph field.
@@ -40,3 +49,10 @@ func (r *queryResolver) Adjacency(ctx context.Context, area FactoryAreaInput, fo
 func (r *queryResolver) BeltComponents(ctx context.Context, input BeltComponentsInput) (*BeltComponentPage, error) {
 	return beltComponentsQuery(r.Resolver, input)
 }
+
+// BeltFeederMiningTarget returns BeltFeederMiningTargetResolver implementation.
+func (r *Resolver) BeltFeederMiningTarget() BeltFeederMiningTargetResolver {
+	return &beltFeederMiningTargetResolver{r}
+}
+
+type beltFeederMiningTargetResolver struct{ *Resolver }

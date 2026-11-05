@@ -13,18 +13,20 @@ import (
 // inventoryKindKeys maps typed inventory selectors to the backend inventory
 // keys understood by productionLua.
 var inventoryKindKeys = map[string]string{
-	"INPUT":                "input",
-	"OUTPUT":               "output",
-	"FUEL":                 "fuel",
-	"CHEST":                "chest",
-	"MODULES":              "modules",
-	"TURRET_AMMO":          "turret_ammo",
-	"ROBO_PORT_ROBOT":      "roboport_robot",
-	"ROBO_PORT_MATERIAL":   "roboport_material",
-	"CARGO_WAGON":          "cargo_wagon",
-	"CAR_TRUNK":            "car_trunk",
-	"SPIDER_TRUNK":         "spider_trunk",
-	"ARTILLERY_WAGON_AMMO": "artillery_wagon_ammo",
+	"INPUT":                     "input",
+	"OUTPUT":                    "output",
+	"FUEL":                      "fuel",
+	"CHEST":                     "chest",
+	"MODULES":                   "modules",
+	"TURRET_AMMO":               "turret_ammo",
+	"ROBO_PORT_ROBOT":           "roboport_robot",
+	"ROBO_PORT_MATERIAL":        "roboport_material",
+	"CARGO_WAGON":               "cargo_wagon",
+	"CAR_TRUNK":                 "car_trunk",
+	"SPIDER_TRUNK":              "spider_trunk",
+	"ARTILLERY_WAGON_AMMO":      "artillery_wagon_ammo",
+	"ROCKET":                    "rocket_silo_rocket",
+	"ASTEROID_COLLECTOR_OUTPUT": "asteroid_collector_output",
 }
 
 // inventoryKeys are the backend keys accepted by the transfer command. Both
@@ -33,7 +35,7 @@ var inventoryKeys = func() map[string]bool {
 	keys := []string{
 		"input", "output", "fuel", "chest", "modules", "turret_ammo",
 		"roboport_robot", "roboport_material", "cargo_wagon", "car_trunk",
-		"spider_trunk", "artillery_wagon_ammo",
+		"spider_trunk", "artillery_wagon_ammo", "rocket_silo_rocket", "asteroid_collector_output",
 	}
 	set := make(map[string]bool, len(keys)*2)
 	for _, key := range keys {
@@ -87,18 +89,26 @@ func productionLua(command string, args []string, out io.Writer) (string, error)
 	if err := fs.Parse(args); err != nil {
 		return "", err
 	}
-	if fs.NArg() != 0 || (*player == "") == (*character == 0) || *character > math.MaxUint32 || *surface == "" {
+	if fs.NArg() != 0 || (*player != "" && *character != 0) || *character > math.MaxUint32 || *surface == "" {
+		return "", errors.New("at most one of player or character and a surface are required; no positional arguments allowed")
+	}
+	// Inspection is force-agnostic, so it also runs without an actor; every
+	// other production command acts as an actor and still needs one.
+	if command == "transfer" && *player == "" && *character == 0 {
 		return "", errors.New("exactly one of player or character and a surface are required; no positional arguments allowed")
 	}
 	targetUnit, err := entityTarget(*entity, unitNumber, *x, *y)
 	if err != nil {
 		return "", err
 	}
-	prefix := luaFail + fmt.Sprintf(`local p
+	prefix := luaFail
+	if *player != "" || *character != 0 {
+		prefix += fmt.Sprintf(`local p
 if %s~="" then p=game.get_player(%s); if not p then fail("player not found"); return end
 else p=game.get_entity_by_unit_number(%d); if not p or p.type~="character" then fail("character not found"); return end end
-`, luaString(*player), luaString(*player), *character) +
-		targetLocals(targetUnit, *entity, *x, *y, *surface) + luaEntityResolve + luaInventoryHelpers
+`, luaString(*player), luaString(*player), *character)
+	}
+	prefix += targetLocals(targetUnit, *entity, *x, *y, *surface) + luaEntityResolve + luaInventoryHelpers
 	if command == "inspect" {
 		// Inspection is read-only, so it resolves neutral and enemy entities
 		// instead of demanding the actor's force the way transfer does.

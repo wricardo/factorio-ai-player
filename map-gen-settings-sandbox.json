@@ -1,0 +1,45 @@
+{
+  "_comment": "Sandbox scenario map generation: use with --start-server-load-scenario sandbox. No enemy bases, peaceful mode, frequent/large/rich resource patches. Same terrain as the regular-game settings; the difference is the scenario (no character, god controller), not the map.",
+  "_comment_width+height": "Width and height of map, in tiles; 0 means infinite",
+  "width": 0,
+  "height": 0,
+
+  "starting_area": 1,
+
+  "peaceful_mode": true,
+  "autoplace_controls":
+  {
+    "coal": {"frequency": 2, "size": 3, "richness": 6},
+    "stone": {"frequency": 2, "size": 3, "richness": 6},
+    "copper-ore": {"frequency": 2, "size": 3, "richness": 6},
+    "iron-ore": {"frequency": 2, "size": 3, "richness": 6},
+    "uranium-ore": {"frequency": 2, "size": 3, "richness": 6},
+    "crude-oil": {"frequency": 2, "size": 3, "richness": 6},
+    "water": {"frequency": 1, "size": 1},
+    "trees": {"frequency": 1, "size": 1},
+    "enemy-base": {"frequency": 0, "size": 0, "richness": 0}
+  },
+
+  "cliff_settings":
+  {
+    "name": "cliff",
+    "cliff_elevation_0": 10,
+    "cliff_elevation_interval": 40,
+    "richness": 1
+  },
+
+  "property_expression_names":
+  {
+    "control:moisture:frequency": "1",
+    "control:moisture:bias": "0",
+    "control:aux:frequency": "1",
+    "control:aux:bias": "0"
+  },
+
+  "starting_points":
+  [
+    { "x": 0, "y": 0 }
+  ],
+
+  "seed": null
+}

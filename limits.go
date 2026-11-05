@@ -29,6 +29,15 @@ const (
 	// maxBlueprintCharacters bounds an imported blueprint string.
 	maxBlueprintCharacters = 2_000_000
 
+	// The blueprint catalog is persisted in script storage, so its bounds keep
+	// one save's catalog from growing without limit. maxBlueprintBookEntries is
+	// far below the engine's 65535 book slots because every catalog call imports
+	// and re-exports the whole book.
+	maxBlueprintBooks              = 200
+	maxBlueprintBookEntries        = 1000
+	maxBlueprintCatalogCharacters  = 16_000_000
+	maxBlueprintBookNameCharacters = 64
+
 	// maxAttentionItems bounds one factoryBriefing attention list.
 	maxAttentionItems = 1000
 

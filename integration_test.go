@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"os"
@@ -39,6 +40,8 @@ type integrationHarness struct {
 }
 
 func TestIntegration(t *testing.T) {
+	// Keep the suite's GraphQL operation log out of the developer's live log.
+	_ = os.Setenv(graphqlLogEnv, filepath.Join(t.TempDir(), "graphql-log.jsonl"))
 	h := startIntegrationHarness(t)
 	t.Cleanup(func() { h.close(t) })
 
@@ -263,12 +266,24 @@ rcon.print("ok")`)
 		  ]}) { blueprint entityCount }
 		}`)
 		blueprint := jsonString(t, jsonObject(t, jsonObject(t, exported, "data"), "createBlueprintFromEntities"), "blueprint")
+		// The surface is 64x64 (tiles -32..31), so the plan must stay inside it:
+		// a footprint that crosses the edge makes build_blueprint return an
+		// empty array without raising, which the mutation now reports as an
+		// error (asserted below).
 		placed := h.mutation(t, fmt.Sprintf(`mutation {
-		  placeBlueprint(input:{surface:%q,force:"player",blueprint:%q,position:{x:30,y:-10}}) {
+		  placeBlueprint(input:{surface:%q,force:"player",blueprint:%q,position:{x:27,y:-12}}) {
 		    ghosts entityCount entities { name type unitNumber }
 		  }
 		}`, integrationSurface, blueprint))
 		placeResult := jsonObject(t, jsonObject(t, placed, "data"), "placeBlueprint")
+		// A placement that cannot create a single ghost must fail loudly instead
+		// of reporting 0 of N as success: (30,-10) puts the belt past the map edge.
+		edgeErr := h.graphqlExpectingError(t, "mutation", fmt.Sprintf(`mutation {
+		  placeBlueprint(input:{surface:%q,force:"player",blueprint:%q,position:{x:30,y:-10}}) { ghosts entityCount }
+		}`, integrationSurface, blueprint))
+		if edgeErr == nil || !strings.Contains(edgeErr.Error(), "placed none") {
+			t.Fatalf("an out-of-map blueprint placement must fail with the placed-none error, got %v", edgeErr)
+		}
 		ghosts := jsonArray(t, placeResult, "entities")
 		if count := jsonNumber(t, placeResult, "ghosts"); float64(len(ghosts)) != count || count != 2 {
 			t.Fatalf("ghosts=%v entities=%d, want 2; result=%v", count, len(ghosts), placeResult)
@@ -284,10 +299,10 @@ rcon.print("ok")`)
 		// A real entity in the same read proves the ghost fields stay null
 		// instead of leaking the ghost prototype onto everything.
 		h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
-local chest=surface.create_entity{name="wooden-chest",position={x:34.5,y=-13.5},force="player"}
-assert(chest and chest.valid)
+local chest=surface.create_entity{name="wooden-chest",position={x=30.5,y=-13.5},force="player"}
+assert(chest and chest.valid,"chest creation failed")
 rcon.print("ok")`)
-		targets.WriteString(`,{entity:"wooden-chest",position:{x:34.5,y:-13.5}}`)
+		targets.WriteString(`,{entity:"wooden-chest",position:{x:30.5,y:-13.5}}`)
 		inspected := h.query(t, fmt.Sprintf(`{
 		  inspectMany(input:{actor:{character:%q},surface:%q,targets:[%s]}) {
 		    results { index unitNumber error inspection { name type direction ghostName ghostQuality ghostRecipe } }
@@ -544,6 +559,94 @@ rcon.print("ok")`)
 		}
 	})
 
+	t.Run("InfinityContainerRoundTrip", func(t *testing.T) {
+		character := h.spawnCharacter(t)
+		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
+		h.grantItems(t, character.id, map[string]int{"infinity-chest": 1})
+		placed := h.mutation(t, fmt.Sprintf(`mutation {
+		  place(input:{actor:{character:%q},surface:%q,position:{x:-6.5,y:-6.5},item:"infinity-chest"}) { unitNumber }
+		}`, character.id, integrationSurface))
+		unit := jsonString(t, jsonObject(t, jsonObject(t, placed, "data"), "place"), "unitNumber")
+		t.Cleanup(func() { h.removeEntity(t, character.id, "infinity-chest", unit) })
+
+		result := h.mutation(t, fmt.Sprintf(`mutation {
+		  configureInfinityContainer(input:{actor:{character:%q},target:{surface:%q,entity:"infinity-chest",unitNumber:%q},
+		    filters:[{item:"electric-mining-drill",count:1000,mode:EXACTLY},{item:"iron-plate",quality:"normal",count:50}],
+		    removeUnfilteredItems:true}) {
+		    tick infinity { filters { index name quality count mode } removeUnfilteredItems }
+		  }
+		}`, character.id, integrationSurface, unit))
+		settings := jsonObject(t, jsonObject(t, jsonObject(t, result, "data"), "configureInfinityContainer"), "infinity")
+		filters := jsonArray(t, settings, "filters")
+		if len(filters) != 2 {
+			t.Fatalf("infinity filters=%v, want 2", filters)
+		}
+		first := filters[0].(map[string]any)
+		if jsonString(t, first, "name") != "electric-mining-drill" || jsonNumber(t, first, "count") != 1000 || jsonString(t, first, "mode") != "exactly" {
+			t.Fatalf("first filter=%v", first)
+		}
+		second := filters[1].(map[string]any)
+		if jsonString(t, second, "name") != "iron-plate" || jsonNumber(t, second, "count") != 50 || jsonString(t, second, "mode") != "at-least" {
+			t.Fatalf("second filter=%v", second)
+		}
+		if !jsonBool(t, settings, "removeUnfilteredItems") {
+			t.Fatalf("removeUnfilteredItems not applied: %v", settings)
+		}
+
+		withdraw := h.mutation(t, fmt.Sprintf(`mutation {
+		  transfer(input:{actor:{character:%q},target:{surface:%q,entity:"infinity-chest",unitNumber:%q},
+		    inventory:CHEST,direction:TO_ACTOR,item:"electric-mining-drill",count:5}) {
+		    moved item inventory direction reason
+		  }
+		}`, character.id, integrationSurface, unit))
+		moved := jsonObject(t, jsonObject(t, withdraw, "data"), "transfer")
+		if jsonNumber(t, moved, "moved") != 5 || jsonString(t, moved, "item") != "electric-mining-drill" {
+			t.Fatalf("infinity container did not supply drills: %v", moved)
+		}
+		inventory := h.query(t, fmt.Sprintf(`{ inventory(input:{character:%q}) { items { name count } } }`, character.id))
+		drills := 0.0
+		for _, raw := range jsonArray(t, jsonObject(t, jsonObject(t, inventory, "data"), "inventory"), "items") {
+			item := raw.(map[string]any)
+			if jsonString(t, item, "name") == "electric-mining-drill" {
+				drills += jsonNumber(t, item, "count")
+			}
+		}
+		if drills < 5 {
+			t.Fatalf("actor drills=%v after withdrawing from the infinity container, want at least 5", drills)
+		}
+
+		// The source must replenish: after a withdrawal, the container's own
+		// inventory should return to the configured EXACTLY count.
+		time.Sleep(200 * time.Millisecond)
+		readback := h.query(t, fmt.Sprintf(`{
+		  inspect(input:{actor:{character:%q},target:{surface:%q,entity:"infinity-chest",unitNumber:%q}}) {
+		    inventories { chest { name count } }
+		  }
+		}`, character.id, integrationSurface, unit))
+		chestDrills := 0.0
+		chestInventory := jsonObject(t, jsonObject(t, jsonObject(t, readback, "data"), "inspect"), "inventories")
+		for _, raw := range jsonArray(t, chestInventory, "chest") {
+			item := raw.(map[string]any)
+			if jsonString(t, item, "name") == "electric-mining-drill" {
+				chestDrills += jsonNumber(t, item, "count")
+			}
+		}
+		if chestDrills != 1000 {
+			t.Fatalf("infinity container drills=%v after withdrawing 5, want 1000 replenished", chestDrills)
+		}
+
+		cleared := h.mutation(t, fmt.Sprintf(`mutation {
+		  configureInfinityContainer(input:{actor:{character:%q},target:{surface:%q,entity:"infinity-chest",unitNumber:%q},
+		    filters:[],removeUnfilteredItems:false}) {
+		    infinity { filters { index name quality count mode } removeUnfilteredItems }
+		  }
+		}`, character.id, integrationSurface, unit))
+		empty := jsonObject(t, jsonObject(t, jsonObject(t, cleared, "data"), "configureInfinityContainer"), "infinity")
+		if len(jsonArray(t, empty, "filters")) != 0 || jsonBool(t, empty, "removeUnfilteredItems") {
+			t.Fatalf("empty filter list did not clear the container: %v", empty)
+		}
+	})
+
 	t.Run("CircuitBehaviorCompatibility", func(t *testing.T) {
 		character := h.spawnCharacter(t)
 		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
@@ -679,16 +782,61 @@ rcon.print("ok")`)
 		}
 	})
 
+	t.Run("PlacementRestrictionToRoutedMutations", func(t *testing.T) {
+		character := h.spawnCharacter(t)
+		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
+		h.grantItems(t, character.id, map[string]int{"transport-belt": 2, "pipe": 2})
+		const area = `{leftTopX:18,leftTopY:18,rightBottomX:24,rightBottomY:24}`
+		t.Cleanup(func() {
+			if h.isStopped() {
+				return
+			}
+			h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+if surface then
+  for _,e in pairs(surface.find_entities_filtered{area=`+luaBounds(area)+`}) do if e.valid then e.destroy() end end
+end
+rcon.print("ok")`)
+		})
+
+		beltErr := h.graphqlExpectingError(t, "mutation", fmt.Sprintf(`mutation {
+		  place(input:{actor:{character:%q},surface:%q,position:{x:20.5,y:20.5},item:"transport-belt"}) { name }
+		}`, character.id, integrationSurface))
+		if beltErr == nil || !strings.Contains(beltErr.Error(), "placeBelt") {
+			t.Fatalf("place belt error = %v, want placeBelt hint", beltErr)
+		}
+		after := h.query(t, fmt.Sprintf(`{ entities(input:{surface:%q,area:%s,name:"transport-belt",limit:100}) { pageInfo { total } } }`, integrationSurface, area))
+		if count := jsonNumber(t, jsonObject(t, jsonObject(t, jsonObject(t, after, "data"), "entities"), "pageInfo"), "total"); count != 0 {
+			t.Fatalf("refused place belt left %v belts", count)
+		}
+		placedBelt := h.mutation(t, fmt.Sprintf(`mutation {
+		  placeBelt(input:{actor:{character:%q},surface:%q,from:{x:20.5,y:20.5},to:{x:20.5,y:20.5}}) { placed }
+		}`, character.id, integrationSurface))
+		if jsonNumber(t, jsonObject(t, jsonObject(t, placedBelt, "data"), "placeBelt"), "placed") != 1 {
+			t.Fatalf("placeBelt one tile: %v", placedBelt)
+		}
+
+		pipeErr := h.graphqlExpectingError(t, "mutation", fmt.Sprintf(`mutation {
+		  placeMany(input:{actor:{character:%q},surface:%q,item:"pipe",placements:[{position:{x:22.5,y:20.5}}]}) { placed }
+		}`, character.id, integrationSurface))
+		if pipeErr == nil || !strings.Contains(pipeErr.Error(), "placePipe") {
+			t.Fatalf("placeMany pipe error = %v, want placePipe hint", pipeErr)
+		}
+		placedPipe := h.mutation(t, fmt.Sprintf(`mutation {
+		  placePipe(input:{actor:{character:%q},surface:%q,from:{x:22.5,y:20.5},to:{x:22.5,y:20.5}}) { placed }
+		}`, character.id, integrationSurface))
+		if jsonNumber(t, jsonObject(t, jsonObject(t, placedPipe, "data"), "placePipe"), "placed") != 1 {
+			t.Fatalf("placePipe one tile: %v", placedPipe)
+		}
+	})
+
 	t.Run("DeconstructionInstantCountsAndItems", func(t *testing.T) {
 		character := h.spawnCharacter(t)
 		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
 		h.grantItems(t, character.id, map[string]int{"transport-belt": 3})
 		const beltX, beltY = 6.0, 10.0
-		for i := 0; i < 3; i++ {
-			h.mutation(t, fmt.Sprintf(`mutation {
-			  place(input:{actor:{character:%q},surface:%q,position:{x:%g,y:%g},item:"transport-belt"}) { unitNumber }
-			}`, character.id, integrationSurface, beltX+float64(i), beltY))
-		}
+		h.mutation(t, fmt.Sprintf(`mutation {
+		  placeBelt(input:{actor:{character:%q},surface:%q,from:{x:%g,y:%g},to:{x:%g,y:%g},item:"transport-belt"}) { placed }
+		}`, character.id, integrationSurface, beltX, beltY, beltX+2, beltY))
 		area := fmt.Sprintf(`{leftTopX:%g,leftTopY:%g,rightBottomX:%g,rightBottomY:%g}`, beltX-1, beltY-1, beltX+3, beltY+1)
 		t.Cleanup(func() {
 			if h.isStopped() {
@@ -933,7 +1081,7 @@ end
 rcon.print("ok")`)
 		})
 		h.mutation(t, fmt.Sprintf(`mutation {
-		  place(input:{actor:{character:%q},surface:%q,position:{x:-3.5,y:-14.5},item:"pipe"}) { unitNumber }
+		  placePipe(input:{actor:{character:%q},surface:%q,from:{x:-3.5,y:-14.5},to:{x:-3.5,y:-14.5}}) { placed }
 		}`, character.id, integrationSurface))
 
 		exact := fmt.Sprintf(`{ connectionPlan(input:{surface:%q,force:"player",from:{x:-4.5,y:-15.5},to:{x:-1.5,y:-15.5},kind:PIPE}) {
@@ -1688,6 +1836,55 @@ rcon.print("ok")`)
 		networkList := jsonArray(t, jsonObject(t, jsonObject(t, networks, "data"), "electricNetworks"), "networks")
 		if len(networkList) != 1 || jsonString(t, networkList[0].(map[string]any), "id") != poweredNetwork {
 			t.Fatalf("electricNetworks networkId filter: %v", networkList)
+		}
+	})
+
+	// Sandbox and creative saves are powered by energy interfaces, so their
+	// rated output must count as capacity; otherwise maxProductionWatts is 0 and
+	// satisfaction is null even though the network is fully supplied.
+	t.Run("ElectricNetworksEnergyInterfaceCapacity", func(t *testing.T) {
+		const area = `{leftTopX:34,leftTopY:-16,rightBottomX:46,rightBottomY:-8}`
+		t.Cleanup(func() {
+			if h.isStopped() {
+				return
+			}
+			h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+if surface then
+  for _,e in pairs(surface.find_entities_filtered{area=`+luaBounds(area)+`}) do if e.valid and e.type~="character" then e.destroy() end end
+end
+rcon.print("ok")`)
+		})
+		h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+surface.freeze_daytime=true
+surface.daytime=0
+local function make(name,x,y) local e=surface.create_entity{name=name,position={x=x,y=y},force="player"}; assert(e and e.valid,name); return e end
+make("electric-energy-interface",38.5,-12.5)
+make("medium-electric-pole",40.5,-12.5)
+make("small-lamp",42.5,-12.5)
+rcon.print("ok")`)
+
+		result := h.query(t, fmt.Sprintf(`{
+		  electricNetworks(input:{surface:%q,force:"player",area:%s,limit:100}) {
+		    networks { id maxProductionWatts consumptionWatts satisfaction lowPowerConsumers }
+		  }
+		}`, integrationSurface, area))
+		list := jsonArray(t, jsonObject(t, jsonObject(t, result, "data"), "electricNetworks"), "networks")
+		if len(list) != 1 {
+			t.Fatalf("want one network for the energy interface, got %v", list)
+		}
+		network := list[0].(map[string]any)
+		if capacity := jsonNumber(t, network, "maxProductionWatts"); capacity < 4e11 {
+			t.Fatalf("energy interface capacity missing from maxProductionWatts: %v", network)
+		}
+		satisfaction, present := network["satisfaction"]
+		if !present || satisfaction == nil {
+			t.Fatalf("satisfaction must be a ratio, not null, when an energy interface supplies the network: %v", network)
+		}
+		if satisfaction.(float64) != 0 {
+			t.Fatalf("idle energy interface network satisfaction=%v, want 0", satisfaction)
+		}
+		if low := jsonNumber(t, network, "lowPowerConsumers"); low != 0 {
+			t.Fatalf("lowPowerConsumers=%v, want 0", low)
 		}
 	})
 
@@ -2482,6 +2679,465 @@ rcon.print("ok")`)
 		}
 	})
 
+	t.Run("BlueprintCatalog", func(t *testing.T) {
+		const bookName = "integration-catalog"
+		const copyName = "integration-catalog-copy"
+		exported := h.mutation(t, `mutation { createBlueprintFromEntities(input:{entities:[{name:"wooden-chest",position:{x:0.5,y:0.5}}]}) { blueprint entityCount } }`)
+		blueprint := jsonString(t, jsonObject(t, jsonObject(t, exported, "data"), "createBlueprintFromEntities"), "blueprint")
+
+		// Give addAreaToBook something to collect, then remove it with the test.
+		h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+local a=surface.create_entity{name="wooden-chest",position={x=20.5,y=20.5},force="player"}
+local b=surface.create_entity{name="iron-chest",position={x=21.5,y=20.5},force="player"}
+assert(a and a.valid and b and b.valid,"catalog fixture entities failed")
+rcon.print("ok")`)
+		t.Cleanup(func() {
+			if h.isStopped() {
+				return
+			}
+			h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+if surface then
+  for _,e in pairs(surface.find_entities_filtered{area={{9,9},{24,24}}}) do if e.valid then e.destroy() end end
+end
+rcon.print("ok")`)
+		})
+
+		created := h.mutation(t, `mutation { createBlueprintBook(input:{name:"`+bookName+`",label:"Integration",description:"catalog test"}) { name label description entryCount slotCount characters } }`)
+		book := jsonObject(t, jsonObject(t, created, "data"), "createBlueprintBook")
+		if name := jsonString(t, book, "name"); name != bookName {
+			t.Fatalf("created book=%v, want %q", book, bookName)
+		}
+		if jsonNumber(t, book, "entryCount") != 0 || jsonNumber(t, book, "slotCount") != 0 {
+			t.Fatalf("new book is not empty: %v", book)
+		}
+
+		added := h.mutation(t, fmt.Sprintf(`mutation { addBlueprintToBook(input:{name:%q,blueprint:%q,label:"single"}) { book { slotCount entryCount activeIndex } entry { index label entityCount } } }`, bookName, blueprint))
+		addedEntry := jsonObject(t, jsonObject(t, added, "data"), "addBlueprintToBook", "entry")
+		if index := jsonNumber(t, addedEntry, "index"); index != 1 {
+			t.Fatalf("first entry index=%v, want 1: %v", index, addedEntry)
+		}
+		if count := jsonNumber(t, addedEntry, "entityCount"); count != 1 {
+			t.Fatalf("first entry entityCount=%v, want 1: %v", count, addedEntry)
+		}
+
+		areaAdded := h.mutation(t, fmt.Sprintf(`mutation { addAreaToBook(input:{name:%q,surface:%q,area:{leftTopX:19,leftTopY:19,rightBottomX:23,rightBottomY:22},label:"area"}) { book { slotCount entryCount activeIndex } entry { index label entityCount } } }`, bookName, integrationSurface))
+		areaEntry := jsonObject(t, jsonObject(t, areaAdded, "data"), "addAreaToBook", "entry")
+		if index := jsonNumber(t, areaEntry, "index"); index != 2 {
+			t.Fatalf("area entry index=%v, want 2: %v", index, areaEntry)
+		}
+		if count := jsonNumber(t, areaEntry, "entityCount"); count != 2 {
+			t.Fatalf("area entry captured %v entities, want the 2 fixture chests: %v", count, areaEntry)
+		}
+
+		listed := h.query(t, `{ blueprintBooks { name label description entryCount slotCount activeIndex characters } }`)
+		books := jsonArray(t, jsonObject(t, listed, "data"), "blueprintBooks")
+		if len(books) != 1 {
+			t.Fatalf("books=%v, want exactly the integration book (storage is empty in a fresh sandbox)", books)
+		}
+		row := books[0].(map[string]any)
+		if jsonString(t, row, "name") != bookName || jsonNumber(t, row, "entryCount") != 2 || jsonNumber(t, row, "slotCount") != 2 {
+			t.Fatalf("book row=%v", row)
+		}
+
+		read := h.query(t, fmt.Sprintf(`{ blueprintBook(name:%q,includeBlueprint:true){ name label description entryCount slotCount activeIndex blueprint entries { index name label entityCount blueprint } } }`, bookName))
+		readBook := jsonObject(t, jsonObject(t, read, "data"), "blueprintBook")
+		if bp := jsonString(t, readBook, "blueprint"); len(bp) < 20 || !strings.HasPrefix(bp, "0") {
+			t.Fatalf("book string=%q, want a blueprint-book string", bp)
+		}
+		entries := jsonArray(t, readBook, "entries")
+		if len(entries) != 2 {
+			t.Fatalf("entries=%v, want 2", entries)
+		}
+		for i, raw := range entries {
+			entry := raw.(map[string]any)
+			if index := jsonNumber(t, entry, "index"); index != float64(i+1) {
+				t.Fatalf("entry %d index=%v", i+1, index)
+			}
+			if bp := jsonString(t, entry, "blueprint"); len(bp) < 20 || !strings.HasPrefix(bp, "0") {
+				t.Fatalf("entry %d blueprint=%q, want an exported string", i+1, bp)
+			}
+		}
+
+		updated := h.mutation(t, fmt.Sprintf(`mutation { updateBlueprintBook(input:{name:%q,label:"Renamed",description:"second",activeIndex:2}) { name label description activeIndex } }`, bookName))
+		updatedBook := jsonObject(t, jsonObject(t, updated, "data"), "updateBlueprintBook")
+		if jsonString(t, updatedBook, "label") != "Renamed" || jsonNumber(t, updatedBook, "activeIndex") != 2 {
+			t.Fatalf("updated book=%v", updatedBook)
+		}
+
+		relabeled := h.mutation(t, fmt.Sprintf(`mutation { updateBlueprintInBook(input:{name:%q,index:1,label:"renamed-entry"}) { entry { index label entityCount } } }`, bookName))
+		relabeledEntry := jsonObject(t, jsonObject(t, relabeled, "data"), "updateBlueprintInBook", "entry")
+		if label := jsonString(t, relabeledEntry, "label"); label != "renamed-entry" {
+			t.Fatalf("relabeled entry=%v", relabeledEntry)
+		}
+
+		moved := h.mutation(t, fmt.Sprintf(`mutation { moveBlueprintInBook(input:{name:%q,fromIndex:1,toIndex:2}) { entry { index label } } }`, bookName))
+		movedEntry := jsonObject(t, jsonObject(t, moved, "data"), "moveBlueprintInBook", "entry")
+		if label := jsonString(t, movedEntry, "label"); label != "renamed-entry" || jsonNumber(t, movedEntry, "index") != 2 {
+			t.Fatalf("moved entry=%v", movedEntry)
+		}
+
+		removed := h.mutation(t, fmt.Sprintf(`mutation { removeBlueprintFromBook(input:{name:%q,index:2}) { book { entryCount slotCount } entry { index label } } }`, bookName))
+		removedResult := jsonObject(t, jsonObject(t, removed, "data"), "removeBlueprintFromBook")
+		if count := jsonNumber(t, jsonObject(t, removedResult, "book"), "entryCount"); count != 1 {
+			t.Fatalf("after remove entryCount=%v, want 1: %v", count, removedResult)
+		}
+		if label := jsonString(t, jsonObject(t, removedResult, "entry"), "label"); label != "renamed-entry" {
+			t.Fatalf("removed entry=%v", removedResult)
+		}
+
+		refilled := h.mutation(t, fmt.Sprintf(`mutation { addBlueprintToBook(input:{name:%q,blueprint:%q,index:2,label:"refill"}) { book { entryCount slotCount } entry { index label } } }`, bookName, blueprint))
+		refillEntry := jsonObject(t, jsonObject(t, refilled, "data"), "addBlueprintToBook", "entry")
+		if index := jsonNumber(t, refillEntry, "index"); index != 2 {
+			t.Fatalf("hole refill index=%v, want 2: %v", index, refillEntry)
+		}
+
+		placed := h.mutation(t, fmt.Sprintf(`mutation { placeBlueprintFromBook(input:{name:%q,index:2,surface:%q,position:{x:10.5,y:10.5}}) { ghosts entityCount entities { name } } }`, bookName, integrationSurface))
+		placeResult := jsonObject(t, jsonObject(t, placed, "data"), "placeBlueprintFromBook")
+		if ghosts := jsonNumber(t, placeResult, "ghosts"); ghosts != 1 {
+			t.Fatalf("ghosts=%v, want 1 from the single-chest refill entry: %v", ghosts, placeResult)
+		}
+
+		latest := h.query(t, fmt.Sprintf(`{ blueprintBook(name:%q){ blueprint } }`, bookName))
+		latestString := jsonString(t, jsonObject(t, jsonObject(t, latest, "data"), "blueprintBook"), "blueprint")
+		imported := h.mutation(t, fmt.Sprintf(`mutation { importBlueprintBook(input:{name:%q,blueprint:%q,label:"Copy"}) { name label entryCount slotCount } }`, copyName, latestString))
+		copied := jsonObject(t, jsonObject(t, imported, "data"), "importBlueprintBook")
+		if jsonNumber(t, copied, "entryCount") != 2 || jsonNumber(t, copied, "slotCount") != 2 {
+			t.Fatalf("imported copy=%v", copied)
+		}
+		copyRead := h.query(t, fmt.Sprintf(`{ blueprintBook(name:%q){ entries { index label } } }`, copyName))
+		copyEntries := jsonArray(t, jsonObject(t, jsonObject(t, copyRead, "data"), "blueprintBook"), "entries")
+		if len(copyEntries) != 2 || jsonString(t, copyEntries[1].(map[string]any), "label") != "refill" {
+			t.Fatalf("copied entries=%v", copyEntries)
+		}
+
+		// A book string is not a single blueprint, so the entry path must name
+		// the real problem instead of writing a nested book by accident.
+		bookAsEntry := h.graphqlExpectingError(t, "mutation", fmt.Sprintf(`mutation { addBlueprintToBook(input:{name:%q,blueprint:%q}) { entry { index } } }`, bookName, latestString))
+		if bookAsEntry == nil || !strings.Contains(bookAsEntry.Error(), "not a single blueprint") {
+			t.Fatalf("adding a book string as an entry must be rejected, got %v", bookAsEntry)
+		}
+
+		deleted := h.mutation(t, fmt.Sprintf(`mutation { deleteBlueprintBook(input:{name:%q}) { name bookCount } }`, copyName))
+		deletedResult := jsonObject(t, jsonObject(t, deleted, "data"), "deleteBlueprintBook")
+		if jsonNumber(t, deletedResult, "bookCount") != 1 || jsonString(t, deletedResult, "name") != copyName {
+			t.Fatalf("deleted=%v", deletedResult)
+		}
+		h.mutation(t, fmt.Sprintf(`mutation { deleteBlueprintBook(input:{name:%q}) { name bookCount } }`, bookName))
+		remaining := h.query(t, `{ blueprintBooks { name } }`)
+		if books := jsonArray(t, jsonObject(t, remaining, "data"), "blueprintBooks"); len(books) != 0 {
+			t.Fatalf("catalog still holds %v after deleting both books", books)
+		}
+	})
+
+	t.Run("BuildGhostsConsumesItems", func(t *testing.T) {
+		character := h.spawnCharacter(t)
+		t.Cleanup(func() {
+			if h.isStopped() {
+				return
+			}
+			h.destroyCharacter(t, character.id)
+		})
+		h.grantItems(t, character.id, map[string]int{"wooden-chest": 2})
+		t.Cleanup(func() {
+			if h.isStopped() {
+				return
+			}
+			h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+if surface then
+  for _,e in pairs(surface.find_entities_filtered{area={{9,-9},{20,1}}}) do if e.valid then e.destroy() end end
+end
+rcon.print("ok")`)
+		})
+		inventory := func() float64 {
+			result := h.query(t, fmt.Sprintf(`{ inspect(input:{actor:{character:%q},target:{surface:%q,unitNumber:%q}}) { inventories { main { name count } } } }`, character.id, integrationSurface, character.id))
+			main := jsonArray(t, jsonObject(t, jsonObject(t, result, "data"), "inspect", "inventories"), "main")
+			for _, raw := range main {
+				row := raw.(map[string]any)
+				if jsonString(t, row, "name") == "wooden-chest" {
+					return jsonNumber(t, row, "count")
+				}
+			}
+			return 0
+		}
+		place := func(x float64) {
+			h.mutation(t, fmt.Sprintf(`mutation { placeGhosts(input:{surface:%q,force:"player",entities:[{name:"wooden-chest",position:{x:%g,y:-6.5}}]}) { ghosts { name } } }`, integrationSurface, x))
+		}
+		build := func() map[string]any {
+			built := h.mutation(t, fmt.Sprintf(`mutation {
+			  buildGhosts(input:{actor:{character:%q},surface:%q,force:"player",area:{leftTopX:8,leftTopY:-9,rightBottomX:22,rightBottomY:1},limit:10}) {
+			    revived failed consumed { name count } missing { name count quality } errors { code } entities { name }
+			  }
+			}`, character.id, integrationSurface))
+			return jsonObject(t, jsonObject(t, built, "data"), "buildGhosts")
+		}
+
+		if got := inventory(); got != 2 {
+			t.Fatalf("character starts with %v wooden-chests, want 2", got)
+		}
+		place(12.5)
+		first := build()
+		if jsonNumber(t, first, "revived") != 1 || jsonNumber(t, first, "failed") != 0 {
+			t.Fatalf("first build=%v, want one revival", first)
+		}
+		consumed := jsonArray(t, first, "consumed")
+		if len(consumed) != 1 || jsonString(t, consumed[0].(map[string]any), "name") != "wooden-chest" || jsonNumber(t, consumed[0].(map[string]any), "count") != 1 {
+			t.Fatalf("consumed=%v, want one wooden-chest", consumed)
+		}
+		if got := inventory(); got != 1 {
+			t.Fatalf("character holds %v wooden-chests after the build, want 1; revival must consume stock", got)
+		}
+		place(14.5)
+		second := build()
+		if jsonNumber(t, second, "revived") != 1 {
+			t.Fatalf("second build=%v, want one revival", second)
+		}
+		if got := inventory(); got != 0 {
+			t.Fatalf("character holds %v wooden-chests after the second build, want 0", got)
+		}
+		place(16.5)
+		third := build()
+		if jsonNumber(t, third, "revived") != 0 || jsonNumber(t, third, "failed") != 1 {
+			t.Fatalf("third build=%v, want a refused revival without stock", third)
+		}
+		missing := jsonArray(t, third, "missing")
+		if len(missing) != 1 || jsonString(t, missing[0].(map[string]any), "name") != "wooden-chest" || jsonNumber(t, missing[0].(map[string]any), "count") != 1 {
+			t.Fatalf("missing=%v, want one wooden-chest", missing)
+		}
+		errors := jsonArray(t, third, "errors")
+		if len(errors) != 1 || jsonString(t, errors[0].(map[string]any), "code") != "MATERIALS" {
+			t.Fatalf("errors=%v, want a MATERIALS failure", errors)
+		}
+		if entities := jsonArray(t, third, "entities"); len(entities) != 0 {
+			t.Fatalf("a ghost without stock must not be built, entities=%v", entities)
+		}
+	})
+
+	t.Run("GraphExportCoverage", func(t *testing.T) {
+		character := h.spawnCharacter(t)
+		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
+		// The fixture straddles the chunk border at x=0 so leafMax 1 splits it
+		// into several leaves and ownership crosses leaf boundaries.
+		const area = `{leftTopX:-12,leftTopY:296,rightBottomX:12,rightBottomY:316}`
+		t.Cleanup(func() {
+			if h.isStopped() {
+				return
+			}
+			h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+for _,e in pairs(surface.find_entities_filtered{area=`+luaBounds(area)+`}) do if e.valid and e.type~="character" then e.destroy() end end
+rcon.print("ok")`)
+		})
+		fixture := h.lua(t, `local s=game.surfaces["`+integrationSurface+`"]
+local function make(spec) spec.force="player"; local e=s.create_entity(spec); if not e then error("could not create "..spec.name) end; return e end
+local beacon=make{name="beacon",position={x=-4.5,y=300.5}}
+beacon.get_module_inventory().insert{name="speed-module",count=1}
+local assembler=make{name="assembling-machine-2",position={x=-1.5,y=300.5}}
+assembler.set_recipe("iron-gear-wheel")
+make{name="straight-rail",position={x=3,y=299},direction=defines.direction.north}
+make{name="straight-rail",position={x=3,y=301},direction=defines.direction.north}
+local combinator=make{name="constant-combinator",position={x=-3.5,y=304.5}}
+local lamp=make{name="small-lamp",position={x=-1.5,y=304.5}}
+combinator.get_wire_connector(defines.wire_connector_id.circuit_red,true).connect_to(lamp.get_wire_connector(defines.wire_connector_id.circuit_red,true))
+make{name="roboport",position={x=6,y=306}}
+make{name="passive-provider-chest",position={x=8.5,y=306.5}}
+for x=-1.5,0.5 do make{name="pipe",position={x=x,y=310.5}} end
+local splitter=make{name="splitter",position={x=-8.5,y=309},direction=defines.direction.east}
+splitter.splitter_output_priority="left"
+local splitUp=make{name="transport-belt",position={x=-7.5,y=308.5},direction=defines.direction.east}
+local splitDown=make{name="transport-belt",position={x=-7.5,y=309.5},direction=defines.direction.east}
+rcon.print("ok")`)
+		if !strings.Contains(fixture, "ok") {
+			t.Fatalf("graph fixture: %s", fixture)
+		}
+
+		out := filepath.Join(t.TempDir(), "snapshot")
+		dir, err := exportGraph(graphExportOptions{Force: "player", Surfaces: []string{integrationSurface}, Out: out,
+			LeafMax: 1, Concurrency: 4, ChunkPage: 20000}, io.Discard, h.addr, h.password)
+		if err != nil {
+			t.Fatalf("graph export: %v", err)
+		}
+		m, err := readGraphManifest(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m.Status != graphStatusComplete {
+			t.Fatalf("export status %s: %+v", m.Status, m.Surfaces)
+		}
+		if s := m.Surfaces[0]; len(s.Leaves) < 2 || s.Mobile < 1 {
+			t.Fatalf("want several leaves and the spawned character as mobile, got %d leaves, %d mobile", len(s.Leaves), s.Mobile)
+		}
+		for _, typ := range []string{"AFFECTS", "RAIL_LINK", "CIRCUIT_WIRE", "ON_CIRCUIT", "IN_LOGISTIC_NETWORK", "FLUID_LINK"} {
+			if m.EdgeTypes[typ] == 0 {
+				t.Errorf("no %s edge in the export: %v", typ, m.EdgeTypes)
+			}
+		}
+		nodes := map[string]graphNodeOut{}
+		if err := eachGraphLine(filepath.Join(dir, graphSnapshotNodes), func(line []byte) error {
+			var n graphNodeOut
+			if err := json.Unmarshal(line, &n); err != nil {
+				return err
+			}
+			if name, _ := n.Props["name"].(string); name != "" {
+				nodes[name] = n
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if got := nodes["assembling-machine-2"].Props["recipe"]; got != "iron-gear-wheel" {
+			t.Errorf("assembler recipe=%v, want iron-gear-wheel", got)
+		}
+		if got, _ := nodes["beacon"].Props["modules"].([]any); len(got) != 1 || got[0] != "speed-module:normal:1" {
+			t.Errorf("beacon modules=%v, want speed-module:normal:1", nodes["beacon"].Props["modules"])
+		}
+		if _, ok := nodes["passive-provider-chest"].Props["logisticNetwork"]; !ok {
+			t.Errorf("chest inside roboport coverage has no logistic network: %v", nodes["passive-provider-chest"].Props)
+		}
+		splitterID, _ := nodes["splitter"].Props["id"].(string)
+		ports := map[string]string{}
+		// Three pipes in a row are two physical links; each port reports its own
+		// side, and canonicalisation must fold them into two undirected edges.
+		if m.EdgeTypes["FLUID_LINK"] != 2 {
+			t.Errorf("FLUID_LINK=%d, want 2 for three pipes in a row", m.EdgeTypes["FLUID_LINK"])
+		}
+		if err := eachGraphLine(filepath.Join(dir, graphSnapshotEdges), func(line []byte) error {
+			var e graphEdgeOut
+			if err := json.Unmarshal(line, &e); err != nil {
+				return err
+			}
+			if e.Type == "FLUID_LINK" && (e.Props["ports"] != float64(2) || e.Props["dirA"] == nil || e.Props["dirB"] == nil) {
+				t.Errorf("fluid link %s must carry both ports: %v", e.Key, e.Props)
+			}
+			if e.Type == "BELT_OUT" && e.From == splitterID {
+				ports[e.Props["fromPort"].(string)] = e.To
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		// A splitter is a :Splitter and :Belt with both priorities, and each of
+		// its two output belts is reachable through the port it leaves from.
+		splitter := nodes["splitter"]
+		if splitter.Props["outputPriority"] != "left" || splitter.Props["inputPriority"] != "none" {
+			t.Errorf("splitter priorities=%v", splitter.Props)
+		}
+		if strings.Join(splitter.Labels, ",") != "Entity,Belt,Splitter" {
+			t.Errorf("splitter labels=%v", splitter.Labels)
+		}
+		if ports["left"] == "" || ports["right"] == "" || ports["left"] == ports["right"] {
+			t.Errorf("splitter output ports=%v, want one belt per side", ports)
+		}
+	})
+
+	t.Run("GraphSplitterPortsAllDirections", func(t *testing.T) {
+		h.createTestSurface(t)
+		// The engine labels a splitter's lines left_split_line/right_split_line
+		// for the two lanes of ONE output belt and secondary_*_split_line for the
+		// second output, so line names identify lanes, not sides; belt_neighbours
+		// keys are just ordering. The port therefore has to be geometric, and
+		// this test pins it in all four orientations.
+		h.lua(t, `local s=game.surfaces["`+integrationSurface+`"]
+s.request_to_generate_chunks({0,320},4)
+s.force_generate_chunk_requests()
+local function make(spec) spec.force="player"; local e=s.create_entity(spec); if not e then error("could not create "..spec.name) end; return e end
+make{name="splitter",position={x=0.5,y=330.5},direction=defines.direction.east}
+make{name="transport-belt",position={x=1.5,y=330.5},direction=defines.direction.east}
+make{name="transport-belt",position={x=1.5,y=331.5},direction=defines.direction.east}
+make{name="splitter",position={x=5.5,y=330.5},direction=defines.direction.north}
+make{name="transport-belt",position={x=5.5,y=329.5},direction=defines.direction.north}
+make{name="transport-belt",position={x=6.5,y=329.5},direction=defines.direction.north}
+make{name="splitter",position={x=10.5,y=330.5},direction=defines.direction.south}
+make{name="transport-belt",position={x=10.5,y=331.5},direction=defines.direction.south}
+make{name="transport-belt",position={x=11.5,y=331.5},direction=defines.direction.south}
+make{name="splitter",position={x=15.5,y=330.5},direction=defines.direction.west}
+make{name="transport-belt",position={x=14.5,y=330.5},direction=defines.direction.west}
+make{name="transport-belt",position={x=14.5,y=331.5},direction=defines.direction.west}
+rcon.print("ok")`)
+		dir, err := exportGraph(graphExportOptions{Force: "player", Surfaces: []string{integrationSurface}, Out: filepath.Join(t.TempDir(), "s"),
+			LeafMax: 2000, Concurrency: 4, ChunkPage: 20000, Keep: 5}, io.Discard, h.addr, h.password)
+		if err != nil {
+			t.Fatalf("graph export: %v", err)
+		}
+		type pos struct{ x, y float64 }
+		ids := map[pos]string{}
+		var splitters []pos
+		if err := eachGraphLine(filepath.Join(dir, graphSnapshotNodes), func(line []byte) error {
+			var n graphNodeOut
+			if err := json.Unmarshal(line, &n); err != nil {
+				return err
+			}
+			x, ok := n.Props["x"].(float64)
+			if !ok {
+				return nil
+			}
+			y, _ := n.Props["y"].(float64)
+			ids[pos{x, y}] = n.ID
+			if kind, _ := n.Props["type"].(string); kind == "splitter" {
+				splitters = append(splitters, pos{x, y})
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		outputs := map[string]map[string]string{}
+		if err := eachGraphLine(filepath.Join(dir, graphSnapshotEdges), func(line []byte) error {
+			var e graphEdgeOut
+			if err := json.Unmarshal(line, &e); err != nil {
+				return err
+			}
+			port, _ := e.Props["fromPort"].(string)
+			if e.Type == "BELT_OUT" && port != "" {
+				if outputs[e.From] == nil {
+					outputs[e.From] = map[string]string{}
+				}
+				outputs[e.From][port] = e.To
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		// A multi-tile splitter reports the centre of its footprint, not the
+		// create position, so it is matched to the nearest expected footprint.
+		splitterNear := func(expect pos) (pos, string) {
+			best := pos{}
+			bestID := ""
+			bestDist := 0.0
+			for _, p := range splitters {
+				d := math.Abs(p.x-expect.x) + math.Abs(p.y-expect.y)
+				if d < 1.5 && (bestID == "" || d < bestDist) {
+					best, bestID, bestDist = p, ids[p], d
+				}
+			}
+			return best, bestID
+		}
+		// left is the side counter-clockwise of travel: north of an eastward
+		// splitter, west of a northward one, and so on.
+		for _, tc := range []struct {
+			name        string
+			splitter    pos
+			left, right pos
+		}{
+			{"east", pos{0.5, 330.5}, pos{1.5, 330.5}, pos{1.5, 331.5}},
+			{"north", pos{5.5, 330.5}, pos{5.5, 329.5}, pos{6.5, 329.5}},
+			{"south", pos{10.5, 330.5}, pos{11.5, 331.5}, pos{10.5, 331.5}},
+			{"west", pos{15.5, 330.5}, pos{14.5, 331.5}, pos{14.5, 330.5}},
+		} {
+			at, id := splitterNear(tc.splitter)
+			if id == "" {
+				t.Errorf("%s: no splitter near %v (found %v)", tc.name, tc.splitter, splitters)
+				continue
+			}
+			got := outputs[id]
+			if len(got) != 2 {
+				t.Errorf("%s splitter at %v ports=%v, want two", tc.name, at, got)
+				continue
+			}
+			if got["left"] != ids[tc.left] || got["right"] != ids[tc.right] {
+				t.Errorf("%s splitter left=%s right=%s, want left=%s (%v) right=%s (%v)", tc.name,
+					got["left"], got["right"], ids[tc.left], tc.left, ids[tc.right], tc.right)
+			}
+		}
+	})
+
 	t.Run("SaveShutdown", func(t *testing.T) {
 		h.mutation(t, `mutation { save { response } }`)
 		save := filepath.Join(h.dir, "data", "saves", "sandbox.zip")
@@ -2582,6 +3238,8 @@ func startIntegrationHarness(t *testing.T) *integrationHarness {
 		"-c", config,
 		"--mod-directory", mods,
 		"--start-server-load-scenario", "sandbox",
+		"--map-gen-settings", filepath.Join(repo, "map-gen-settings-sandbox.json"),
+		"--map-settings", filepath.Join(repo, "map-settings.json"),
 		"--bind", fmt.Sprintf("127.0.0.1:%d", gamePort),
 		"--rcon-bind", addr,
 		"--rcon-password", password,
@@ -2668,6 +3326,15 @@ func (h *integrationHarness) query(t *testing.T, document string) map[string]any
 func (h *integrationHarness) mutation(t *testing.T, document string) map[string]any {
 	t.Helper()
 	return h.graphql(t, "mutation", document)
+}
+
+// graphqlExpectingError runs a document that is supposed to fail and returns the
+// command error instead of failing the test, so a negative integration case can
+// assert on the message.
+func (h *integrationHarness) graphqlExpectingError(t *testing.T, operation, document string) error {
+	t.Helper()
+	var out bytes.Buffer
+	return runWithCredentials([]string{"--addr", h.addr, operation, "--format", "json", document}, &out, h.password)
 }
 
 func (h *integrationHarness) graphql(t *testing.T, operation, document string) map[string]any {

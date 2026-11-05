@@ -1,15 +1,21 @@
 extend type FactoryMachine {
+  """Surface this machine is on."""
   surface: String!
+  """Force this machine belongs to."""
   force: String!
+  """Engine unit number; null when the engine did not assign one."""
   unitNumber: UnitNumber
   """Computed by the machines page in the same Lua snapshot as the row, so selecting it adds no call per machine. Carries ingredient demand, theoretical throughput or mining rate, blocking status, burner fuel state and electric state together."""
   diagnostics: MachineDiagnostics!
 }
 
 extend type LogisticsEndpoint {
+  """Surface this endpoint is on."""
   surface: String!
   """Full current inserter configuration in a separate snapshot; null for non-inserters."""
   inserterSettings: InserterSettings @goField(forceResolver: true)
+  """Full inspection of the entity this endpoint represents, in a separate snapshot; null if the entity no longer exists."""
+  inspection: EntityInspection @goField(forceResolver: true)
 }
 
 type MachineDiagnostics {

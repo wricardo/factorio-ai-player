@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"math"
 	"strings"
@@ -57,7 +58,7 @@ func TestBeltComponentsAcceptsWideArea(t *testing.T) {
 		t.Fatalf("page: %+v", result)
 	}
 	lua := <-commands
-	if !strings.Contains(lua, "local max_entities,page_limit,page_offset,dead_only,include_line_links=1000,5,0,false,false") {
+	if !strings.Contains(lua, "local max_entities,page_limit,page_offset,dead_only,include_line_links,mixed_only=1000,5,0,false,false,false") {
 		t.Fatalf("bounds must reach Lua:\n%s", lua)
 	}
 	if !strings.Contains(lua, "type=belt_types") {
@@ -69,8 +70,8 @@ func TestBeltComponentsAcceptsWideArea(t *testing.T) {
 // empty Lua tables must come back as empty lists, not null.
 func TestBeltComponentsDecodesComponents(t *testing.T) {
 	r, commands := serveLuaOnce(t, `{"tick":99,"surface":"nauvis","force":"player","area":{"leftTopX":0,"leftTopY":0,"rightBottomX":16,"rightBottomY":16},"beltTotal":7,"truncated":false,"pageInfo":{"total":2,"limit":10,"offset":0,"hasMore":false},"components":[
-{"id":"1","dead":true,"belts":2,"truncated":false,"items":[{"name":"iron-plate","count":4,"quality":"normal"}],"itemCount":4,"mixed":true,"sharedPickupSources":2,"nodes":[{"name":"transport-belt","type":"transport-belt","surface":"nauvis","position":{"x":22.5,"y":-12.5},"unitNumber":"900","direction":12,"lanes":[{"index":1,"lineName":"left_line","side":"left","items":[{"name":"iron-plate","count":4,"quality":"normal"}]},{"index":2,"lineName":"right_line","side":"right","items":[]}]}],"edges":{},"sources":[{"name":"transport-belt","type":"transport-belt","surface":"nauvis","position":{"x":22.5,"y":-12.5},"unitNumber":"900","direction":12,"lanes":{}}],"sinks":[],"inserters":{},"stallEnds":[],"starveHeads":[]},
-{"id":"2","dead":false,"belts":5,"truncated":true,"mixed":false,"sharedPickupSources":0,"items":{},"itemCount":0,"nodes":[],"edges":{},"sources":[],"sinks":[],"inserters":[{"inserter":{"name":"inserter","type":"inserter","surface":"nauvis","position":{"x":1.5,"y":2.5},"unitNumber":"77"},"pickup":null,"drop":null}],"stallEnds":[],"starveHeads":[]}]}`)
+{"id":"1","dead":true,"belts":2,"truncated":false,"items":[{"name":"iron-plate","count":4,"quality":"normal"}],"itemCount":4,"mixed":true,"sharedPickupSources":2,"nodes":[{"name":"transport-belt","type":"transport-belt","surface":"nauvis","position":{"x":22.5,"y":-12.5},"unitNumber":"900","direction":12,"lanes":[{"index":1,"lineName":"left_line","side":"left","items":[{"name":"iron-plate","count":4,"quality":"normal"}]},{"index":2,"lineName":"right_line","side":"right","items":[]}]}],"edges":{},"sources":[{"name":"transport-belt","type":"transport-belt","surface":"nauvis","position":{"x":22.5,"y":-12.5},"unitNumber":"900","direction":12,"lanes":{}}],"sinks":[],"inserters":{},"stallEnds":[],"starveHeads":[],"mixedTiles":[{"position":{"x":22.5,"y":-12.5},"name":"transport-belt","unitNumber":"900","lineName":"left_line","side":"left","items":[{"name":"iron-plate","count":4,"quality":"normal"},{"name":"coal","count":2,"quality":"normal"}]}],"feeders":[{"name":"mining-drill","type":"mining-drill","surface":"nauvis","position":{"x":21.5,"y":-12.5},"unitNumber":"901","miningTarget":{"name":"iron-ore","amount":433}}]},
+{"id":"2","dead":false,"belts":5,"truncated":true,"mixed":false,"sharedPickupSources":0,"items":{},"itemCount":0,"nodes":[],"edges":{},"sources":[],"sinks":[],"inserters":[{"inserter":{"name":"inserter","type":"inserter","surface":"nauvis","position":{"x":1.5,"y":2.5},"unitNumber":"77"},"pickup":null,"drop":null}],"stallEnds":[],"starveHeads":[],"mixedTiles":{},"feeders":{}}]}`)
 	result, err := beltComponentsQuery(r, BeltComponentsInput{
 		Surface: "nauvis", Force: "player",
 		Area:        &FactoryAreaInput{RightBottomX: 16, RightBottomY: 16},
@@ -92,6 +93,19 @@ func TestBeltComponentsDecodesComponents(t *testing.T) {
 	if len(dead.Items) != 1 || dead.Items[0].Name != "iron-plate" || dead.Items[0].Count != 4 || dead.Items[0].Quality != "normal" {
 		t.Fatalf("items: %#v", dead.Items)
 	}
+	if len(dead.MixedTiles) != 1 {
+		t.Fatalf("mixedTiles: %#v", dead.MixedTiles)
+	}
+	tile := dead.MixedTiles[0]
+	if tile.Name != "transport-belt" || tile.UnitNumber == nil || *tile.UnitNumber != "900" || tile.LineName != "left_line" || tile.Side != "left" || len(tile.Items) != 2 {
+		t.Fatalf("mixed tile: %#v", tile)
+	}
+	if len(dead.Feeders) != 1 || dead.Feeders[0].Type != "mining-drill" || dead.Feeders[0].MiningTarget == nil {
+		t.Fatalf("feeders: %#v", dead.Feeders)
+	}
+	if target := dead.Feeders[0].MiningTarget; target.Name != "iron-ore" || target.Amount == nil || *target.Amount != 433 {
+		t.Fatalf("mining target: %#v", target)
+	}
 	if len(dead.Nodes) != 1 || dead.Nodes[0].Direction == nil || *dead.Nodes[0].Direction != 12 {
 		t.Fatalf("nodes: %#v", dead.Nodes)
 	}
@@ -112,6 +126,12 @@ func TestBeltComponentsDecodesComponents(t *testing.T) {
 	}
 	if len(live.Inserters) != 1 || live.Inserters[0].Inserter == nil || live.Inserters[0].Pickup != nil {
 		t.Fatalf("inserters: %#v", live.Inserters)
+	}
+	if live.MixedTiles == nil || len(live.MixedTiles) != 0 {
+		t.Fatalf("mixedTiles must decode as an empty list: %#v", live.MixedTiles)
+	}
+	if live.Feeders == nil || len(live.Feeders) != 0 {
+		t.Fatalf("feeders must decode as an empty list: %#v", live.Feeders)
 	}
 	lua := <-commands
 	for _, needle := range []string{
@@ -358,4 +378,113 @@ assert(belt_at_tile(index,{x=2.5,y=3.69921875})==nil,"an empty tile must resolve
 `
 	source := transportLineLua + topologyCommonLua + fixture
 	runLuaFixture(t, source, "", assertions)
+}
+
+// mixedTiles, feeders and mixedOnly are read from the same single snapshot as
+// the component itself: a mixed lane is named exactly, a drill that drops onto a
+// belt becomes a feeder with its mining target, and filtering by mixedOnly
+// happens before pagination rather than in the client.
+func TestBeltComponentsMixedTilesFeedersAndFilter(t *testing.T) {
+	const stubs = `
+defines={entity_status={},transport_line={left_line=1,right_line=2,left_underground_line=3,right_underground_line=4}}
+local surface={index=1,name="nauvis"}
+local force={name="player"}
+local world={}
+local function box(cx,cy)
+  return {left_top={x=cx-0.5,y=cy-0.5},right_bottom={x=cx+0.5,y=cy+0.5}}
+end
+surface.find_entities_filtered=function(spec)
+  if spec.position then return {} end
+  local out={}
+  for _,e in ipairs(world) do
+    local bb=e.bounding_box
+    if bb.left_top.x<=spec.area[2][1] and bb.right_bottom.x>=spec.area[1][1]
+      and bb.left_top.y<=spec.area[2][2] and bb.right_bottom.y>=spec.area[1][2] then
+      local ok=true
+      if spec.type then
+        local kinds=type(spec.type)=="table" and spec.type or {spec.type}
+        ok=false
+        for _,kind in ipairs(kinds) do if e.type==kind then ok=true end end
+      end
+      if ok and spec.force then ok=(e.force==spec.force) end
+      if ok then out[#out+1]=e end
+    end
+  end
+  return out
+end
+game={tick=5,surfaces={nauvis=surface},forces={player=force}}
+local function line(e,items)
+  return {owner=e,get_contents=function() return items end,input_lines={},output_lines={}}
+end
+local function belt(unit,cx,cy,lines)
+  local e={valid=true,unit_number=unit,type="transport-belt",name="transport-belt",surface=surface,force=force,
+    position={x=cx,y=cy},direction=4,status=1,bounding_box=box(cx,cy),belt_neighbours={inputs={},outputs={}},__lines={}}
+  for i,items in ipairs(lines) do e.__lines[i]=line(e,items) end
+  e.get_max_transport_line_index=function() return #lines end
+  e.get_transport_line=function(i) return e.__lines[i] end
+  world[#world+1]=e
+  return e
+end
+local iron={name="iron-plate",quality="normal",count=2}
+local coal={name="coal",quality="normal",count=3}
+local stone={name="stone",quality="normal",count=1}
+-- Belt 11 carries iron and coal on the same left lane, belt 12 the same on its
+-- right lane; belt 21 is a separate clean run.
+local mixed_a=belt(11,0.5,0.5,{{iron,coal},{iron}})
+local mixed_b=belt(12,1.5,0.5,{{coal},{stone,coal}})
+mixed_a.belt_neighbours.outputs[1]=mixed_b
+mixed_b.belt_neighbours.inputs[1]=mixed_a
+local clean=belt(21,0.5,5.5,{{coal},{}})
+-- An inserter dropping onto belt 11, through the arm offset a real inserter
+-- reports, and a drill whose engine drop target is belt 11.
+local arm={valid=true,unit_number=31,type="inserter",name="inserter",surface=surface,force=force,
+  position={x=0.5,y=-0.5},direction=0,status=1,bounding_box=box(0.5,-0.5),
+  drop_position={x=0.5,y=0.69921875}}
+world[#world+1]=arm
+local drill={valid=true,unit_number=41,type="mining-drill",name="electric-mining-drill",surface=surface,
+  force=force,position={x=-1.5,y=0.5},direction=4,status=1,bounding_box=box(-1.5,0.5)}
+drill.drop_target=mixed_a
+drill.mining_target={valid=true,name="iron-ore",amount=433,position={x=-1.5,y=0.5}}
+world[#world+1]=drill
+`
+	locals := func(mixedOnly bool) string {
+		return fmt.Sprintf(`local surface_name,force_name="nauvis","player"
+local area={{-1,-1},{2.5,6.5}}
+local max_entities,page_limit,page_offset,dead_only,include_line_links,mixed_only=100,10,0,false,false,%t
+`, mixedOnly)
+	}
+	assertions := `
+assert(captured and captured.components,"payload missing: "..tostring(captured and captured.error))
+assert(#captured.components==2,"two components expected, got "..#captured.components)
+local mixed_comp,clean_comp
+for _,comp in ipairs(captured.components) do
+  if comp.mixed then mixed_comp=comp else clean_comp=comp end
+end
+assert(mixed_comp and clean_comp,"one mixed and one clean component expected")
+assert(mixed_comp.belts==2,"mixed component size")
+assert(#mixed_comp.mixedTiles==2,"exactly the two mixed lanes, got "..#mixed_comp.mixedTiles)
+local first,second=mixed_comp.mixedTiles[1],mixed_comp.mixedTiles[2]
+assert(first.position.x==0.5 and first.position.y==0.5,"tiles sort by y then x")
+assert(first.unitNumber==11 and first.lineName=="left_line" and first.side=="left")
+assert(#first.items==2,"a mixed lane keeps its stacks")
+assert(second.unitNumber==12 and second.lineName=="right_line" and second.side=="right")
+assert(#mixed_comp.feeders==2,"the inserter and the drill are both feeders, got "..#mixed_comp.feeders)
+local drill_feeder,arm_feeder
+for _,f in ipairs(mixed_comp.feeders) do
+  if f.type=="mining-drill" then drill_feeder=f else arm_feeder=f end
+end
+assert(drill_feeder and drill_feeder.unitNumber==41 and drill_feeder.position,"the drill feeder keeps its identity")
+assert(drill_feeder.miningTarget and drill_feeder.miningTarget.name=="iron-ore","the drill feeder reports its mining target")
+assert(drill_feeder.miningTarget.amount==433,"the mining target carries the amount")
+assert(arm_feeder and arm_feeder.unitNumber==31,"the inserter is a feeder too")
+assert(clean_comp.mixed==false,"a single-item run is not mixed")
+assert(#clean_comp.mixedTiles==0,"a clean run has no mixed tiles")
+assert(clean_comp.feeders and #clean_comp.feeders==0,"a clean run has no feeders")
+`
+	runLuaFixture(t, beltComponentsFixtureSource(locals(false)), stubs, assertions)
+	runLuaFixture(t, beltComponentsFixtureSource(locals(true)), stubs, `
+assert(captured and captured.components,"payload missing: "..tostring(captured and captured.error))
+assert(#captured.components==1,"mixedOnly must drop the clean component, got "..#captured.components)
+assert(captured.components[1].mixed==true and #captured.components[1].mixedTiles==2)
+`)
 }

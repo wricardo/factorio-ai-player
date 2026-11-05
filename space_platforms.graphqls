@@ -1,0 +1,108 @@
+# Space platform lifecycle, platform reads, player controller state, and
+# player-authoritative builds. The engine exposes platform creation only through
+# LuaForce.create_space_platform, starter-pack application only through
+# LuaSpacePlatform.apply_starter_pack, and build events only for player builds.
+
+extend type Query {
+  """Reads every space platform on one force, or the whole surface list when force is empty. Each row is one engine snapshot taken in the same Lua chunk, so names, surfaces, hubs and tile counts agree with each other. foundationTiles and entityCount are read from the platform surface and are therefore 0 for a platform whose starter pack has not been applied yet, which is the same state that reports a null surface. Sorted by platform name."""
+  spacePlatforms(input: SpacePlatformsInput = {}): SpacePlatformPage!
+  """Reads one connected player's controller state: the engine controller type, the surface the player is looking at, whether that surface is a space platform, the character unit number when the player controls a body, and the character position. Player names must exist."""
+  playerState(player: String!): PlayerState!
+}
+
+extend type Mutation {
+  """Creates one space platform through LuaForce.create_space_platform. force and planet must exist, starterPack must be a valid item prototype, and name may be empty to let the engine pick a random name. The platform starts pending: it has no surface until its starter pack is applied, either by applyStarterPack or by delivering the pack with a rocket. applyStarterPack=true applies it in the same call, which is the scripted equivalent of the rocket delivery and is what makes the hub and foundation tiles appear. Returns the post-write snapshot (surface is null while pending)."""
+  createSpacePlatform(input: CreateSpacePlatformInput!): SpacePlatformInfo!
+  """Applies one platform's starter pack if it has not been applied yet, creating the hub and foundation tiles and their surface. Returns the post-write snapshot; calling it on an already-started platform is a no-op that reports the existing state. The platform is addressed by name on force."""
+  applyStarterPack(input: SpacePlatformRefInput!): SpacePlatformInfo!
+  """Schedules a space platform for deletion. Platform deletion is asynchronous in the engine: the platform stays listed until its deletion completes, so a later spacePlatforms read is the only proof that it is gone."""
+  deleteSpacePlatform(input: SpacePlatformRefInput!): SpacePlatformInfo!
+  """Places one entity through the player's own build action (LuaPlayer.build_from_cursor) instead of create_entity, so the engine raises the same build events a manual placement does (on_built_entity, and on_space_platform_built_entity on a platform). That is required by anything that listens for a real build: technology triggers such as build-entity asteroid-collector, achievements, tutorials and mods. The item is taken from the acting character's main inventory and returned when the engine refuses the placement; the cursor stack is preserved. Manual placement rules apply, so a surface that refuses manual checks (some space platform surfaces do) fails with the engine's own reason rather than building anyway. Use place for the script-authoritative create_entity path."""
+  buildAsPlayer(input: BuildAsPlayerInput!): ActionResult!
+}
+
+"""Force scope for a platform read; force must name an existing force, because platforms belong to one force."""
+input SpacePlatformsInput {
+  force: String! = "player"
+}
+
+"""One space platform snapshot. surface, hubUnitNumber and hubPosition are null while the platform is still waiting for its starter pack, and foundationTiles and entityCount are 0 in that same state."""
+type SpacePlatformInfo {
+  tick: Float!
+  name: String!
+  force: String!
+  """Platform surface name, null until the starter pack is applied."""
+  surface: String
+  """Space location the platform orbits or travels to, null while pending."""
+  spaceLocation: String
+  hubUnitNumber: UnitNumber
+  hubPosition: Position
+  """Space platform foundation tiles on the platform surface, 0 while pending."""
+  foundationTiles: Int!
+  """Entities on the platform surface, 0 while pending."""
+  entityCount: Int!
+  """True once the starter pack has been applied and the platform has a surface."""
+  started: Boolean!
+}
+
+"""Every space platform of one force in one snapshot."""
+type SpacePlatformPage {
+  tick: Float!
+  force: String!
+  platforms: [SpacePlatformInfo!]!
+}
+
+"""Create one space platform. name may be empty to let the engine name it; planet must be an existing space location, normally a planet name such as nauvis."""
+input CreateSpacePlatformInput {
+  force: String! = "player"
+  """Platform name; empty lets the engine choose a random name."""
+  name: String = ""
+  planet: String! = "nauvis"
+  starterPack: String! = "space-platform-starter-pack"
+  starterPackQuality: String = "normal"
+  """Apply the starter pack in the same call instead of waiting for a rocket delivery."""
+  applyStarterPack: Boolean! = false
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Address one existing space platform by name on one force."""
+input SpacePlatformRefInput {
+  force: String! = "player"
+  platform: String!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""One entity placed through the player's build action rather than create_entity."""
+input BuildAsPlayerInput {
+  actor: ActorInput!
+  """Surface to build on; defaults to the actor's current surface."""
+  surface: String
+  position: PositionInput!
+  """Item to build; it must place an entity."""
+  item: String!
+  """Canonical engine direction 0 through 15."""
+  direction: Int! = 0
+  """Item quality prototype name; defaults to normal."""
+  quality: String = "normal"
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""One connected player's controller state. character is null when the player has no body, for example while it is in space platform remote view."""
+type PlayerState {
+  tick: Float!
+  player: String!
+  force: String!
+  """Engine controller type name, for example character, editor, remote or platform."""
+  controller: String!
+  """Surface the player is currently looking at."""
+  surface: String
+  """True when that surface is a space platform."""
+  spacePlatform: Boolean!
+  """Name of the space platform the player is in, when spacePlatform is true."""
+  platformName: String
+  character: UnitNumber
+  position: Position
+}

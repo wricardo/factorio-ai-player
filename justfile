@@ -23,6 +23,33 @@ test-integration:
 start:
     @bash scripts/server.sh start
 
+# Create a new regular freeplay save with the repository map settings (stop the server first).
+new-game name:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -f .factorio/pid ]] && kill -0 "$(cat .factorio/pid)" 2>/dev/null; then
+        echo 'error: managed server is running; run just stop first' >&2
+        exit 1
+    fi
+    bash scripts/world-settings-check.sh
+    saves="$HOME/Library/Application Support/factorio/saves"
+    save="$saves/{{name}}.zip"
+    if [[ -e "$save" ]]; then
+        echo "error: $save already exists; refusing to overwrite" >&2
+        exit 1
+    fi
+    mkdir -p "$saves"
+    "${FACTORIO_BIN:-/Applications/factorio.app/Contents/MacOS/factorio}" \
+        --create "$save" \
+        --map-gen-settings "$PWD/map-gen-settings-regular.json" \
+        --map-settings "$PWD/map-settings.json"
+    [[ -f "$save" ]] || { echo 'error: save was not created' >&2; exit 1; }
+    printf 'Created %s\nStart it with: FACTORIO_SAVE="%s" just start\n' "$save" "$save"
+
+# Verify the map-gen/map-settings files keep new worlds free of enemies.
+world-settings-check:
+    @bash scripts/world-settings-check.sh
+
 # Install the navigation mod without overwriting an existing installation.
 navigation-install:
     #!/usr/bin/env bash
@@ -128,3 +155,40 @@ graphql-restart: graphql-stop
     echo "error: server did not answer within 60s" >&2
     tail -n 20 "$log" >&2
     exit 1
+
+# Start Memgraph (Bolt 127.0.0.1:7687) and Memgraph Lab (http://127.0.0.1:3000) for the factory graph.
+graph-up:
+    @bash scripts/graph-compose.sh up -d --wait
+    @echo "Memgraph bolt://127.0.0.1:7687, Lab http://127.0.0.1:3000"
+
+# Stop Memgraph and Lab, keeping the graph volume.
+graph-down:
+    @bash scripts/graph-compose.sh down
+
+# Delete the Memgraph volume (every loaded snapshot) after stopping the stack.
+graph-wipe:
+    @bash scripts/graph-compose.sh down -v
+
+# Read every entity of the player force into .factorio/graph/<snapshot> (read-only on the game).
+graph-export *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec env FACTORIO_RCON_PASSWORD="$(cat .factorio/password)" go run . --addr "127.0.0.1:$(cat .factorio/rcon-port 2>/dev/null || echo 27015)" graph export {{args}}
+
+# Load the latest exported snapshot (or --in DIR) into Memgraph, replacing its surfaces.
+graph-load *args:
+    go run . graph load {{args}}
+
+# Export, then load: one full refresh of the factory graph.
+graph-sync *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec env FACTORIO_RCON_PASSWORD="$(cat .factorio/password)" go run . --addr "127.0.0.1:$(cat .factorio/rcon-port 2>/dev/null || echo 27015)" graph sync {{args}}
+
+# Reapply the Memgraph constraints and indexes from memgraph/schema.cypherl.
+graph-schema:
+    go run . graph schema
+
+# Open an interactive Cypher shell (mgconsole) inside the Memgraph container.
+graph-shell:
+    @bash scripts/graph-compose.sh exec memgraph mgconsole

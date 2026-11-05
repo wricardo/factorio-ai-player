@@ -24,6 +24,7 @@ func TestBuildGhostsValidation(t *testing.T) {
 		{"empty force", BuildGhostsInput{Area: constructionArea(10, 10), Limit: 10, Force: new("")}, "force"},
 		{"both actors", BuildGhostsInput{Area: constructionArea(10, 10), Limit: 10, Actor: &ActorInput{Character: new("4"), Player: new("wricardo")}}, "exactly one"},
 		{"bad character", BuildGhostsInput{Area: constructionArea(10, 10), Limit: 10, Actor: &ActorInput{Character: new("abc")}}, "character"},
+		{"no actor or source", BuildGhostsInput{Area: constructionArea(10, 10), Limit: 10}, "actor or source"},
 	}
 	for _, test := range tests {
 		_, err := buildGhosts(&Resolver{}, test.input)
@@ -200,19 +201,25 @@ assert(row.missing==70,"a vanilla requester shortage must be visible, got "..tos
 }
 
 // TestBuildGhostsRaiseReviveFlagsMatchSchema proves REVIVE raises revive events
-// and SILENT does not, that collided items are reported separately from missing
-// materials, and that an actor's main inventory is passed as overflow.
+// and SILENT does not, that the ghost cost is withdrawn before the revive,
+// that collided items are reported separately from missing materials, and that
+// an actor's main inventory is passed as overflow.
 func TestBuildGhostsRaiseReviveFlagsMatchSchema(t *testing.T) {
 	stubs := `
 local surface={name="nauvis",index=1}
 local force={name="player"}
-local main={kind="main"}
+local removed={}
+local inserted={}
+local main={kind="main",
+  get_item_count=function(spec) return 5 end,
+  remove=function(spec) removed[#removed+1]=spec; return spec.count end,
+  insert=function(spec) inserted[#inserted+1]=spec end}
 local actor={type="character",unit_number=42,get_main_inventory=function() return main end}
 local revived_entity={valid=true,name="transport-belt",type="transport-belt",position={x=1.5,y=1.5},unit_number=77}
 local ghost={valid=true,name="entity-ghost",position={x=1.5,y=1.5},
   ghost_prototype={items_to_place_this={{name="transport-belt",count=1}}}}
 local recorded={}
-ghost.revive=function(params) recorded.revive=params; return {{name="iron-plate",count=3,quality="normal"}},revived_entity end
+ghost.revive=function(params) assert(#removed>0,"the cost must be withdrawn before the revive"); recorded.revive=params; return {{name="iron-plate",count=3,quality="normal"}},revived_entity end
 ghost.silent_revive=function(params) recorded.silent=params; return {{name="iron-plate",count=3,quality="normal"}},revived_entity end
 game={tick=55,surfaces={nauvis=surface},forces={player=force},get_entity_by_unit_number=function(unit) return actor end}
 surface.find_entities_filtered=function(filter) return {ghost} end
@@ -224,17 +231,73 @@ assert(recorded.revive.overflow==main,"an actor must supply the overflow invento
 assert(recorded.silent==nil)
 assert(captured.revived==1 and captured.failed==0)
 assert(#captured.missing==0,"collided items must not be reported as missing materials")
+assert(#captured.consumed==1 and captured.consumed[1].name=="transport-belt" and captured.consumed[1].count==1,"the revived ghost cost must be reported as consumed")
+assert(#inserted==0,"a successful revive must not refund items")
+assert(removed[1].name=="transport-belt" and removed[1].quality=="normal" and removed[1].count==1,"the cost must be withdrawn at the ghost quality")
 assert(#captured.collidedItems==1 and captured.collidedItems[1].name=="iron-plate" and captured.collidedItems[1].count==3)
 `
 	bounds := areaBounds{LeftTopX: 0, LeftTopY: 0, RightBottomX: 5, RightBottomY: 5}
-	runLuaFixture(t, buildGhostsLua("nauvis", "player", bounds, "REVIVE", 10, 42, ""), stubs, assertions)
+	runLuaFixture(t, buildGhostsLua("nauvis", "player", bounds, "REVIVE", 10, 42, "", "{}", ""), stubs, assertions)
 
 	silentAssertions := `
 assert(recorded.silent~=nil,"SILENT mode must call silent_revive")
 assert(recorded.silent.raise_revive==false,"SILENT must not raise revive events")
 assert(recorded.revive==nil)
 `
-	runLuaFixture(t, buildGhostsLua("nauvis", "player", bounds, "SILENT", 10, 42, ""), stubs, silentAssertions)
+	runLuaFixture(t, buildGhostsLua("nauvis", "player", bounds, "SILENT", 10, 42, "", "{}", ""), stubs, silentAssertions)
+}
+
+// TestBuildGhostsShortOfMaterialsSkipsRevive proves a ghost whose cost is not
+// in stock is reported in missing and never revived, so nothing is built for
+// free.
+func TestBuildGhostsShortOfMaterialsSkipsRevive(t *testing.T) {
+	stubs := `
+local surface={name="nauvis",index=1}
+local main={kind="main",get_item_count=function(spec) return 0 end,
+  remove=function(spec) error("nothing to remove") end, insert=function(spec) end}
+local actor={type="character",unit_number=42,get_main_inventory=function() return main end}
+local ghost={valid=true,name="entity-ghost",position={x=1.5,y=1.5},
+  ghost_prototype={items_to_place_this={{name="transport-belt",count=2}}}}
+local revive_called=false
+ghost.revive=function() revive_called=true; return nil,nil end
+game={tick=55,surfaces={nauvis=surface},forces={player={name="player"}},get_entity_by_unit_number=function() return actor end}
+surface.find_entities_filtered=function() return {ghost} end
+`
+	assertions := `
+assert(revive_called==false,"a ghost without materials must not be revived")
+assert(captured.revived==0 and captured.failed==1)
+assert(#captured.consumed==0)
+assert(#captured.missing==1 and captured.missing[1].name=="transport-belt" and captured.missing[1].count==2 and captured.missing[1].quality=="normal")
+assert(#captured.errors==1 and captured.errors[1].code=="MATERIALS")
+`
+	bounds := areaBounds{LeftTopX: 0, LeftTopY: 0, RightBottomX: 5, RightBottomY: 5}
+	runLuaFixture(t, buildGhostsLua("nauvis", "player", bounds, "REVIVE", 10, 42, "", "{}", ""), stubs, assertions)
+}
+
+// TestBuildGhostsRefundsWhenReviveFails proves a blocked tile reports COLLISION
+// and returns the withdrawn cost instead of voiding it.
+func TestBuildGhostsRefundsWhenReviveFails(t *testing.T) {
+	stubs := `
+local surface={name="nauvis",index=1}
+local inserted={}
+local main={kind="main",get_item_count=function(spec) return 5 end,
+  remove=function(spec) return spec.count end,
+  insert=function(spec) inserted[#inserted+1]=spec end}
+local actor={type="character",unit_number=42,get_main_inventory=function() return main end}
+local ghost={valid=true,name="entity-ghost",position={x=1.5,y=1.5},
+  ghost_prototype={items_to_place_this={{name="transport-belt",count=1}}}}
+ghost.revive=function() return nil,nil end
+game={tick=55,surfaces={nauvis=surface},forces={player={name="player"}},get_entity_by_unit_number=function() return actor end}
+surface.find_entities_filtered=function() return {ghost} end
+`
+	assertions := `
+assert(captured.revived==0 and captured.failed==1)
+assert(#captured.consumed==0,"a refused revive must not be charged")
+assert(#captured.errors==1 and captured.errors[1].code=="COLLISION")
+assert(#inserted==1 and inserted[1].name=="transport-belt" and inserted[1].count==1 and inserted[1].quality=="normal","the withdrawn cost must be refunded")
+`
+	bounds := areaBounds{LeftTopX: 0, LeftTopY: 0, RightBottomX: 5, RightBottomY: 5}
+	runLuaFixture(t, buildGhostsLua("nauvis", "player", bounds, "REVIVE", 10, 42, "", "{}", ""), stubs, assertions)
 }
 
 // TestUpgradeAreaValidation rejects mappings and areas before RCON.

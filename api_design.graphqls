@@ -18,7 +18,8 @@ input PositionInput {
 
 """Address one entity by unit number, or by prototype name and a position inside the entity. The exact centre is not required: a rock or resource tile that does not sit on the tile grid is matched when the named point falls inside its bounding box."""
 input EntityRefInput {
-  surface: String = "nauvis"
+  """Entity surface; omitted means the operation's own surface default, normally nauvis. It carries no schema default on purpose: a per-reference default cannot be told apart from an explicit value, and inputs that already pick a surface for a whole batch (inspectMany, transferMany targets, inspect targets) would then silently resolve every reference on nauvis instead of the batch surface."""
+  surface: String
   entity: String
   unitNumber: UnitNumber
   position: PositionInput
@@ -40,6 +41,8 @@ enum BatchErrorCode {
   REACH
   INVENTORY
   COLLISION
+  """The actor and source could not supply the items the operation needs."""
+  MATERIALS
   ENGINE
 }
 

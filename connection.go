@@ -49,6 +49,56 @@ func connectionRouteSteps(from, to *PositionInput) (int, error) {
 	return steps, nil
 }
 
+// runDirectionRun and runDirectionSingleTile classify a resolved route by tile
+// count. A single-tile run has no heading of its own, which is why the engine
+// used to place it facing north whenever a caller asked for one silently.
+const (
+	runDirectionRun = iota
+	runDirectionSingleTile
+)
+
+// runDirection classifies a route by tile count. Missing endpoints are reported
+// as a run so the required-endpoint checks keep their own message.
+func runDirection(from, to *PositionInput) int {
+	if from == nil || to == nil {
+		return runDirectionRun
+	}
+	if math.Floor(from.X) == math.Floor(to.X) && math.Floor(from.Y) == math.Floor(to.Y) {
+		return runDirectionSingleTile
+	}
+	return runDirectionRun
+}
+
+// runDirectionValue maps the optional GraphQL direction onto the Lua preamble
+// value; -1 tells the route builder to derive every direction from the route.
+func runDirectionValue(direction *int) int {
+	if direction == nil {
+		return -1
+	}
+	return *direction
+}
+
+// validateRunDirection refuses ambiguous orientations: a single-tile run needs
+// an explicit direction because its endpoints imply none, and a longer run
+// rejects one because its directions follow the route. Every refusal happens
+// before Lua runs, so no items are spent on a rejected call.
+func validateRunDirection(from, to *PositionInput, direction *int) error {
+	if direction == nil {
+		if runDirection(from, to) == runDirectionSingleTile {
+			return errors.New("from and to resolve to the same tile; a single-tile run needs direction (0 north, 4 east, 8 south or 12 west)")
+		}
+		return nil
+	}
+	d := *direction
+	if d != 0 && d != 4 && d != 8 && d != 12 {
+		return fmt.Errorf("unsupported direction %d: a run uses 0 north, 4 east, 8 south or 12 west", d)
+	}
+	if runDirection(from, to) != runDirectionSingleTile {
+		return errors.New("direction only applies to a single-tile run; a run of two or more tiles takes its directions from the route")
+	}
+	return nil
+}
+
 func connectionBend(bend ConnectionBend) (ConnectionBend, error) {
 	switch bend {
 	case "":
@@ -59,7 +109,7 @@ func connectionBend(bend ConnectionBend) (ConnectionBend, error) {
 	return "", fmt.Errorf("unsupported connection bend %q", bend)
 }
 
-func connectionLuaPreamble(surface, force, item string, from, to *PositionInput, kind ConnectionKind, bend ConnectionBend, allowFluidAdjacency, allowBeltAdjacency bool) string {
+func connectionLuaPreamble(surface, force, item string, from, to *PositionInput, kind ConnectionKind, bend ConnectionBend, direction int, allowFluidAdjacency, allowBeltAdjacency bool) string {
 	n := func(f float64) string { return strconv.FormatFloat(f, 'g', -1, 64) }
 	return fmt.Sprintf(`local surface_name,force_name=%s,%s
 local item=%s
@@ -67,10 +117,11 @@ local kind=%s
 local from_x,from_y=%s,%s
 local to_x,to_y=%s,%s
 local bend_request=%s
+local run_direction=%d
 local allow_adjacency=%t
 local allow_belt_adjacency=%t
 `, luaString(surface), luaString(force), luaString(item), luaString(string(kind)),
-		n(from.X), n(from.Y), n(to.X), n(to.Y), luaString(string(bend)), allowFluidAdjacency, allowBeltAdjacency)
+		n(from.X), n(from.Y), n(to.X), n(to.Y), luaString(string(bend)), direction, allowFluidAdjacency, allowBeltAdjacency)
 }
 
 // pipeLikeTypesLua lists the entity types that are pipe-like by themselves.
@@ -136,7 +187,8 @@ local function build(mode)
     while y~=to.y do y=y+sy; add(to.x,y) end
   end
   for i=1,#steps do
-    local d=0
+    local d=run_direction
+    if d<0 then d=0 end
     if i<#steps then d=dir_to(steps[i],steps[i+1]) elseif i>1 then d=dir_to(steps[i-1],steps[i]) end
     steps[i].direction=d
   end
@@ -320,6 +372,12 @@ func connectionPlanQuery(r *Resolver, input *ConnectionPlanInput) (*ConnectionPl
 	if err != nil {
 		return nil, err
 	}
+	if runDirection(from, to) == runDirectionSingleTile {
+		return nil, errors.New("from and to resolve to the same tile; connectionPlan cannot orient a single tile, use placeBelt or connectEntities with an explicit direction")
+	}
+	if from == nil || to == nil {
+		return nil, errors.New("from and to are required")
+	}
 	if astar {
 		if err := routeEndpoints(from, to); err != nil {
 			return nil, err
@@ -337,7 +395,7 @@ func connectionPlanQuery(r *Resolver, input *ConnectionPlanInput) (*ConnectionPl
 	if _, err := connectionRouteSteps(from, to); err != nil {
 		return nil, err
 	}
-	lua := luaFail + connectionLuaPreamble(input.Surface, input.Force, item, from, to, input.Kind, bend, input.AllowFluidAdjacency, input.AllowBeltAdjacency) + connectionLuaHelpers + `
+	lua := luaFail + connectionLuaPreamble(input.Surface, input.Force, item, from, to, input.Kind, bend, runDirectionValue(nil), input.AllowFluidAdjacency, input.AllowBeltAdjacency) + connectionLuaHelpers + `
 local out_steps={}
 for _,s in ipairs(chosen.steps) do out_steps[#out_steps+1]={position={x=s.x,y=s.y},direction=s.direction,existing=s.existing} end
 rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force.name,kind=kind,item=item,from={x=from.x,y=from.y},to={x=to.x,y=to.y},bend=bend_label,possible=#chosen.conflicts==0,needed=chosen.needed,steps=out_steps,conflicts=chosen.conflicts})`
@@ -364,6 +422,29 @@ rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force
 // connectEntities plans and applies one run. It refuses to place anything when
 // the plan has conflicts or the actor lacks the items, so a refusal leaves the
 // world unchanged.
+// beltPipeRunInput converts the shared placeBelt/placePipe input into the
+// connectEntities input with the mutation's fixed kind.
+func beltPipeRunInput(kind ConnectionKind, in BeltPipeRunInput) ConnectEntitiesInput {
+	return ConnectEntitiesInput{
+		Actor: in.Actor, Surface: in.Surface, Force: in.Force, From: in.From, To: in.To,
+		Kind: kind, Item: in.Item, Bend: in.Bend,
+		AllowFluidAdjacency: in.AllowFluidAdjacency, Routing: in.Routing,
+		AllowUnderground: in.AllowUnderground, UndergroundItem: in.UndergroundItem,
+		MaxUndergroundDistance: in.MaxUndergroundDistance, AvoidAreas: in.AvoidAreas,
+		PreferExisting: in.PreferExisting, MaxExpandedTiles: in.MaxExpandedTiles,
+		SearchMargin: in.SearchMargin, FromEntity: in.FromEntity, ToEntity: in.ToEntity,
+		AllowBeltAdjacency: in.AllowBeltAdjacency, Message: in.Message, Direction: in.Direction,
+	}
+}
+
+func placeBeltRun(r *Resolver, in BeltPipeRunInput) (*ConnectEntitiesResult, error) {
+	return connectEntities(r, beltPipeRunInput(ConnectionKindBelt, in))
+}
+
+func placePipeRun(r *Resolver, in BeltPipeRunInput) (*ConnectEntitiesResult, error) {
+	return connectEntities(r, beltPipeRunInput(ConnectionKindPipe, in))
+}
+
 func connectEntities(r *Resolver, input ConnectEntitiesInput) (*ConnectEntitiesResult, error) {
 	character, player, err := settingsActorFrom(input.Actor)
 	if err != nil {
@@ -388,6 +469,9 @@ func connectEntities(r *Resolver, input ConnectEntitiesInput) (*ConnectEntitiesR
 	if err != nil {
 		return nil, err
 	}
+	if err := validateRunDirection(from, to, input.Direction); err != nil {
+		return nil, err
+	}
 	input.From, input.To = from, to
 	if astar {
 		return connectEntitiesAStar(r, input, item)
@@ -400,7 +484,7 @@ if unit~=0 then actor=game.get_entity_by_unit_number(unit); if not actor or acto
 else actor=game.get_player(player); if not actor then fail("player not found"); return end; c=actor.character; if not c then fail("player has no character"); return end end
 local inv=actor.get_main_inventory(); if not inv then fail("actor has no main inventory"); return end
 `, luaString(player), character) +
-		connectionLuaPreamble(input.Surface, input.Force, item, input.From, input.To, input.Kind, bend, input.AllowFluidAdjacency, input.AllowBeltAdjacency) +
+		connectionLuaPreamble(input.Surface, input.Force, item, input.From, input.To, input.Kind, bend, runDirectionValue(input.Direction), input.AllowFluidAdjacency, input.AllowBeltAdjacency) +
 		connectionLuaHelpers + fmt.Sprintf(`
 if c.surface.name~=surface.name then fail("actor is on another surface"); return end
 if c.force.name~=force.name then fail("actor is on another force"); return end

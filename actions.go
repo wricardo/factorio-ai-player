@@ -9,38 +9,49 @@ import (
 )
 
 // luaUndergroundInfoLua reports an underground belt half's ground type and the
-// unit number of the half it is paired with. On 2.0.77 those reads cannot be
-// assumed: LuaEntity.neighbours for a fresh half is not always a plain table
-// usable with pairs (it can be an array-like LuaCustomTable or userdata), and
-// LuaEntity values are userdata rather than tables. Every access is therefore
-// probed, and the neighbour list is walked by length first, then by pairs.
-const luaUndergroundInfoLua = `local function underground_neighbour_unit(nb)
-  local function unit_of(n)
-    local ok_unit,unit=pcall(function() if n and n.valid then return n.unit_number end end)
-    if ok_unit then return unit end
-    return nil
+// unit number of the half it is paired with. On 2.0.77 LuaEntity.neighbours is
+// a dictionary[string -> LuaEntity], an array of arrays of LuaEntity, or a bare
+// LuaEntity, so a paired half can surface as the entity itself and a single
+// #/pairs walk misses it. Both forms are probed, nested arrays are searched
+// recursively, and BeltConnectableNeighbour wrappers are unwrapped through
+// .entity.
+const luaUndergroundInfoLua = `local function underground_entity_unit(value)
+  local ok_unit,unit=pcall(function()
+    if value and value.valid then return value.unit_number end
+  end)
+  if ok_unit and unit~=nil then return unit end
+  local ok_unwrap,inner=pcall(function() return value.entity end)
+  if ok_unwrap and inner~=nil and inner~=value then
+    local ok_inner,inner_unit=pcall(function()
+      if inner and inner.valid then return inner.unit_number end
+    end)
+    if ok_inner and inner_unit~=nil then return inner_unit end
   end
-  local function at(list,index)
-    local ok_item,item=pcall(function() return list[index] end)
-    if ok_item then return item end
-    return nil
-  end
-  local paired=nil
-  local ok_len,len=pcall(function() return #nb end)
+  return nil
+end
+local function underground_find_unit(value,depth)
+  if value==nil or depth>2 then return nil end
+  local direct=underground_entity_unit(value)
+  if direct~=nil then return direct end
+  if type(value)~="table" then return nil end
+  local ok_len,len=pcall(function() return #value end)
   if ok_len and len and len>0 then
     for i=1,len do
-      local unit=unit_of(at(nb,i))
-      if unit then paired=unit; break end
+      local unit=underground_find_unit(value[i],depth+1)
+      if unit~=nil then return unit end
     end
-    if paired~=nil then return paired end
   end
+  local found=nil
   pcall(function()
-    for _,n in pairs(nb) do
-      local unit=unit_of(n)
-      if unit then paired=unit; return end
+    for _,child in pairs(value) do
+      local unit=underground_find_unit(child,depth+1)
+      if unit~=nil then found=unit; return end
     end
   end)
-  return paired
+  return found
+end
+local function underground_neighbour_unit(nb)
+  return underground_find_unit(nb,0)
 end
 local function underground_info(e)
   if not e or e.type~="underground-belt" then return nil,nil end

@@ -71,10 +71,14 @@ cp -R /Applications/factorio.app/Contents/data/base/scenarios/sandbox "$D/data/s
 printf '[path]\nread-data=__PATH__system-read-data__\nwrite-data=%s/data\n' "$D" > "$D/config.ini"
 openssl rand -hex 24 > "$D/password"
 
-# 3. Create the save from the scenario on alternate ports (game 34198, RCON 27016)
+# 3. Create the save from the scenario on alternate ports (game 34198, RCON 27016).
+#    just world-settings-check must pass first: it refuses configs that would spawn biters.
+just world-settings-check
 nohup /Applications/factorio.app/Contents/MacOS/factorio -c "$D/config.ini" \
   --mod-directory "$HOME/Library/Application Support/factorio/mods" \
   --start-server-load-scenario sandbox \
+  --map-gen-settings "$PWD/map-gen-settings-sandbox.json" \
+  --map-settings "$PWD/map-settings.json" \
   --bind 127.0.0.1:34198 --rcon-bind 127.0.0.1:27016 \
   --rcon-password "$(cat "$D/password")" \
   --server-settings "$PWD/server-settings.json" > "$D/server.log" 2>&1 < /dev/null &
@@ -92,7 +96,8 @@ rm -rf "$D"
 
 Verify the result: `status { tick players { name } }` shows a small advancing tick and no
 players, `characters { total }` is 0, and `entities` over ±100 tiles returns only natural
-entities (resources/trees, ~3k) — no machines. `just observe` opens a client.
+entities (resources/trees, ~3k) — no machines. `just observe` opens a client. The settings
+disable enemies on Nauvis only; other Space Age surfaces generate their own when first visited.
 
 Gotchas:
 
@@ -163,13 +168,14 @@ the working tree as shared state.
 
 - `main.go`: process entry, game-operation dispatch, Lua execution, and RCON protocol.
 - `graphql_cli.go`: GraphQL CLI commands and schema discovery.
-- `schema.graphqls`, `navigation.graphqls`, `settings.graphqls`, `insights_*.graphqls`, and the feature schemas (`construction.graphqls`, `trains.graphqls`, `fluids.graphqls`, `agent_actions.graphqls`, `player_gear.graphqls`, `research_extra.graphqls`, `world_extra.graphqls`, `entity_meta.graphqls`, `writes_extra.graphqls`): GraphQL API and inline descriptions. Each feature schema generates its own `graphql_<name>.resolvers.go`.
+- `schema.graphqls`, `navigation.graphqls`, `settings.graphqls`, `insights_*.graphqls`, and the feature schemas (`construction.graphqls`, `trains.graphqls`, `fluids.graphqls`, `agent_actions.graphqls`, `player_gear.graphqls`, `research_extra.graphqls`, `world_extra.graphqls`, `entity_meta.graphqls`, `writes_extra.graphqls`, `blueprint_catalog.graphqls`): GraphQL API and inline descriptions. Each feature schema generates its own `graphql_<name>.resolvers.go`.
 - `resolver.go`, `graphql_*_resolvers.go`: resolver bridge and schema adapters.
 - `gqlgen.yml`, `graphql_generated.go`, `graphql_models.go`: gqlgen configuration and generated output.
 - `actions.go`, `production.go`, `insights_*.go`, `factory_*.go`, `navigation.go`: gameplay operations and read-only insights. Topology (`insights_topology.go`), machine diagnostics (`insights_diagnostics.go`), planning (`insights_planning.go`), research/construction/fluids (`insights_operations.go`), belt-flow measurement (`insights_belt_flow.go`, backed by the navigation mod's `belt_flow.lua`) and tile-grid placement probing (`placement_probe.go`, one RCON call per area) live in their own domain files.
-- Newer write domains: `deconstruction.go`, `construction.go` (buildGhosts, logistic networks), `ghost_placement.go` (placeGhosts bulk ghost planning), `construction_orders.go` (deconstruction/upgrade order reads), `trains.go` (train reads/control, setDirection), `fluids.go` (setFluid, fluidStock), `agent_actions.go` (game speed, teleport, capsules, repair), `agent_shoot.go` (mod-backed shooting), `writes_extra.go` (dropItem), `entity_meta.go` (inspection metadata, tags, name tag), `player_gear.go` (equipment grid, actor logistic requests), `research_extra.go` (research queue, sandbox unlock), `world_extra.go` (surfaces, circuit signals), `recipe_machine.go`/`machineRecipe.go` (recipe drain, clearRecipe), `craft_plan.go` (craftPlan hand-craft dependency planning and execution), `actor_resolve.go` (player→character resolver helper), and `nearby.go` (ordered, paginated nearby).
+- Newer write domains: `deconstruction.go`, `construction.go` (buildGhosts, logistic networks), `ghost_placement.go` (placeGhosts bulk ghost planning), `construction_orders.go` (deconstruction/upgrade order reads), `trains.go` (train reads/control, setDirection), `fluids.go` (setFluid, fluidStock), `agent_actions.go` (game speed, teleport, capsules, repair), `agent_shoot.go` (mod-backed shooting), `writes_extra.go` (dropItem), `entity_meta.go` (inspection metadata, tags, name tag), `player_gear.go` (equipment grid, actor logistic requests), `research_extra.go` (research queue, sandbox unlock), `world_extra.go` (surfaces, circuit signals), `recipe_machine.go`/`machineRecipe.go` (recipe drain, clearRecipe), `craft_plan.go` (craftPlan hand-craft dependency planning and execution), `blueprint_catalog.go` (named blueprint books persisted as exported book strings in script storage, so a catalog works without any character and survives save/load), `actor_resolve.go` (player→character resolver helper), and `nearby.go` (ordered, paginated nearby).
 - `inspect_many.go` (batched `inspectMany`, one Lua chunk for 1–200 targets with per-target errors), `factory_alerts`/`briefing.go` (status scan and attention classification), `fluid_segments`-style reads in `fluids.go` (`fluidSegments`, grouped by engine segment): batch reads that replace per-entity fan-out.
 - The navigation mod also owns `actions.lua` (tick-driven shooting jobs), `topology.lua` (the `factorio_ai_topology` prelude behind `insights_topology.go`'s inline fallback), and their Lua tests (`actions_test.lua`); Factorio 2.0.77 stores tags only as blueprint/ghost metadata and ignores scripted direction writes on belts and rails, so those paths fail with actionable errors rather than pretending to succeed.
+- Factory graph (CLI `graph export|load|schema|sync`, plus GraphQL `exportMapSnapshotToMemgraph` / `queryMemgraph` in `memgraph.graphqls` + `memgraph_api.go`): `graph_export_lua.go` (census, chunk and leaf Lua; the leaf/mobile bodies are the `graph_prelude`/`graph_leaf`/`graph_mobile` regions of `topology.lua`), `graph_export.go` (leaf planning, link routing, reconciliation, snapshot files), `graph_load.go` (Bolt loader into Memgraph, scope pruning), `memgraph/` (compose stack and `schema.cypherl`), `scripts/graph-compose.sh`, `just graph-*`. Bolt target is env (`MEMGRAPH_BOLT`/`USER`/`PASSWORD`), never GraphQL input; `queryMemgraph` is a lexical read-only guard, not a Memgraph permission. Design and query cookbook: `docs/memgraph-schema.html`.
 - `go.mod`: Go version and dependencies. `justfile`, `scripts/server.sh`, `server-settings.json`: local server workflows/configuration.
 - `README.md`: operational and GraphQL behavior reference; `.agents/skills/factorio-gameplay/SKILL.md`: gameplay-specific notes.
 

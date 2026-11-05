@@ -15,6 +15,18 @@ func (r *mutationResolver) ConnectEntities(ctx context.Context, input ConnectEnt
 	return setActorResult(result, input.Actor, err)
 }
 
+// PlaceBelt is the resolver for the placeBelt field.
+func (r *mutationResolver) PlaceBelt(ctx context.Context, input BeltPipeRunInput) (*ConnectEntitiesResult, error) {
+	result, err := placeBeltRun(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
+}
+
+// PlacePipe is the resolver for the placePipe field.
+func (r *mutationResolver) PlacePipe(ctx context.Context, input BeltPipeRunInput) (*ConnectEntitiesResult, error) {
+	result, err := placePipeRun(r.Resolver, input)
+	return setActorResult(result, input.Actor, err)
+}
+
 // ConnectionPlan is the resolver for the connectionPlan field.
 func (r *queryResolver) ConnectionPlan(ctx context.Context, input ConnectionPlanInput) (*ConnectionPlan, error) {
 	return connectionPlanQuery(r.Resolver, &input)

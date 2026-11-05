@@ -23,6 +23,28 @@ extend type EntityInspection {
   beltNeighbours: [PlacedEntity!]
   """Fluidbox neighbours reported by the engine, when the entity has fluidboxes."""
   fluidboxNeighbours: [PlacedEntity!]
+  """Every fluid-box pipe connection the engine reports for this entity: the port tile on the entity edge and the adjacent tile a pipe must occupy, so a caller can route pipes without probing tiles one by one. Empty for entities without fluidboxes; a connection whose target is not yet built still reports its intended target."""
+  fluidPorts: [FluidPort!]
+}
+
+"""One fluid-box pipe connection from LuaFluidBox::get_pipe_connections. position is the connection tile on the entity edge and target is the adjacent tile a pipe must occupy; direction is derived from position to target (0 north, 4 east, 8 south, 12 west) and is null for a diagonal or zero-length connection."""
+type FluidPort {
+  """One-based fluidbox index on the entity."""
+  boxIndex: Int!
+  """One-based connection index within that fluidbox."""
+  connectionIndex: Int!
+  """Connection tile on the entity edge, as an absolute map position."""
+  position: Position!
+  """Adjacent tile a pipe must occupy to connect, as an absolute map position."""
+  target: Position!
+  """Direction from position to target: 0 north, 4 east, 8 south, 12 west; null when not cardinal."""
+  direction: Int
+  """Engine flow direction name (for example input or output) when reported."""
+  flowDirection: String
+  """Fluidbox index on the connected entity, when a connection exists."""
+  targetFluidboxIndex: Int
+  """Pipe-connection index on the connected entity, when a connection exists."""
+  targetPipeConnectionIndex: Int
 }
 
 extend type Mutation {

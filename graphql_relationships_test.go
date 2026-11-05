@@ -235,7 +235,7 @@ func TestGraphQLNestedRelationshipErrors(t *testing.T) {
 	for _, tc := range []struct{ name, query, message string }{
 		{"inspection failure", `query { player(input:{character:"42"}) { nearby(radius:7,name:"electric-mining-drill",type:"mining-drill") { entities { inspection(actor:{player:"Bob"}) { name } } } } }`, "entity not found"},
 		{"recipe failure", `query { player(input:{character:"42"}) { queue { queue { recipeInfo(actor:{player:"Alice"}) { name } } } } }`, "recipe not found"},
-		{"actor selection failure", `query { player(input:{character:"42"}) { queue { queue { recipeInfo(actor:{}) { name } } } } }`, "exactly one"},
+		{"actor selection failure", `query { player(input:{character:"42"}) { queue { queue { recipeInfo(actor:{player:"Alice",character:"42"}) { name } } } } }`, "at most one"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := relationshipQuery(t, addr, tc.query)

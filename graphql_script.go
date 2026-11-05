@@ -13,7 +13,7 @@ import (
 
 // scriptCommand runs gqlcli JavaScript workflows in-process against the same
 // schema the query and mutation commands use.
-func scriptCommand(exec *gqlcli.InlineExecutor, out io.Writer) *cli.Command {
+func scriptCommand(exec graphQLExecutor, out io.Writer) *cli.Command {
 	return &cli.Command{
 		Name:    "script",
 		Aliases: []string{"js"},
@@ -49,7 +49,7 @@ func scriptCommand(exec *gqlcli.InlineExecutor, out io.Writer) *cli.Command {
 			input = mergeScriptInput(defaults, input)
 
 			runner := gqlcli.NewScriptRunner(
-				gqlcli.NewInlineClient(exec),
+				scriptOperationExecutor{exec: exec},
 				gqlcli.WithStdout(out),
 				gqlcli.WithStderr(out),
 			)

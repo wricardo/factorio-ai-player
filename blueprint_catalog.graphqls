@@ -1,0 +1,221 @@
+extend type Query {
+  """Lists every blueprint book in the save's script-owned blueprint catalog, sorted by name. The catalog lives in script storage, not in a player inventory or a container, so it works in saves with no characters and survives save/load; each book is stored as its exported blueprint-book string, which is what blueprintBook returns so a catalog can be copied to another save. A book's string is imported into a temporary script inventory per call, so entryCount and slotCount describe the exported string, and a corrupt entry surfaces as an error instead of being silently skipped."""
+  blueprintBooks: [BlueprintBookSummary!]!
+  """Reads one catalog book by name with its stored metadata and entry list. entryCount counts occupied slots while slotCount counts every allocated slot, so a book with holes reports fewer entries than slots; index is the one-based engine slot index and stays stable across export and import because the engine preserves holes. Set includeBlueprint to also return each entry's exported string, which copies one design out of a catalog without rewriting the whole book. An unknown name is an error."""
+  blueprintBook(name: String!, includeBlueprint: Boolean! = false): BlueprintBook!
+}
+
+extend type Mutation {
+  """Creates an empty named blueprint book in the save's script-owned blueprint catalog, which lives in script storage rather than a player inventory, so it works in saves with no characters. name must be 1 through 64 characters without control characters and must not already exist; label and description may be set at creation and an empty string clears them. The catalog holds at most 200 books. Returns the new book's summary. Emits an in-game notification unless message overrides it."""
+  createBlueprintBook(input: CreateBlueprintBookInput!): BlueprintBookSummary!
+  """Stores a blueprint-book string under a catalog name, so a catalog built in one save can be copied into another. The string must import as a blueprint book, so a single blueprint is rejected with guidance toward addBlueprintToBook; overwrite replaces an existing book and is required for that, and label and description override the imported ones when provided. Returns the stored book's summary. Emits an in-game notification unless message overrides it."""
+  importBlueprintBook(input: ImportBlueprintBookInput!): BlueprintBookSummary!
+  """Changes a catalog book's name, label, description, or active entry in one call, leaving every omitted field unchanged; an empty label or description clears it. newName must not collide with another catalog book. activeIndex is the one-based slot index the engine activates and must already hold an entry, because an empty slot would leave the book with no active design. Returns the updated summary. Emits an in-game notification unless message overrides it."""
+  updateBlueprintBook(input: UpdateBlueprintBookInput!): BlueprintBookSummary!
+  """Deletes one catalog book and reports how many books remain. The book string is removed from script storage, so export it with blueprintBook first if the design must be kept. An unknown name is an error. Emits an in-game notification unless message overrides it."""
+  deleteBlueprintBook(input: DeleteBlueprintBookInput!): BlueprintBookDeleteResult!
+  """Inserts one single-blueprint string as a catalog book entry. The engine creates and fills book slots only in order, so the acceptable index is the book's first free slot: an existing hole keeps its number and one past the last slot grows the book, while an occupied slot or a later hole is rejected with the reason. Omitting index uses the first free slot. The string must import as a setup single blueprint, so a blueprint book is rejected; label sets the entry label and an empty string clears it, and the string is capped at 2,000,000 characters. A book holds at most 1000 entries and the catalog at most 16,000,000 characters. Returns the new entry and the book summary. Emits an in-game notification unless message overrides it."""
+  addBlueprintToBook(input: AddBlueprintToBookInput!): BlueprintBookMutationResult!
+  """Exports the entities and optional tiles inside an area straight into a new catalog book entry, using the same collection rules as createBlueprint but writing the result into the book instead of returning a string. index, label and the per-book bounds behave like addBlueprintToBook; the area must have positive dimensions no larger than 1024 tiles per side and the surface and force must exist. Returns the new entry and the book summary. Emits an in-game notification unless message overrides it."""
+  addAreaToBook(input: AddAreaToBookInput!): BlueprintBookMutationResult!
+  """Rewrites one catalog book entry in place. blueprint replaces the design and must import as a setup single blueprint, label sets the entry label with an empty string clearing it, and an omitted field is left unchanged. The index must already hold an entry, otherwise the call errors with guidance toward addBlueprintToBook. Returns the updated entry and the book summary. Emits an in-game notification unless message overrides it."""
+  updateBlueprintInBook(input: UpdateBlueprintInBookInput!): BlueprintBookMutationResult!
+  """Removes one catalog book entry by clearing its slot. The engine keeps the slot allocated while anything follows it, so later indices do not shift and the hole stays available for addBlueprintToBook, and a cleared last slot shrinks the book instead of leaving a trailing hole. Removing the active entry makes the engine pick another entry as active. Returns the removed entry and the book summary. Emits an in-game notification unless message overrides it."""
+  removeBlueprintFromBook(input: RemoveBlueprintFromBookInput!): BlueprintBookMutationResult!
+  """Moves one catalog book entry to another slot by swapping it with whatever that slot holds, so a move onto an empty hole leaves a hole behind and a move between entries exchanges them. fromIndex and toIndex must both be existing slots, must differ, and fromIndex must hold an entry. Returns the moved entry and the book summary. Emits an in-game notification unless message overrides it."""
+  moveBlueprintInBook(input: MoveBlueprintInBookInput!): BlueprintBookMutationResult!
+  """Places the ghosts of one catalog book entry at a finite position on a surface for a force, using the same normal build mode, rotation rules (0, 4, 8 or 12) and ghost counting as placeBlueprint. index defaults to the book's active entry and must hold a single blueprint, so an empty slot or a nested book is rejected. Only ghosts are placed, so construction waits for construction bots or manual building. Returns the ghost count and the created ghost entities. Emits an in-game notification unless message overrides it."""
+  placeBlueprintFromBook(input: PlaceBlueprintFromBookInput!): BlueprintPlaceResult!
+  """Copies one catalog blueprint book into a connected player's main inventory as a blueprint-book item, so a book built in script storage becomes an item the player can use. The player must be connected and their main inventory must have a free slot; slot selects a one-based slot explicitly and defaults to the first empty slot, and the target slot must be empty. The catalog string is imported into a temporary script stack and swapped into the inventory, so the catalog entry is left unchanged. Returns the player, the receiving slot, the book label, and its entry and slot counts. Emits an in-game notification unless message overrides it."""
+  giveBlueprintBook(input: GiveBlueprintBookInput!): BlueprintBookGiveResult!
+}
+
+"""Catalog book metadata; the entry list is only returned by blueprintBook."""
+type BlueprintBookSummary {
+  name: String!
+  label: String
+  description: String
+  """Allocated engine slots, including empty holes left by removed entries."""
+  slotCount: Int!
+  """Slots that currently hold an entry."""
+  entryCount: Int!
+  """One-based active slot index, or null for an empty book."""
+  activeIndex: Int
+  """Length of the stored blueprint-book string."""
+  characters: Int!
+  """Tick of the last write to this book in this save."""
+  updatedTick: Float!
+}
+
+"""One catalog book slot. index is one-based and stable across export and import."""
+type BlueprintBookEntry {
+  index: Int!
+  """Prototype name of the entry: blueprint for a design, blueprint-book for a nested book."""
+  name: String!
+  label: String
+  """Entities described by the entry; zero for a nested book."""
+  entityCount: Int!
+  """Tiles described by the entry; zero for a nested book."""
+  tileCount: Int!
+  """Exported string of this entry when the read asked for it."""
+  blueprint: String
+}
+
+"""One catalog book with its full entry list and its exported book string."""
+type BlueprintBook {
+  name: String!
+  label: String
+  description: String
+  slotCount: Int!
+  entryCount: Int!
+  activeIndex: Int
+  characters: Int!
+  updatedTick: Float!
+  """Exported blueprint-book string, so the book can be copied into another save."""
+  blueprint: String!
+  entries: [BlueprintBookEntry!]!
+}
+
+"""Result of a book-level or entry-level write; entry is null when the call only changed book metadata."""
+type BlueprintBookMutationResult {
+  tick: Float!
+  book: BlueprintBookSummary!
+  entry: BlueprintBookEntry
+}
+
+"""Result of deleting a catalog book."""
+type BlueprintBookDeleteResult {
+  tick: Float!
+  name: String!
+  bookCount: Int!
+}
+
+"""Creates an empty catalog book."""
+input CreateBlueprintBookInput {
+  name: String!
+  label: String
+  description: String
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Imports a stored blueprint-book string under a catalog name."""
+input ImportBlueprintBookInput {
+  name: String!
+  blueprint: String!
+  """Replace an existing book of the same name; required when the name exists."""
+  overwrite: Boolean! = false
+  label: String
+  description: String
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Changes book metadata; omitted fields are left unchanged and an empty string clears a label or description."""
+input UpdateBlueprintBookInput {
+  name: String!
+  newName: String
+  label: String
+  description: String
+  """One-based slot index to activate; it must already hold an entry."""
+  activeIndex: Int
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Deletes one catalog book."""
+input DeleteBlueprintBookInput {
+  name: String!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Inserts one single-blueprint string into a book."""
+input AddBlueprintToBookInput {
+  name: String!
+  blueprint: String!
+  label: String
+  """One-based slot to fill; omitted uses the first free slot and a slot past the last one grows the book."""
+  index: Int
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Exports an area straight into a new book entry."""
+input AddAreaToBookInput {
+  name: String!
+  surface: String = "nauvis"
+  force: String = "player"
+  area: FactoryAreaInput!
+  includeTiles: Boolean! = false
+  includeModules: Boolean! = true
+  includeFuel: Boolean! = false
+  includeTrains: Boolean! = false
+  includeStationNames: Boolean! = false
+  label: String
+  index: Int
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Rewrites one existing book entry; omitted fields are left unchanged."""
+input UpdateBlueprintInBookInput {
+  name: String!
+  index: Int!
+  label: String
+  blueprint: String
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Removes one book entry, leaving its slot allocated and empty."""
+input RemoveBlueprintFromBookInput {
+  name: String!
+  index: Int!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Moves one book entry by swapping it with another slot."""
+input MoveBlueprintInBookInput {
+  name: String!
+  fromIndex: Int!
+  toIndex: Int!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Places the ghosts of one catalog entry."""
+input PlaceBlueprintFromBookInput {
+  name: String!
+  """One-based slot to place; omitted uses the book's active entry."""
+  index: Int
+  surface: String = "nauvis"
+  force: String = "player"
+  position: PositionInput!
+  """Blueprint rotation: 0, 4, 8 or 12 (blueprints rotate in 90 degree steps only)."""
+  direction: Int! = 0
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""Result of copying a catalog book into a player inventory."""
+type BlueprintBookGiveResult {
+  tick: Float!
+  player: String!
+  """One-based main-inventory slot that received the blueprint book."""
+  slot: Int!
+  label: String
+  entryCount: Int!
+  slotCount: Int!
+}
+
+"""Copies one catalog book into a player's main inventory."""
+input GiveBlueprintBookInput {
+  name: String!
+  player: String!
+  """One-based main-inventory slot; omitted uses the first empty slot."""
+  slot: Int
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}

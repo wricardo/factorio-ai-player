@@ -10,6 +10,10 @@
       "type": "mutation",
       "mutation": "mutation Announce($message: String!) { announce(message: $message) { message } }"
     },
+    "belt-run-full": {
+      "type": "query",
+      "query": "query BeltFull {\n  beltRun(target: {unitNumber: 1521}, maxEntities: 500, includeLineLinks: true) {\n    tick\n    truncated\n    seed { position { x y } direction status }\n    sources { position { x y } name type }\n    sinks { position { x y } name type }\n    nodes { position { x y } direction status lanes { index side mixed items { name count } } }\n    inserters {\n      inserter { position { x y } direction status name type unitNumber }\n      pickup { position { x y } name type direction status miningTarget { name amount } }\n      drop { position { x y } name type direction status miningTarget { name amount } }\n      pickupInspection: pickup { inspection { name type status recipe inventories { chest { name count } } } }\n      dropInspection: drop { inspection { name type status recipe inventories { chest { name count } } } }\n    }\n  }\n}"
+    },
     "belt-stretch": {
       "type": "query",
       "query": "query BeltStretch($target: EntityRefInput!, $maxEntities: Int! = 100) { beltStretch(target: $target, maxEntities: $maxEntities) { tick surface seed { ...LogisticsEndpointFields } maxEntities truncated nodes { name type position { x y } unitNumber direction lanes { index lineName side items { ...InventoryStackFields } } } ends { position { x y } unitNumber kind targets { ...LogisticsEndpointFields } expectedTarget { x y } blocker gap reason } left { side items { ...InventoryStackFields } itemCount mixed } right { side items { ...InventoryStackFields } itemCount mixed } unknown { side items { ...InventoryStackFields } itemCount mixed } } }"

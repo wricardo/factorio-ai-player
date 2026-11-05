@@ -16,7 +16,7 @@ Read in this order:
 3. `machines[]` per type: `working` vs `noFuel/noPower/noIngredients/outputFull/resourceDepleted`. A type with `working 0` and `noIngredients N` points upstream.
 4. `power{productionWatts consumptionWatts}` and `networks`: multiple networks or `production == consumption` at the limit mean undersupply or a split grid.
 5. `research{currentTechnology progress queue}`: null current research is lost lab time.
-6. `production[]` rates and `stockouts[]` for named items.
+6. `production[]` rates and `stockouts[]` for named items; `stockCategory` defaults to `STORED`, so pass `ALL` or another category to include player/worker/ground/belt items.
 7. `warnings[]` list skipped sections (stockouts need `watchItems`) and capped scans; ghost counts follow the briefing scope, the area when given and otherwise the whole surface.
 
 Live example (2026-11-01): `attentionTotal 40`, drills and furnaces `NO_FUEL`, one lab idle, no research. Root cause class = fuel supply + idle research, not "needs more machines".

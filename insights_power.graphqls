@@ -6,14 +6,16 @@ extend type Query {
   productionWatts and consumptionWatts are averages for the entire network — including parts outside the area — over the
   selected window, converted from joules per tick to watts at 60 ticks per second. Generator flow statistics record
   production equal to demand, so maxProductionWatts is the summed get_max_energy_production of generators, burner
-  generators, solar panels and fusion generators of the force inside the area and is the capacity measure; satisfaction
+  generators, solar panels, fusion generators and electric energy interfaces of the force inside the area and is the
+  capacity measure; satisfaction
   is consumptionWatts divided by maxProductionWatts when that capacity is positive, an observed-load ratio rather than
-  engine power satisfaction, and is null when no producer is in the area. Accumulators report stored charge and buffer
-  capacity from the same area scan, and lowPowerConsumers counts entities on each network reporting low_power inside the
-  area. Only networkId and window are accepted as filters here: status, connectedToProducingNetwork and onlyIssues
-  describe individual entities and are rejected rather than silently ignored. Empty or unknown surface/force, invalid
-  limit/offset, networkId, window or any consumer-only filter produce a GraphQL error; omitting area scans the whole
-  surface, and an empty networks list means no pole of the force matched.
+  engine power satisfaction, and is null when no producer is in the area. Creative and sandbox energy interfaces are
+  rated in the hundreds of gigawatts, so a network they power reports a near-zero satisfaction ratio. Accumulators
+  report stored charge and buffer capacity from the same area scan, and lowPowerConsumers counts entities on each
+  network reporting low_power inside the area. Only networkId and window are accepted as filters here: status,
+  connectedToProducingNetwork and onlyIssues describe individual entities and are rejected rather than silently ignored.
+  Empty or unknown surface/force, invalid limit/offset, networkId, window or any consumer-only filter produce a
+  GraphQL error; omitting area scans the whole surface, and an empty networks list means no pole of the force matched.
   """
   electricNetworks(input: PowerInsightsInput = {}): ElectricNetworkPage!
   """
@@ -72,7 +74,7 @@ type ElectricNetworkInsight {
   productionWatts: Float!
   "Average consumption over the selected window, watts at 60 ticks/second. Includes the entire network."
   consumptionWatts: Float!
-  "Summed theoretical maximum production of generators, burner generators, solar panels and fusion generators of the force inside the area, in watts. A lower bound for the whole network and not observed output."
+  "Summed theoretical maximum production of generators, burner generators, solar panels, fusion generators and electric energy interfaces of the force inside the area, in watts. A lower bound for the whole network and not observed output."
   maxProductionWatts: Float!
   "Stored energy of accumulators on this network inside the area, in joules."
   accumulatorChargeJoules: Float!
