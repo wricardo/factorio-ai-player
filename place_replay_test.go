@@ -200,3 +200,18 @@ func TestPlacePassesInserterDirectionThrough(t *testing.T) {
 		t.Fatalf("tick = 0, want the tick the entity was created in: %+v", result)
 	}
 }
+
+// A 3x3 prototype whose centre tile is free can still cover a neighbour's tile.
+// create_entity ignores collision boxes and the pre-check only tests the centre
+// tile, so the post-create overlap check must refuse the placement and leave no
+// buried entity (factorio-ai-player-2im).
+func TestPlaceRejectsFootprintOverlap(t *testing.T) {
+	_, err := command[ActionResult](servePlaceReplay(t, "footprint"), "place", PlaceInput{
+		Actor:    &ActorInput{Character: new("4")},
+		Item:     "assembling-machine-1",
+		Position: &PositionInput{X: 10.5, Y: 10.5},
+	})
+	if err == nil || !strings.Contains(err.Error(), "footprint overlaps inserter") {
+		t.Fatalf("expected a footprint overlap refusal, got %v", err)
+	}
+}

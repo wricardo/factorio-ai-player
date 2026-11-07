@@ -20,7 +20,8 @@ func TestCraftPlanRejectsInvalidInputBeforeRCON(t *testing.T) {
 		{"query both actors", "query", `{ craftPlan(input:{actor:{player:"Alice",character:"7"},recipe:"inserter"}) { complete } }`, "exactly one of player or character"},
 		{"query no actor", "query", `{ craftPlan(input:{actor:{},recipe:"inserter"}) { complete } }`, "exactly one of player or character"},
 		{"query character zero", "query", `{ craftPlan(input:{actor:{character:"0"},recipe:"inserter"}) { complete } }`, "UnitNumber"},
-		{"mutation zero timeout", "mutation", `mutation { craftPlan(input:{actor:{player:"Alice"},recipe:"inserter",waitTimeoutSeconds:0}) { complete } }`, "waitTimeoutSeconds"},
+		{"mutation zero timeout", "mutation", `mutation { craft(input:{actor:{player:"Alice"},recipe:"inserter",expand:true,waitTimeoutSeconds:0}) { craftingComplete } }`, "waitTimeoutSeconds"},
+		{"mutation unknown mode", "mutation", `mutation { craft(input:{actor:{player:"Alice"},recipe:"inserter",mode:SOMETIMES}) { started } }`, "CraftMode"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

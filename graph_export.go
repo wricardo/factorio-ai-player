@@ -41,6 +41,7 @@ type graphExportOptions struct {
 	Concurrency      int
 	ChunkPage        int
 	IncludeLineLinks bool
+	Pause            bool
 	AllowIncomplete  bool
 	Keep             int
 }
@@ -129,6 +130,66 @@ type graphRawNode struct {
 	LeftCount   *int64   `json:"leftCount"`
 	Right       []string `json:"right"`
 	RightCount  *int64   `json:"rightCount"`
+	// Every engine transport line, one "index|lineName|side|item:count+..." string
+	// per non-empty line, plus per-side purity flags.
+	Lanes      []string `json:"lanes"`
+	MixedLeft  *bool    `json:"mixedLeft"`
+	MixedRight *bool    `json:"mixedRight"`
+	// BeltStretch building needs the engine's straight/left/right belt shape.
+	BeltShape string `json:"beltShape"`
+	// Crafting counters: products_finished is cumulative, crafting_progress is
+	// the in-flight fraction, previous_recipe flags a furnace that switched.
+	ProductsFinished *int64   `json:"productsFinished"`
+	CraftingProgress *float64 `json:"craftingProgress"`
+	// CraftingSpeed is the machine's current speed after modules and effects, so
+	// a rate can be recomputed from the recipe without re-reading the save.
+	CraftingSpeed *float64 `json:"craftingSpeed"`
+	// GhostRecipe is the recipe a ghost building would run (only on entity ghosts
+	// of crafting machines); nothing exists to sample for a ghost, so this is the
+	// whole build-plan fact the graph can hold.
+	GhostRecipe string `json:"ghostRecipe"`
+	// Fluids is one "index|name|amount|temperature" string per non-empty fluidbox,
+	// fluidTotal sums them and fluidCapacity is the summed box capacity. Pipe
+	// adjacency is FLUID_LINK; these are point-in-time contents.
+	Fluids        []string `json:"fluids"`
+	FluidTotal    *float64 `json:"fluidTotal"`
+	FluidCapacity *float64 `json:"fluidCapacity"`
+	// Requests are the logistic point filters of a requester chest or buffer
+	// chest ("name:count", quality as name@quality), which no wiring edge holds.
+	Requests []string `json:"requests"`
+	// Ammo is a turret's ammunition inventory.
+	Ammo      []string `json:"ammo"`
+	AmmoCount *int64   `json:"ammoCount"`
+	// LogisticMode is the engine's logistic mode of a logistic or infinity
+	// container (requester, passive-provider, active-provider, buffer, storage);
+	// it is the chest's role and picks its role label.
+	LogisticMode string `json:"logisticMode"`
+	// Robots is the roboport's robot inventory (logistic and construction robots).
+	Robots         []string `json:"robots"`
+	RobotsCount    *int64   `json:"robotsCount"`
+	PreviousRecipe string   `json:"previousRecipe"`
+	// Mining area composition: a drill over two ores puts a foreign item on the
+	// belt it feeds even though mining_target names one tile.
+	AreaResources []string `json:"areaResources"`
+	AreaAmounts   []string `json:"areaAmounts"`
+	AreaTiles     *int64   `json:"areaTiles"`
+	MiningLeft    *float64 `json:"miningLeft"`
+	MiningTop     *float64 `json:"miningTop"`
+	MiningRight   *float64 `json:"miningRight"`
+	MiningBottom  *float64 `json:"miningBottom"`
+	// Inserter settings: lanes it may pick from, filter, stack override, the
+	// held item, and whether its drop target resolved at all.
+	PickupX         *float64 `json:"pickupX"`
+	PickupY         *float64 `json:"pickupY"`
+	DropX           *float64 `json:"dropX"`
+	DropY           *float64 `json:"dropY"`
+	PickupLeftLane  *bool    `json:"pickupLeftLane"`
+	PickupRightLane *bool    `json:"pickupRightLane"`
+	UseFilters      *bool    `json:"useFilters"`
+	FilterMode      string   `json:"filterMode"`
+	StackSizeOverr  *int64   `json:"stackSizeOverride"`
+	Held            string   `json:"held"`
+	DropResolved    *bool    `json:"dropResolved"`
 }
 
 // graphFilter is one splitter output filter, when the engine build exposes them.
@@ -150,6 +211,9 @@ type graphRawEdge struct {
 	FromPortIndex string `json:"fromPortIndex"`
 	ToPortIndex   string `json:"toPortIndex"`
 	Side          string `json:"side"`
+	// Construction marks a LOGISTIC_COVERS link whose target also lies inside the
+	// roboport's construction area.
+	Construction *bool `json:"construction"`
 }
 
 type graphRef struct {
@@ -214,18 +278,22 @@ type graphSurfaceReport struct {
 }
 
 type graphManifest struct {
-	FormatVersion int                  `json:"formatVersion"`
-	Snapshot      string               `json:"snapshot"`
-	CreatedAt     time.Time            `json:"createdAt"`
-	Force         string               `json:"force"`
-	Status        string               `json:"status"`
-	Surfaces      []graphSurfaceReport `json:"surfaces"`
-	Nodes         int                  `json:"nodes"`
-	Edges         int                  `json:"edges"`
-	External      int                  `json:"externalNodes"`
-	EdgeTypes     map[string]int       `json:"edgeTypes"`
-	LabelCounts   map[string]int       `json:"labelCounts"`
-	DurationMS    float64              `json:"durationMs"`
+	FormatVersion int       `json:"formatVersion"`
+	Snapshot      string    `json:"snapshot"`
+	CreatedAt     time.Time `json:"createdAt"`
+	Force         string    `json:"force"`
+	Status        string    `json:"status"`
+	// Tick is the game tick of the final read of the export. A paused export
+	// reads every surface at one tick; an unpaused one spans ticks, so this is
+	// the last read's tick and each surface report carries its own before/after.
+	Tick        float64              `json:"tick"`
+	Surfaces    []graphSurfaceReport `json:"surfaces"`
+	Nodes       int                  `json:"nodes"`
+	Edges       int                  `json:"edges"`
+	External    int                  `json:"externalNodes"`
+	EdgeTypes   map[string]int       `json:"edgeTypes"`
+	LabelCounts map[string]int       `json:"labelCounts"`
+	DurationMS  float64              `json:"durationMs"`
 }
 
 // Status values, worst last.
@@ -336,7 +404,7 @@ var graphTypeLabels = map[string][]string{
 	"agricultural-tower": {"Machine"}, "asteroid-collector": {"Machine"},
 	"mining-drill":   {"MiningDrill"},
 	"transport-belt": {"Belt"}, "underground-belt": {"Belt"}, "splitter": {"Belt", "Splitter"}, "loader": {"Belt"},
-	"loader-1x1": {"Belt"}, "linked-belt": {"Belt"}, "lane-splitter": {"Belt"},
+	"loader-1x1": {"Belt"}, "linked-belt": {"Belt"}, "lane-splitter": {"Belt", "Splitter"},
 	"inserter":  {"Inserter"},
 	"container": {"Chest"}, "logistic-container": {"Chest"}, "linked-container": {"Chest"}, "infinity-container": {"Chest"},
 	"pipe": {"FluidEntity"}, "pipe-to-ground": {"FluidEntity"}, "pump": {"FluidEntity"}, "offshore-pump": {"FluidEntity"},
@@ -365,9 +433,24 @@ var graphTypeLabels = map[string][]string{
 	"resource": {"ResourceTile"},
 }
 
+// graphLogisticRoleLabels maps a logistic container's engine mode to its role
+// label. In game colours: active provider purple, passive provider red,
+// storage yellow, requester blue, buffer green. Every one of them also carries
+// :LogisticChest, so "any logistic chest" is one label.
+var graphLogisticRoleLabels = map[string]string{
+	"active-provider":  "ActiveProviderChest",
+	"passive-provider": "PassiveProviderChest",
+	"storage":          "StorageChest",
+	"requester":        "RequesterChest",
+	"buffer":           "BufferChest",
+}
+
 // graphManagedLabels is every label graph load may set or remove on :Entity.
 func graphManagedLabels() []string {
-	set := map[string]bool{"External": true}
+	set := map[string]bool{"External": true, "LogisticChest": true}
+	for _, l := range graphLogisticRoleLabels {
+		set[l] = true
+	}
 	for _, labels := range graphTypeLabels {
 		for _, l := range labels {
 			set[l] = true
@@ -402,7 +485,9 @@ type graphBuilder struct {
 	types    map[string]string
 	raw      []graphRawEdge
 	networks map[string]*graphNodeOut
-	edges    map[string]*graphEdgeOut
+	// derived holds nodes computed from the finished edges (belt stretches).
+	derived map[string]*graphNodeOut
+	edges   map[string]*graphEdgeOut
 }
 
 func newGraphBuilder(snapshot, force string) *graphBuilder {
@@ -455,8 +540,9 @@ func (b *graphBuilder) nodeOut(n graphRawNode, tick float64, mobile bool) *graph
 		props["direction"] = *n.Direction
 	}
 	for k, v := range map[string]string{"quality": n.Quality, "status": n.Status, "recipe": n.Recipe, "recipeQuality": n.RecipeQuality,
-		"recipeSource": n.RecipeSource, "ghostName": n.GhostName, "ghostType": n.GhostType,
-		"inputPriority": n.InputPriority, "outputPriority": n.OutputPriority} {
+		"recipeSource": n.RecipeSource, "ghostName": n.GhostName, "ghostType": n.GhostType, "ghostRecipe": n.GhostRecipe,
+		"inputPriority": n.InputPriority, "outputPriority": n.OutputPriority,
+		"beltShape": n.BeltShape, "previousRecipe": n.PreviousRecipe, "filterMode": n.FilterMode, "held": n.Held} {
 		if v != "" {
 			props[k] = v
 		}
@@ -470,18 +556,45 @@ func (b *graphBuilder) nodeOut(n graphRawNode, tick float64, mobile bool) *graph
 	if len(n.Modules) > 0 {
 		props["modules"] = n.Modules
 	}
-	for k, v := range map[string][]string{"fuel": n.Fuel, "input": n.Input, "output": n.Output, "items": n.Items, "left": n.Left, "right": n.Right} {
+	for k, v := range map[string][]string{"fuel": n.Fuel, "input": n.Input, "output": n.Output, "items": n.Items, "left": n.Left, "right": n.Right,
+		"lanes": n.Lanes, "areaResources": n.AreaResources, "areaAmounts": n.AreaAmounts, "ammo": n.Ammo,
+		"fluids": n.Fluids, "requests": n.Requests, "robots": n.Robots} {
 		if len(v) > 0 {
 			props[k] = v
 		}
 	}
 	for k, v := range map[string]*int64{"fuelCount": n.FuelCount, "inputCount": n.InputCount, "outputCount": n.OutputCount,
-		"itemsCount": n.ItemsCount, "leftCount": n.LeftCount, "rightCount": n.RightCount} {
+		"itemsCount": n.ItemsCount, "leftCount": n.LeftCount, "rightCount": n.RightCount,
+		"ammoCount": n.AmmoCount, "robotsCount": n.RobotsCount,
+		"productsFinished": n.ProductsFinished, "areaTiles": n.AreaTiles, "stackSizeOverride": n.StackSizeOverr} {
 		if v != nil {
 			props[k] = *v
 		}
 	}
-	out := &graphNodeOut{ID: n.ID, Labels: graphLabelsFor(n.Type, false), Props: props}
+	for k, v := range map[string]*float64{"craftingProgress": n.CraftingProgress, "craftingSpeed": n.CraftingSpeed,
+		"fluidTotal": n.FluidTotal, "fluidCapacity": n.FluidCapacity,
+		"pickupX": n.PickupX, "pickupY": n.PickupY,
+		"dropX": n.DropX, "dropY": n.DropY, "miningLeft": n.MiningLeft, "miningTop": n.MiningTop,
+		"miningRight": n.MiningRight, "miningBottom": n.MiningBottom} {
+		if v != nil {
+			props[k] = *v
+		}
+	}
+	// A false boolean is information here (useFilters off, a drop that resolved),
+	// so these are written whenever the engine reported a value at all.
+	for k, v := range map[string]*bool{"mixedLeft": n.MixedLeft, "mixedRight": n.MixedRight,
+		"pickupLeftLane": n.PickupLeftLane, "pickupRightLane": n.PickupRightLane,
+		"useFilters": n.UseFilters, "dropResolved": n.DropResolved} {
+		if v != nil {
+			props[k] = *v
+		}
+	}
+	labels := graphLabelsFor(n.Type, false)
+	if role, ok := graphLogisticRoleLabels[n.LogisticMode]; ok {
+		labels = append(labels, "LogisticChest", role)
+		props["logisticMode"] = n.LogisticMode
+	}
+	out := &graphNodeOut{ID: n.ID, Labels: labels, Props: props}
 	if n.ElectricNetwork != nil {
 		props["electricNetwork"] = *n.ElectricNetwork
 		netID := fmt.Sprintf("%s:electric:%d", n.Surface, *n.ElectricNetwork)
@@ -576,6 +689,11 @@ func (b *graphBuilder) finish() error {
 			} else {
 				b.edge("DROPS_ON", r.From, "Entity", r.To, "Entity", "", nil, surface)
 			}
+		case "logistic_cover":
+			// roboport -> logistic container inside its logistic area; construction
+			// says the container is also inside the construction area.
+			b.edge("LOGISTIC_COVERS", r.From, "Entity", r.To, "Entity", "",
+				map[string]any{"construction": r.Construction != nil && *r.Construction}, surface)
 		case "mines":
 			b.edge("MINES", r.From, "Entity", r.To, "Entity", "", nil, surface)
 		case "beacon":
@@ -626,6 +744,10 @@ func (b *graphBuilder) finish() error {
 		}
 	}
 	b.raw = nil
+	// Stretches are derived from the finished belt edges, so they run last.
+	if err := b.buildStretches(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -808,6 +930,16 @@ func (x *graphExporter) run(ctx context.Context) (*graphManifest, []*graphNodeOu
 	if err := b.finish(); err != nil {
 		return nil, nil, nil, err
 	}
+	// The production catalog needs the finished graph: only prototypes the
+	// snapshot references are read, so the call stays small.
+	recipes, resources, machines := b.catalogRequest()
+	var catalog graphCatalog
+	if err := x.call(ctx, graphCatalogLua(x.opts.Force, names, recipes, resources, machines), &catalog); err != nil {
+		return nil, nil, nil, fmt.Errorf("catalog: %w", err)
+	}
+	if err := b.buildProduction(&catalog); err != nil {
+		return nil, nil, nil, err
+	}
 	status := graphStatusComplete
 	for i := range reports {
 		for _, row := range after.Surfaces {
@@ -829,8 +961,11 @@ func (x *graphExporter) run(ctx context.Context) (*graphManifest, []*graphNodeOu
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].ID < nodes[j].ID })
 	external := b.externalNodes()
 	nodes = append(nodes, external...)
-	nets := make([]*graphNodeOut, 0, len(b.networks))
+	nets := make([]*graphNodeOut, 0, len(b.networks)+len(b.derived))
 	for _, n := range b.networks {
+		nets = append(nets, n)
+	}
+	for _, n := range b.derived {
 		nets = append(nets, n)
 	}
 	sort.Slice(nets, func(i, j int) bool { return nets[i].ID < nets[j].ID })
@@ -842,7 +977,7 @@ func (x *graphExporter) run(ctx context.Context) (*graphManifest, []*graphNodeOu
 	sort.Slice(edges, func(i, j int) bool { return edges[i].Key < edges[j].Key })
 
 	m := &graphManifest{FormatVersion: graphFormatVersion, Snapshot: snapshot, CreatedAt: started.UTC(), Force: before.Force,
-		Status: status, Surfaces: reports, Nodes: len(nodes), Edges: len(edges), External: len(external),
+		Status: status, Tick: after.Tick, Surfaces: reports, Nodes: len(nodes), Edges: len(edges), External: len(external),
 		EdgeTypes: map[string]int{}, LabelCounts: map[string]int{}, DurationMS: float64(time.Since(started).Milliseconds())}
 	for _, e := range edges {
 		m.EdgeTypes[e.Type]++
@@ -968,7 +1103,7 @@ Commands:
   export   Read every entity of one force into a snapshot directory
   load     Write a snapshot directory into Memgraph over Bolt
   schema   Apply the Memgraph constraints and indexes
-  sync     export, then load the new snapshot
+  sync     export, then load the new snapshot; always leaves the game unpaused
 
 Use 'graph <command> --help' for options.
 `
@@ -1000,6 +1135,7 @@ func graphExportFlags(fs *flag.FlagSet, opts *graphExportOptions, surfaces *stri
 	fs.IntVar(&opts.Concurrency, "concurrency", 4, "parallel leaf reads (1-6)")
 	fs.IntVar(&opts.ChunkPage, "chunk-page", 20000, "generated chunks visited per census call")
 	fs.BoolVar(&opts.IncludeLineLinks, "line-links", false, "also export transport-line links (BELT_OUT kind line)")
+	fs.BoolVar(&opts.Pause, "pause", true, "pause simulation during game reads, then restore its prior pause state")
 	fs.BoolVar(&opts.AllowIncomplete, "allow-incomplete", false, "write and exit zero even when reconciliation finds a hole")
 	fs.IntVar(&opts.Keep, "keep", 5, "snapshots kept under .factorio/graph when --out is not given")
 }
@@ -1058,7 +1194,7 @@ func exportGraphContext(ctx context.Context, opts graphExportOptions, out io.Wri
 	}
 	x := &graphExporter{r: &Resolver{addr: addr, password: password}, opts: opts, log: out}
 	started := time.Now()
-	m, nodes, edges, err := x.run(ctx)
+	m, nodes, edges, err := x.snapshot(ctx)
 	logGraphExport(opts, m, started, err)
 	if err != nil {
 		return "", nil, err

@@ -38,6 +38,7 @@ type ResolverRoot interface {
 	InspectionLogistics() InspectionLogisticsResolver
 	LogisticsEndpoint() LogisticsEndpointResolver
 	MachineInsightMiningTarget() MachineInsightMiningTargetResolver
+	Memgraph() MemgraphResolver
 	Mutation() MutationResolver
 	PlacedEntity() PlacedEntityResolver
 	Query() QueryResolver
@@ -54,6 +55,7 @@ type ComplexityRoot struct {
 		Bar                func(childComplexity int) int
 		Before             func(childComplexity int) int
 		Capacity           func(childComplexity int) int
+		Chain              func(childComplexity int) int
 		Character          func(childComplexity int) int
 		Count              func(childComplexity int) int
 		CraftingComplete   func(childComplexity int) int
@@ -96,6 +98,7 @@ type ComplexityRoot struct {
 	Actor struct {
 		Character           func(childComplexity int) int
 		CharacterInspection func(childComplexity int) int
+		CheatMode           func(childComplexity int) int
 		Connected           func(childComplexity int) int
 		ControllerType      func(childComplexity int) int
 		EquipmentGrid       func(childComplexity int) int
@@ -593,6 +596,43 @@ type ComplexityRoot struct {
 		Enabled           func(childComplexity int) int
 		Progress          func(childComplexity int) int
 		Queue             func(childComplexity int) int
+	}
+
+	BuildCellResult struct {
+		Completed func(childComplexity int) int
+		DryRun    func(childComplexity int) int
+		Failed    func(childComplexity int) int
+		Force     func(childComplexity int) int
+		Placed    func(childComplexity int) int
+		Skipped   func(childComplexity int) int
+		Steps     func(childComplexity int) int
+		Surface   func(childComplexity int) int
+		Tick      func(childComplexity int) int
+	}
+
+	BuildCellStep struct {
+		Applied    func(childComplexity int) int
+		Conflicts  func(childComplexity int) int
+		Errors     func(childComplexity int) int
+		Failed     func(childComplexity int) int
+		Index      func(childComplexity int) int
+		Kind       func(childComplexity int) int
+		Message    func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Ok         func(childComplexity int) int
+		Placed     func(childComplexity int) int
+		Position   func(childComplexity int) int
+		Ref        func(childComplexity int) int
+		UnitNumber func(childComplexity int) int
+	}
+
+	BuildConnectionResult struct {
+		DryRun  func(childComplexity int) int
+		Force   func(childComplexity int) int
+		Plan    func(childComplexity int) int
+		Result  func(childComplexity int) int
+		Surface func(childComplexity int) int
+		Tick    func(childComplexity int) int
 	}
 
 	BuildGhostsResult struct {
@@ -2030,9 +2070,164 @@ type ComplexityRoot struct {
 		UnitNumber func(childComplexity int) int
 	}
 
+	Memgraph struct {
+		AreaGraph          func(childComplexity int, input MemgraphAreaGraphInput) int
+		BeltStretchMap     func(childComplexity int, input MemgraphBeltStretchMapInput) int
+		BeltStretches      func(childComplexity int, input MemgraphBeltStretchesInput) int
+		CellSummary        func(childComplexity int, input MemgraphCellSummaryInput) int
+		ChainCapacity      func(childComplexity int, input MemgraphChainCapacityInput) int
+		DownstreamChain    func(childComplexity int, input MemgraphDownstreamChainInput) int
+		FactoryHealth      func(childComplexity int, input MemgraphAuditInput) int
+		FactoryReport      func(childComplexity int, input MemgraphFactoryReportInput) int
+		FluidChain         func(childComplexity int, input MemgraphFluidChainInput) int
+		FuelAudit          func(childComplexity int, input MemgraphAuditInput) int
+		IngredientCoverage func(childComplexity int, input MemgraphIngredientCoverageInput) int
+		InserterAudit      func(childComplexity int, input MemgraphAuditInput) int
+		ItemSources        func(childComplexity int, input MemgraphItemSourcesInput) int
+		NominalRateBalance func(childComplexity int, input MemgraphNominalRateBalanceInput) int
+		PowerAudit         func(childComplexity int, input MemgraphAuditInput) int
+		Query              func(childComplexity int, input MemgraphQueryInput) int
+		RemovalImpact      func(childComplexity int, input MemgraphRemovalImpactInput) int
+		RootCause          func(childComplexity int, input MemgraphRootCauseInput) int
+		RouteBetween       func(childComplexity int, input MemgraphRouteBetweenInput) int
+		Schema             func(childComplexity int) int
+		SinkAudit          func(childComplexity int, input MemgraphAuditInput) int
+		SupplyChain        func(childComplexity int, input MemgraphSupplyChainInput) int
+	}
+
+	MemgraphAffectedMachine struct {
+		Ingredient   func(childComplexity int) int
+		Machine      func(childComplexity int) int
+		RoutesBefore func(childComplexity int) int
+	}
+
+	MemgraphAreaBoundaryEdge struct {
+		Direction func(childComplexity int) int
+		Inside    func(childComplexity int) int
+		Outside   func(childComplexity int) int
+		Type      func(childComplexity int) int
+	}
+
+	MemgraphAreaComponent struct {
+		Description func(childComplexity int) int
+		Index       func(childComplexity int) int
+		Kinds       func(childComplexity int) int
+		NodeIds     func(childComplexity int) int
+		Size        func(childComplexity int) int
+	}
+
+	MemgraphAreaEdge struct {
+		From func(childComplexity int) int
+		To   func(childComplexity int) int
+		Type func(childComplexity int) int
+	}
+
+	MemgraphAreaGraph struct {
+		Boundary   func(childComplexity int) int
+		Components func(childComplexity int) int
+		Edges      func(childComplexity int) int
+		Nodes      func(childComplexity int) int
+		Outline    func(childComplexity int) int
+		Snapshot   func(childComplexity int) int
+		Summary    func(childComplexity int) int
+		Truncated  func(childComplexity int) int
+	}
+
+	MemgraphAreaSummary struct {
+		Attention      func(childComplexity int) int
+		BoundaryCount  func(childComplexity int) int
+		ComponentCount func(childComplexity int) int
+		EdgeCount      func(childComplexity int) int
+		KindCounts     func(childComplexity int) int
+		NodeCount      func(childComplexity int) int
+	}
+
+	MemgraphAudit struct {
+		Counts    func(childComplexity int) int
+		Findings  func(childComplexity int) int
+		Snapshot  func(childComplexity int) int
+		Summary   func(childComplexity int) int
+		Truncated func(childComplexity int) int
+	}
+
+	MemgraphAuditFinding struct {
+		Audit    func(childComplexity int) int
+		Code     func(childComplexity int) int
+		Impact   func(childComplexity int) int
+		Message  func(childComplexity int) int
+		Node     func(childComplexity int) int
+		Related  func(childComplexity int) int
+		Severity func(childComplexity int) int
+	}
+
+	MemgraphBeltStretches struct {
+		Attention func(childComplexity int) int
+		Outline   func(childComplexity int) int
+		Snapshot  func(childComplexity int) int
+		Stretches func(childComplexity int) int
+		Summary   func(childComplexity int) int
+		Truncated func(childComplexity int) int
+	}
+
+	MemgraphCause struct {
+		Detail    func(childComplexity int) int
+		Node      func(childComplexity int) int
+		Reason    func(childComplexity int) int
+		Route     func(childComplexity int) int
+		RouteText func(childComplexity int) int
+	}
+
+	MemgraphCell struct {
+		BeltCount     func(childComplexity int) int
+		ChestCount    func(childComplexity int) int
+		ID            func(childComplexity int) int
+		InserterCount func(childComplexity int) int
+		LeftTopX      func(childComplexity int) int
+		LeftTopY      func(childComplexity int) int
+		MachineCount  func(childComplexity int) int
+		Name          func(childComplexity int) int
+		Recipes       func(childComplexity int) int
+		RightBottomX  func(childComplexity int) int
+		RightBottomY  func(childComplexity int) int
+		StalledCount  func(childComplexity int) int
+		StatusCounts  func(childComplexity int) int
+	}
+
+	MemgraphCellSummary struct {
+		Cells        func(childComplexity int) int
+		LoneMachines func(childComplexity int) int
+		Snapshot     func(childComplexity int) int
+		Summary      func(childComplexity int) int
+		Truncated    func(childComplexity int) int
+	}
+
+	MemgraphChainCapacity struct {
+		Limiting        func(childComplexity int) int
+		Notes           func(childComplexity int) int
+		OutputItem      func(childComplexity int) int
+		OutputPerMinute func(childComplexity int) int
+		Root            func(childComplexity int) int
+		Snapshot        func(childComplexity int) int
+		Stages          func(childComplexity int) int
+		Truncated       func(childComplexity int) int
+	}
+
 	MemgraphCount struct {
 		Count func(childComplexity int) int
 		Name  func(childComplexity int) int
+	}
+
+	MemgraphDownstreamChain struct {
+		DurationMs  func(childComplexity int) int
+		GraphCypher func(childComplexity int) int
+		Nodes       func(childComplexity int) int
+		Outline     func(childComplexity int) int
+		Paths       func(childComplexity int) int
+		Root        func(childComplexity int) int
+		Sinks       func(childComplexity int) int
+		Snapshot    func(childComplexity int) int
+		Summary     func(childComplexity int) int
+		Truncated   func(childComplexity int) int
 	}
 
 	MemgraphExportResult struct {
@@ -2053,11 +2248,123 @@ type ComplexityRoot struct {
 		Surfaces       func(childComplexity int) int
 	}
 
+	MemgraphFactoryReport struct {
+		Counts    func(childComplexity int) int
+		Findings  func(childComplexity int) int
+		Sections  func(childComplexity int) int
+		Snapshot  func(childComplexity int) int
+		Summary   func(childComplexity int) int
+		Truncated func(childComplexity int) int
+	}
+
+	MemgraphFluidChain struct {
+		Findings  func(childComplexity int) int
+		Links     func(childComplexity int) int
+		Nodes     func(childComplexity int) int
+		Root      func(childComplexity int) int
+		Sinks     func(childComplexity int) int
+		Snapshot  func(childComplexity int) int
+		Sources   func(childComplexity int) int
+		Truncated func(childComplexity int) int
+	}
+
+	MemgraphFluidLink struct {
+		From func(childComplexity int) int
+		To   func(childComplexity int) int
+	}
+
+	MemgraphIngredientCoverage struct {
+		Gaps     func(childComplexity int) int
+		Machines func(childComplexity int) int
+		Snapshot func(childComplexity int) int
+	}
+
+	MemgraphIngredientFeed struct {
+		Amount      func(childComplexity int) int
+		Covered     func(childComplexity int) int
+		FeedingArms func(childComplexity int) int
+		Item        func(childComplexity int) int
+	}
+
+	MemgraphItemRate struct {
+		ConsumedPerMinute func(childComplexity int) int
+		Consumers         func(childComplexity int) int
+		Name              func(childComplexity int) int
+		Net               func(childComplexity int) int
+		ProducedPerMinute func(childComplexity int) int
+		Producers         func(childComplexity int) int
+		UnboundedSources  func(childComplexity int) int
+	}
+
+	MemgraphItemSource struct {
+		Count     func(childComplexity int) int
+		Distance  func(childComplexity int) int
+		Kind      func(childComplexity int) int
+		Node      func(childComplexity int) int
+		PerMinute func(childComplexity int) int
+	}
+
+	MemgraphItemSources struct {
+		Item      func(childComplexity int) int
+		Snapshot  func(childComplexity int) int
+		Sources   func(childComplexity int) int
+		Truncated func(childComplexity int) int
+	}
+
+	MemgraphMachineCoverage struct {
+		Ingredients func(childComplexity int) int
+		Machine     func(childComplexity int) int
+	}
+
+	MemgraphNominalRateBalance struct {
+		Deficits  func(childComplexity int) int
+		Items     func(childComplexity int) int
+		Snapshot  func(childComplexity int) int
+		Truncated func(childComplexity int) int
+	}
+
 	MemgraphQueryResult struct {
 		Columns    func(childComplexity int) int
 		DurationMs func(childComplexity int) int
 		Rows       func(childComplexity int) int
+		Snapshot   func(childComplexity int) int
 		Truncated  func(childComplexity int) int
+	}
+
+	MemgraphRemovalImpact struct {
+		Affected  func(childComplexity int) int
+		Root      func(childComplexity int) int
+		Safe      func(childComplexity int) int
+		Snapshot  func(childComplexity int) int
+		Summary   func(childComplexity int) int
+		Truncated func(childComplexity int) int
+	}
+
+	MemgraphReportSection struct {
+		Error        func(childComplexity int) int
+		FindingCount func(childComplexity int) int
+		Name         func(childComplexity int) int
+		Summary      func(childComplexity int) int
+	}
+
+	MemgraphRootCause struct {
+		Causes    func(childComplexity int) int
+		Root      func(childComplexity int) int
+		Snapshot  func(childComplexity int) int
+		Stalled   func(childComplexity int) int
+		Summary   func(childComplexity int) int
+		Truncated func(childComplexity int) int
+	}
+
+	MemgraphRouteBetween struct {
+		Connected func(childComplexity int) int
+		From      func(childComplexity int) int
+		Nodes     func(childComplexity int) int
+		Outline   func(childComplexity int) int
+		Routes    func(childComplexity int) int
+		Snapshot  func(childComplexity int) int
+		To        func(childComplexity int) int
+		Truncated func(childComplexity int) int
 	}
 
 	MemgraphSchema struct {
@@ -2084,14 +2391,99 @@ type ComplexityRoot struct {
 	}
 
 	MemgraphSnapshotInfo struct {
-		CreatedAt func(childComplexity int) int
-		Edges     func(childComplexity int) int
-		Force     func(childComplexity int) int
-		ID        func(childComplexity int) int
-		LoadedAt  func(childComplexity int) int
-		Nodes     func(childComplexity int) int
-		Status    func(childComplexity int) int
-		Surfaces  func(childComplexity int) int
+		AgeSeconds func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		Edges      func(childComplexity int) int
+		Force      func(childComplexity int) int
+		ID         func(childComplexity int) int
+		LoadedAt   func(childComplexity int) int
+		Nodes      func(childComplexity int) int
+		Status     func(childComplexity int) int
+		Surfaces   func(childComplexity int) int
+		Tick       func(childComplexity int) int
+	}
+
+	MemgraphStageRate struct {
+		DemandPerMinute func(childComplexity int) int
+		Item            func(childComplexity int) int
+		Node            func(childComplexity int) int
+		SupplyPerMinute func(childComplexity int) int
+	}
+
+	MemgraphStretch struct {
+		Distance         func(childComplexity int) int
+		EndKind          func(childComplexity int) int
+		FlowsIntoStretch func(childComplexity int) int
+		HeadUnit         func(childComplexity int) int
+		ID               func(childComplexity int) int
+		Left             func(childComplexity int) int
+		LeftCount        func(childComplexity int) int
+		Mixed            func(childComplexity int) int
+		Pickers          func(childComplexity int) int
+		Right            func(childComplexity int) int
+		RightCount       func(childComplexity int) int
+		TailUnit         func(childComplexity int) int
+		Tiles            func(childComplexity int) int
+		X                func(childComplexity int) int
+		Y                func(childComplexity int) int
+	}
+
+	MemgraphStretchFinding struct {
+		Detail    func(childComplexity int) int
+		Reason    func(childComplexity int) int
+		StretchID func(childComplexity int) int
+	}
+
+	MemgraphStretchMap struct {
+		Columns   func(childComplexity int) int
+		Legend    func(childComplexity int) int
+		OriginX   func(childComplexity int) int
+		OriginY   func(childComplexity int) int
+		Rows      func(childComplexity int) int
+		Snapshot  func(childComplexity int) int
+		Truncated func(childComplexity int) int
+	}
+
+	MemgraphStretchMapLegend struct {
+		Cells  func(childComplexity int) int
+		Char   func(childComplexity int) int
+		Detail func(childComplexity int) int
+		Label  func(childComplexity int) int
+	}
+
+	MemgraphStretchSummary struct {
+		CarryingCount   func(childComplexity int) int
+		Items           func(childComplexity int) int
+		MixedCount      func(childComplexity int) int
+		NoConsumerCount func(childComplexity int) int
+		StretchCount    func(childComplexity int) int
+		TileCount       func(childComplexity int) int
+	}
+
+	MemgraphSupplyChain struct {
+		DurationMs  func(childComplexity int) int
+		GraphCypher func(childComplexity int) int
+		Nodes       func(childComplexity int) int
+		Origins     func(childComplexity int) int
+		Outline     func(childComplexity int) int
+		Paths       func(childComplexity int) int
+		Root        func(childComplexity int) int
+		Snapshot    func(childComplexity int) int
+		Summary     func(childComplexity int) int
+		Truncated   func(childComplexity int) int
+	}
+
+	MemgraphSupplyChainSummary struct {
+		Attention  func(childComplexity int) int
+		KindCounts func(childComplexity int) int
+		MaxHops    func(childComplexity int) int
+		NodeCount  func(childComplexity int) int
+		PathCount  func(childComplexity int) int
+	}
+
+	MemgraphSupplyPath struct {
+		Hops  func(childComplexity int) int
+		Steps func(childComplexity int) int
 	}
 
 	MemgraphSurfaceReport struct {
@@ -2103,6 +2495,22 @@ type ComplexityRoot struct {
 		Surface        func(childComplexity int) int
 		TickAfter      func(childComplexity int) int
 		TickBefore     func(childComplexity int) int
+	}
+
+	MemgraphTraceFinding struct {
+		Node   func(childComplexity int) int
+		Reason func(childComplexity int) int
+	}
+
+	MemgraphTraceNode struct {
+		ID         func(childComplexity int) int
+		Kind       func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Recipe     func(childComplexity int) int
+		Status     func(childComplexity int) int
+		UnitNumber func(childComplexity int) int
+		X          func(childComplexity int) int
+		Y          func(childComplexity int) int
 	}
 
 	MissingSciencePack struct {
@@ -2124,6 +2532,8 @@ type ComplexityRoot struct {
 		BeltTake                    func(childComplexity int, input BeltTakeInput) int
 		BeltThroughputStart         func(childComplexity int, input BeltThroughputStartInput) int
 		BuildAsPlayer               func(childComplexity int, input BuildAsPlayerInput) int
+		BuildCell                   func(childComplexity int, input BuildCellInput) int
+		BuildConnection             func(childComplexity int, input ConnectEntitiesInput, dryRun bool) int
 		BuildGhosts                 func(childComplexity int, input BuildGhostsInput) int
 		CancelCraft                 func(childComplexity int, input CancelCraftInput) int
 		CancelDeconstructArea       func(childComplexity int, input DeconstructAreaInput) int
@@ -2141,7 +2551,6 @@ type ComplexityRoot struct {
 		ConnectEntities             func(childComplexity int, input ConnectEntitiesInput) int
 		ConnectWire                 func(childComplexity int, input WireInput) int
 		Craft                       func(childComplexity int, input CraftInput) int
-		CraftPlan                   func(childComplexity int, input CraftPlanRunInput) int
 		CreateBlueprint             func(childComplexity int, input CreateBlueprintInput) int
 		CreateBlueprintBook         func(childComplexity int, input CreateBlueprintBookInput) int
 		CreateBlueprintFromEntities func(childComplexity int, input CreateBlueprintFromEntitiesInput) int
@@ -2168,7 +2577,7 @@ type ComplexityRoot struct {
 		Pickup                      func(childComplexity int, input PickupInput) int
 		PickupArea                  func(childComplexity int, input PickupAreaInput) int
 		Place                       func(childComplexity int, input PlaceInput) int
-		PlaceBelt                   func(childComplexity int, input BeltPipeRunInput) int
+		PlaceBelts                  func(childComplexity int, input BeltRunInput) int
 		PlaceBlueprint              func(childComplexity int, input PlaceBlueprintInput) int
 		PlaceBlueprintFromBook      func(childComplexity int, input PlaceBlueprintFromBookInput) int
 		PlaceGhosts                 func(childComplexity int, input PlaceGhostsInput) int
@@ -2248,6 +2657,33 @@ type ComplexityRoot struct {
 		PageInfo func(childComplexity int) int
 		Surface  func(childComplexity int) int
 		Tick     func(childComplexity int) int
+	}
+
+	OccupancyEntry struct {
+		Direction  func(childComplexity int) int
+		Footprint  func(childComplexity int) int
+		Force      func(childComplexity int) int
+		GhostName  func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Position   func(childComplexity int) int
+		Type       func(childComplexity int) int
+		UnitNumber func(childComplexity int) int
+	}
+
+	OccupancyPage struct {
+		Area             func(childComplexity int) int
+		Entries          func(childComplexity int) int
+		Force            func(childComplexity int) int
+		PageInfo         func(childComplexity int) int
+		Surface          func(childComplexity int) int
+		Terrain          func(childComplexity int) int
+		TerrainTruncated func(childComplexity int) int
+		Tick             func(childComplexity int) int
+	}
+
+	OccupancyTerrain struct {
+		Position func(childComplexity int) int
+		Tile     func(childComplexity int) int
 	}
 
 	PageInfo struct {
@@ -2374,6 +2810,7 @@ type ComplexityRoot struct {
 	}
 
 	PlayerInsight struct {
+		CheatMode      func(childComplexity int) int
 		Connected      func(childComplexity int) int
 		ControllerType func(childComplexity int) int
 		Force          func(childComplexity int) int
@@ -2536,11 +2973,12 @@ type ComplexityRoot struct {
 		LogisticNetworks   func(childComplexity int, input *LogisticNetworksInput) int
 		Machines           func(childComplexity int, input *MachinesInput) int
 		MapArea            func(childComplexity int, input MapAreaInput) int
-		MemgraphSchema     func(childComplexity int) int
+		Memgraph           func(childComplexity int) int
 		Navigation         func(childComplexity int, id string) int
 		NavigationActive   func(childComplexity int, actor ActorInput) int
 		Nearby             func(childComplexity int, input *NearbyInput) int
 		NearestPlacement   func(childComplexity int, input NearestPlacementInput) int
+		Occupancy          func(childComplexity int, input OccupancyInput) int
 		Player             func(childComplexity int, input ActorInput) int
 		PlayerInsight      func(childComplexity int, input PlayerInsightInput) int
 		PlayerState        func(childComplexity int, player string) int
@@ -2548,7 +2986,6 @@ type ComplexityRoot struct {
 		ProbePlacement     func(childComplexity int, input PlacementProbeInput) int
 		Production         func(childComplexity int, input *FactoryOverviewInput) int
 		Prototype          func(childComplexity int, name string) int
-		QueryMemgraph      func(childComplexity int, input MemgraphQueryInput) int
 		Queue              func(childComplexity int, input ActorInput) int
 		Recipe             func(childComplexity int, input RecipeInput) int
 		ResearchInsights   func(childComplexity int, input *ResearchInsightsInput) int
@@ -3311,6 +3748,30 @@ type LogisticsEndpointResolver interface {
 type MachineInsightMiningTargetResolver interface {
 	Inspection(ctx context.Context, obj *MachineInsightMiningTarget) (*EntityInspection, error)
 }
+type MemgraphResolver interface {
+	Schema(ctx context.Context, obj *Memgraph) (*MemgraphSchema, error)
+	Query(ctx context.Context, obj *Memgraph, input MemgraphQueryInput) (*MemgraphQueryResult, error)
+	AreaGraph(ctx context.Context, obj *Memgraph, input MemgraphAreaGraphInput) (*MemgraphAreaGraph, error)
+	FactoryHealth(ctx context.Context, obj *Memgraph, input MemgraphAuditInput) (*MemgraphAudit, error)
+	PowerAudit(ctx context.Context, obj *Memgraph, input MemgraphAuditInput) (*MemgraphAudit, error)
+	FuelAudit(ctx context.Context, obj *Memgraph, input MemgraphAuditInput) (*MemgraphAudit, error)
+	InserterAudit(ctx context.Context, obj *Memgraph, input MemgraphAuditInput) (*MemgraphAudit, error)
+	SinkAudit(ctx context.Context, obj *Memgraph, input MemgraphAuditInput) (*MemgraphAudit, error)
+	FluidChain(ctx context.Context, obj *Memgraph, input MemgraphFluidChainInput) (*MemgraphFluidChain, error)
+	CellSummary(ctx context.Context, obj *Memgraph, input MemgraphCellSummaryInput) (*MemgraphCellSummary, error)
+	FactoryReport(ctx context.Context, obj *Memgraph, input MemgraphFactoryReportInput) (*MemgraphFactoryReport, error)
+	RootCause(ctx context.Context, obj *Memgraph, input MemgraphRootCauseInput) (*MemgraphRootCause, error)
+	NominalRateBalance(ctx context.Context, obj *Memgraph, input MemgraphNominalRateBalanceInput) (*MemgraphNominalRateBalance, error)
+	RemovalImpact(ctx context.Context, obj *Memgraph, input MemgraphRemovalImpactInput) (*MemgraphRemovalImpact, error)
+	ChainCapacity(ctx context.Context, obj *Memgraph, input MemgraphChainCapacityInput) (*MemgraphChainCapacity, error)
+	RouteBetween(ctx context.Context, obj *Memgraph, input MemgraphRouteBetweenInput) (*MemgraphRouteBetween, error)
+	ItemSources(ctx context.Context, obj *Memgraph, input MemgraphItemSourcesInput) (*MemgraphItemSources, error)
+	BeltStretches(ctx context.Context, obj *Memgraph, input MemgraphBeltStretchesInput) (*MemgraphBeltStretches, error)
+	BeltStretchMap(ctx context.Context, obj *Memgraph, input MemgraphBeltStretchMapInput) (*MemgraphStretchMap, error)
+	SupplyChain(ctx context.Context, obj *Memgraph, input MemgraphSupplyChainInput) (*MemgraphSupplyChain, error)
+	IngredientCoverage(ctx context.Context, obj *Memgraph, input MemgraphIngredientCoverageInput) (*MemgraphIngredientCoverage, error)
+	DownstreamChain(ctx context.Context, obj *Memgraph, input MemgraphDownstreamChainInput) (*MemgraphDownstreamChain, error)
+}
 type MutationResolver interface {
 	CharacterCreate(ctx context.Context, input CharacterCreateInput) (*ActionResult, error)
 	CharacterReturn(ctx context.Context, input CharacterReturnInput) (*ActionResult, error)
@@ -3325,7 +3786,6 @@ type MutationResolver interface {
 	PlaceBlueprint(ctx context.Context, input PlaceBlueprintInput) (*BlueprintPlaceResult, error)
 	Fuel(ctx context.Context, input FuelInput) (*ActionResult, error)
 	Craft(ctx context.Context, input CraftInput) (*ActionResult, error)
-	CraftPlan(ctx context.Context, input CraftPlanRunInput) (*CraftPlanResult, error)
 	CancelCraft(ctx context.Context, input CancelCraftInput) (*CraftQueue, error)
 	ClearArea(ctx context.Context, input ClearAreaInput) (*ClearAreaResult, error)
 	HarvestArea(ctx context.Context, input HarvestAreaInput) (*HarvestAreaResult, error)
@@ -3369,9 +3829,11 @@ type MutationResolver interface {
 	MoveBlueprintInBook(ctx context.Context, input MoveBlueprintInBookInput) (*BlueprintBookMutationResult, error)
 	PlaceBlueprintFromBook(ctx context.Context, input PlaceBlueprintFromBookInput) (*BlueprintPlaceResult, error)
 	GiveBlueprintBook(ctx context.Context, input GiveBlueprintBookInput) (*BlueprintBookGiveResult, error)
+	BuildCell(ctx context.Context, input BuildCellInput) (*BuildCellResult, error)
 	ConnectEntities(ctx context.Context, input ConnectEntitiesInput) (*ConnectEntitiesResult, error)
-	PlaceBelt(ctx context.Context, input BeltPipeRunInput) (*ConnectEntitiesResult, error)
+	PlaceBelts(ctx context.Context, input BeltRunInput) (*ConnectEntitiesResult, error)
 	PlacePipe(ctx context.Context, input BeltPipeRunInput) (*ConnectEntitiesResult, error)
+	BuildConnection(ctx context.Context, input ConnectEntitiesInput, dryRun bool) (*BuildConnectionResult, error)
 	BuildGhosts(ctx context.Context, input BuildGhostsInput) (*BuildGhostsResult, error)
 	PlaceGhosts(ctx context.Context, input PlaceGhostsInput) (*GhostPlacementResult, error)
 	UpgradeArea(ctx context.Context, input UpgradeAreaInput) (*UpgradeAreaResult, error)
@@ -3473,11 +3935,11 @@ type QueryResolver interface {
 	WorldPlacement(ctx context.Context, input WorldPlacementInput) (*WorldPlacementResult, error)
 	ProbePlacement(ctx context.Context, input PlacementProbeInput) (*PlacementProbeResult, error)
 	MapArea(ctx context.Context, input MapAreaInput) (*MapArea, error)
-	MemgraphSchema(ctx context.Context) (*MemgraphSchema, error)
-	QueryMemgraph(ctx context.Context, input MemgraphQueryInput) (*MemgraphQueryResult, error)
+	Memgraph(ctx context.Context) (*Memgraph, error)
 	Navigation(ctx context.Context, id string) (*NavigationJob, error)
 	NavigationActive(ctx context.Context, actor ActorInput) (*NavigationJob, error)
 	NearestPlacement(ctx context.Context, input NearestPlacementInput) (*PlacementCandidate, error)
+	Occupancy(ctx context.Context, input OccupancyInput) (*OccupancyPage, error)
 	Prototype(ctx context.Context, name string) (*Prototype, error)
 	EntitySettings(ctx context.Context, input EntitySettingsInput) (*EntitySettingsPage, error)
 	SpacePlatforms(ctx context.Context, input *SpacePlatformsInput) (*SpacePlatformPage, error)
@@ -3537,6 +3999,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ActionResult.Capacity(childComplexity), true
+	case "ActionResult.chain":
+		if e.ComplexityRoot.ActionResult.Chain == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ActionResult.Chain(childComplexity), true
 	case "ActionResult.character":
 		if e.ComplexityRoot.ActionResult.Character == nil {
 			break
@@ -3772,6 +4240,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Actor.CharacterInspection(childComplexity), true
+	case "Actor.cheatMode":
+		if e.ComplexityRoot.Actor.CheatMode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Actor.CheatMode(childComplexity), true
 	case "Actor.connected":
 		if e.ComplexityRoot.Actor.Connected == nil {
 			break
@@ -5897,6 +6371,177 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BriefingResearch.Queue(childComplexity), true
+
+	case "BuildCellResult.completed":
+		if e.ComplexityRoot.BuildCellResult.Completed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellResult.Completed(childComplexity), true
+	case "BuildCellResult.dryRun":
+		if e.ComplexityRoot.BuildCellResult.DryRun == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellResult.DryRun(childComplexity), true
+	case "BuildCellResult.failed":
+		if e.ComplexityRoot.BuildCellResult.Failed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellResult.Failed(childComplexity), true
+	case "BuildCellResult.force":
+		if e.ComplexityRoot.BuildCellResult.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellResult.Force(childComplexity), true
+	case "BuildCellResult.placed":
+		if e.ComplexityRoot.BuildCellResult.Placed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellResult.Placed(childComplexity), true
+	case "BuildCellResult.skipped":
+		if e.ComplexityRoot.BuildCellResult.Skipped == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellResult.Skipped(childComplexity), true
+	case "BuildCellResult.steps":
+		if e.ComplexityRoot.BuildCellResult.Steps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellResult.Steps(childComplexity), true
+	case "BuildCellResult.surface":
+		if e.ComplexityRoot.BuildCellResult.Surface == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellResult.Surface(childComplexity), true
+	case "BuildCellResult.tick":
+		if e.ComplexityRoot.BuildCellResult.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellResult.Tick(childComplexity), true
+
+	case "BuildCellStep.applied":
+		if e.ComplexityRoot.BuildCellStep.Applied == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Applied(childComplexity), true
+	case "BuildCellStep.conflicts":
+		if e.ComplexityRoot.BuildCellStep.Conflicts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Conflicts(childComplexity), true
+	case "BuildCellStep.errors":
+		if e.ComplexityRoot.BuildCellStep.Errors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Errors(childComplexity), true
+	case "BuildCellStep.failed":
+		if e.ComplexityRoot.BuildCellStep.Failed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Failed(childComplexity), true
+	case "BuildCellStep.index":
+		if e.ComplexityRoot.BuildCellStep.Index == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Index(childComplexity), true
+	case "BuildCellStep.kind":
+		if e.ComplexityRoot.BuildCellStep.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Kind(childComplexity), true
+	case "BuildCellStep.message":
+		if e.ComplexityRoot.BuildCellStep.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Message(childComplexity), true
+	case "BuildCellStep.name":
+		if e.ComplexityRoot.BuildCellStep.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Name(childComplexity), true
+	case "BuildCellStep.ok":
+		if e.ComplexityRoot.BuildCellStep.Ok == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Ok(childComplexity), true
+	case "BuildCellStep.placed":
+		if e.ComplexityRoot.BuildCellStep.Placed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Placed(childComplexity), true
+	case "BuildCellStep.position":
+		if e.ComplexityRoot.BuildCellStep.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Position(childComplexity), true
+	case "BuildCellStep.ref":
+		if e.ComplexityRoot.BuildCellStep.Ref == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.Ref(childComplexity), true
+	case "BuildCellStep.unitNumber":
+		if e.ComplexityRoot.BuildCellStep.UnitNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildCellStep.UnitNumber(childComplexity), true
+
+	case "BuildConnectionResult.dryRun":
+		if e.ComplexityRoot.BuildConnectionResult.DryRun == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildConnectionResult.DryRun(childComplexity), true
+	case "BuildConnectionResult.force":
+		if e.ComplexityRoot.BuildConnectionResult.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildConnectionResult.Force(childComplexity), true
+	case "BuildConnectionResult.plan":
+		if e.ComplexityRoot.BuildConnectionResult.Plan == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildConnectionResult.Plan(childComplexity), true
+	case "BuildConnectionResult.result":
+		if e.ComplexityRoot.BuildConnectionResult.Result == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildConnectionResult.Result(childComplexity), true
+	case "BuildConnectionResult.surface":
+		if e.ComplexityRoot.BuildConnectionResult.Surface == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildConnectionResult.Surface(childComplexity), true
+	case "BuildConnectionResult.tick":
+		if e.ComplexityRoot.BuildConnectionResult.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BuildConnectionResult.Tick(childComplexity), true
 
 	case "BuildGhostsResult.actor":
 		if e.ComplexityRoot.BuildGhostsResult.Actor == nil {
@@ -12289,6 +12934,725 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MapLegendEntry.UnitNumber(childComplexity), true
 
+	case "Memgraph.areaGraph":
+		if e.ComplexityRoot.Memgraph.AreaGraph == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_areaGraph_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.AreaGraph(childComplexity, args["input"].(MemgraphAreaGraphInput)), true
+	case "Memgraph.beltStretchMap":
+		if e.ComplexityRoot.Memgraph.BeltStretchMap == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_beltStretchMap_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.BeltStretchMap(childComplexity, args["input"].(MemgraphBeltStretchMapInput)), true
+	case "Memgraph.beltStretches":
+		if e.ComplexityRoot.Memgraph.BeltStretches == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_beltStretches_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.BeltStretches(childComplexity, args["input"].(MemgraphBeltStretchesInput)), true
+	case "Memgraph.cellSummary":
+		if e.ComplexityRoot.Memgraph.CellSummary == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_cellSummary_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.CellSummary(childComplexity, args["input"].(MemgraphCellSummaryInput)), true
+	case "Memgraph.chainCapacity":
+		if e.ComplexityRoot.Memgraph.ChainCapacity == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_chainCapacity_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.ChainCapacity(childComplexity, args["input"].(MemgraphChainCapacityInput)), true
+	case "Memgraph.downstreamChain":
+		if e.ComplexityRoot.Memgraph.DownstreamChain == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_downstreamChain_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.DownstreamChain(childComplexity, args["input"].(MemgraphDownstreamChainInput)), true
+	case "Memgraph.factoryHealth":
+		if e.ComplexityRoot.Memgraph.FactoryHealth == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_factoryHealth_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.FactoryHealth(childComplexity, args["input"].(MemgraphAuditInput)), true
+	case "Memgraph.factoryReport":
+		if e.ComplexityRoot.Memgraph.FactoryReport == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_factoryReport_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.FactoryReport(childComplexity, args["input"].(MemgraphFactoryReportInput)), true
+	case "Memgraph.fluidChain":
+		if e.ComplexityRoot.Memgraph.FluidChain == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_fluidChain_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.FluidChain(childComplexity, args["input"].(MemgraphFluidChainInput)), true
+	case "Memgraph.fuelAudit":
+		if e.ComplexityRoot.Memgraph.FuelAudit == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_fuelAudit_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.FuelAudit(childComplexity, args["input"].(MemgraphAuditInput)), true
+	case "Memgraph.ingredientCoverage":
+		if e.ComplexityRoot.Memgraph.IngredientCoverage == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_ingredientCoverage_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.IngredientCoverage(childComplexity, args["input"].(MemgraphIngredientCoverageInput)), true
+	case "Memgraph.inserterAudit":
+		if e.ComplexityRoot.Memgraph.InserterAudit == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_inserterAudit_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.InserterAudit(childComplexity, args["input"].(MemgraphAuditInput)), true
+	case "Memgraph.itemSources":
+		if e.ComplexityRoot.Memgraph.ItemSources == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_itemSources_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.ItemSources(childComplexity, args["input"].(MemgraphItemSourcesInput)), true
+	case "Memgraph.nominalRateBalance":
+		if e.ComplexityRoot.Memgraph.NominalRateBalance == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_nominalRateBalance_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.NominalRateBalance(childComplexity, args["input"].(MemgraphNominalRateBalanceInput)), true
+	case "Memgraph.powerAudit":
+		if e.ComplexityRoot.Memgraph.PowerAudit == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_powerAudit_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.PowerAudit(childComplexity, args["input"].(MemgraphAuditInput)), true
+	case "Memgraph.query":
+		if e.ComplexityRoot.Memgraph.Query == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_query_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.Query(childComplexity, args["input"].(MemgraphQueryInput)), true
+	case "Memgraph.removalImpact":
+		if e.ComplexityRoot.Memgraph.RemovalImpact == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_removalImpact_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.RemovalImpact(childComplexity, args["input"].(MemgraphRemovalImpactInput)), true
+	case "Memgraph.rootCause":
+		if e.ComplexityRoot.Memgraph.RootCause == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_rootCause_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.RootCause(childComplexity, args["input"].(MemgraphRootCauseInput)), true
+	case "Memgraph.routeBetween":
+		if e.ComplexityRoot.Memgraph.RouteBetween == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_routeBetween_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.RouteBetween(childComplexity, args["input"].(MemgraphRouteBetweenInput)), true
+	case "Memgraph.schema":
+		if e.ComplexityRoot.Memgraph.Schema == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Memgraph.Schema(childComplexity), true
+	case "Memgraph.sinkAudit":
+		if e.ComplexityRoot.Memgraph.SinkAudit == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_sinkAudit_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.SinkAudit(childComplexity, args["input"].(MemgraphAuditInput)), true
+	case "Memgraph.supplyChain":
+		if e.ComplexityRoot.Memgraph.SupplyChain == nil {
+			break
+		}
+
+		args, err := ec.field_Memgraph_supplyChain_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Memgraph.SupplyChain(childComplexity, args["input"].(MemgraphSupplyChainInput)), true
+
+	case "MemgraphAffectedMachine.ingredient":
+		if e.ComplexityRoot.MemgraphAffectedMachine.Ingredient == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAffectedMachine.Ingredient(childComplexity), true
+	case "MemgraphAffectedMachine.machine":
+		if e.ComplexityRoot.MemgraphAffectedMachine.Machine == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAffectedMachine.Machine(childComplexity), true
+	case "MemgraphAffectedMachine.routesBefore":
+		if e.ComplexityRoot.MemgraphAffectedMachine.RoutesBefore == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAffectedMachine.RoutesBefore(childComplexity), true
+
+	case "MemgraphAreaBoundaryEdge.direction":
+		if e.ComplexityRoot.MemgraphAreaBoundaryEdge.Direction == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaBoundaryEdge.Direction(childComplexity), true
+	case "MemgraphAreaBoundaryEdge.inside":
+		if e.ComplexityRoot.MemgraphAreaBoundaryEdge.Inside == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaBoundaryEdge.Inside(childComplexity), true
+	case "MemgraphAreaBoundaryEdge.outside":
+		if e.ComplexityRoot.MemgraphAreaBoundaryEdge.Outside == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaBoundaryEdge.Outside(childComplexity), true
+	case "MemgraphAreaBoundaryEdge.type":
+		if e.ComplexityRoot.MemgraphAreaBoundaryEdge.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaBoundaryEdge.Type(childComplexity), true
+
+	case "MemgraphAreaComponent.description":
+		if e.ComplexityRoot.MemgraphAreaComponent.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaComponent.Description(childComplexity), true
+	case "MemgraphAreaComponent.index":
+		if e.ComplexityRoot.MemgraphAreaComponent.Index == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaComponent.Index(childComplexity), true
+	case "MemgraphAreaComponent.kinds":
+		if e.ComplexityRoot.MemgraphAreaComponent.Kinds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaComponent.Kinds(childComplexity), true
+	case "MemgraphAreaComponent.nodeIds":
+		if e.ComplexityRoot.MemgraphAreaComponent.NodeIds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaComponent.NodeIds(childComplexity), true
+	case "MemgraphAreaComponent.size":
+		if e.ComplexityRoot.MemgraphAreaComponent.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaComponent.Size(childComplexity), true
+
+	case "MemgraphAreaEdge.from":
+		if e.ComplexityRoot.MemgraphAreaEdge.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaEdge.From(childComplexity), true
+	case "MemgraphAreaEdge.to":
+		if e.ComplexityRoot.MemgraphAreaEdge.To == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaEdge.To(childComplexity), true
+	case "MemgraphAreaEdge.type":
+		if e.ComplexityRoot.MemgraphAreaEdge.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaEdge.Type(childComplexity), true
+
+	case "MemgraphAreaGraph.boundary":
+		if e.ComplexityRoot.MemgraphAreaGraph.Boundary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaGraph.Boundary(childComplexity), true
+	case "MemgraphAreaGraph.components":
+		if e.ComplexityRoot.MemgraphAreaGraph.Components == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaGraph.Components(childComplexity), true
+	case "MemgraphAreaGraph.edges":
+		if e.ComplexityRoot.MemgraphAreaGraph.Edges == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaGraph.Edges(childComplexity), true
+	case "MemgraphAreaGraph.nodes":
+		if e.ComplexityRoot.MemgraphAreaGraph.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaGraph.Nodes(childComplexity), true
+	case "MemgraphAreaGraph.outline":
+		if e.ComplexityRoot.MemgraphAreaGraph.Outline == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaGraph.Outline(childComplexity), true
+	case "MemgraphAreaGraph.snapshot":
+		if e.ComplexityRoot.MemgraphAreaGraph.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaGraph.Snapshot(childComplexity), true
+	case "MemgraphAreaGraph.summary":
+		if e.ComplexityRoot.MemgraphAreaGraph.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaGraph.Summary(childComplexity), true
+	case "MemgraphAreaGraph.truncated":
+		if e.ComplexityRoot.MemgraphAreaGraph.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaGraph.Truncated(childComplexity), true
+
+	case "MemgraphAreaSummary.attention":
+		if e.ComplexityRoot.MemgraphAreaSummary.Attention == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaSummary.Attention(childComplexity), true
+	case "MemgraphAreaSummary.boundaryCount":
+		if e.ComplexityRoot.MemgraphAreaSummary.BoundaryCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaSummary.BoundaryCount(childComplexity), true
+	case "MemgraphAreaSummary.componentCount":
+		if e.ComplexityRoot.MemgraphAreaSummary.ComponentCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaSummary.ComponentCount(childComplexity), true
+	case "MemgraphAreaSummary.edgeCount":
+		if e.ComplexityRoot.MemgraphAreaSummary.EdgeCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaSummary.EdgeCount(childComplexity), true
+	case "MemgraphAreaSummary.kindCounts":
+		if e.ComplexityRoot.MemgraphAreaSummary.KindCounts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaSummary.KindCounts(childComplexity), true
+	case "MemgraphAreaSummary.nodeCount":
+		if e.ComplexityRoot.MemgraphAreaSummary.NodeCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAreaSummary.NodeCount(childComplexity), true
+
+	case "MemgraphAudit.counts":
+		if e.ComplexityRoot.MemgraphAudit.Counts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAudit.Counts(childComplexity), true
+	case "MemgraphAudit.findings":
+		if e.ComplexityRoot.MemgraphAudit.Findings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAudit.Findings(childComplexity), true
+	case "MemgraphAudit.snapshot":
+		if e.ComplexityRoot.MemgraphAudit.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAudit.Snapshot(childComplexity), true
+	case "MemgraphAudit.summary":
+		if e.ComplexityRoot.MemgraphAudit.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAudit.Summary(childComplexity), true
+	case "MemgraphAudit.truncated":
+		if e.ComplexityRoot.MemgraphAudit.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAudit.Truncated(childComplexity), true
+
+	case "MemgraphAuditFinding.audit":
+		if e.ComplexityRoot.MemgraphAuditFinding.Audit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAuditFinding.Audit(childComplexity), true
+	case "MemgraphAuditFinding.code":
+		if e.ComplexityRoot.MemgraphAuditFinding.Code == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAuditFinding.Code(childComplexity), true
+	case "MemgraphAuditFinding.impact":
+		if e.ComplexityRoot.MemgraphAuditFinding.Impact == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAuditFinding.Impact(childComplexity), true
+	case "MemgraphAuditFinding.message":
+		if e.ComplexityRoot.MemgraphAuditFinding.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAuditFinding.Message(childComplexity), true
+	case "MemgraphAuditFinding.node":
+		if e.ComplexityRoot.MemgraphAuditFinding.Node == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAuditFinding.Node(childComplexity), true
+	case "MemgraphAuditFinding.related":
+		if e.ComplexityRoot.MemgraphAuditFinding.Related == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAuditFinding.Related(childComplexity), true
+	case "MemgraphAuditFinding.severity":
+		if e.ComplexityRoot.MemgraphAuditFinding.Severity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphAuditFinding.Severity(childComplexity), true
+
+	case "MemgraphBeltStretches.attention":
+		if e.ComplexityRoot.MemgraphBeltStretches.Attention == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphBeltStretches.Attention(childComplexity), true
+	case "MemgraphBeltStretches.outline":
+		if e.ComplexityRoot.MemgraphBeltStretches.Outline == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphBeltStretches.Outline(childComplexity), true
+	case "MemgraphBeltStretches.snapshot":
+		if e.ComplexityRoot.MemgraphBeltStretches.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphBeltStretches.Snapshot(childComplexity), true
+	case "MemgraphBeltStretches.stretches":
+		if e.ComplexityRoot.MemgraphBeltStretches.Stretches == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphBeltStretches.Stretches(childComplexity), true
+	case "MemgraphBeltStretches.summary":
+		if e.ComplexityRoot.MemgraphBeltStretches.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphBeltStretches.Summary(childComplexity), true
+	case "MemgraphBeltStretches.truncated":
+		if e.ComplexityRoot.MemgraphBeltStretches.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphBeltStretches.Truncated(childComplexity), true
+
+	case "MemgraphCause.detail":
+		if e.ComplexityRoot.MemgraphCause.Detail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCause.Detail(childComplexity), true
+	case "MemgraphCause.node":
+		if e.ComplexityRoot.MemgraphCause.Node == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCause.Node(childComplexity), true
+	case "MemgraphCause.reason":
+		if e.ComplexityRoot.MemgraphCause.Reason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCause.Reason(childComplexity), true
+	case "MemgraphCause.route":
+		if e.ComplexityRoot.MemgraphCause.Route == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCause.Route(childComplexity), true
+	case "MemgraphCause.routeText":
+		if e.ComplexityRoot.MemgraphCause.RouteText == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCause.RouteText(childComplexity), true
+
+	case "MemgraphCell.beltCount":
+		if e.ComplexityRoot.MemgraphCell.BeltCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.BeltCount(childComplexity), true
+	case "MemgraphCell.chestCount":
+		if e.ComplexityRoot.MemgraphCell.ChestCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.ChestCount(childComplexity), true
+	case "MemgraphCell.id":
+		if e.ComplexityRoot.MemgraphCell.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.ID(childComplexity), true
+	case "MemgraphCell.inserterCount":
+		if e.ComplexityRoot.MemgraphCell.InserterCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.InserterCount(childComplexity), true
+	case "MemgraphCell.leftTopX":
+		if e.ComplexityRoot.MemgraphCell.LeftTopX == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.LeftTopX(childComplexity), true
+	case "MemgraphCell.leftTopY":
+		if e.ComplexityRoot.MemgraphCell.LeftTopY == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.LeftTopY(childComplexity), true
+	case "MemgraphCell.machineCount":
+		if e.ComplexityRoot.MemgraphCell.MachineCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.MachineCount(childComplexity), true
+	case "MemgraphCell.name":
+		if e.ComplexityRoot.MemgraphCell.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.Name(childComplexity), true
+	case "MemgraphCell.recipes":
+		if e.ComplexityRoot.MemgraphCell.Recipes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.Recipes(childComplexity), true
+	case "MemgraphCell.rightBottomX":
+		if e.ComplexityRoot.MemgraphCell.RightBottomX == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.RightBottomX(childComplexity), true
+	case "MemgraphCell.rightBottomY":
+		if e.ComplexityRoot.MemgraphCell.RightBottomY == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.RightBottomY(childComplexity), true
+	case "MemgraphCell.stalledCount":
+		if e.ComplexityRoot.MemgraphCell.StalledCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.StalledCount(childComplexity), true
+	case "MemgraphCell.statusCounts":
+		if e.ComplexityRoot.MemgraphCell.StatusCounts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCell.StatusCounts(childComplexity), true
+
+	case "MemgraphCellSummary.cells":
+		if e.ComplexityRoot.MemgraphCellSummary.Cells == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCellSummary.Cells(childComplexity), true
+	case "MemgraphCellSummary.loneMachines":
+		if e.ComplexityRoot.MemgraphCellSummary.LoneMachines == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCellSummary.LoneMachines(childComplexity), true
+	case "MemgraphCellSummary.snapshot":
+		if e.ComplexityRoot.MemgraphCellSummary.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCellSummary.Snapshot(childComplexity), true
+	case "MemgraphCellSummary.summary":
+		if e.ComplexityRoot.MemgraphCellSummary.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCellSummary.Summary(childComplexity), true
+	case "MemgraphCellSummary.truncated":
+		if e.ComplexityRoot.MemgraphCellSummary.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphCellSummary.Truncated(childComplexity), true
+
+	case "MemgraphChainCapacity.limiting":
+		if e.ComplexityRoot.MemgraphChainCapacity.Limiting == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphChainCapacity.Limiting(childComplexity), true
+	case "MemgraphChainCapacity.notes":
+		if e.ComplexityRoot.MemgraphChainCapacity.Notes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphChainCapacity.Notes(childComplexity), true
+	case "MemgraphChainCapacity.outputItem":
+		if e.ComplexityRoot.MemgraphChainCapacity.OutputItem == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphChainCapacity.OutputItem(childComplexity), true
+	case "MemgraphChainCapacity.outputPerMinute":
+		if e.ComplexityRoot.MemgraphChainCapacity.OutputPerMinute == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphChainCapacity.OutputPerMinute(childComplexity), true
+	case "MemgraphChainCapacity.root":
+		if e.ComplexityRoot.MemgraphChainCapacity.Root == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphChainCapacity.Root(childComplexity), true
+	case "MemgraphChainCapacity.snapshot":
+		if e.ComplexityRoot.MemgraphChainCapacity.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphChainCapacity.Snapshot(childComplexity), true
+	case "MemgraphChainCapacity.stages":
+		if e.ComplexityRoot.MemgraphChainCapacity.Stages == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphChainCapacity.Stages(childComplexity), true
+	case "MemgraphChainCapacity.truncated":
+		if e.ComplexityRoot.MemgraphChainCapacity.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphChainCapacity.Truncated(childComplexity), true
+
 	case "MemgraphCount.count":
 		if e.ComplexityRoot.MemgraphCount.Count == nil {
 			break
@@ -12301,6 +13665,67 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MemgraphCount.Name(childComplexity), true
+
+	case "MemgraphDownstreamChain.durationMs":
+		if e.ComplexityRoot.MemgraphDownstreamChain.DurationMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphDownstreamChain.DurationMs(childComplexity), true
+	case "MemgraphDownstreamChain.graphCypher":
+		if e.ComplexityRoot.MemgraphDownstreamChain.GraphCypher == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphDownstreamChain.GraphCypher(childComplexity), true
+	case "MemgraphDownstreamChain.nodes":
+		if e.ComplexityRoot.MemgraphDownstreamChain.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphDownstreamChain.Nodes(childComplexity), true
+	case "MemgraphDownstreamChain.outline":
+		if e.ComplexityRoot.MemgraphDownstreamChain.Outline == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphDownstreamChain.Outline(childComplexity), true
+	case "MemgraphDownstreamChain.paths":
+		if e.ComplexityRoot.MemgraphDownstreamChain.Paths == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphDownstreamChain.Paths(childComplexity), true
+	case "MemgraphDownstreamChain.root":
+		if e.ComplexityRoot.MemgraphDownstreamChain.Root == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphDownstreamChain.Root(childComplexity), true
+	case "MemgraphDownstreamChain.sinks":
+		if e.ComplexityRoot.MemgraphDownstreamChain.Sinks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphDownstreamChain.Sinks(childComplexity), true
+	case "MemgraphDownstreamChain.snapshot":
+		if e.ComplexityRoot.MemgraphDownstreamChain.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphDownstreamChain.Snapshot(childComplexity), true
+	case "MemgraphDownstreamChain.summary":
+		if e.ComplexityRoot.MemgraphDownstreamChain.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphDownstreamChain.Summary(childComplexity), true
+	case "MemgraphDownstreamChain.truncated":
+		if e.ComplexityRoot.MemgraphDownstreamChain.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphDownstreamChain.Truncated(childComplexity), true
 
 	case "MemgraphExportResult.directory":
 		if e.ComplexityRoot.MemgraphExportResult.Directory == nil {
@@ -12393,6 +13818,286 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MemgraphExportResult.Surfaces(childComplexity), true
 
+	case "MemgraphFactoryReport.counts":
+		if e.ComplexityRoot.MemgraphFactoryReport.Counts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFactoryReport.Counts(childComplexity), true
+	case "MemgraphFactoryReport.findings":
+		if e.ComplexityRoot.MemgraphFactoryReport.Findings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFactoryReport.Findings(childComplexity), true
+	case "MemgraphFactoryReport.sections":
+		if e.ComplexityRoot.MemgraphFactoryReport.Sections == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFactoryReport.Sections(childComplexity), true
+	case "MemgraphFactoryReport.snapshot":
+		if e.ComplexityRoot.MemgraphFactoryReport.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFactoryReport.Snapshot(childComplexity), true
+	case "MemgraphFactoryReport.summary":
+		if e.ComplexityRoot.MemgraphFactoryReport.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFactoryReport.Summary(childComplexity), true
+	case "MemgraphFactoryReport.truncated":
+		if e.ComplexityRoot.MemgraphFactoryReport.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFactoryReport.Truncated(childComplexity), true
+
+	case "MemgraphFluidChain.findings":
+		if e.ComplexityRoot.MemgraphFluidChain.Findings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFluidChain.Findings(childComplexity), true
+	case "MemgraphFluidChain.links":
+		if e.ComplexityRoot.MemgraphFluidChain.Links == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFluidChain.Links(childComplexity), true
+	case "MemgraphFluidChain.nodes":
+		if e.ComplexityRoot.MemgraphFluidChain.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFluidChain.Nodes(childComplexity), true
+	case "MemgraphFluidChain.root":
+		if e.ComplexityRoot.MemgraphFluidChain.Root == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFluidChain.Root(childComplexity), true
+	case "MemgraphFluidChain.sinks":
+		if e.ComplexityRoot.MemgraphFluidChain.Sinks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFluidChain.Sinks(childComplexity), true
+	case "MemgraphFluidChain.snapshot":
+		if e.ComplexityRoot.MemgraphFluidChain.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFluidChain.Snapshot(childComplexity), true
+	case "MemgraphFluidChain.sources":
+		if e.ComplexityRoot.MemgraphFluidChain.Sources == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFluidChain.Sources(childComplexity), true
+	case "MemgraphFluidChain.truncated":
+		if e.ComplexityRoot.MemgraphFluidChain.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFluidChain.Truncated(childComplexity), true
+
+	case "MemgraphFluidLink.from":
+		if e.ComplexityRoot.MemgraphFluidLink.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFluidLink.From(childComplexity), true
+	case "MemgraphFluidLink.to":
+		if e.ComplexityRoot.MemgraphFluidLink.To == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphFluidLink.To(childComplexity), true
+
+	case "MemgraphIngredientCoverage.gaps":
+		if e.ComplexityRoot.MemgraphIngredientCoverage.Gaps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphIngredientCoverage.Gaps(childComplexity), true
+	case "MemgraphIngredientCoverage.machines":
+		if e.ComplexityRoot.MemgraphIngredientCoverage.Machines == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphIngredientCoverage.Machines(childComplexity), true
+	case "MemgraphIngredientCoverage.snapshot":
+		if e.ComplexityRoot.MemgraphIngredientCoverage.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphIngredientCoverage.Snapshot(childComplexity), true
+
+	case "MemgraphIngredientFeed.amount":
+		if e.ComplexityRoot.MemgraphIngredientFeed.Amount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphIngredientFeed.Amount(childComplexity), true
+	case "MemgraphIngredientFeed.covered":
+		if e.ComplexityRoot.MemgraphIngredientFeed.Covered == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphIngredientFeed.Covered(childComplexity), true
+	case "MemgraphIngredientFeed.feedingArms":
+		if e.ComplexityRoot.MemgraphIngredientFeed.FeedingArms == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphIngredientFeed.FeedingArms(childComplexity), true
+	case "MemgraphIngredientFeed.item":
+		if e.ComplexityRoot.MemgraphIngredientFeed.Item == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphIngredientFeed.Item(childComplexity), true
+
+	case "MemgraphItemRate.consumedPerMinute":
+		if e.ComplexityRoot.MemgraphItemRate.ConsumedPerMinute == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemRate.ConsumedPerMinute(childComplexity), true
+	case "MemgraphItemRate.consumers":
+		if e.ComplexityRoot.MemgraphItemRate.Consumers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemRate.Consumers(childComplexity), true
+	case "MemgraphItemRate.name":
+		if e.ComplexityRoot.MemgraphItemRate.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemRate.Name(childComplexity), true
+	case "MemgraphItemRate.net":
+		if e.ComplexityRoot.MemgraphItemRate.Net == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemRate.Net(childComplexity), true
+	case "MemgraphItemRate.producedPerMinute":
+		if e.ComplexityRoot.MemgraphItemRate.ProducedPerMinute == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemRate.ProducedPerMinute(childComplexity), true
+	case "MemgraphItemRate.producers":
+		if e.ComplexityRoot.MemgraphItemRate.Producers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemRate.Producers(childComplexity), true
+	case "MemgraphItemRate.unboundedSources":
+		if e.ComplexityRoot.MemgraphItemRate.UnboundedSources == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemRate.UnboundedSources(childComplexity), true
+
+	case "MemgraphItemSource.count":
+		if e.ComplexityRoot.MemgraphItemSource.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemSource.Count(childComplexity), true
+	case "MemgraphItemSource.distance":
+		if e.ComplexityRoot.MemgraphItemSource.Distance == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemSource.Distance(childComplexity), true
+	case "MemgraphItemSource.kind":
+		if e.ComplexityRoot.MemgraphItemSource.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemSource.Kind(childComplexity), true
+	case "MemgraphItemSource.node":
+		if e.ComplexityRoot.MemgraphItemSource.Node == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemSource.Node(childComplexity), true
+	case "MemgraphItemSource.perMinute":
+		if e.ComplexityRoot.MemgraphItemSource.PerMinute == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemSource.PerMinute(childComplexity), true
+
+	case "MemgraphItemSources.item":
+		if e.ComplexityRoot.MemgraphItemSources.Item == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemSources.Item(childComplexity), true
+	case "MemgraphItemSources.snapshot":
+		if e.ComplexityRoot.MemgraphItemSources.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemSources.Snapshot(childComplexity), true
+	case "MemgraphItemSources.sources":
+		if e.ComplexityRoot.MemgraphItemSources.Sources == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemSources.Sources(childComplexity), true
+	case "MemgraphItemSources.truncated":
+		if e.ComplexityRoot.MemgraphItemSources.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphItemSources.Truncated(childComplexity), true
+
+	case "MemgraphMachineCoverage.ingredients":
+		if e.ComplexityRoot.MemgraphMachineCoverage.Ingredients == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphMachineCoverage.Ingredients(childComplexity), true
+	case "MemgraphMachineCoverage.machine":
+		if e.ComplexityRoot.MemgraphMachineCoverage.Machine == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphMachineCoverage.Machine(childComplexity), true
+
+	case "MemgraphNominalRateBalance.deficits":
+		if e.ComplexityRoot.MemgraphNominalRateBalance.Deficits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphNominalRateBalance.Deficits(childComplexity), true
+	case "MemgraphNominalRateBalance.items":
+		if e.ComplexityRoot.MemgraphNominalRateBalance.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphNominalRateBalance.Items(childComplexity), true
+	case "MemgraphNominalRateBalance.snapshot":
+		if e.ComplexityRoot.MemgraphNominalRateBalance.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphNominalRateBalance.Snapshot(childComplexity), true
+	case "MemgraphNominalRateBalance.truncated":
+		if e.ComplexityRoot.MemgraphNominalRateBalance.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphNominalRateBalance.Truncated(childComplexity), true
+
 	case "MemgraphQueryResult.columns":
 		if e.ComplexityRoot.MemgraphQueryResult.Columns == nil {
 			break
@@ -12411,12 +14116,166 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MemgraphQueryResult.Rows(childComplexity), true
+	case "MemgraphQueryResult.snapshot":
+		if e.ComplexityRoot.MemgraphQueryResult.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphQueryResult.Snapshot(childComplexity), true
 	case "MemgraphQueryResult.truncated":
 		if e.ComplexityRoot.MemgraphQueryResult.Truncated == nil {
 			break
 		}
 
 		return e.ComplexityRoot.MemgraphQueryResult.Truncated(childComplexity), true
+
+	case "MemgraphRemovalImpact.affected":
+		if e.ComplexityRoot.MemgraphRemovalImpact.Affected == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRemovalImpact.Affected(childComplexity), true
+	case "MemgraphRemovalImpact.root":
+		if e.ComplexityRoot.MemgraphRemovalImpact.Root == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRemovalImpact.Root(childComplexity), true
+	case "MemgraphRemovalImpact.safe":
+		if e.ComplexityRoot.MemgraphRemovalImpact.Safe == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRemovalImpact.Safe(childComplexity), true
+	case "MemgraphRemovalImpact.snapshot":
+		if e.ComplexityRoot.MemgraphRemovalImpact.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRemovalImpact.Snapshot(childComplexity), true
+	case "MemgraphRemovalImpact.summary":
+		if e.ComplexityRoot.MemgraphRemovalImpact.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRemovalImpact.Summary(childComplexity), true
+	case "MemgraphRemovalImpact.truncated":
+		if e.ComplexityRoot.MemgraphRemovalImpact.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRemovalImpact.Truncated(childComplexity), true
+
+	case "MemgraphReportSection.error":
+		if e.ComplexityRoot.MemgraphReportSection.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphReportSection.Error(childComplexity), true
+	case "MemgraphReportSection.findingCount":
+		if e.ComplexityRoot.MemgraphReportSection.FindingCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphReportSection.FindingCount(childComplexity), true
+	case "MemgraphReportSection.name":
+		if e.ComplexityRoot.MemgraphReportSection.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphReportSection.Name(childComplexity), true
+	case "MemgraphReportSection.summary":
+		if e.ComplexityRoot.MemgraphReportSection.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphReportSection.Summary(childComplexity), true
+
+	case "MemgraphRootCause.causes":
+		if e.ComplexityRoot.MemgraphRootCause.Causes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRootCause.Causes(childComplexity), true
+	case "MemgraphRootCause.root":
+		if e.ComplexityRoot.MemgraphRootCause.Root == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRootCause.Root(childComplexity), true
+	case "MemgraphRootCause.snapshot":
+		if e.ComplexityRoot.MemgraphRootCause.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRootCause.Snapshot(childComplexity), true
+	case "MemgraphRootCause.stalled":
+		if e.ComplexityRoot.MemgraphRootCause.Stalled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRootCause.Stalled(childComplexity), true
+	case "MemgraphRootCause.summary":
+		if e.ComplexityRoot.MemgraphRootCause.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRootCause.Summary(childComplexity), true
+	case "MemgraphRootCause.truncated":
+		if e.ComplexityRoot.MemgraphRootCause.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRootCause.Truncated(childComplexity), true
+
+	case "MemgraphRouteBetween.connected":
+		if e.ComplexityRoot.MemgraphRouteBetween.Connected == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRouteBetween.Connected(childComplexity), true
+	case "MemgraphRouteBetween.from":
+		if e.ComplexityRoot.MemgraphRouteBetween.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRouteBetween.From(childComplexity), true
+	case "MemgraphRouteBetween.nodes":
+		if e.ComplexityRoot.MemgraphRouteBetween.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRouteBetween.Nodes(childComplexity), true
+	case "MemgraphRouteBetween.outline":
+		if e.ComplexityRoot.MemgraphRouteBetween.Outline == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRouteBetween.Outline(childComplexity), true
+	case "MemgraphRouteBetween.routes":
+		if e.ComplexityRoot.MemgraphRouteBetween.Routes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRouteBetween.Routes(childComplexity), true
+	case "MemgraphRouteBetween.snapshot":
+		if e.ComplexityRoot.MemgraphRouteBetween.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRouteBetween.Snapshot(childComplexity), true
+	case "MemgraphRouteBetween.to":
+		if e.ComplexityRoot.MemgraphRouteBetween.To == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRouteBetween.To(childComplexity), true
+	case "MemgraphRouteBetween.truncated":
+		if e.ComplexityRoot.MemgraphRouteBetween.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphRouteBetween.Truncated(childComplexity), true
 
 	case "MemgraphSchema.labels":
 		if e.ComplexityRoot.MemgraphSchema.Labels == nil {
@@ -12488,6 +14347,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MemgraphSchemaRelationship.Properties(childComplexity), true
 
+	case "MemgraphSnapshotInfo.ageSeconds":
+		if e.ComplexityRoot.MemgraphSnapshotInfo.AgeSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSnapshotInfo.AgeSeconds(childComplexity), true
 	case "MemgraphSnapshotInfo.createdAt":
 		if e.ComplexityRoot.MemgraphSnapshotInfo.CreatedAt == nil {
 			break
@@ -12536,6 +14401,357 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MemgraphSnapshotInfo.Surfaces(childComplexity), true
+	case "MemgraphSnapshotInfo.tick":
+		if e.ComplexityRoot.MemgraphSnapshotInfo.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSnapshotInfo.Tick(childComplexity), true
+
+	case "MemgraphStageRate.demandPerMinute":
+		if e.ComplexityRoot.MemgraphStageRate.DemandPerMinute == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStageRate.DemandPerMinute(childComplexity), true
+	case "MemgraphStageRate.item":
+		if e.ComplexityRoot.MemgraphStageRate.Item == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStageRate.Item(childComplexity), true
+	case "MemgraphStageRate.node":
+		if e.ComplexityRoot.MemgraphStageRate.Node == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStageRate.Node(childComplexity), true
+	case "MemgraphStageRate.supplyPerMinute":
+		if e.ComplexityRoot.MemgraphStageRate.SupplyPerMinute == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStageRate.SupplyPerMinute(childComplexity), true
+
+	case "MemgraphStretch.distance":
+		if e.ComplexityRoot.MemgraphStretch.Distance == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.Distance(childComplexity), true
+	case "MemgraphStretch.endKind":
+		if e.ComplexityRoot.MemgraphStretch.EndKind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.EndKind(childComplexity), true
+	case "MemgraphStretch.flowsIntoStretch":
+		if e.ComplexityRoot.MemgraphStretch.FlowsIntoStretch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.FlowsIntoStretch(childComplexity), true
+	case "MemgraphStretch.headUnit":
+		if e.ComplexityRoot.MemgraphStretch.HeadUnit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.HeadUnit(childComplexity), true
+	case "MemgraphStretch.id":
+		if e.ComplexityRoot.MemgraphStretch.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.ID(childComplexity), true
+	case "MemgraphStretch.left":
+		if e.ComplexityRoot.MemgraphStretch.Left == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.Left(childComplexity), true
+	case "MemgraphStretch.leftCount":
+		if e.ComplexityRoot.MemgraphStretch.LeftCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.LeftCount(childComplexity), true
+	case "MemgraphStretch.mixed":
+		if e.ComplexityRoot.MemgraphStretch.Mixed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.Mixed(childComplexity), true
+	case "MemgraphStretch.pickers":
+		if e.ComplexityRoot.MemgraphStretch.Pickers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.Pickers(childComplexity), true
+	case "MemgraphStretch.right":
+		if e.ComplexityRoot.MemgraphStretch.Right == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.Right(childComplexity), true
+	case "MemgraphStretch.rightCount":
+		if e.ComplexityRoot.MemgraphStretch.RightCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.RightCount(childComplexity), true
+	case "MemgraphStretch.tailUnit":
+		if e.ComplexityRoot.MemgraphStretch.TailUnit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.TailUnit(childComplexity), true
+	case "MemgraphStretch.tiles":
+		if e.ComplexityRoot.MemgraphStretch.Tiles == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.Tiles(childComplexity), true
+	case "MemgraphStretch.x":
+		if e.ComplexityRoot.MemgraphStretch.X == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.X(childComplexity), true
+	case "MemgraphStretch.y":
+		if e.ComplexityRoot.MemgraphStretch.Y == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretch.Y(childComplexity), true
+
+	case "MemgraphStretchFinding.detail":
+		if e.ComplexityRoot.MemgraphStretchFinding.Detail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchFinding.Detail(childComplexity), true
+	case "MemgraphStretchFinding.reason":
+		if e.ComplexityRoot.MemgraphStretchFinding.Reason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchFinding.Reason(childComplexity), true
+	case "MemgraphStretchFinding.stretchId":
+		if e.ComplexityRoot.MemgraphStretchFinding.StretchID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchFinding.StretchID(childComplexity), true
+
+	case "MemgraphStretchMap.columns":
+		if e.ComplexityRoot.MemgraphStretchMap.Columns == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchMap.Columns(childComplexity), true
+	case "MemgraphStretchMap.legend":
+		if e.ComplexityRoot.MemgraphStretchMap.Legend == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchMap.Legend(childComplexity), true
+	case "MemgraphStretchMap.originX":
+		if e.ComplexityRoot.MemgraphStretchMap.OriginX == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchMap.OriginX(childComplexity), true
+	case "MemgraphStretchMap.originY":
+		if e.ComplexityRoot.MemgraphStretchMap.OriginY == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchMap.OriginY(childComplexity), true
+	case "MemgraphStretchMap.rows":
+		if e.ComplexityRoot.MemgraphStretchMap.Rows == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchMap.Rows(childComplexity), true
+	case "MemgraphStretchMap.snapshot":
+		if e.ComplexityRoot.MemgraphStretchMap.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchMap.Snapshot(childComplexity), true
+	case "MemgraphStretchMap.truncated":
+		if e.ComplexityRoot.MemgraphStretchMap.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchMap.Truncated(childComplexity), true
+
+	case "MemgraphStretchMapLegend.cells":
+		if e.ComplexityRoot.MemgraphStretchMapLegend.Cells == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchMapLegend.Cells(childComplexity), true
+	case "MemgraphStretchMapLegend.char":
+		if e.ComplexityRoot.MemgraphStretchMapLegend.Char == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchMapLegend.Char(childComplexity), true
+	case "MemgraphStretchMapLegend.detail":
+		if e.ComplexityRoot.MemgraphStretchMapLegend.Detail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchMapLegend.Detail(childComplexity), true
+	case "MemgraphStretchMapLegend.label":
+		if e.ComplexityRoot.MemgraphStretchMapLegend.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchMapLegend.Label(childComplexity), true
+
+	case "MemgraphStretchSummary.carryingCount":
+		if e.ComplexityRoot.MemgraphStretchSummary.CarryingCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchSummary.CarryingCount(childComplexity), true
+	case "MemgraphStretchSummary.items":
+		if e.ComplexityRoot.MemgraphStretchSummary.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchSummary.Items(childComplexity), true
+	case "MemgraphStretchSummary.mixedCount":
+		if e.ComplexityRoot.MemgraphStretchSummary.MixedCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchSummary.MixedCount(childComplexity), true
+	case "MemgraphStretchSummary.noConsumerCount":
+		if e.ComplexityRoot.MemgraphStretchSummary.NoConsumerCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchSummary.NoConsumerCount(childComplexity), true
+	case "MemgraphStretchSummary.stretchCount":
+		if e.ComplexityRoot.MemgraphStretchSummary.StretchCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchSummary.StretchCount(childComplexity), true
+	case "MemgraphStretchSummary.tileCount":
+		if e.ComplexityRoot.MemgraphStretchSummary.TileCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphStretchSummary.TileCount(childComplexity), true
+
+	case "MemgraphSupplyChain.durationMs":
+		if e.ComplexityRoot.MemgraphSupplyChain.DurationMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChain.DurationMs(childComplexity), true
+	case "MemgraphSupplyChain.graphCypher":
+		if e.ComplexityRoot.MemgraphSupplyChain.GraphCypher == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChain.GraphCypher(childComplexity), true
+	case "MemgraphSupplyChain.nodes":
+		if e.ComplexityRoot.MemgraphSupplyChain.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChain.Nodes(childComplexity), true
+	case "MemgraphSupplyChain.origins":
+		if e.ComplexityRoot.MemgraphSupplyChain.Origins == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChain.Origins(childComplexity), true
+	case "MemgraphSupplyChain.outline":
+		if e.ComplexityRoot.MemgraphSupplyChain.Outline == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChain.Outline(childComplexity), true
+	case "MemgraphSupplyChain.paths":
+		if e.ComplexityRoot.MemgraphSupplyChain.Paths == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChain.Paths(childComplexity), true
+	case "MemgraphSupplyChain.root":
+		if e.ComplexityRoot.MemgraphSupplyChain.Root == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChain.Root(childComplexity), true
+	case "MemgraphSupplyChain.snapshot":
+		if e.ComplexityRoot.MemgraphSupplyChain.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChain.Snapshot(childComplexity), true
+	case "MemgraphSupplyChain.summary":
+		if e.ComplexityRoot.MemgraphSupplyChain.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChain.Summary(childComplexity), true
+	case "MemgraphSupplyChain.truncated":
+		if e.ComplexityRoot.MemgraphSupplyChain.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChain.Truncated(childComplexity), true
+
+	case "MemgraphSupplyChainSummary.attention":
+		if e.ComplexityRoot.MemgraphSupplyChainSummary.Attention == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChainSummary.Attention(childComplexity), true
+	case "MemgraphSupplyChainSummary.kindCounts":
+		if e.ComplexityRoot.MemgraphSupplyChainSummary.KindCounts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChainSummary.KindCounts(childComplexity), true
+	case "MemgraphSupplyChainSummary.maxHops":
+		if e.ComplexityRoot.MemgraphSupplyChainSummary.MaxHops == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChainSummary.MaxHops(childComplexity), true
+	case "MemgraphSupplyChainSummary.nodeCount":
+		if e.ComplexityRoot.MemgraphSupplyChainSummary.NodeCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChainSummary.NodeCount(childComplexity), true
+	case "MemgraphSupplyChainSummary.pathCount":
+		if e.ComplexityRoot.MemgraphSupplyChainSummary.PathCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyChainSummary.PathCount(childComplexity), true
+
+	case "MemgraphSupplyPath.hops":
+		if e.ComplexityRoot.MemgraphSupplyPath.Hops == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyPath.Hops(childComplexity), true
+	case "MemgraphSupplyPath.steps":
+		if e.ComplexityRoot.MemgraphSupplyPath.Steps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphSupplyPath.Steps(childComplexity), true
 
 	case "MemgraphSurfaceReport.explanation":
 		if e.ComplexityRoot.MemgraphSurfaceReport.Explanation == nil {
@@ -12585,6 +14801,68 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MemgraphSurfaceReport.TickBefore(childComplexity), true
+
+	case "MemgraphTraceFinding.node":
+		if e.ComplexityRoot.MemgraphTraceFinding.Node == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphTraceFinding.Node(childComplexity), true
+	case "MemgraphTraceFinding.reason":
+		if e.ComplexityRoot.MemgraphTraceFinding.Reason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphTraceFinding.Reason(childComplexity), true
+
+	case "MemgraphTraceNode.id":
+		if e.ComplexityRoot.MemgraphTraceNode.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphTraceNode.ID(childComplexity), true
+	case "MemgraphTraceNode.kind":
+		if e.ComplexityRoot.MemgraphTraceNode.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphTraceNode.Kind(childComplexity), true
+	case "MemgraphTraceNode.name":
+		if e.ComplexityRoot.MemgraphTraceNode.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphTraceNode.Name(childComplexity), true
+	case "MemgraphTraceNode.recipe":
+		if e.ComplexityRoot.MemgraphTraceNode.Recipe == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphTraceNode.Recipe(childComplexity), true
+	case "MemgraphTraceNode.status":
+		if e.ComplexityRoot.MemgraphTraceNode.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphTraceNode.Status(childComplexity), true
+	case "MemgraphTraceNode.unitNumber":
+		if e.ComplexityRoot.MemgraphTraceNode.UnitNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphTraceNode.UnitNumber(childComplexity), true
+	case "MemgraphTraceNode.x":
+		if e.ComplexityRoot.MemgraphTraceNode.X == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphTraceNode.X(childComplexity), true
+	case "MemgraphTraceNode.y":
+		if e.ComplexityRoot.MemgraphTraceNode.Y == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MemgraphTraceNode.Y(childComplexity), true
 
 	case "MissingSciencePack.available":
 		if e.ComplexityRoot.MissingSciencePack.Available == nil {
@@ -12727,6 +15005,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.BuildAsPlayer(childComplexity, args["input"].(BuildAsPlayerInput)), true
+	case "Mutation.buildCell":
+		if e.ComplexityRoot.Mutation.BuildCell == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_buildCell_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.BuildCell(childComplexity, args["input"].(BuildCellInput)), true
+	case "Mutation.buildConnection":
+		if e.ComplexityRoot.Mutation.BuildConnection == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_buildConnection_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.BuildConnection(childComplexity, args["input"].(ConnectEntitiesInput), args["dryRun"].(bool)), true
 	case "Mutation.buildGhosts":
 		if e.ComplexityRoot.Mutation.BuildGhosts == nil {
 			break
@@ -12914,17 +15214,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.Craft(childComplexity, args["input"].(CraftInput)), true
-	case "Mutation.craftPlan":
-		if e.ComplexityRoot.Mutation.CraftPlan == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_craftPlan_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.CraftPlan(childComplexity, args["input"].(CraftPlanRunInput)), true
 	case "Mutation.createBlueprint":
 		if e.ComplexityRoot.Mutation.CreateBlueprint == nil {
 			break
@@ -13211,17 +15500,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.Place(childComplexity, args["input"].(PlaceInput)), true
-	case "Mutation.placeBelt":
-		if e.ComplexityRoot.Mutation.PlaceBelt == nil {
+	case "Mutation.placeBelts":
+		if e.ComplexityRoot.Mutation.PlaceBelts == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_placeBelt_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_placeBelts_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.PlaceBelt(childComplexity, args["input"].(BeltPipeRunInput)), true
+		return e.ComplexityRoot.Mutation.PlaceBelts(childComplexity, args["input"].(BeltRunInput)), true
 	case "Mutation.placeBlueprint":
 		if e.ComplexityRoot.Mutation.PlaceBlueprint == nil {
 			break
@@ -13903,6 +16192,117 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Nearby.Tick(childComplexity), true
 
+	case "OccupancyEntry.direction":
+		if e.ComplexityRoot.OccupancyEntry.Direction == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyEntry.Direction(childComplexity), true
+	case "OccupancyEntry.footprint":
+		if e.ComplexityRoot.OccupancyEntry.Footprint == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyEntry.Footprint(childComplexity), true
+	case "OccupancyEntry.force":
+		if e.ComplexityRoot.OccupancyEntry.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyEntry.Force(childComplexity), true
+	case "OccupancyEntry.ghostName":
+		if e.ComplexityRoot.OccupancyEntry.GhostName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyEntry.GhostName(childComplexity), true
+	case "OccupancyEntry.name":
+		if e.ComplexityRoot.OccupancyEntry.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyEntry.Name(childComplexity), true
+	case "OccupancyEntry.position":
+		if e.ComplexityRoot.OccupancyEntry.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyEntry.Position(childComplexity), true
+	case "OccupancyEntry.type":
+		if e.ComplexityRoot.OccupancyEntry.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyEntry.Type(childComplexity), true
+	case "OccupancyEntry.unitNumber":
+		if e.ComplexityRoot.OccupancyEntry.UnitNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyEntry.UnitNumber(childComplexity), true
+
+	case "OccupancyPage.area":
+		if e.ComplexityRoot.OccupancyPage.Area == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyPage.Area(childComplexity), true
+	case "OccupancyPage.entries":
+		if e.ComplexityRoot.OccupancyPage.Entries == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyPage.Entries(childComplexity), true
+	case "OccupancyPage.force":
+		if e.ComplexityRoot.OccupancyPage.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyPage.Force(childComplexity), true
+	case "OccupancyPage.pageInfo":
+		if e.ComplexityRoot.OccupancyPage.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyPage.PageInfo(childComplexity), true
+	case "OccupancyPage.surface":
+		if e.ComplexityRoot.OccupancyPage.Surface == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyPage.Surface(childComplexity), true
+	case "OccupancyPage.terrain":
+		if e.ComplexityRoot.OccupancyPage.Terrain == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyPage.Terrain(childComplexity), true
+	case "OccupancyPage.terrainTruncated":
+		if e.ComplexityRoot.OccupancyPage.TerrainTruncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyPage.TerrainTruncated(childComplexity), true
+	case "OccupancyPage.tick":
+		if e.ComplexityRoot.OccupancyPage.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyPage.Tick(childComplexity), true
+
+	case "OccupancyTerrain.position":
+		if e.ComplexityRoot.OccupancyTerrain.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyTerrain.Position(childComplexity), true
+	case "OccupancyTerrain.tile":
+		if e.ComplexityRoot.OccupancyTerrain.Tile == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OccupancyTerrain.Tile(childComplexity), true
+
 	case "PageInfo.hasMore":
 		if e.ComplexityRoot.PageInfo.HasMore == nil {
 			break
@@ -14454,6 +16854,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PlacementSite.Width(childComplexity), true
 
+	case "PlayerInsight.cheatMode":
+		if e.ComplexityRoot.PlayerInsight.CheatMode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerInsight.CheatMode(childComplexity), true
 	case "PlayerInsight.connected":
 		if e.ComplexityRoot.PlayerInsight.Connected == nil {
 			break
@@ -15379,12 +17785,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MapArea(childComplexity, args["input"].(MapAreaInput)), true
-	case "Query.memgraphSchema":
-		if e.ComplexityRoot.Query.MemgraphSchema == nil {
+	case "Query.memgraph":
+		if e.ComplexityRoot.Query.Memgraph == nil {
 			break
 		}
 
-		return e.ComplexityRoot.Query.MemgraphSchema(childComplexity), true
+		return e.ComplexityRoot.Query.Memgraph(childComplexity), true
 	case "Query.navigation":
 		if e.ComplexityRoot.Query.Navigation == nil {
 			break
@@ -15429,6 +17835,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.NearestPlacement(childComplexity, args["input"].(NearestPlacementInput)), true
+	case "Query.occupancy":
+		if e.ComplexityRoot.Query.Occupancy == nil {
+			break
+		}
+
+		args, err := ec.field_Query_occupancy_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Occupancy(childComplexity, args["input"].(OccupancyInput)), true
 	case "Query.player":
 		if e.ComplexityRoot.Query.Player == nil {
 			break
@@ -15506,17 +17923,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Prototype(childComplexity, args["name"].(string)), true
-	case "Query.queryMemgraph":
-		if e.ComplexityRoot.Query.QueryMemgraph == nil {
-			break
-		}
-
-		args, err := ec.field_Query_queryMemgraph_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Query.QueryMemgraph(childComplexity, args["input"].(MemgraphQueryInput)), true
 	case "Query.queue":
 		if e.ComplexityRoot.Query.Queue == nil {
 			break
@@ -18673,6 +21079,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputBeltComponentsInput,
 		ec.unmarshalInputBeltPipeRunInput,
 		ec.unmarshalInputBeltPurgeInput,
+		ec.unmarshalInputBeltRunInput,
 		ec.unmarshalInputBeltStretchMeasureInput,
 		ec.unmarshalInputBeltTakeInput,
 		ec.unmarshalInputBeltThroughputStartInput,
@@ -18683,11 +21090,16 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputBlueprintTileInput,
 		ec.unmarshalInputBriefingWatchItemInput,
 		ec.unmarshalInputBuildAsPlayerInput,
+		ec.unmarshalInputBuildCellEntryInput,
+		ec.unmarshalInputBuildCellInput,
 		ec.unmarshalInputBuildGhostsInput,
 		ec.unmarshalInputCancelCraftInput,
 		ec.unmarshalInputCancelResearchInput,
 		ec.unmarshalInputCancelUpgradeAreaInput,
 		ec.unmarshalInputCapsuleInput,
+		ec.unmarshalInputCellConnectionInput,
+		ec.unmarshalInputCellPlaceInput,
+		ec.unmarshalInputCellRecipeInput,
 		ec.unmarshalInputCharacterCreateInput,
 		ec.unmarshalInputCharacterDeleteInput,
 		ec.unmarshalInputCharacterReturnInput,
@@ -18712,7 +21124,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputContainerBarInput,
 		ec.unmarshalInputCraftInput,
 		ec.unmarshalInputCraftPlanInput,
-		ec.unmarshalInputCraftPlanRunInput,
 		ec.unmarshalInputCreateBlueprintBookInput,
 		ec.unmarshalInputCreateBlueprintFromEntitiesInput,
 		ec.unmarshalInputCreateBlueprintInput,
@@ -18766,12 +21177,29 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputLogisticSectionInput,
 		ec.unmarshalInputMachinesInput,
 		ec.unmarshalInputMapAreaInput,
+		ec.unmarshalInputMemgraphAreaGraphInput,
+		ec.unmarshalInputMemgraphAuditInput,
+		ec.unmarshalInputMemgraphBeltStretchMapInput,
+		ec.unmarshalInputMemgraphBeltStretchesInput,
+		ec.unmarshalInputMemgraphCellSummaryInput,
+		ec.unmarshalInputMemgraphChainCapacityInput,
+		ec.unmarshalInputMemgraphDownstreamChainInput,
+		ec.unmarshalInputMemgraphFactoryReportInput,
+		ec.unmarshalInputMemgraphFluidChainInput,
+		ec.unmarshalInputMemgraphIngredientCoverageInput,
+		ec.unmarshalInputMemgraphItemSourcesInput,
+		ec.unmarshalInputMemgraphNominalRateBalanceInput,
 		ec.unmarshalInputMemgraphQueryInput,
+		ec.unmarshalInputMemgraphRemovalImpactInput,
+		ec.unmarshalInputMemgraphRootCauseInput,
+		ec.unmarshalInputMemgraphRouteBetweenInput,
+		ec.unmarshalInputMemgraphSupplyChainInput,
 		ec.unmarshalInputMineInput,
 		ec.unmarshalInputMoveBlueprintInBookInput,
 		ec.unmarshalInputNavigateStartInput,
 		ec.unmarshalInputNearbyInput,
 		ec.unmarshalInputNearestPlacementInput,
+		ec.unmarshalInputOccupancyInput,
 		ec.unmarshalInputPickupAreaInput,
 		ec.unmarshalInputPickupInput,
 		ec.unmarshalInputPlaceBlueprintFromBookInput,
@@ -18917,7 +21345,7 @@ func newExecutionContext(
 	}
 }
 
-//go:embed "agent_actions.graphqls" "api_design.graphqls" "batch_actions.graphqls" "blueprint_catalog.graphqls" "briefing.graphqls" "connection.graphqls" "construction.graphqls" "entity_meta.graphqls" "factory_defects.graphqls" "fluids.graphqls" "insights_belt_flow.graphqls" "insights_diagnostics.graphqls" "insights_operations.graphqls" "insights_planning.graphqls" "insights_player.graphqls" "insights_power.graphqls" "insights_recipes.graphqls" "insights_research.graphqls" "insights_safety.graphqls" "insights_stock.graphqls" "insights_topology.graphqls" "insights_world.graphqls" "map_area.graphqls" "memgraph.graphqls" "navigation.graphqls" "nearest_placement.graphqls" "player_gear.graphqls" "prototype.graphqls" "research_extra.graphqls" "schema.graphqls" "screenshot.graphqls" "settings.graphqls" "space_platforms.graphqls" "trains.graphqls" "wait.graphqls" "world_extra.graphqls" "writes_extra.graphqls"
+//go:embed "agent_actions.graphqls" "api_design.graphqls" "batch_actions.graphqls" "blueprint_catalog.graphqls" "briefing.graphqls" "build_cell.graphqls" "connection.graphqls" "construction.graphqls" "entity_meta.graphqls" "factory_defects.graphqls" "fluids.graphqls" "insights_belt_flow.graphqls" "insights_diagnostics.graphqls" "insights_operations.graphqls" "insights_planning.graphqls" "insights_player.graphqls" "insights_power.graphqls" "insights_recipes.graphqls" "insights_research.graphqls" "insights_safety.graphqls" "insights_stock.graphqls" "insights_topology.graphqls" "insights_world.graphqls" "map_area.graphqls" "memgraph.graphqls" "memgraph_area.graphqls" "memgraph_audits.graphqls" "memgraph_insights.graphqls" "memgraph_stretches.graphqls" "memgraph_trace.graphqls" "navigation.graphqls" "nearest_placement.graphqls" "occupancy.graphqls" "player_gear.graphqls" "prototype.graphqls" "research_extra.graphqls" "schema.graphqls" "screenshot.graphqls" "settings.graphqls" "space_platforms.graphqls" "trains.graphqls" "wait.graphqls" "world_extra.graphqls" "writes_extra.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -18934,6 +21362,7 @@ var sources = []*ast.Source{
 	{Name: "batch_actions.graphqls", Input: sourceData("batch_actions.graphqls"), BuiltIn: false},
 	{Name: "blueprint_catalog.graphqls", Input: sourceData("blueprint_catalog.graphqls"), BuiltIn: false},
 	{Name: "briefing.graphqls", Input: sourceData("briefing.graphqls"), BuiltIn: false},
+	{Name: "build_cell.graphqls", Input: sourceData("build_cell.graphqls"), BuiltIn: false},
 	{Name: "connection.graphqls", Input: sourceData("connection.graphqls"), BuiltIn: false},
 	{Name: "construction.graphqls", Input: sourceData("construction.graphqls"), BuiltIn: false},
 	{Name: "entity_meta.graphqls", Input: sourceData("entity_meta.graphqls"), BuiltIn: false},
@@ -18953,8 +21382,14 @@ var sources = []*ast.Source{
 	{Name: "insights_world.graphqls", Input: sourceData("insights_world.graphqls"), BuiltIn: false},
 	{Name: "map_area.graphqls", Input: sourceData("map_area.graphqls"), BuiltIn: false},
 	{Name: "memgraph.graphqls", Input: sourceData("memgraph.graphqls"), BuiltIn: false},
+	{Name: "memgraph_area.graphqls", Input: sourceData("memgraph_area.graphqls"), BuiltIn: false},
+	{Name: "memgraph_audits.graphqls", Input: sourceData("memgraph_audits.graphqls"), BuiltIn: false},
+	{Name: "memgraph_insights.graphqls", Input: sourceData("memgraph_insights.graphqls"), BuiltIn: false},
+	{Name: "memgraph_stretches.graphqls", Input: sourceData("memgraph_stretches.graphqls"), BuiltIn: false},
+	{Name: "memgraph_trace.graphqls", Input: sourceData("memgraph_trace.graphqls"), BuiltIn: false},
 	{Name: "navigation.graphqls", Input: sourceData("navigation.graphqls"), BuiltIn: false},
 	{Name: "nearest_placement.graphqls", Input: sourceData("nearest_placement.graphqls"), BuiltIn: false},
+	{Name: "occupancy.graphqls", Input: sourceData("occupancy.graphqls"), BuiltIn: false},
 	{Name: "player_gear.graphqls", Input: sourceData("player_gear.graphqls"), BuiltIn: false},
 	{Name: "prototype.graphqls", Input: sourceData("prototype.graphqls"), BuiltIn: false},
 	{Name: "research_extra.graphqls", Input: sourceData("research_extra.graphqls"), BuiltIn: false},
@@ -19085,6 +21520,237 @@ func (ec *executionContext) field_InspectionLogistics_beltRuns_args(ctx context.
 	return args, nil
 }
 
+func (ec *executionContext) field_Memgraph_areaGraph_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphAreaGraphInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaGraphInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_beltStretchMap_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphBeltStretchMapInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBeltStretchMapInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_beltStretches_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphBeltStretchesInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBeltStretchesInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_cellSummary_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphCellSummaryInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCellSummaryInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_chainCapacity_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphChainCapacityInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphChainCapacityInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_downstreamChain_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphDownstreamChainInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphDownstreamChainInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_factoryHealth_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphAuditInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_factoryReport_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphFactoryReportInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFactoryReportInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_fluidChain_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphFluidChainInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFluidChainInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_fuelAudit_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphAuditInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_ingredientCoverage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphIngredientCoverageInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphIngredientCoverageInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_inserterAudit_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphAuditInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_itemSources_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphItemSourcesInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSourcesInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_nominalRateBalance_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphNominalRateBalanceInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphNominalRateBalanceInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_powerAudit_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphAuditInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_query_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphQueryInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphQueryInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_removalImpact_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphRemovalImpactInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRemovalImpactInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_rootCause_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphRootCauseInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRootCauseInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_routeBetween_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphRouteBetweenInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRouteBetweenInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_sinkAudit_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphAuditInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Memgraph_supplyChain_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphSupplyChainInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyChainInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_addAreaToBook_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -19192,6 +21858,33 @@ func (ec *executionContext) field_Mutation_buildAsPlayer_args(ctx context.Contex
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_buildCell_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNBuildCellInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_buildConnection_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNConnectEntitiesInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectEntitiesInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "dryRun", ec.unmarshalNBoolean2bool)
+	if err != nil {
+		return nil, err
+	}
+	args["dryRun"] = arg1
 	return args, nil
 }
 
@@ -19364,17 +22057,6 @@ func (ec *executionContext) field_Mutation_connectWire_args(ctx context.Context,
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNWireInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWireInput)
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_craftPlan_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCraftPlanRunInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanRunInput)
 	if err != nil {
 		return nil, err
 	}
@@ -19673,10 +22355,10 @@ func (ec *executionContext) field_Mutation_pickup_args(ctx context.Context, rawA
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_placeBelt_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Mutation_placeBelts_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNBeltPipeRunInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBeltPipeRunInput)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNBeltRunInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBeltRunInput)
 	if err != nil {
 		return nil, err
 	}
@@ -20766,6 +23448,17 @@ func (ec *executionContext) field_Query_nearestPlacement_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_occupancy_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNOccupancyInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_playerInsight_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -20840,17 +23533,6 @@ func (ec *executionContext) field_Query_prototype_args(ctx context.Context, rawA
 		return nil, err
 	}
 	args["name"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_queryMemgraph_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMemgraphQueryInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphQueryInput)
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
 	return args, nil
 }
 
@@ -22118,6 +24800,67 @@ func (ec *executionContext) fieldContext_ActionResult_waitedSeconds(_ context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _ActionResult_chain(ctx context.Context, field graphql.CollectedField, obj *ActionResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ActionResult_chain,
+		func(ctx context.Context) (any, error) {
+			return obj.Chain, nil
+		},
+		nil,
+		ec.marshalOCraftPlanResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanResult,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ActionResult_chain(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ActionResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_CraftPlanResult_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_CraftPlanResult_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_CraftPlanResult_force(ctx, field)
+			case "actor":
+				return ec.fieldContext_CraftPlanResult_actor(ctx, field)
+			case "player":
+				return ec.fieldContext_CraftPlanResult_player(ctx, field)
+			case "character":
+				return ec.fieldContext_CraftPlanResult_character(ctx, field)
+			case "recipe":
+				return ec.fieldContext_CraftPlanResult_recipe(ctx, field)
+			case "requested":
+				return ec.fieldContext_CraftPlanResult_requested(ctx, field)
+			case "complete":
+				return ec.fieldContext_CraftPlanResult_complete(ctx, field)
+			case "queued":
+				return ec.fieldContext_CraftPlanResult_queued(ctx, field)
+			case "remaining":
+				return ec.fieldContext_CraftPlanResult_remaining(ctx, field)
+			case "missing":
+				return ec.fieldContext_CraftPlanResult_missing(ctx, field)
+			case "queueSize":
+				return ec.fieldContext_CraftPlanResult_queueSize(ctx, field)
+			case "waitTimedOut":
+				return ec.fieldContext_CraftPlanResult_waitTimedOut(ctx, field)
+			case "waitedSeconds":
+				return ec.fieldContext_CraftPlanResult_waitedSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CraftPlanResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ActionResult_instant(ctx context.Context, field graphql.CollectedField, obj *ActionResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22612,6 +25355,35 @@ func (ec *executionContext) fieldContext_Actor_controllerType(_ context.Context,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Actor_cheatMode(ctx context.Context, field graphql.CollectedField, obj *Actor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Actor_cheatMode,
+		func(ctx context.Context) (any, error) {
+			return obj.CheatMode, nil
+		},
+		nil,
+		ec.marshalOBoolean2ᚖbool,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Actor_cheatMode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Actor",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -34011,6 +36783,954 @@ func (ec *executionContext) fieldContext_BriefingResearch_queue(_ context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _BuildCellResult_tick(ctx context.Context, field graphql.CollectedField, obj *BuildCellResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellResult_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellResult_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellResult_surface(ctx context.Context, field graphql.CollectedField, obj *BuildCellResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellResult_surface,
+		func(ctx context.Context) (any, error) {
+			return obj.Surface, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellResult_surface(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellResult_force(ctx context.Context, field graphql.CollectedField, obj *BuildCellResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellResult_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellResult_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellResult_dryRun(ctx context.Context, field graphql.CollectedField, obj *BuildCellResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellResult_dryRun,
+		func(ctx context.Context) (any, error) {
+			return obj.DryRun, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellResult_dryRun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellResult_completed(ctx context.Context, field graphql.CollectedField, obj *BuildCellResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellResult_completed,
+		func(ctx context.Context) (any, error) {
+			return obj.Completed, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellResult_completed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellResult_placed(ctx context.Context, field graphql.CollectedField, obj *BuildCellResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellResult_placed,
+		func(ctx context.Context) (any, error) {
+			return obj.Placed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellResult_placed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellResult_failed(ctx context.Context, field graphql.CollectedField, obj *BuildCellResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellResult_failed,
+		func(ctx context.Context) (any, error) {
+			return obj.Failed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellResult_failed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellResult_skipped(ctx context.Context, field graphql.CollectedField, obj *BuildCellResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellResult_skipped,
+		func(ctx context.Context) (any, error) {
+			return obj.Skipped, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellResult_skipped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellResult_steps(ctx context.Context, field graphql.CollectedField, obj *BuildCellResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellResult_steps,
+		func(ctx context.Context) (any, error) {
+			return obj.Steps, nil
+		},
+		nil,
+		ec.marshalNBuildCellStep2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellStepᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellResult_steps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "index":
+				return ec.fieldContext_BuildCellStep_index(ctx, field)
+			case "ref":
+				return ec.fieldContext_BuildCellStep_ref(ctx, field)
+			case "kind":
+				return ec.fieldContext_BuildCellStep_kind(ctx, field)
+			case "ok":
+				return ec.fieldContext_BuildCellStep_ok(ctx, field)
+			case "applied":
+				return ec.fieldContext_BuildCellStep_applied(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_BuildCellStep_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_BuildCellStep_name(ctx, field)
+			case "position":
+				return ec.fieldContext_BuildCellStep_position(ctx, field)
+			case "placed":
+				return ec.fieldContext_BuildCellStep_placed(ctx, field)
+			case "failed":
+				return ec.fieldContext_BuildCellStep_failed(ctx, field)
+			case "message":
+				return ec.fieldContext_BuildCellStep_message(ctx, field)
+			case "conflicts":
+				return ec.fieldContext_BuildCellStep_conflicts(ctx, field)
+			case "errors":
+				return ec.fieldContext_BuildCellStep_errors(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type BuildCellStep", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_index(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_index,
+		func(ctx context.Context) (any, error) {
+			return obj.Index, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_index(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_ref(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_ref,
+		func(ctx context.Context) (any, error) {
+			return obj.Ref, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_ref(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_kind(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_kind,
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_ok(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_ok,
+		func(ctx context.Context) (any, error) {
+			return obj.Ok, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_ok(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_applied(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_applied,
+		func(ctx context.Context) (any, error) {
+			return obj.Applied, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_applied(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_unitNumber(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_unitNumber,
+		func(ctx context.Context) (any, error) {
+			return obj.UnitNumber, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_unitNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_name(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_position(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_position,
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		ec.marshalOPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_placed(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_placed,
+		func(ctx context.Context) (any, error) {
+			return obj.Placed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_placed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_failed(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_failed,
+		func(ctx context.Context) (any, error) {
+			return obj.Failed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_failed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_message(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_message,
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_conflicts(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_conflicts,
+		func(ctx context.Context) (any, error) {
+			return obj.Conflicts, nil
+		},
+		nil,
+		ec.marshalNConnectionConflict2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionConflictᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_conflicts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "position":
+				return ec.fieldContext_ConnectionConflict_position(ctx, field)
+			case "kind":
+				return ec.fieldContext_ConnectionConflict_kind(ctx, field)
+			case "blockers":
+				return ec.fieldContext_ConnectionConflict_blockers(ctx, field)
+			case "terrain":
+				return ec.fieldContext_ConnectionConflict_terrain(ctx, field)
+			case "tile":
+				return ec.fieldContext_ConnectionConflict_tile(ctx, field)
+			case "message":
+				return ec.fieldContext_ConnectionConflict_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionConflict", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildCellStep_errors(ctx context.Context, field graphql.CollectedField, obj *BuildCellStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildCellStep_errors,
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		ec.marshalNBatchError2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBatchErrorᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildCellStep_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildCellStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "index":
+				return ec.fieldContext_BatchError_index(ctx, field)
+			case "code":
+				return ec.fieldContext_BatchError_code(ctx, field)
+			case "message":
+				return ec.fieldContext_BatchError_message(ctx, field)
+			case "target":
+				return ec.fieldContext_BatchError_target(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type BatchError", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildConnectionResult_tick(ctx context.Context, field graphql.CollectedField, obj *BuildConnectionResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildConnectionResult_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildConnectionResult_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildConnectionResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildConnectionResult_surface(ctx context.Context, field graphql.CollectedField, obj *BuildConnectionResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildConnectionResult_surface,
+		func(ctx context.Context) (any, error) {
+			return obj.Surface, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildConnectionResult_surface(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildConnectionResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildConnectionResult_force(ctx context.Context, field graphql.CollectedField, obj *BuildConnectionResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildConnectionResult_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildConnectionResult_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildConnectionResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildConnectionResult_dryRun(ctx context.Context, field graphql.CollectedField, obj *BuildConnectionResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildConnectionResult_dryRun,
+		func(ctx context.Context) (any, error) {
+			return obj.DryRun, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildConnectionResult_dryRun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildConnectionResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildConnectionResult_plan(ctx context.Context, field graphql.CollectedField, obj *BuildConnectionResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildConnectionResult_plan,
+		func(ctx context.Context) (any, error) {
+			return obj.Plan, nil
+		},
+		nil,
+		ec.marshalNConnectionPlan2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionPlan,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildConnectionResult_plan(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildConnectionResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_ConnectionPlan_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_ConnectionPlan_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_ConnectionPlan_force(ctx, field)
+			case "kind":
+				return ec.fieldContext_ConnectionPlan_kind(ctx, field)
+			case "item":
+				return ec.fieldContext_ConnectionPlan_item(ctx, field)
+			case "from":
+				return ec.fieldContext_ConnectionPlan_from(ctx, field)
+			case "to":
+				return ec.fieldContext_ConnectionPlan_to(ctx, field)
+			case "bend":
+				return ec.fieldContext_ConnectionPlan_bend(ctx, field)
+			case "possible":
+				return ec.fieldContext_ConnectionPlan_possible(ctx, field)
+			case "needed":
+				return ec.fieldContext_ConnectionPlan_needed(ctx, field)
+			case "routing":
+				return ec.fieldContext_ConnectionPlan_routing(ctx, field)
+			case "stopReason":
+				return ec.fieldContext_ConnectionPlan_stopReason(ctx, field)
+			case "undergroundItem":
+				return ec.fieldContext_ConnectionPlan_undergroundItem(ctx, field)
+			case "undergroundNeeded":
+				return ec.fieldContext_ConnectionPlan_undergroundNeeded(ctx, field)
+			case "cost":
+				return ec.fieldContext_ConnectionPlan_cost(ctx, field)
+			case "expanded":
+				return ec.fieldContext_ConnectionPlan_expanded(ctx, field)
+			case "lane":
+				return ec.fieldContext_ConnectionPlan_lane(ctx, field)
+			case "steps":
+				return ec.fieldContext_ConnectionPlan_steps(ctx, field)
+			case "conflicts":
+				return ec.fieldContext_ConnectionPlan_conflicts(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionPlan", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BuildConnectionResult_result(ctx context.Context, field graphql.CollectedField, obj *BuildConnectionResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BuildConnectionResult_result,
+		func(ctx context.Context) (any, error) {
+			return obj.Result, nil
+		},
+		nil,
+		ec.marshalOConnectEntitiesResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectEntitiesResult,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_BuildConnectionResult_result(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BuildConnectionResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_ConnectEntitiesResult_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_ConnectEntitiesResult_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_ConnectEntitiesResult_force(ctx, field)
+			case "actor":
+				return ec.fieldContext_ConnectEntitiesResult_actor(ctx, field)
+			case "kind":
+				return ec.fieldContext_ConnectEntitiesResult_kind(ctx, field)
+			case "item":
+				return ec.fieldContext_ConnectEntitiesResult_item(ctx, field)
+			case "from":
+				return ec.fieldContext_ConnectEntitiesResult_from(ctx, field)
+			case "to":
+				return ec.fieldContext_ConnectEntitiesResult_to(ctx, field)
+			case "bend":
+				return ec.fieldContext_ConnectEntitiesResult_bend(ctx, field)
+			case "possible":
+				return ec.fieldContext_ConnectEntitiesResult_possible(ctx, field)
+			case "routing":
+				return ec.fieldContext_ConnectEntitiesResult_routing(ctx, field)
+			case "stopReason":
+				return ec.fieldContext_ConnectEntitiesResult_stopReason(ctx, field)
+			case "placed":
+				return ec.fieldContext_ConnectEntitiesResult_placed(ctx, field)
+			case "skipped":
+				return ec.fieldContext_ConnectEntitiesResult_skipped(ctx, field)
+			case "failed":
+				return ec.fieldContext_ConnectEntitiesResult_failed(ctx, field)
+			case "entities":
+				return ec.fieldContext_ConnectEntitiesResult_entities(ctx, field)
+			case "conflicts":
+				return ec.fieldContext_ConnectEntitiesResult_conflicts(ctx, field)
+			case "errors":
+				return ec.fieldContext_ConnectEntitiesResult_errors(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectEntitiesResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _BuildGhostsResult_tick(ctx context.Context, field graphql.CollectedField, obj *BuildGhostsResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -39907,6 +43627,8 @@ func (ec *executionContext) fieldContext_ConnectedPlayer_actor(_ context.Context
 				return ec.fieldContext_Actor_connected(ctx, field)
 			case "controllerType":
 				return ec.fieldContext_Actor_controllerType(ctx, field)
+			case "cheatMode":
+				return ec.fieldContext_Actor_cheatMode(ctx, field)
 			case "inventory":
 				return ec.fieldContext_Actor_inventory(ctx, field)
 			case "queue":
@@ -68222,6 +71944,3894 @@ func (ec *executionContext) fieldContext_MapLegendEntry_count(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _Memgraph_schema(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_schema,
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Memgraph().Schema(ctx, obj)
+		},
+		nil,
+		ec.marshalNMemgraphSchema2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSchema,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_schema(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "labels":
+				return ec.fieldContext_MemgraphSchema_labels(ctx, field)
+			case "relationships":
+				return ec.fieldContext_MemgraphSchema_relationships(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphSchema_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSchema", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_query(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_query,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().Query(ctx, obj, fc.Args["input"].(MemgraphQueryInput))
+		},
+		nil,
+		ec.marshalNMemgraphQueryResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphQueryResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_query(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "columns":
+				return ec.fieldContext_MemgraphQueryResult_columns(ctx, field)
+			case "rows":
+				return ec.fieldContext_MemgraphQueryResult_rows(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphQueryResult_truncated(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_MemgraphQueryResult_durationMs(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphQueryResult_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphQueryResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_query_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_areaGraph(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_areaGraph,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().AreaGraph(ctx, obj, fc.Args["input"].(MemgraphAreaGraphInput))
+		},
+		nil,
+		ec.marshalNMemgraphAreaGraph2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaGraph,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_areaGraph(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "summary":
+				return ec.fieldContext_MemgraphAreaGraph_summary(ctx, field)
+			case "outline":
+				return ec.fieldContext_MemgraphAreaGraph_outline(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphAreaGraph_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphAreaGraph_edges(ctx, field)
+			case "components":
+				return ec.fieldContext_MemgraphAreaGraph_components(ctx, field)
+			case "boundary":
+				return ec.fieldContext_MemgraphAreaGraph_boundary(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphAreaGraph_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphAreaGraph_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAreaGraph", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_areaGraph_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_factoryHealth(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_factoryHealth,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().FactoryHealth(ctx, obj, fc.Args["input"].(MemgraphAuditInput))
+		},
+		nil,
+		ec.marshalNMemgraphAudit2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAudit,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_factoryHealth(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "summary":
+				return ec.fieldContext_MemgraphAudit_summary(ctx, field)
+			case "counts":
+				return ec.fieldContext_MemgraphAudit_counts(ctx, field)
+			case "findings":
+				return ec.fieldContext_MemgraphAudit_findings(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphAudit_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphAudit_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAudit", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_factoryHealth_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_powerAudit(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_powerAudit,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().PowerAudit(ctx, obj, fc.Args["input"].(MemgraphAuditInput))
+		},
+		nil,
+		ec.marshalNMemgraphAudit2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAudit,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_powerAudit(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "summary":
+				return ec.fieldContext_MemgraphAudit_summary(ctx, field)
+			case "counts":
+				return ec.fieldContext_MemgraphAudit_counts(ctx, field)
+			case "findings":
+				return ec.fieldContext_MemgraphAudit_findings(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphAudit_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphAudit_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAudit", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_powerAudit_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_fuelAudit(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_fuelAudit,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().FuelAudit(ctx, obj, fc.Args["input"].(MemgraphAuditInput))
+		},
+		nil,
+		ec.marshalNMemgraphAudit2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAudit,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_fuelAudit(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "summary":
+				return ec.fieldContext_MemgraphAudit_summary(ctx, field)
+			case "counts":
+				return ec.fieldContext_MemgraphAudit_counts(ctx, field)
+			case "findings":
+				return ec.fieldContext_MemgraphAudit_findings(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphAudit_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphAudit_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAudit", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_fuelAudit_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_inserterAudit(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_inserterAudit,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().InserterAudit(ctx, obj, fc.Args["input"].(MemgraphAuditInput))
+		},
+		nil,
+		ec.marshalNMemgraphAudit2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAudit,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_inserterAudit(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "summary":
+				return ec.fieldContext_MemgraphAudit_summary(ctx, field)
+			case "counts":
+				return ec.fieldContext_MemgraphAudit_counts(ctx, field)
+			case "findings":
+				return ec.fieldContext_MemgraphAudit_findings(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphAudit_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphAudit_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAudit", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_inserterAudit_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_sinkAudit(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_sinkAudit,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().SinkAudit(ctx, obj, fc.Args["input"].(MemgraphAuditInput))
+		},
+		nil,
+		ec.marshalNMemgraphAudit2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAudit,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_sinkAudit(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "summary":
+				return ec.fieldContext_MemgraphAudit_summary(ctx, field)
+			case "counts":
+				return ec.fieldContext_MemgraphAudit_counts(ctx, field)
+			case "findings":
+				return ec.fieldContext_MemgraphAudit_findings(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphAudit_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphAudit_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAudit", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_sinkAudit_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_fluidChain(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_fluidChain,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().FluidChain(ctx, obj, fc.Args["input"].(MemgraphFluidChainInput))
+		},
+		nil,
+		ec.marshalNMemgraphFluidChain2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFluidChain,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_fluidChain(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "root":
+				return ec.fieldContext_MemgraphFluidChain_root(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphFluidChain_nodes(ctx, field)
+			case "links":
+				return ec.fieldContext_MemgraphFluidChain_links(ctx, field)
+			case "sources":
+				return ec.fieldContext_MemgraphFluidChain_sources(ctx, field)
+			case "sinks":
+				return ec.fieldContext_MemgraphFluidChain_sinks(ctx, field)
+			case "findings":
+				return ec.fieldContext_MemgraphFluidChain_findings(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphFluidChain_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphFluidChain_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphFluidChain", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_fluidChain_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_cellSummary(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_cellSummary,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().CellSummary(ctx, obj, fc.Args["input"].(MemgraphCellSummaryInput))
+		},
+		nil,
+		ec.marshalNMemgraphCellSummary2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCellSummary,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_cellSummary(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "summary":
+				return ec.fieldContext_MemgraphCellSummary_summary(ctx, field)
+			case "cells":
+				return ec.fieldContext_MemgraphCellSummary_cells(ctx, field)
+			case "loneMachines":
+				return ec.fieldContext_MemgraphCellSummary_loneMachines(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphCellSummary_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphCellSummary_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCellSummary", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_cellSummary_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_factoryReport(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_factoryReport,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().FactoryReport(ctx, obj, fc.Args["input"].(MemgraphFactoryReportInput))
+		},
+		nil,
+		ec.marshalNMemgraphFactoryReport2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFactoryReport,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_factoryReport(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "summary":
+				return ec.fieldContext_MemgraphFactoryReport_summary(ctx, field)
+			case "counts":
+				return ec.fieldContext_MemgraphFactoryReport_counts(ctx, field)
+			case "findings":
+				return ec.fieldContext_MemgraphFactoryReport_findings(ctx, field)
+			case "sections":
+				return ec.fieldContext_MemgraphFactoryReport_sections(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphFactoryReport_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphFactoryReport_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphFactoryReport", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_factoryReport_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_rootCause(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_rootCause,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().RootCause(ctx, obj, fc.Args["input"].(MemgraphRootCauseInput))
+		},
+		nil,
+		ec.marshalNMemgraphRootCause2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRootCause,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_rootCause(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "root":
+				return ec.fieldContext_MemgraphRootCause_root(ctx, field)
+			case "stalled":
+				return ec.fieldContext_MemgraphRootCause_stalled(ctx, field)
+			case "summary":
+				return ec.fieldContext_MemgraphRootCause_summary(ctx, field)
+			case "causes":
+				return ec.fieldContext_MemgraphRootCause_causes(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphRootCause_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphRootCause_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphRootCause", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_rootCause_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_nominalRateBalance(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_nominalRateBalance,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().NominalRateBalance(ctx, obj, fc.Args["input"].(MemgraphNominalRateBalanceInput))
+		},
+		nil,
+		ec.marshalNMemgraphNominalRateBalance2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphNominalRateBalance,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_nominalRateBalance(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "items":
+				return ec.fieldContext_MemgraphNominalRateBalance_items(ctx, field)
+			case "deficits":
+				return ec.fieldContext_MemgraphNominalRateBalance_deficits(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphNominalRateBalance_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphNominalRateBalance_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphNominalRateBalance", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_nominalRateBalance_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_removalImpact(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_removalImpact,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().RemovalImpact(ctx, obj, fc.Args["input"].(MemgraphRemovalImpactInput))
+		},
+		nil,
+		ec.marshalNMemgraphRemovalImpact2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRemovalImpact,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_removalImpact(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "root":
+				return ec.fieldContext_MemgraphRemovalImpact_root(ctx, field)
+			case "safe":
+				return ec.fieldContext_MemgraphRemovalImpact_safe(ctx, field)
+			case "summary":
+				return ec.fieldContext_MemgraphRemovalImpact_summary(ctx, field)
+			case "affected":
+				return ec.fieldContext_MemgraphRemovalImpact_affected(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphRemovalImpact_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphRemovalImpact_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphRemovalImpact", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_removalImpact_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_chainCapacity(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_chainCapacity,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().ChainCapacity(ctx, obj, fc.Args["input"].(MemgraphChainCapacityInput))
+		},
+		nil,
+		ec.marshalNMemgraphChainCapacity2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphChainCapacity,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_chainCapacity(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "root":
+				return ec.fieldContext_MemgraphChainCapacity_root(ctx, field)
+			case "outputItem":
+				return ec.fieldContext_MemgraphChainCapacity_outputItem(ctx, field)
+			case "outputPerMinute":
+				return ec.fieldContext_MemgraphChainCapacity_outputPerMinute(ctx, field)
+			case "limiting":
+				return ec.fieldContext_MemgraphChainCapacity_limiting(ctx, field)
+			case "stages":
+				return ec.fieldContext_MemgraphChainCapacity_stages(ctx, field)
+			case "notes":
+				return ec.fieldContext_MemgraphChainCapacity_notes(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphChainCapacity_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphChainCapacity_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphChainCapacity", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_chainCapacity_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_routeBetween(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_routeBetween,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().RouteBetween(ctx, obj, fc.Args["input"].(MemgraphRouteBetweenInput))
+		},
+		nil,
+		ec.marshalNMemgraphRouteBetween2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRouteBetween,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_routeBetween(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "from":
+				return ec.fieldContext_MemgraphRouteBetween_from(ctx, field)
+			case "to":
+				return ec.fieldContext_MemgraphRouteBetween_to(ctx, field)
+			case "connected":
+				return ec.fieldContext_MemgraphRouteBetween_connected(ctx, field)
+			case "routes":
+				return ec.fieldContext_MemgraphRouteBetween_routes(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphRouteBetween_nodes(ctx, field)
+			case "outline":
+				return ec.fieldContext_MemgraphRouteBetween_outline(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphRouteBetween_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphRouteBetween_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphRouteBetween", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_routeBetween_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_itemSources(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_itemSources,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().ItemSources(ctx, obj, fc.Args["input"].(MemgraphItemSourcesInput))
+		},
+		nil,
+		ec.marshalNMemgraphItemSources2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSources,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_itemSources(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "item":
+				return ec.fieldContext_MemgraphItemSources_item(ctx, field)
+			case "sources":
+				return ec.fieldContext_MemgraphItemSources_sources(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphItemSources_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphItemSources_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphItemSources", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_itemSources_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_beltStretches(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_beltStretches,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().BeltStretches(ctx, obj, fc.Args["input"].(MemgraphBeltStretchesInput))
+		},
+		nil,
+		ec.marshalNMemgraphBeltStretches2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBeltStretches,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_beltStretches(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "summary":
+				return ec.fieldContext_MemgraphBeltStretches_summary(ctx, field)
+			case "outline":
+				return ec.fieldContext_MemgraphBeltStretches_outline(ctx, field)
+			case "stretches":
+				return ec.fieldContext_MemgraphBeltStretches_stretches(ctx, field)
+			case "attention":
+				return ec.fieldContext_MemgraphBeltStretches_attention(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphBeltStretches_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphBeltStretches_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphBeltStretches", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_beltStretches_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_beltStretchMap(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_beltStretchMap,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().BeltStretchMap(ctx, obj, fc.Args["input"].(MemgraphBeltStretchMapInput))
+		},
+		nil,
+		ec.marshalNMemgraphStretchMap2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchMap,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_beltStretchMap(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "rows":
+				return ec.fieldContext_MemgraphStretchMap_rows(ctx, field)
+			case "legend":
+				return ec.fieldContext_MemgraphStretchMap_legend(ctx, field)
+			case "columns":
+				return ec.fieldContext_MemgraphStretchMap_columns(ctx, field)
+			case "originX":
+				return ec.fieldContext_MemgraphStretchMap_originX(ctx, field)
+			case "originY":
+				return ec.fieldContext_MemgraphStretchMap_originY(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphStretchMap_truncated(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphStretchMap_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphStretchMap", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_beltStretchMap_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_supplyChain(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_supplyChain,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().SupplyChain(ctx, obj, fc.Args["input"].(MemgraphSupplyChainInput))
+		},
+		nil,
+		ec.marshalNMemgraphSupplyChain2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyChain,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_supplyChain(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "root":
+				return ec.fieldContext_MemgraphSupplyChain_root(ctx, field)
+			case "summary":
+				return ec.fieldContext_MemgraphSupplyChain_summary(ctx, field)
+			case "outline":
+				return ec.fieldContext_MemgraphSupplyChain_outline(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSupplyChain_nodes(ctx, field)
+			case "paths":
+				return ec.fieldContext_MemgraphSupplyChain_paths(ctx, field)
+			case "origins":
+				return ec.fieldContext_MemgraphSupplyChain_origins(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphSupplyChain_truncated(ctx, field)
+			case "graphCypher":
+				return ec.fieldContext_MemgraphSupplyChain_graphCypher(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_MemgraphSupplyChain_durationMs(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphSupplyChain_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSupplyChain", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_supplyChain_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_ingredientCoverage(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_ingredientCoverage,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().IngredientCoverage(ctx, obj, fc.Args["input"].(MemgraphIngredientCoverageInput))
+		},
+		nil,
+		ec.marshalNMemgraphIngredientCoverage2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphIngredientCoverage,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_ingredientCoverage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "machines":
+				return ec.fieldContext_MemgraphIngredientCoverage_machines(ctx, field)
+			case "gaps":
+				return ec.fieldContext_MemgraphIngredientCoverage_gaps(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphIngredientCoverage_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphIngredientCoverage", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_ingredientCoverage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Memgraph_downstreamChain(ctx context.Context, field graphql.CollectedField, obj *Memgraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Memgraph_downstreamChain,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Memgraph().DownstreamChain(ctx, obj, fc.Args["input"].(MemgraphDownstreamChainInput))
+		},
+		nil,
+		ec.marshalNMemgraphDownstreamChain2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphDownstreamChain,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Memgraph_downstreamChain(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Memgraph",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "root":
+				return ec.fieldContext_MemgraphDownstreamChain_root(ctx, field)
+			case "summary":
+				return ec.fieldContext_MemgraphDownstreamChain_summary(ctx, field)
+			case "outline":
+				return ec.fieldContext_MemgraphDownstreamChain_outline(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphDownstreamChain_nodes(ctx, field)
+			case "paths":
+				return ec.fieldContext_MemgraphDownstreamChain_paths(ctx, field)
+			case "sinks":
+				return ec.fieldContext_MemgraphDownstreamChain_sinks(ctx, field)
+			case "truncated":
+				return ec.fieldContext_MemgraphDownstreamChain_truncated(ctx, field)
+			case "graphCypher":
+				return ec.fieldContext_MemgraphDownstreamChain_graphCypher(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_MemgraphDownstreamChain_durationMs(ctx, field)
+			case "snapshot":
+				return ec.fieldContext_MemgraphDownstreamChain_snapshot(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphDownstreamChain", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Memgraph_downstreamChain_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAffectedMachine_machine(ctx context.Context, field graphql.CollectedField, obj *MemgraphAffectedMachine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAffectedMachine_machine,
+		func(ctx context.Context) (any, error) {
+			return obj.Machine, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAffectedMachine_machine(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAffectedMachine",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAffectedMachine_ingredient(ctx context.Context, field graphql.CollectedField, obj *MemgraphAffectedMachine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAffectedMachine_ingredient,
+		func(ctx context.Context) (any, error) {
+			return obj.Ingredient, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAffectedMachine_ingredient(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAffectedMachine",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAffectedMachine_routesBefore(ctx context.Context, field graphql.CollectedField, obj *MemgraphAffectedMachine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAffectedMachine_routesBefore,
+		func(ctx context.Context) (any, error) {
+			return obj.RoutesBefore, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAffectedMachine_routesBefore(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAffectedMachine",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaBoundaryEdge_inside(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaBoundaryEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaBoundaryEdge_inside,
+		func(ctx context.Context) (any, error) {
+			return obj.Inside, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaBoundaryEdge_inside(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaBoundaryEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaBoundaryEdge_direction(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaBoundaryEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaBoundaryEdge_direction,
+		func(ctx context.Context) (any, error) {
+			return obj.Direction, nil
+		},
+		nil,
+		ec.marshalNMemgraphBoundaryDirection2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBoundaryDirection,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaBoundaryEdge_direction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaBoundaryEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type MemgraphBoundaryDirection does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaBoundaryEdge_type(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaBoundaryEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaBoundaryEdge_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaBoundaryEdge_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaBoundaryEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaBoundaryEdge_outside(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaBoundaryEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaBoundaryEdge_outside,
+		func(ctx context.Context) (any, error) {
+			return obj.Outside, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaBoundaryEdge_outside(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaBoundaryEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaComponent_index(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaComponent_index,
+		func(ctx context.Context) (any, error) {
+			return obj.Index, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaComponent_index(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaComponent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaComponent_size(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaComponent_size,
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaComponent_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaComponent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaComponent_kinds(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaComponent_kinds,
+		func(ctx context.Context) (any, error) {
+			return obj.Kinds, nil
+		},
+		nil,
+		ec.marshalNMemgraphCount2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCountᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaComponent_kinds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaComponent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_MemgraphCount_name(ctx, field)
+			case "count":
+				return ec.fieldContext_MemgraphCount_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCount", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaComponent_nodeIds(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaComponent_nodeIds,
+		func(ctx context.Context) (any, error) {
+			return obj.NodeIds, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaComponent_nodeIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaComponent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaComponent_description(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaComponent_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaComponent_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaComponent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaEdge_from(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaEdge_from,
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaEdge_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaEdge_to(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaEdge_to,
+		func(ctx context.Context) (any, error) {
+			return obj.To, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaEdge_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaEdge_type(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaEdge_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaEdge_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaGraph_summary(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaGraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaGraph_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNMemgraphAreaSummary2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaSummary,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaGraph_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaGraph",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "nodeCount":
+				return ec.fieldContext_MemgraphAreaSummary_nodeCount(ctx, field)
+			case "edgeCount":
+				return ec.fieldContext_MemgraphAreaSummary_edgeCount(ctx, field)
+			case "componentCount":
+				return ec.fieldContext_MemgraphAreaSummary_componentCount(ctx, field)
+			case "boundaryCount":
+				return ec.fieldContext_MemgraphAreaSummary_boundaryCount(ctx, field)
+			case "kindCounts":
+				return ec.fieldContext_MemgraphAreaSummary_kindCounts(ctx, field)
+			case "attention":
+				return ec.fieldContext_MemgraphAreaSummary_attention(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAreaSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaGraph_outline(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaGraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaGraph_outline,
+		func(ctx context.Context) (any, error) {
+			return obj.Outline, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaGraph_outline(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaGraph",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaGraph_nodes(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaGraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaGraph_nodes,
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNodeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaGraph_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaGraph",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaGraph_edges(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaGraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaGraph_edges,
+		func(ctx context.Context) (any, error) {
+			return obj.Edges, nil
+		},
+		nil,
+		ec.marshalNMemgraphAreaEdge2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaEdgeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaGraph_edges(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaGraph",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "from":
+				return ec.fieldContext_MemgraphAreaEdge_from(ctx, field)
+			case "to":
+				return ec.fieldContext_MemgraphAreaEdge_to(ctx, field)
+			case "type":
+				return ec.fieldContext_MemgraphAreaEdge_type(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAreaEdge", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaGraph_components(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaGraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaGraph_components,
+		func(ctx context.Context) (any, error) {
+			return obj.Components, nil
+		},
+		nil,
+		ec.marshalNMemgraphAreaComponent2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaComponentᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaGraph_components(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaGraph",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "index":
+				return ec.fieldContext_MemgraphAreaComponent_index(ctx, field)
+			case "size":
+				return ec.fieldContext_MemgraphAreaComponent_size(ctx, field)
+			case "kinds":
+				return ec.fieldContext_MemgraphAreaComponent_kinds(ctx, field)
+			case "nodeIds":
+				return ec.fieldContext_MemgraphAreaComponent_nodeIds(ctx, field)
+			case "description":
+				return ec.fieldContext_MemgraphAreaComponent_description(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAreaComponent", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaGraph_boundary(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaGraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaGraph_boundary,
+		func(ctx context.Context) (any, error) {
+			return obj.Boundary, nil
+		},
+		nil,
+		ec.marshalNMemgraphAreaBoundaryEdge2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaBoundaryEdgeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaGraph_boundary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaGraph",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "inside":
+				return ec.fieldContext_MemgraphAreaBoundaryEdge_inside(ctx, field)
+			case "direction":
+				return ec.fieldContext_MemgraphAreaBoundaryEdge_direction(ctx, field)
+			case "type":
+				return ec.fieldContext_MemgraphAreaBoundaryEdge_type(ctx, field)
+			case "outside":
+				return ec.fieldContext_MemgraphAreaBoundaryEdge_outside(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAreaBoundaryEdge", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaGraph_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaGraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaGraph_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaGraph_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaGraph",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaGraph_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaGraph) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaGraph_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaGraph_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaGraph",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaSummary_nodeCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaSummary_nodeCount,
+		func(ctx context.Context) (any, error) {
+			return obj.NodeCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaSummary_nodeCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaSummary_edgeCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaSummary_edgeCount,
+		func(ctx context.Context) (any, error) {
+			return obj.EdgeCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaSummary_edgeCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaSummary_componentCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaSummary_componentCount,
+		func(ctx context.Context) (any, error) {
+			return obj.ComponentCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaSummary_componentCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaSummary_boundaryCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaSummary_boundaryCount,
+		func(ctx context.Context) (any, error) {
+			return obj.BoundaryCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaSummary_boundaryCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaSummary_kindCounts(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaSummary_kindCounts,
+		func(ctx context.Context) (any, error) {
+			return obj.KindCounts, nil
+		},
+		nil,
+		ec.marshalNMemgraphCount2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCountᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaSummary_kindCounts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_MemgraphCount_name(ctx, field)
+			case "count":
+				return ec.fieldContext_MemgraphCount_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCount", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAreaSummary_attention(ctx context.Context, field graphql.CollectedField, obj *MemgraphAreaSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAreaSummary_attention,
+		func(ctx context.Context) (any, error) {
+			return obj.Attention, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceFinding2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceFindingᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAreaSummary_attention(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAreaSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "node":
+				return ec.fieldContext_MemgraphTraceFinding_node(ctx, field)
+			case "reason":
+				return ec.fieldContext_MemgraphTraceFinding_reason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceFinding", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAudit_summary(ctx context.Context, field graphql.CollectedField, obj *MemgraphAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAudit_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAudit_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAudit_counts(ctx context.Context, field graphql.CollectedField, obj *MemgraphAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAudit_counts,
+		func(ctx context.Context) (any, error) {
+			return obj.Counts, nil
+		},
+		nil,
+		ec.marshalNMemgraphCount2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCountᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAudit_counts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_MemgraphCount_name(ctx, field)
+			case "count":
+				return ec.fieldContext_MemgraphCount_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCount", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAudit_findings(ctx context.Context, field graphql.CollectedField, obj *MemgraphAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAudit_findings,
+		func(ctx context.Context) (any, error) {
+			return obj.Findings, nil
+		},
+		nil,
+		ec.marshalNMemgraphAuditFinding2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditFindingᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAudit_findings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "code":
+				return ec.fieldContext_MemgraphAuditFinding_code(ctx, field)
+			case "severity":
+				return ec.fieldContext_MemgraphAuditFinding_severity(ctx, field)
+			case "node":
+				return ec.fieldContext_MemgraphAuditFinding_node(ctx, field)
+			case "message":
+				return ec.fieldContext_MemgraphAuditFinding_message(ctx, field)
+			case "related":
+				return ec.fieldContext_MemgraphAuditFinding_related(ctx, field)
+			case "impact":
+				return ec.fieldContext_MemgraphAuditFinding_impact(ctx, field)
+			case "audit":
+				return ec.fieldContext_MemgraphAuditFinding_audit(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAuditFinding", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAudit_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAudit_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAudit_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAudit_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAudit_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAudit_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAuditFinding_code(ctx context.Context, field graphql.CollectedField, obj *MemgraphAuditFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAuditFinding_code,
+		func(ctx context.Context) (any, error) {
+			return obj.Code, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAuditFinding_code(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAuditFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAuditFinding_severity(ctx context.Context, field graphql.CollectedField, obj *MemgraphAuditFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAuditFinding_severity,
+		func(ctx context.Context) (any, error) {
+			return obj.Severity, nil
+		},
+		nil,
+		ec.marshalNMemgraphAuditSeverity2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditSeverity,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAuditFinding_severity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAuditFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type MemgraphAuditSeverity does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAuditFinding_node(ctx context.Context, field graphql.CollectedField, obj *MemgraphAuditFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAuditFinding_node,
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAuditFinding_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAuditFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAuditFinding_message(ctx context.Context, field graphql.CollectedField, obj *MemgraphAuditFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAuditFinding_message,
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAuditFinding_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAuditFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAuditFinding_related(ctx context.Context, field graphql.CollectedField, obj *MemgraphAuditFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAuditFinding_related,
+		func(ctx context.Context) (any, error) {
+			return obj.Related, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNodeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAuditFinding_related(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAuditFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAuditFinding_impact(ctx context.Context, field graphql.CollectedField, obj *MemgraphAuditFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAuditFinding_impact,
+		func(ctx context.Context) (any, error) {
+			return obj.Impact, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAuditFinding_impact(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAuditFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphAuditFinding_audit(ctx context.Context, field graphql.CollectedField, obj *MemgraphAuditFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphAuditFinding_audit,
+		func(ctx context.Context) (any, error) {
+			return obj.Audit, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphAuditFinding_audit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphAuditFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphBeltStretches_summary(ctx context.Context, field graphql.CollectedField, obj *MemgraphBeltStretches) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphBeltStretches_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNMemgraphStretchSummary2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchSummary,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphBeltStretches_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphBeltStretches",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "stretchCount":
+				return ec.fieldContext_MemgraphStretchSummary_stretchCount(ctx, field)
+			case "tileCount":
+				return ec.fieldContext_MemgraphStretchSummary_tileCount(ctx, field)
+			case "carryingCount":
+				return ec.fieldContext_MemgraphStretchSummary_carryingCount(ctx, field)
+			case "mixedCount":
+				return ec.fieldContext_MemgraphStretchSummary_mixedCount(ctx, field)
+			case "noConsumerCount":
+				return ec.fieldContext_MemgraphStretchSummary_noConsumerCount(ctx, field)
+			case "items":
+				return ec.fieldContext_MemgraphStretchSummary_items(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphStretchSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphBeltStretches_outline(ctx context.Context, field graphql.CollectedField, obj *MemgraphBeltStretches) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphBeltStretches_outline,
+		func(ctx context.Context) (any, error) {
+			return obj.Outline, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphBeltStretches_outline(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphBeltStretches",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphBeltStretches_stretches(ctx context.Context, field graphql.CollectedField, obj *MemgraphBeltStretches) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphBeltStretches_stretches,
+		func(ctx context.Context) (any, error) {
+			return obj.Stretches, nil
+		},
+		nil,
+		ec.marshalNMemgraphStretch2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphBeltStretches_stretches(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphBeltStretches",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphStretch_id(ctx, field)
+			case "headUnit":
+				return ec.fieldContext_MemgraphStretch_headUnit(ctx, field)
+			case "tailUnit":
+				return ec.fieldContext_MemgraphStretch_tailUnit(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphStretch_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphStretch_y(ctx, field)
+			case "tiles":
+				return ec.fieldContext_MemgraphStretch_tiles(ctx, field)
+			case "endKind":
+				return ec.fieldContext_MemgraphStretch_endKind(ctx, field)
+			case "left":
+				return ec.fieldContext_MemgraphStretch_left(ctx, field)
+			case "right":
+				return ec.fieldContext_MemgraphStretch_right(ctx, field)
+			case "leftCount":
+				return ec.fieldContext_MemgraphStretch_leftCount(ctx, field)
+			case "rightCount":
+				return ec.fieldContext_MemgraphStretch_rightCount(ctx, field)
+			case "mixed":
+				return ec.fieldContext_MemgraphStretch_mixed(ctx, field)
+			case "flowsIntoStretch":
+				return ec.fieldContext_MemgraphStretch_flowsIntoStretch(ctx, field)
+			case "pickers":
+				return ec.fieldContext_MemgraphStretch_pickers(ctx, field)
+			case "distance":
+				return ec.fieldContext_MemgraphStretch_distance(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphStretch", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphBeltStretches_attention(ctx context.Context, field graphql.CollectedField, obj *MemgraphBeltStretches) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphBeltStretches_attention,
+		func(ctx context.Context) (any, error) {
+			return obj.Attention, nil
+		},
+		nil,
+		ec.marshalNMemgraphStretchFinding2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchFindingᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphBeltStretches_attention(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphBeltStretches",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "stretchId":
+				return ec.fieldContext_MemgraphStretchFinding_stretchId(ctx, field)
+			case "reason":
+				return ec.fieldContext_MemgraphStretchFinding_reason(ctx, field)
+			case "detail":
+				return ec.fieldContext_MemgraphStretchFinding_detail(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphStretchFinding", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphBeltStretches_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphBeltStretches) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphBeltStretches_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphBeltStretches_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphBeltStretches",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphBeltStretches_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphBeltStretches) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphBeltStretches_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphBeltStretches_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphBeltStretches",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCause_node(ctx context.Context, field graphql.CollectedField, obj *MemgraphCause) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCause_node,
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCause_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCause",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCause_reason(ctx context.Context, field graphql.CollectedField, obj *MemgraphCause) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCause_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNMemgraphCauseReason2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCauseReason,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCause_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCause",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type MemgraphCauseReason does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCause_detail(ctx context.Context, field graphql.CollectedField, obj *MemgraphCause) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCause_detail,
+		func(ctx context.Context) (any, error) {
+			return obj.Detail, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCause_detail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCause",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCause_route(ctx context.Context, field graphql.CollectedField, obj *MemgraphCause) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCause_route,
+		func(ctx context.Context) (any, error) {
+			return obj.Route, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCause_route(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCause",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCause_routeText(ctx context.Context, field graphql.CollectedField, obj *MemgraphCause) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCause_routeText,
+		func(ctx context.Context) (any, error) {
+			return obj.RouteText, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCause_routeText(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCause",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_id(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_name(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_recipes(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_recipes,
+		func(ctx context.Context) (any, error) {
+			return obj.Recipes, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_recipes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_machineCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_machineCount,
+		func(ctx context.Context) (any, error) {
+			return obj.MachineCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_machineCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_inserterCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_inserterCount,
+		func(ctx context.Context) (any, error) {
+			return obj.InserterCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_inserterCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_beltCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_beltCount,
+		func(ctx context.Context) (any, error) {
+			return obj.BeltCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_beltCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_chestCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_chestCount,
+		func(ctx context.Context) (any, error) {
+			return obj.ChestCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_chestCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_statusCounts(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_statusCounts,
+		func(ctx context.Context) (any, error) {
+			return obj.StatusCounts, nil
+		},
+		nil,
+		ec.marshalNMemgraphCount2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCountᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_statusCounts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_MemgraphCount_name(ctx, field)
+			case "count":
+				return ec.fieldContext_MemgraphCount_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCount", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_stalledCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_stalledCount,
+		func(ctx context.Context) (any, error) {
+			return obj.StalledCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_stalledCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_leftTopX(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_leftTopX,
+		func(ctx context.Context) (any, error) {
+			return obj.LeftTopX, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_leftTopX(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_leftTopY(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_leftTopY,
+		func(ctx context.Context) (any, error) {
+			return obj.LeftTopY, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_leftTopY(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_rightBottomX(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_rightBottomX,
+		func(ctx context.Context) (any, error) {
+			return obj.RightBottomX, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_rightBottomX(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCell_rightBottomY(ctx context.Context, field graphql.CollectedField, obj *MemgraphCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCell_rightBottomY,
+		func(ctx context.Context) (any, error) {
+			return obj.RightBottomY, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCell_rightBottomY(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCell",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCellSummary_summary(ctx context.Context, field graphql.CollectedField, obj *MemgraphCellSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCellSummary_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCellSummary_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCellSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCellSummary_cells(ctx context.Context, field graphql.CollectedField, obj *MemgraphCellSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCellSummary_cells,
+		func(ctx context.Context) (any, error) {
+			return obj.Cells, nil
+		},
+		nil,
+		ec.marshalNMemgraphCell2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCellᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCellSummary_cells(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCellSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphCell_id(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphCell_name(ctx, field)
+			case "recipes":
+				return ec.fieldContext_MemgraphCell_recipes(ctx, field)
+			case "machineCount":
+				return ec.fieldContext_MemgraphCell_machineCount(ctx, field)
+			case "inserterCount":
+				return ec.fieldContext_MemgraphCell_inserterCount(ctx, field)
+			case "beltCount":
+				return ec.fieldContext_MemgraphCell_beltCount(ctx, field)
+			case "chestCount":
+				return ec.fieldContext_MemgraphCell_chestCount(ctx, field)
+			case "statusCounts":
+				return ec.fieldContext_MemgraphCell_statusCounts(ctx, field)
+			case "stalledCount":
+				return ec.fieldContext_MemgraphCell_stalledCount(ctx, field)
+			case "leftTopX":
+				return ec.fieldContext_MemgraphCell_leftTopX(ctx, field)
+			case "leftTopY":
+				return ec.fieldContext_MemgraphCell_leftTopY(ctx, field)
+			case "rightBottomX":
+				return ec.fieldContext_MemgraphCell_rightBottomX(ctx, field)
+			case "rightBottomY":
+				return ec.fieldContext_MemgraphCell_rightBottomY(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCell", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCellSummary_loneMachines(ctx context.Context, field graphql.CollectedField, obj *MemgraphCellSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCellSummary_loneMachines,
+		func(ctx context.Context) (any, error) {
+			return obj.LoneMachines, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCellSummary_loneMachines(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCellSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCellSummary_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphCellSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCellSummary_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCellSummary_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCellSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphCellSummary_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphCellSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphCellSummary_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphCellSummary_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphCellSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphChainCapacity_root(ctx context.Context, field graphql.CollectedField, obj *MemgraphChainCapacity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphChainCapacity_root,
+		func(ctx context.Context) (any, error) {
+			return obj.Root, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphChainCapacity_root(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphChainCapacity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphChainCapacity_outputItem(ctx context.Context, field graphql.CollectedField, obj *MemgraphChainCapacity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphChainCapacity_outputItem,
+		func(ctx context.Context) (any, error) {
+			return obj.OutputItem, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphChainCapacity_outputItem(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphChainCapacity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphChainCapacity_outputPerMinute(ctx context.Context, field graphql.CollectedField, obj *MemgraphChainCapacity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphChainCapacity_outputPerMinute,
+		func(ctx context.Context) (any, error) {
+			return obj.OutputPerMinute, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphChainCapacity_outputPerMinute(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphChainCapacity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphChainCapacity_limiting(ctx context.Context, field graphql.CollectedField, obj *MemgraphChainCapacity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphChainCapacity_limiting,
+		func(ctx context.Context) (any, error) {
+			return obj.Limiting, nil
+		},
+		nil,
+		ec.marshalNMemgraphStageRate2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStageRateᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphChainCapacity_limiting(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphChainCapacity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "node":
+				return ec.fieldContext_MemgraphStageRate_node(ctx, field)
+			case "item":
+				return ec.fieldContext_MemgraphStageRate_item(ctx, field)
+			case "supplyPerMinute":
+				return ec.fieldContext_MemgraphStageRate_supplyPerMinute(ctx, field)
+			case "demandPerMinute":
+				return ec.fieldContext_MemgraphStageRate_demandPerMinute(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphStageRate", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphChainCapacity_stages(ctx context.Context, field graphql.CollectedField, obj *MemgraphChainCapacity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphChainCapacity_stages,
+		func(ctx context.Context) (any, error) {
+			return obj.Stages, nil
+		},
+		nil,
+		ec.marshalNMemgraphStageRate2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStageRateᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphChainCapacity_stages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphChainCapacity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "node":
+				return ec.fieldContext_MemgraphStageRate_node(ctx, field)
+			case "item":
+				return ec.fieldContext_MemgraphStageRate_item(ctx, field)
+			case "supplyPerMinute":
+				return ec.fieldContext_MemgraphStageRate_supplyPerMinute(ctx, field)
+			case "demandPerMinute":
+				return ec.fieldContext_MemgraphStageRate_demandPerMinute(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphStageRate", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphChainCapacity_notes(ctx context.Context, field graphql.CollectedField, obj *MemgraphChainCapacity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphChainCapacity_notes,
+		func(ctx context.Context) (any, error) {
+			return obj.Notes, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphChainCapacity_notes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphChainCapacity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphChainCapacity_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphChainCapacity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphChainCapacity_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphChainCapacity_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphChainCapacity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphChainCapacity_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphChainCapacity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphChainCapacity_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphChainCapacity_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphChainCapacity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _MemgraphCount_name(ctx context.Context, field graphql.CollectedField, obj *MemgraphCount) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -68275,6 +75885,390 @@ func (ec *executionContext) fieldContext_MemgraphCount_count(_ context.Context, 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphDownstreamChain_root(ctx context.Context, field graphql.CollectedField, obj *MemgraphDownstreamChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphDownstreamChain_root,
+		func(ctx context.Context) (any, error) {
+			return obj.Root, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphDownstreamChain_root(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphDownstreamChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphDownstreamChain_summary(ctx context.Context, field graphql.CollectedField, obj *MemgraphDownstreamChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphDownstreamChain_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNMemgraphSupplyChainSummary2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyChainSummary,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphDownstreamChain_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphDownstreamChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "pathCount":
+				return ec.fieldContext_MemgraphSupplyChainSummary_pathCount(ctx, field)
+			case "nodeCount":
+				return ec.fieldContext_MemgraphSupplyChainSummary_nodeCount(ctx, field)
+			case "maxHops":
+				return ec.fieldContext_MemgraphSupplyChainSummary_maxHops(ctx, field)
+			case "kindCounts":
+				return ec.fieldContext_MemgraphSupplyChainSummary_kindCounts(ctx, field)
+			case "attention":
+				return ec.fieldContext_MemgraphSupplyChainSummary_attention(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSupplyChainSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphDownstreamChain_outline(ctx context.Context, field graphql.CollectedField, obj *MemgraphDownstreamChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphDownstreamChain_outline,
+		func(ctx context.Context) (any, error) {
+			return obj.Outline, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphDownstreamChain_outline(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphDownstreamChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphDownstreamChain_nodes(ctx context.Context, field graphql.CollectedField, obj *MemgraphDownstreamChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphDownstreamChain_nodes,
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNodeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphDownstreamChain_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphDownstreamChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphDownstreamChain_paths(ctx context.Context, field graphql.CollectedField, obj *MemgraphDownstreamChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphDownstreamChain_paths,
+		func(ctx context.Context) (any, error) {
+			return obj.Paths, nil
+		},
+		nil,
+		ec.marshalNMemgraphSupplyPath2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyPathᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphDownstreamChain_paths(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphDownstreamChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hops":
+				return ec.fieldContext_MemgraphSupplyPath_hops(ctx, field)
+			case "steps":
+				return ec.fieldContext_MemgraphSupplyPath_steps(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSupplyPath", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphDownstreamChain_sinks(ctx context.Context, field graphql.CollectedField, obj *MemgraphDownstreamChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphDownstreamChain_sinks,
+		func(ctx context.Context) (any, error) {
+			return obj.Sinks, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNodeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphDownstreamChain_sinks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphDownstreamChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphDownstreamChain_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphDownstreamChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphDownstreamChain_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphDownstreamChain_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphDownstreamChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphDownstreamChain_graphCypher(ctx context.Context, field graphql.CollectedField, obj *MemgraphDownstreamChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphDownstreamChain_graphCypher,
+		func(ctx context.Context) (any, error) {
+			return obj.GraphCypher, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphDownstreamChain_graphCypher(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphDownstreamChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphDownstreamChain_durationMs(ctx context.Context, field graphql.CollectedField, obj *MemgraphDownstreamChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphDownstreamChain_durationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMs, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphDownstreamChain_durationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphDownstreamChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphDownstreamChain_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphDownstreamChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphDownstreamChain_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphDownstreamChain_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphDownstreamChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
 		},
 	}
 	return fc, nil
@@ -68745,6 +76739,1627 @@ func (ec *executionContext) fieldContext_MemgraphExportResult_edgeTypes(_ contex
 	return fc, nil
 }
 
+func (ec *executionContext) _MemgraphFactoryReport_summary(ctx context.Context, field graphql.CollectedField, obj *MemgraphFactoryReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFactoryReport_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFactoryReport_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFactoryReport",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFactoryReport_counts(ctx context.Context, field graphql.CollectedField, obj *MemgraphFactoryReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFactoryReport_counts,
+		func(ctx context.Context) (any, error) {
+			return obj.Counts, nil
+		},
+		nil,
+		ec.marshalNMemgraphCount2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCountᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFactoryReport_counts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFactoryReport",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_MemgraphCount_name(ctx, field)
+			case "count":
+				return ec.fieldContext_MemgraphCount_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCount", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFactoryReport_findings(ctx context.Context, field graphql.CollectedField, obj *MemgraphFactoryReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFactoryReport_findings,
+		func(ctx context.Context) (any, error) {
+			return obj.Findings, nil
+		},
+		nil,
+		ec.marshalNMemgraphAuditFinding2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditFindingᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFactoryReport_findings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFactoryReport",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "code":
+				return ec.fieldContext_MemgraphAuditFinding_code(ctx, field)
+			case "severity":
+				return ec.fieldContext_MemgraphAuditFinding_severity(ctx, field)
+			case "node":
+				return ec.fieldContext_MemgraphAuditFinding_node(ctx, field)
+			case "message":
+				return ec.fieldContext_MemgraphAuditFinding_message(ctx, field)
+			case "related":
+				return ec.fieldContext_MemgraphAuditFinding_related(ctx, field)
+			case "impact":
+				return ec.fieldContext_MemgraphAuditFinding_impact(ctx, field)
+			case "audit":
+				return ec.fieldContext_MemgraphAuditFinding_audit(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAuditFinding", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFactoryReport_sections(ctx context.Context, field graphql.CollectedField, obj *MemgraphFactoryReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFactoryReport_sections,
+		func(ctx context.Context) (any, error) {
+			return obj.Sections, nil
+		},
+		nil,
+		ec.marshalNMemgraphReportSection2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphReportSectionᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFactoryReport_sections(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFactoryReport",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_MemgraphReportSection_name(ctx, field)
+			case "summary":
+				return ec.fieldContext_MemgraphReportSection_summary(ctx, field)
+			case "findingCount":
+				return ec.fieldContext_MemgraphReportSection_findingCount(ctx, field)
+			case "error":
+				return ec.fieldContext_MemgraphReportSection_error(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphReportSection", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFactoryReport_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphFactoryReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFactoryReport_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFactoryReport_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFactoryReport",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFactoryReport_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphFactoryReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFactoryReport_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFactoryReport_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFactoryReport",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFluidChain_root(ctx context.Context, field graphql.CollectedField, obj *MemgraphFluidChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFluidChain_root,
+		func(ctx context.Context) (any, error) {
+			return obj.Root, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFluidChain_root(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFluidChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFluidChain_nodes(ctx context.Context, field graphql.CollectedField, obj *MemgraphFluidChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFluidChain_nodes,
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNodeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFluidChain_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFluidChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFluidChain_links(ctx context.Context, field graphql.CollectedField, obj *MemgraphFluidChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFluidChain_links,
+		func(ctx context.Context) (any, error) {
+			return obj.Links, nil
+		},
+		nil,
+		ec.marshalNMemgraphFluidLink2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFluidLinkᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFluidChain_links(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFluidChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "from":
+				return ec.fieldContext_MemgraphFluidLink_from(ctx, field)
+			case "to":
+				return ec.fieldContext_MemgraphFluidLink_to(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphFluidLink", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFluidChain_sources(ctx context.Context, field graphql.CollectedField, obj *MemgraphFluidChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFluidChain_sources,
+		func(ctx context.Context) (any, error) {
+			return obj.Sources, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNodeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFluidChain_sources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFluidChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFluidChain_sinks(ctx context.Context, field graphql.CollectedField, obj *MemgraphFluidChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFluidChain_sinks,
+		func(ctx context.Context) (any, error) {
+			return obj.Sinks, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNodeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFluidChain_sinks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFluidChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFluidChain_findings(ctx context.Context, field graphql.CollectedField, obj *MemgraphFluidChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFluidChain_findings,
+		func(ctx context.Context) (any, error) {
+			return obj.Findings, nil
+		},
+		nil,
+		ec.marshalNMemgraphAuditFinding2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditFindingᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFluidChain_findings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFluidChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "code":
+				return ec.fieldContext_MemgraphAuditFinding_code(ctx, field)
+			case "severity":
+				return ec.fieldContext_MemgraphAuditFinding_severity(ctx, field)
+			case "node":
+				return ec.fieldContext_MemgraphAuditFinding_node(ctx, field)
+			case "message":
+				return ec.fieldContext_MemgraphAuditFinding_message(ctx, field)
+			case "related":
+				return ec.fieldContext_MemgraphAuditFinding_related(ctx, field)
+			case "impact":
+				return ec.fieldContext_MemgraphAuditFinding_impact(ctx, field)
+			case "audit":
+				return ec.fieldContext_MemgraphAuditFinding_audit(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAuditFinding", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFluidChain_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphFluidChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFluidChain_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFluidChain_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFluidChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFluidChain_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphFluidChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFluidChain_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFluidChain_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFluidChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFluidLink_from(ctx context.Context, field graphql.CollectedField, obj *MemgraphFluidLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFluidLink_from,
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFluidLink_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFluidLink",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphFluidLink_to(ctx context.Context, field graphql.CollectedField, obj *MemgraphFluidLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphFluidLink_to,
+		func(ctx context.Context) (any, error) {
+			return obj.To, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphFluidLink_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphFluidLink",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphIngredientCoverage_machines(ctx context.Context, field graphql.CollectedField, obj *MemgraphIngredientCoverage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphIngredientCoverage_machines,
+		func(ctx context.Context) (any, error) {
+			return obj.Machines, nil
+		},
+		nil,
+		ec.marshalNMemgraphMachineCoverage2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphMachineCoverageᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphIngredientCoverage_machines(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphIngredientCoverage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "machine":
+				return ec.fieldContext_MemgraphMachineCoverage_machine(ctx, field)
+			case "ingredients":
+				return ec.fieldContext_MemgraphMachineCoverage_ingredients(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphMachineCoverage", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphIngredientCoverage_gaps(ctx context.Context, field graphql.CollectedField, obj *MemgraphIngredientCoverage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphIngredientCoverage_gaps,
+		func(ctx context.Context) (any, error) {
+			return obj.Gaps, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphIngredientCoverage_gaps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphIngredientCoverage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphIngredientCoverage_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphIngredientCoverage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphIngredientCoverage_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphIngredientCoverage_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphIngredientCoverage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphIngredientFeed_item(ctx context.Context, field graphql.CollectedField, obj *MemgraphIngredientFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphIngredientFeed_item,
+		func(ctx context.Context) (any, error) {
+			return obj.Item, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphIngredientFeed_item(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphIngredientFeed",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphIngredientFeed_amount(ctx context.Context, field graphql.CollectedField, obj *MemgraphIngredientFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphIngredientFeed_amount,
+		func(ctx context.Context) (any, error) {
+			return obj.Amount, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphIngredientFeed_amount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphIngredientFeed",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphIngredientFeed_feedingArms(ctx context.Context, field graphql.CollectedField, obj *MemgraphIngredientFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphIngredientFeed_feedingArms,
+		func(ctx context.Context) (any, error) {
+			return obj.FeedingArms, nil
+		},
+		nil,
+		ec.marshalNUnitNumber2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphIngredientFeed_feedingArms(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphIngredientFeed",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphIngredientFeed_covered(ctx context.Context, field graphql.CollectedField, obj *MemgraphIngredientFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphIngredientFeed_covered,
+		func(ctx context.Context) (any, error) {
+			return obj.Covered, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphIngredientFeed_covered(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphIngredientFeed",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemRate_name(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemRate_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemRate_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemRate_producedPerMinute(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemRate_producedPerMinute,
+		func(ctx context.Context) (any, error) {
+			return obj.ProducedPerMinute, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemRate_producedPerMinute(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemRate_consumedPerMinute(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemRate_consumedPerMinute,
+		func(ctx context.Context) (any, error) {
+			return obj.ConsumedPerMinute, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemRate_consumedPerMinute(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemRate_net(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemRate_net,
+		func(ctx context.Context) (any, error) {
+			return obj.Net, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemRate_net(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemRate_producers(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemRate_producers,
+		func(ctx context.Context) (any, error) {
+			return obj.Producers, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemRate_producers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemRate_consumers(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemRate_consumers,
+		func(ctx context.Context) (any, error) {
+			return obj.Consumers, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemRate_consumers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemRate_unboundedSources(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemRate_unboundedSources,
+		func(ctx context.Context) (any, error) {
+			return obj.UnboundedSources, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemRate_unboundedSources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemSource_kind(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemSource_kind,
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		ec.marshalNMemgraphItemSourceKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSourceKind,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemSource_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type MemgraphItemSourceKind does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemSource_node(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemSource_node,
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemSource_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemSource_perMinute(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemSource_perMinute,
+		func(ctx context.Context) (any, error) {
+			return obj.PerMinute, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemSource_perMinute(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemSource_count(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemSource_count,
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemSource_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemSource_distance(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemSource_distance,
+		func(ctx context.Context) (any, error) {
+			return obj.Distance, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemSource_distance(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemSources_item(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemSources) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemSources_item,
+		func(ctx context.Context) (any, error) {
+			return obj.Item, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemSources_item(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemSources",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemSources_sources(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemSources) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemSources_sources,
+		func(ctx context.Context) (any, error) {
+			return obj.Sources, nil
+		},
+		nil,
+		ec.marshalNMemgraphItemSource2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSourceᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemSources_sources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemSources",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "kind":
+				return ec.fieldContext_MemgraphItemSource_kind(ctx, field)
+			case "node":
+				return ec.fieldContext_MemgraphItemSource_node(ctx, field)
+			case "perMinute":
+				return ec.fieldContext_MemgraphItemSource_perMinute(ctx, field)
+			case "count":
+				return ec.fieldContext_MemgraphItemSource_count(ctx, field)
+			case "distance":
+				return ec.fieldContext_MemgraphItemSource_distance(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphItemSource", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemSources_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemSources) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemSources_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemSources_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemSources",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphItemSources_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphItemSources) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphItemSources_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphItemSources_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphItemSources",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphMachineCoverage_machine(ctx context.Context, field graphql.CollectedField, obj *MemgraphMachineCoverage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphMachineCoverage_machine,
+		func(ctx context.Context) (any, error) {
+			return obj.Machine, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphMachineCoverage_machine(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphMachineCoverage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphMachineCoverage_ingredients(ctx context.Context, field graphql.CollectedField, obj *MemgraphMachineCoverage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphMachineCoverage_ingredients,
+		func(ctx context.Context) (any, error) {
+			return obj.Ingredients, nil
+		},
+		nil,
+		ec.marshalNMemgraphIngredientFeed2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphIngredientFeedᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphMachineCoverage_ingredients(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphMachineCoverage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "item":
+				return ec.fieldContext_MemgraphIngredientFeed_item(ctx, field)
+			case "amount":
+				return ec.fieldContext_MemgraphIngredientFeed_amount(ctx, field)
+			case "feedingArms":
+				return ec.fieldContext_MemgraphIngredientFeed_feedingArms(ctx, field)
+			case "covered":
+				return ec.fieldContext_MemgraphIngredientFeed_covered(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphIngredientFeed", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphNominalRateBalance_items(ctx context.Context, field graphql.CollectedField, obj *MemgraphNominalRateBalance) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphNominalRateBalance_items,
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		ec.marshalNMemgraphItemRate2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemRateᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphNominalRateBalance_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphNominalRateBalance",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_MemgraphItemRate_name(ctx, field)
+			case "producedPerMinute":
+				return ec.fieldContext_MemgraphItemRate_producedPerMinute(ctx, field)
+			case "consumedPerMinute":
+				return ec.fieldContext_MemgraphItemRate_consumedPerMinute(ctx, field)
+			case "net":
+				return ec.fieldContext_MemgraphItemRate_net(ctx, field)
+			case "producers":
+				return ec.fieldContext_MemgraphItemRate_producers(ctx, field)
+			case "consumers":
+				return ec.fieldContext_MemgraphItemRate_consumers(ctx, field)
+			case "unboundedSources":
+				return ec.fieldContext_MemgraphItemRate_unboundedSources(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphItemRate", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphNominalRateBalance_deficits(ctx context.Context, field graphql.CollectedField, obj *MemgraphNominalRateBalance) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphNominalRateBalance_deficits,
+		func(ctx context.Context) (any, error) {
+			return obj.Deficits, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphNominalRateBalance_deficits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphNominalRateBalance",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphNominalRateBalance_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphNominalRateBalance) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphNominalRateBalance_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphNominalRateBalance_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphNominalRateBalance",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphNominalRateBalance_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphNominalRateBalance) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphNominalRateBalance_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphNominalRateBalance_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphNominalRateBalance",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _MemgraphQueryResult_columns(ctx context.Context, field graphql.CollectedField, obj *MemgraphQueryResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -68856,6 +78471,935 @@ func (ec *executionContext) fieldContext_MemgraphQueryResult_durationMs(_ contex
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphQueryResult_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphQueryResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphQueryResult_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphQueryResult_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphQueryResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRemovalImpact_root(ctx context.Context, field graphql.CollectedField, obj *MemgraphRemovalImpact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRemovalImpact_root,
+		func(ctx context.Context) (any, error) {
+			return obj.Root, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRemovalImpact_root(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRemovalImpact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRemovalImpact_safe(ctx context.Context, field graphql.CollectedField, obj *MemgraphRemovalImpact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRemovalImpact_safe,
+		func(ctx context.Context) (any, error) {
+			return obj.Safe, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRemovalImpact_safe(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRemovalImpact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRemovalImpact_summary(ctx context.Context, field graphql.CollectedField, obj *MemgraphRemovalImpact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRemovalImpact_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRemovalImpact_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRemovalImpact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRemovalImpact_affected(ctx context.Context, field graphql.CollectedField, obj *MemgraphRemovalImpact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRemovalImpact_affected,
+		func(ctx context.Context) (any, error) {
+			return obj.Affected, nil
+		},
+		nil,
+		ec.marshalNMemgraphAffectedMachine2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAffectedMachineᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRemovalImpact_affected(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRemovalImpact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "machine":
+				return ec.fieldContext_MemgraphAffectedMachine_machine(ctx, field)
+			case "ingredient":
+				return ec.fieldContext_MemgraphAffectedMachine_ingredient(ctx, field)
+			case "routesBefore":
+				return ec.fieldContext_MemgraphAffectedMachine_routesBefore(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphAffectedMachine", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRemovalImpact_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphRemovalImpact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRemovalImpact_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRemovalImpact_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRemovalImpact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRemovalImpact_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphRemovalImpact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRemovalImpact_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRemovalImpact_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRemovalImpact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphReportSection_name(ctx context.Context, field graphql.CollectedField, obj *MemgraphReportSection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphReportSection_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphReportSection_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphReportSection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphReportSection_summary(ctx context.Context, field graphql.CollectedField, obj *MemgraphReportSection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphReportSection_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphReportSection_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphReportSection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphReportSection_findingCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphReportSection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphReportSection_findingCount,
+		func(ctx context.Context) (any, error) {
+			return obj.FindingCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphReportSection_findingCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphReportSection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphReportSection_error(ctx context.Context, field graphql.CollectedField, obj *MemgraphReportSection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphReportSection_error,
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphReportSection_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphReportSection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRootCause_root(ctx context.Context, field graphql.CollectedField, obj *MemgraphRootCause) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRootCause_root,
+		func(ctx context.Context) (any, error) {
+			return obj.Root, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRootCause_root(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRootCause",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRootCause_stalled(ctx context.Context, field graphql.CollectedField, obj *MemgraphRootCause) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRootCause_stalled,
+		func(ctx context.Context) (any, error) {
+			return obj.Stalled, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRootCause_stalled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRootCause",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRootCause_summary(ctx context.Context, field graphql.CollectedField, obj *MemgraphRootCause) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRootCause_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRootCause_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRootCause",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRootCause_causes(ctx context.Context, field graphql.CollectedField, obj *MemgraphRootCause) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRootCause_causes,
+		func(ctx context.Context) (any, error) {
+			return obj.Causes, nil
+		},
+		nil,
+		ec.marshalNMemgraphCause2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCauseᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRootCause_causes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRootCause",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "node":
+				return ec.fieldContext_MemgraphCause_node(ctx, field)
+			case "reason":
+				return ec.fieldContext_MemgraphCause_reason(ctx, field)
+			case "detail":
+				return ec.fieldContext_MemgraphCause_detail(ctx, field)
+			case "route":
+				return ec.fieldContext_MemgraphCause_route(ctx, field)
+			case "routeText":
+				return ec.fieldContext_MemgraphCause_routeText(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCause", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRootCause_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphRootCause) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRootCause_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRootCause_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRootCause",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRootCause_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphRootCause) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRootCause_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRootCause_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRootCause",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRouteBetween_from(ctx context.Context, field graphql.CollectedField, obj *MemgraphRouteBetween) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRouteBetween_from,
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRouteBetween_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRouteBetween",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRouteBetween_to(ctx context.Context, field graphql.CollectedField, obj *MemgraphRouteBetween) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRouteBetween_to,
+		func(ctx context.Context) (any, error) {
+			return obj.To, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRouteBetween_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRouteBetween",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRouteBetween_connected(ctx context.Context, field graphql.CollectedField, obj *MemgraphRouteBetween) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRouteBetween_connected,
+		func(ctx context.Context) (any, error) {
+			return obj.Connected, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRouteBetween_connected(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRouteBetween",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRouteBetween_routes(ctx context.Context, field graphql.CollectedField, obj *MemgraphRouteBetween) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRouteBetween_routes,
+		func(ctx context.Context) (any, error) {
+			return obj.Routes, nil
+		},
+		nil,
+		ec.marshalNMemgraphSupplyPath2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyPathᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRouteBetween_routes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRouteBetween",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hops":
+				return ec.fieldContext_MemgraphSupplyPath_hops(ctx, field)
+			case "steps":
+				return ec.fieldContext_MemgraphSupplyPath_steps(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSupplyPath", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRouteBetween_nodes(ctx context.Context, field graphql.CollectedField, obj *MemgraphRouteBetween) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRouteBetween_nodes,
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNodeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRouteBetween_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRouteBetween",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRouteBetween_outline(ctx context.Context, field graphql.CollectedField, obj *MemgraphRouteBetween) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRouteBetween_outline,
+		func(ctx context.Context) (any, error) {
+			return obj.Outline, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRouteBetween_outline(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRouteBetween",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRouteBetween_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphRouteBetween) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRouteBetween_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRouteBetween_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRouteBetween",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphRouteBetween_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphRouteBetween) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphRouteBetween_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphRouteBetween_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphRouteBetween",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
 		},
 	}
 	return fc, nil
@@ -68975,6 +79519,10 @@ func (ec *executionContext) fieldContext_MemgraphSchema_snapshot(_ context.Conte
 				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
 			case "edges":
 				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
 		},
@@ -69458,6 +80006,1862 @@ func (ec *executionContext) fieldContext_MemgraphSnapshotInfo_edges(_ context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _MemgraphSnapshotInfo_tick(ctx context.Context, field graphql.CollectedField, obj *MemgraphSnapshotInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSnapshotInfo_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSnapshotInfo_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSnapshotInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSnapshotInfo_ageSeconds(ctx context.Context, field graphql.CollectedField, obj *MemgraphSnapshotInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSnapshotInfo_ageSeconds,
+		func(ctx context.Context) (any, error) {
+			return obj.AgeSeconds, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSnapshotInfo_ageSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSnapshotInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStageRate_node(ctx context.Context, field graphql.CollectedField, obj *MemgraphStageRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStageRate_node,
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStageRate_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStageRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStageRate_item(ctx context.Context, field graphql.CollectedField, obj *MemgraphStageRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStageRate_item,
+		func(ctx context.Context) (any, error) {
+			return obj.Item, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStageRate_item(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStageRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStageRate_supplyPerMinute(ctx context.Context, field graphql.CollectedField, obj *MemgraphStageRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStageRate_supplyPerMinute,
+		func(ctx context.Context) (any, error) {
+			return obj.SupplyPerMinute, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStageRate_supplyPerMinute(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStageRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStageRate_demandPerMinute(ctx context.Context, field graphql.CollectedField, obj *MemgraphStageRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStageRate_demandPerMinute,
+		func(ctx context.Context) (any, error) {
+			return obj.DemandPerMinute, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStageRate_demandPerMinute(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStageRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_id(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_headUnit(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_headUnit,
+		func(ctx context.Context) (any, error) {
+			return obj.HeadUnit, nil
+		},
+		nil,
+		ec.marshalNUnitNumber2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_headUnit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_tailUnit(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_tailUnit,
+		func(ctx context.Context) (any, error) {
+			return obj.TailUnit, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_tailUnit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_x(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_x,
+		func(ctx context.Context) (any, error) {
+			return obj.X, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_x(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_y(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_y,
+		func(ctx context.Context) (any, error) {
+			return obj.Y, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_y(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_tiles(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_tiles,
+		func(ctx context.Context) (any, error) {
+			return obj.Tiles, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_tiles(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_endKind(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_endKind,
+		func(ctx context.Context) (any, error) {
+			return obj.EndKind, nil
+		},
+		nil,
+		ec.marshalNMemgraphStretchEnd2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchEnd,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_endKind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type MemgraphStretchEnd does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_left(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_left,
+		func(ctx context.Context) (any, error) {
+			return obj.Left, nil
+		},
+		nil,
+		ec.marshalNMemgraphCount2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCountᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_left(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_MemgraphCount_name(ctx, field)
+			case "count":
+				return ec.fieldContext_MemgraphCount_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCount", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_right(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_right,
+		func(ctx context.Context) (any, error) {
+			return obj.Right, nil
+		},
+		nil,
+		ec.marshalNMemgraphCount2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCountᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_right(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_MemgraphCount_name(ctx, field)
+			case "count":
+				return ec.fieldContext_MemgraphCount_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCount", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_leftCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_leftCount,
+		func(ctx context.Context) (any, error) {
+			return obj.LeftCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_leftCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_rightCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_rightCount,
+		func(ctx context.Context) (any, error) {
+			return obj.RightCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_rightCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_mixed(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_mixed,
+		func(ctx context.Context) (any, error) {
+			return obj.Mixed, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_mixed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_flowsIntoStretch(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_flowsIntoStretch,
+		func(ctx context.Context) (any, error) {
+			return obj.FlowsIntoStretch, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_flowsIntoStretch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_pickers(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_pickers,
+		func(ctx context.Context) (any, error) {
+			return obj.Pickers, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_pickers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretch_distance(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretch_distance,
+		func(ctx context.Context) (any, error) {
+			return obj.Distance, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretch_distance(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretch",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchFinding_stretchId(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchFinding_stretchId,
+		func(ctx context.Context) (any, error) {
+			return obj.StretchID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchFinding_stretchId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchFinding_reason(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchFinding_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNMemgraphStretchReason2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchReason,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchFinding_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type MemgraphStretchReason does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchFinding_detail(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchFinding_detail,
+		func(ctx context.Context) (any, error) {
+			return obj.Detail, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchFinding_detail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchMap_rows(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchMap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchMap_rows,
+		func(ctx context.Context) (any, error) {
+			return obj.Rows, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchMap_rows(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchMap",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchMap_legend(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchMap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchMap_legend,
+		func(ctx context.Context) (any, error) {
+			return obj.Legend, nil
+		},
+		nil,
+		ec.marshalNMemgraphStretchMapLegend2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchMapLegendᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchMap_legend(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchMap",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "char":
+				return ec.fieldContext_MemgraphStretchMapLegend_char(ctx, field)
+			case "label":
+				return ec.fieldContext_MemgraphStretchMapLegend_label(ctx, field)
+			case "detail":
+				return ec.fieldContext_MemgraphStretchMapLegend_detail(ctx, field)
+			case "cells":
+				return ec.fieldContext_MemgraphStretchMapLegend_cells(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphStretchMapLegend", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchMap_columns(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchMap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchMap_columns,
+		func(ctx context.Context) (any, error) {
+			return obj.Columns, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchMap_columns(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchMap",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchMap_originX(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchMap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchMap_originX,
+		func(ctx context.Context) (any, error) {
+			return obj.OriginX, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchMap_originX(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchMap",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchMap_originY(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchMap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchMap_originY,
+		func(ctx context.Context) (any, error) {
+			return obj.OriginY, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchMap_originY(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchMap",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchMap_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchMap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchMap_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchMap_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchMap",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchMap_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchMap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchMap_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchMap_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchMap",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchMapLegend_char(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchMapLegend) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchMapLegend_char,
+		func(ctx context.Context) (any, error) {
+			return obj.Char, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchMapLegend_char(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchMapLegend",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchMapLegend_label(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchMapLegend) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchMapLegend_label,
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchMapLegend_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchMapLegend",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchMapLegend_detail(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchMapLegend) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchMapLegend_detail,
+		func(ctx context.Context) (any, error) {
+			return obj.Detail, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchMapLegend_detail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchMapLegend",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchMapLegend_cells(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchMapLegend) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchMapLegend_cells,
+		func(ctx context.Context) (any, error) {
+			return obj.Cells, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchMapLegend_cells(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchMapLegend",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchSummary_stretchCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchSummary_stretchCount,
+		func(ctx context.Context) (any, error) {
+			return obj.StretchCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchSummary_stretchCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchSummary_tileCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchSummary_tileCount,
+		func(ctx context.Context) (any, error) {
+			return obj.TileCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchSummary_tileCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchSummary_carryingCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchSummary_carryingCount,
+		func(ctx context.Context) (any, error) {
+			return obj.CarryingCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchSummary_carryingCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchSummary_mixedCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchSummary_mixedCount,
+		func(ctx context.Context) (any, error) {
+			return obj.MixedCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchSummary_mixedCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchSummary_noConsumerCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchSummary_noConsumerCount,
+		func(ctx context.Context) (any, error) {
+			return obj.NoConsumerCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchSummary_noConsumerCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphStretchSummary_items(ctx context.Context, field graphql.CollectedField, obj *MemgraphStretchSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphStretchSummary_items,
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		ec.marshalNMemgraphCount2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCountᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphStretchSummary_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphStretchSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_MemgraphCount_name(ctx, field)
+			case "count":
+				return ec.fieldContext_MemgraphCount_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCount", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChain_root(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChain_root,
+		func(ctx context.Context) (any, error) {
+			return obj.Root, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChain_root(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChain_summary(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChain_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNMemgraphSupplyChainSummary2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyChainSummary,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChain_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "pathCount":
+				return ec.fieldContext_MemgraphSupplyChainSummary_pathCount(ctx, field)
+			case "nodeCount":
+				return ec.fieldContext_MemgraphSupplyChainSummary_nodeCount(ctx, field)
+			case "maxHops":
+				return ec.fieldContext_MemgraphSupplyChainSummary_maxHops(ctx, field)
+			case "kindCounts":
+				return ec.fieldContext_MemgraphSupplyChainSummary_kindCounts(ctx, field)
+			case "attention":
+				return ec.fieldContext_MemgraphSupplyChainSummary_attention(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSupplyChainSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChain_outline(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChain_outline,
+		func(ctx context.Context) (any, error) {
+			return obj.Outline, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChain_outline(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChain_nodes(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChain_nodes,
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNodeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChain_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChain_paths(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChain_paths,
+		func(ctx context.Context) (any, error) {
+			return obj.Paths, nil
+		},
+		nil,
+		ec.marshalNMemgraphSupplyPath2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyPathᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChain_paths(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hops":
+				return ec.fieldContext_MemgraphSupplyPath_hops(ctx, field)
+			case "steps":
+				return ec.fieldContext_MemgraphSupplyPath_steps(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSupplyPath", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChain_origins(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChain_origins,
+		func(ctx context.Context) (any, error) {
+			return obj.Origins, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNodeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChain_origins(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChain_truncated(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChain_truncated,
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChain_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChain_graphCypher(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChain_graphCypher,
+		func(ctx context.Context) (any, error) {
+			return obj.GraphCypher, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChain_graphCypher(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChain_durationMs(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChain_durationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMs, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChain_durationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChain_snapshot(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChain_snapshot,
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		ec.marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChain_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphSnapshotInfo_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_createdAt(ctx, field)
+			case "loadedAt":
+				return ec.fieldContext_MemgraphSnapshotInfo_loadedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphSnapshotInfo_status(ctx, field)
+			case "force":
+				return ec.fieldContext_MemgraphSnapshotInfo_force(ctx, field)
+			case "surfaces":
+				return ec.fieldContext_MemgraphSnapshotInfo_surfaces(ctx, field)
+			case "nodes":
+				return ec.fieldContext_MemgraphSnapshotInfo_nodes(ctx, field)
+			case "edges":
+				return ec.fieldContext_MemgraphSnapshotInfo_edges(ctx, field)
+			case "tick":
+				return ec.fieldContext_MemgraphSnapshotInfo_tick(ctx, field)
+			case "ageSeconds":
+				return ec.fieldContext_MemgraphSnapshotInfo_ageSeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphSnapshotInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChainSummary_pathCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChainSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChainSummary_pathCount,
+		func(ctx context.Context) (any, error) {
+			return obj.PathCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChainSummary_pathCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChainSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChainSummary_nodeCount(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChainSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChainSummary_nodeCount,
+		func(ctx context.Context) (any, error) {
+			return obj.NodeCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChainSummary_nodeCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChainSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChainSummary_maxHops(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChainSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChainSummary_maxHops,
+		func(ctx context.Context) (any, error) {
+			return obj.MaxHops, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChainSummary_maxHops(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChainSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChainSummary_kindCounts(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChainSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChainSummary_kindCounts,
+		func(ctx context.Context) (any, error) {
+			return obj.KindCounts, nil
+		},
+		nil,
+		ec.marshalNMemgraphCount2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCountᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChainSummary_kindCounts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChainSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_MemgraphCount_name(ctx, field)
+			case "count":
+				return ec.fieldContext_MemgraphCount_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphCount", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyChainSummary_attention(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyChainSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyChainSummary_attention,
+		func(ctx context.Context) (any, error) {
+			return obj.Attention, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceFinding2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceFindingᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyChainSummary_attention(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyChainSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "node":
+				return ec.fieldContext_MemgraphTraceFinding_node(ctx, field)
+			case "reason":
+				return ec.fieldContext_MemgraphTraceFinding_reason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceFinding", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyPath_hops(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyPath) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyPath_hops,
+		func(ctx context.Context) (any, error) {
+			return obj.Hops, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyPath_hops(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyPath",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphSupplyPath_steps(ctx context.Context, field graphql.CollectedField, obj *MemgraphSupplyPath) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphSupplyPath_steps,
+		func(ctx context.Context) (any, error) {
+			return obj.Steps, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphSupplyPath_steps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphSupplyPath",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _MemgraphSurfaceReport_surface(ctx context.Context, field graphql.CollectedField, obj *MemgraphSurfaceReport) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -69685,6 +82089,314 @@ func (ec *executionContext) fieldContext_MemgraphSurfaceReport_leaves(_ context.
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphTraceFinding_node(ctx context.Context, field graphql.CollectedField, obj *MemgraphTraceFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphTraceFinding_node,
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphTraceFinding_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphTraceFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_MemgraphTraceNode_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_MemgraphTraceNode_kind(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_MemgraphTraceNode_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_MemgraphTraceNode_name(ctx, field)
+			case "recipe":
+				return ec.fieldContext_MemgraphTraceNode_recipe(ctx, field)
+			case "status":
+				return ec.fieldContext_MemgraphTraceNode_status(ctx, field)
+			case "x":
+				return ec.fieldContext_MemgraphTraceNode_x(ctx, field)
+			case "y":
+				return ec.fieldContext_MemgraphTraceNode_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MemgraphTraceNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphTraceFinding_reason(ctx context.Context, field graphql.CollectedField, obj *MemgraphTraceFinding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphTraceFinding_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphTraceFinding_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphTraceFinding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphTraceNode_id(ctx context.Context, field graphql.CollectedField, obj *MemgraphTraceNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphTraceNode_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphTraceNode_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphTraceNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphTraceNode_kind(ctx context.Context, field graphql.CollectedField, obj *MemgraphTraceNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphTraceNode_kind,
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphTraceNode_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphTraceNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphTraceNode_unitNumber(ctx context.Context, field graphql.CollectedField, obj *MemgraphTraceNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphTraceNode_unitNumber,
+		func(ctx context.Context) (any, error) {
+			return obj.UnitNumber, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphTraceNode_unitNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphTraceNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphTraceNode_name(ctx context.Context, field graphql.CollectedField, obj *MemgraphTraceNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphTraceNode_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphTraceNode_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphTraceNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphTraceNode_recipe(ctx context.Context, field graphql.CollectedField, obj *MemgraphTraceNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphTraceNode_recipe,
+		func(ctx context.Context) (any, error) {
+			return obj.Recipe, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphTraceNode_recipe(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphTraceNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphTraceNode_status(ctx context.Context, field graphql.CollectedField, obj *MemgraphTraceNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphTraceNode_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphTraceNode_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphTraceNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphTraceNode_x(ctx context.Context, field graphql.CollectedField, obj *MemgraphTraceNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphTraceNode_x,
+		func(ctx context.Context) (any, error) {
+			return obj.X, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphTraceNode_x(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphTraceNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MemgraphTraceNode_y(ctx context.Context, field graphql.CollectedField, obj *MemgraphTraceNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MemgraphTraceNode_y,
+		func(ctx context.Context) (any, error) {
+			return obj.Y, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MemgraphTraceNode_y(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MemgraphTraceNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
 		},
 	}
 	return fc, nil
@@ -69930,6 +82642,8 @@ func (ec *executionContext) fieldContext_Mutation_characterCreate(ctx context.Co
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -70057,6 +82771,8 @@ func (ec *executionContext) fieldContext_Mutation_characterReturn(ctx context.Co
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -70184,6 +82900,8 @@ func (ec *executionContext) fieldContext_Mutation_characterSpawn(ctx context.Con
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -70311,6 +83029,8 @@ func (ec *executionContext) fieldContext_Mutation_characterDelete(ctx context.Co
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -70438,6 +83158,8 @@ func (ec *executionContext) fieldContext_Mutation_playerRestoreCharacter(ctx con
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -70565,6 +83287,8 @@ func (ec *executionContext) fieldContext_Mutation_place(ctx context.Context, fie
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -70973,6 +83697,8 @@ func (ec *executionContext) fieldContext_Mutation_fuel(ctx context.Context, fiel
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -71100,6 +83826,8 @@ func (ec *executionContext) fieldContext_Mutation_craft(ctx context.Context, fie
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -71126,79 +83854,6 @@ func (ec *executionContext) fieldContext_Mutation_craft(ctx context.Context, fie
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_craft_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_craftPlan(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Mutation_craftPlan,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CraftPlan(ctx, fc.Args["input"].(CraftPlanRunInput))
-		},
-		nil,
-		ec.marshalNCraftPlanResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanResult,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Mutation_craftPlan(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "tick":
-				return ec.fieldContext_CraftPlanResult_tick(ctx, field)
-			case "surface":
-				return ec.fieldContext_CraftPlanResult_surface(ctx, field)
-			case "force":
-				return ec.fieldContext_CraftPlanResult_force(ctx, field)
-			case "actor":
-				return ec.fieldContext_CraftPlanResult_actor(ctx, field)
-			case "player":
-				return ec.fieldContext_CraftPlanResult_player(ctx, field)
-			case "character":
-				return ec.fieldContext_CraftPlanResult_character(ctx, field)
-			case "recipe":
-				return ec.fieldContext_CraftPlanResult_recipe(ctx, field)
-			case "requested":
-				return ec.fieldContext_CraftPlanResult_requested(ctx, field)
-			case "complete":
-				return ec.fieldContext_CraftPlanResult_complete(ctx, field)
-			case "queued":
-				return ec.fieldContext_CraftPlanResult_queued(ctx, field)
-			case "remaining":
-				return ec.fieldContext_CraftPlanResult_remaining(ctx, field)
-			case "missing":
-				return ec.fieldContext_CraftPlanResult_missing(ctx, field)
-			case "queueSize":
-				return ec.fieldContext_CraftPlanResult_queueSize(ctx, field)
-			case "waitTimedOut":
-				return ec.fieldContext_CraftPlanResult_waitTimedOut(ctx, field)
-			case "waitedSeconds":
-				return ec.fieldContext_CraftPlanResult_waitedSeconds(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type CraftPlanResult", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_craftPlan_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -71778,6 +84433,8 @@ func (ec *executionContext) fieldContext_Mutation_mine(ctx context.Context, fiel
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -72025,6 +84682,8 @@ func (ec *executionContext) fieldContext_Mutation_pickup(ctx context.Context, fi
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -72152,6 +84811,8 @@ func (ec *executionContext) fieldContext_Mutation_beltTake(ctx context.Context, 
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -72332,6 +84993,8 @@ func (ec *executionContext) fieldContext_Mutation_rotate(ctx context.Context, fi
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -72459,6 +85122,8 @@ func (ec *executionContext) fieldContext_Mutation_transfer(ctx context.Context, 
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -72659,6 +85324,8 @@ func (ec *executionContext) fieldContext_Mutation_equip(ctx context.Context, fie
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -72786,6 +85453,8 @@ func (ec *executionContext) fieldContext_Mutation_setRecipe(ctx context.Context,
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -72913,6 +85582,8 @@ func (ec *executionContext) fieldContext_Mutation_clearRecipe(ctx context.Contex
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -73312,6 +85983,8 @@ func (ec *executionContext) fieldContext_Mutation_teleport(ctx context.Context, 
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -74238,6 +86911,67 @@ func (ec *executionContext) fieldContext_Mutation_giveBlueprintBook(ctx context.
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_buildCell(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_buildCell,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().BuildCell(ctx, fc.Args["input"].(BuildCellInput))
+		},
+		nil,
+		ec.marshalNBuildCellResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_buildCell(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_BuildCellResult_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_BuildCellResult_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_BuildCellResult_force(ctx, field)
+			case "dryRun":
+				return ec.fieldContext_BuildCellResult_dryRun(ctx, field)
+			case "completed":
+				return ec.fieldContext_BuildCellResult_completed(ctx, field)
+			case "placed":
+				return ec.fieldContext_BuildCellResult_placed(ctx, field)
+			case "failed":
+				return ec.fieldContext_BuildCellResult_failed(ctx, field)
+			case "skipped":
+				return ec.fieldContext_BuildCellResult_skipped(ctx, field)
+			case "steps":
+				return ec.fieldContext_BuildCellResult_steps(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type BuildCellResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_buildCell_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_connectEntities(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -74317,15 +87051,15 @@ func (ec *executionContext) fieldContext_Mutation_connectEntities(ctx context.Co
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_placeBelt(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_placeBelts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Mutation_placeBelt,
+		ec.fieldContext_Mutation_placeBelts,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().PlaceBelt(ctx, fc.Args["input"].(BeltPipeRunInput))
+			return ec.Resolvers.Mutation().PlaceBelts(ctx, fc.Args["input"].(BeltRunInput))
 		},
 		nil,
 		ec.marshalNConnectEntitiesResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectEntitiesResult,
@@ -74334,7 +87068,7 @@ func (ec *executionContext) _Mutation_placeBelt(ctx context.Context, field graph
 	)
 }
 
-func (ec *executionContext) fieldContext_Mutation_placeBelt(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_placeBelts(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -74389,7 +87123,7 @@ func (ec *executionContext) fieldContext_Mutation_placeBelt(ctx context.Context,
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_placeBelt_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_placeBelts_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -74469,6 +87203,61 @@ func (ec *executionContext) fieldContext_Mutation_placePipe(ctx context.Context,
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_placePipe_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_buildConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_buildConnection,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().BuildConnection(ctx, fc.Args["input"].(ConnectEntitiesInput), fc.Args["dryRun"].(bool))
+		},
+		nil,
+		ec.marshalNBuildConnectionResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildConnectionResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_buildConnection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_BuildConnectionResult_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_BuildConnectionResult_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_BuildConnectionResult_force(ctx, field)
+			case "dryRun":
+				return ec.fieldContext_BuildConnectionResult_dryRun(ctx, field)
+			case "plan":
+				return ec.fieldContext_BuildConnectionResult_plan(ctx, field)
+			case "result":
+				return ec.fieldContext_BuildConnectionResult_result(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type BuildConnectionResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_buildConnection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -77043,6 +89832,8 @@ func (ec *executionContext) fieldContext_Mutation_buildAsPlayer(ctx context.Cont
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -77336,6 +90127,8 @@ func (ec *executionContext) fieldContext_Mutation_setDirection(ctx context.Conte
 				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
 			case "waitedSeconds":
 				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
+			case "chain":
+				return ec.fieldContext_ActionResult_chain(ctx, field)
 			case "instant":
 				return ec.fieldContext_ActionResult_instant(ctx, field)
 			case "mined":
@@ -78326,6 +91119,594 @@ func (ec *executionContext) fieldContext_Nearby_entities(_ context.Context, fiel
 				return ec.fieldContext_Entity_logistics(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Entity", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyEntry_unitNumber(ctx context.Context, field graphql.CollectedField, obj *OccupancyEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyEntry_unitNumber,
+		func(ctx context.Context) (any, error) {
+			return obj.UnitNumber, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyEntry_unitNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyEntry_name(ctx context.Context, field graphql.CollectedField, obj *OccupancyEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyEntry_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyEntry_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyEntry_type(ctx context.Context, field graphql.CollectedField, obj *OccupancyEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyEntry_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyEntry_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyEntry_force(ctx context.Context, field graphql.CollectedField, obj *OccupancyEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyEntry_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyEntry_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyEntry_position(ctx context.Context, field graphql.CollectedField, obj *OccupancyEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyEntry_position,
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyEntry_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyEntry_direction(ctx context.Context, field graphql.CollectedField, obj *OccupancyEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyEntry_direction,
+		func(ctx context.Context) (any, error) {
+			return obj.Direction, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyEntry_direction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyEntry_footprint(ctx context.Context, field graphql.CollectedField, obj *OccupancyEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyEntry_footprint,
+		func(ctx context.Context) (any, error) {
+			return obj.Footprint, nil
+		},
+		nil,
+		ec.marshalNWorldArea2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWorldArea,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyEntry_footprint(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "leftTopX":
+				return ec.fieldContext_WorldArea_leftTopX(ctx, field)
+			case "leftTopY":
+				return ec.fieldContext_WorldArea_leftTopY(ctx, field)
+			case "rightBottomX":
+				return ec.fieldContext_WorldArea_rightBottomX(ctx, field)
+			case "rightBottomY":
+				return ec.fieldContext_WorldArea_rightBottomY(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorldArea", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyEntry_ghostName(ctx context.Context, field graphql.CollectedField, obj *OccupancyEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyEntry_ghostName,
+		func(ctx context.Context) (any, error) {
+			return obj.GhostName, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyEntry_ghostName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyPage_tick(ctx context.Context, field graphql.CollectedField, obj *OccupancyPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyPage_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyPage_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyPage_surface(ctx context.Context, field graphql.CollectedField, obj *OccupancyPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyPage_surface,
+		func(ctx context.Context) (any, error) {
+			return obj.Surface, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyPage_surface(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyPage_force(ctx context.Context, field graphql.CollectedField, obj *OccupancyPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyPage_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyPage_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyPage_area(ctx context.Context, field graphql.CollectedField, obj *OccupancyPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyPage_area,
+		func(ctx context.Context) (any, error) {
+			return obj.Area, nil
+		},
+		nil,
+		ec.marshalNWorldArea2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐWorldArea,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyPage_area(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "leftTopX":
+				return ec.fieldContext_WorldArea_leftTopX(ctx, field)
+			case "leftTopY":
+				return ec.fieldContext_WorldArea_leftTopY(ctx, field)
+			case "rightBottomX":
+				return ec.fieldContext_WorldArea_rightBottomX(ctx, field)
+			case "rightBottomY":
+				return ec.fieldContext_WorldArea_rightBottomY(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorldArea", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyPage_pageInfo(ctx context.Context, field graphql.CollectedField, obj *OccupancyPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyPage_pageInfo,
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		ec.marshalNPageInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPageInfo,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyPage_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "total":
+				return ec.fieldContext_PageInfo_total(ctx, field)
+			case "limit":
+				return ec.fieldContext_PageInfo_limit(ctx, field)
+			case "offset":
+				return ec.fieldContext_PageInfo_offset(ctx, field)
+			case "hasMore":
+				return ec.fieldContext_PageInfo_hasMore(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PageInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyPage_entries(ctx context.Context, field graphql.CollectedField, obj *OccupancyPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyPage_entries,
+		func(ctx context.Context) (any, error) {
+			return obj.Entries, nil
+		},
+		nil,
+		ec.marshalNOccupancyEntry2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyEntryᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyPage_entries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "unitNumber":
+				return ec.fieldContext_OccupancyEntry_unitNumber(ctx, field)
+			case "name":
+				return ec.fieldContext_OccupancyEntry_name(ctx, field)
+			case "type":
+				return ec.fieldContext_OccupancyEntry_type(ctx, field)
+			case "force":
+				return ec.fieldContext_OccupancyEntry_force(ctx, field)
+			case "position":
+				return ec.fieldContext_OccupancyEntry_position(ctx, field)
+			case "direction":
+				return ec.fieldContext_OccupancyEntry_direction(ctx, field)
+			case "footprint":
+				return ec.fieldContext_OccupancyEntry_footprint(ctx, field)
+			case "ghostName":
+				return ec.fieldContext_OccupancyEntry_ghostName(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OccupancyEntry", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyPage_terrain(ctx context.Context, field graphql.CollectedField, obj *OccupancyPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyPage_terrain,
+		func(ctx context.Context) (any, error) {
+			return obj.Terrain, nil
+		},
+		nil,
+		ec.marshalNOccupancyTerrain2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyTerrainᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyPage_terrain(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "position":
+				return ec.fieldContext_OccupancyTerrain_position(ctx, field)
+			case "tile":
+				return ec.fieldContext_OccupancyTerrain_tile(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OccupancyTerrain", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyPage_terrainTruncated(ctx context.Context, field graphql.CollectedField, obj *OccupancyPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyPage_terrainTruncated,
+		func(ctx context.Context) (any, error) {
+			return obj.TerrainTruncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyPage_terrainTruncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyTerrain_position(ctx context.Context, field graphql.CollectedField, obj *OccupancyTerrain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyTerrain_position,
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyTerrain_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyTerrain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OccupancyTerrain_tile(ctx context.Context, field graphql.CollectedField, obj *OccupancyTerrain) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OccupancyTerrain_tile,
+		func(ctx context.Context) (any, error) {
+			return obj.Tile, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OccupancyTerrain_tile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OccupancyTerrain",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -81301,6 +94682,35 @@ func (ec *executionContext) fieldContext_PlayerInsight_controllerType(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _PlayerInsight_cheatMode(ctx context.Context, field graphql.CollectedField, obj *PlayerInsight) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlayerInsight_cheatMode,
+		func(ctx context.Context) (any, error) {
+			return obj.CheatMode, nil
+		},
+		nil,
+		ec.marshalOBoolean2ᚖbool,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlayerInsight_cheatMode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlayerInsight",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _PlayerInsight_surface(ctx context.Context, field graphql.CollectedField, obj *PlayerInsight) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -83966,6 +97376,8 @@ func (ec *executionContext) fieldContext_Query_player(ctx context.Context, field
 				return ec.fieldContext_Actor_connected(ctx, field)
 			case "controllerType":
 				return ec.fieldContext_Actor_controllerType(ctx, field)
+			case "cheatMode":
+				return ec.fieldContext_Actor_cheatMode(ctx, field)
 			case "inventory":
 				return ec.fieldContext_Actor_inventory(ctx, field)
 			case "queue":
@@ -85876,6 +99288,8 @@ func (ec *executionContext) fieldContext_Query_playerInsight(ctx context.Context
 				return ec.fieldContext_PlayerInsight_connected(ctx, field)
 			case "controllerType":
 				return ec.fieldContext_PlayerInsight_controllerType(ctx, field)
+			case "cheatMode":
+				return ec.fieldContext_PlayerInsight_cheatMode(ctx, field)
 			case "surface":
 				return ec.fieldContext_PlayerInsight_surface(ctx, field)
 			case "force":
@@ -86955,23 +100369,23 @@ func (ec *executionContext) fieldContext_Query_mapArea(ctx context.Context, fiel
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_memgraphSchema(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_memgraph(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Query_memgraphSchema,
+		ec.fieldContext_Query_memgraph,
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().MemgraphSchema(ctx)
+			return ec.Resolvers.Query().Memgraph(ctx)
 		},
 		nil,
-		ec.marshalNMemgraphSchema2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSchema,
+		ec.marshalNMemgraph2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraph,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_Query_memgraphSchema(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_memgraph(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -86979,66 +100393,53 @@ func (ec *executionContext) fieldContext_Query_memgraphSchema(_ context.Context,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "labels":
-				return ec.fieldContext_MemgraphSchema_labels(ctx, field)
-			case "relationships":
-				return ec.fieldContext_MemgraphSchema_relationships(ctx, field)
-			case "snapshot":
-				return ec.fieldContext_MemgraphSchema_snapshot(ctx, field)
+			case "schema":
+				return ec.fieldContext_Memgraph_schema(ctx, field)
+			case "query":
+				return ec.fieldContext_Memgraph_query(ctx, field)
+			case "areaGraph":
+				return ec.fieldContext_Memgraph_areaGraph(ctx, field)
+			case "factoryHealth":
+				return ec.fieldContext_Memgraph_factoryHealth(ctx, field)
+			case "powerAudit":
+				return ec.fieldContext_Memgraph_powerAudit(ctx, field)
+			case "fuelAudit":
+				return ec.fieldContext_Memgraph_fuelAudit(ctx, field)
+			case "inserterAudit":
+				return ec.fieldContext_Memgraph_inserterAudit(ctx, field)
+			case "sinkAudit":
+				return ec.fieldContext_Memgraph_sinkAudit(ctx, field)
+			case "fluidChain":
+				return ec.fieldContext_Memgraph_fluidChain(ctx, field)
+			case "cellSummary":
+				return ec.fieldContext_Memgraph_cellSummary(ctx, field)
+			case "factoryReport":
+				return ec.fieldContext_Memgraph_factoryReport(ctx, field)
+			case "rootCause":
+				return ec.fieldContext_Memgraph_rootCause(ctx, field)
+			case "nominalRateBalance":
+				return ec.fieldContext_Memgraph_nominalRateBalance(ctx, field)
+			case "removalImpact":
+				return ec.fieldContext_Memgraph_removalImpact(ctx, field)
+			case "chainCapacity":
+				return ec.fieldContext_Memgraph_chainCapacity(ctx, field)
+			case "routeBetween":
+				return ec.fieldContext_Memgraph_routeBetween(ctx, field)
+			case "itemSources":
+				return ec.fieldContext_Memgraph_itemSources(ctx, field)
+			case "beltStretches":
+				return ec.fieldContext_Memgraph_beltStretches(ctx, field)
+			case "beltStretchMap":
+				return ec.fieldContext_Memgraph_beltStretchMap(ctx, field)
+			case "supplyChain":
+				return ec.fieldContext_Memgraph_supplyChain(ctx, field)
+			case "ingredientCoverage":
+				return ec.fieldContext_Memgraph_ingredientCoverage(ctx, field)
+			case "downstreamChain":
+				return ec.fieldContext_Memgraph_downstreamChain(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type MemgraphSchema", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type Memgraph", field.Name)
 		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_queryMemgraph(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Query_queryMemgraph,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().QueryMemgraph(ctx, fc.Args["input"].(MemgraphQueryInput))
-		},
-		nil,
-		ec.marshalNMemgraphQueryResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphQueryResult,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Query_queryMemgraph(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "columns":
-				return ec.fieldContext_MemgraphQueryResult_columns(ctx, field)
-			case "rows":
-				return ec.fieldContext_MemgraphQueryResult_rows(ctx, field)
-			case "truncated":
-				return ec.fieldContext_MemgraphQueryResult_truncated(ctx, field)
-			case "durationMs":
-				return ec.fieldContext_MemgraphQueryResult_durationMs(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type MemgraphQueryResult", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_queryMemgraph_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
 	}
 	return fc, nil
 }
@@ -87270,6 +100671,65 @@ func (ec *executionContext) fieldContext_Query_nearestPlacement(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_nearestPlacement_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_occupancy(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_occupancy,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Occupancy(ctx, fc.Args["input"].(OccupancyInput))
+		},
+		nil,
+		ec.marshalNOccupancyPage2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyPage,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_occupancy(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_OccupancyPage_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_OccupancyPage_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_OccupancyPage_force(ctx, field)
+			case "area":
+				return ec.fieldContext_OccupancyPage_area(ctx, field)
+			case "pageInfo":
+				return ec.fieldContext_OccupancyPage_pageInfo(ctx, field)
+			case "entries":
+				return ec.fieldContext_OccupancyPage_entries(ctx, field)
+			case "terrain":
+				return ec.fieldContext_OccupancyPage_terrain(ctx, field)
+			case "terrainTruncated":
+				return ec.fieldContext_OccupancyPage_terrainTruncated(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OccupancyPage", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_occupancy_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -105671,6 +119131,190 @@ func (ec *executionContext) unmarshalInputBeltPurgeInput(ctx context.Context, ob
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputBeltRunInput(ctx context.Context, obj any) (BeltRunInput, error) {
+	var it BeltRunInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["force"]; !present {
+		asMap["force"] = "player"
+	}
+	if _, present := asMap["bend"]; !present {
+		asMap["bend"] = "AUTO"
+	}
+	if _, present := asMap["routing"]; !present {
+		asMap["routing"] = "DIRECT"
+	}
+	if _, present := asMap["allowUnderground"]; !present {
+		asMap["allowUnderground"] = false
+	}
+	if _, present := asMap["avoidAreas"]; !present {
+		asMap["avoidAreas"] = []any{}
+	}
+	if _, present := asMap["preferExisting"]; !present {
+		asMap["preferExisting"] = false
+	}
+	if _, present := asMap["allowBeltAdjacency"]; !present {
+		asMap["allowBeltAdjacency"] = false
+	}
+
+	fieldsInOrder := [...]string{"actor", "surface", "force", "from", "to", "item", "direction", "bend", "routing", "allowUnderground", "undergroundItem", "maxUndergroundDistance", "avoidAreas", "preferExisting", "maxExpandedTiles", "searchMargin", "fromEntity", "toEntity", "allowBeltAdjacency", "message"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "actor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actor"))
+			data, err := ec.unmarshalNActorInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Actor = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "force":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("force"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Force = data
+		case "from":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+			data, err := ec.unmarshalOPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.From = data
+		case "to":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
+			data, err := ec.unmarshalOPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.To = data
+		case "item":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Item = data
+		case "direction":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("direction"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Direction = data
+		case "bend":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bend"))
+			data, err := ec.unmarshalNConnectionBend2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionBend(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Bend = data
+		case "routing":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("routing"))
+			data, err := ec.unmarshalNConnectionRouting2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionRouting(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Routing = data
+		case "allowUnderground":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("allowUnderground"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AllowUnderground = data
+		case "undergroundItem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("undergroundItem"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UndergroundItem = data
+		case "maxUndergroundDistance":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxUndergroundDistance"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxUndergroundDistance = data
+		case "avoidAreas":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avoidAreas"))
+			data, err := ec.unmarshalOFactoryAreaInput2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactoryAreaInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AvoidAreas = data
+		case "preferExisting":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("preferExisting"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PreferExisting = data
+		case "maxExpandedTiles":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxExpandedTiles"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxExpandedTiles = data
+		case "searchMargin":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("searchMargin"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SearchMargin = data
+		case "fromEntity":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fromEntity"))
+			data, err := ec.unmarshalOConnectionEndpointInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionEndpointInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FromEntity = data
+		case "toEntity":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("toEntity"))
+			data, err := ec.unmarshalOConnectionEndpointInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionEndpointInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ToEntity = data
+		case "allowBeltAdjacency":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("allowBeltAdjacency"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AllowBeltAdjacency = data
+		case "message":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Message = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputBeltStretchMeasureInput(ctx context.Context, obj any) (BeltStretchMeasureInput, error) {
 	var it BeltStretchMeasureInput
 	asMap := map[string]any{}
@@ -106313,6 +119957,124 @@ func (ec *executionContext) unmarshalInputBuildAsPlayerInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputBuildCellEntryInput(ctx context.Context, obj any) (BuildCellEntryInput, error) {
+	var it BuildCellEntryInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"ref", "place", "connection", "recipe"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "ref":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ref"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Ref = data
+		case "place":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("place"))
+			data, err := ec.unmarshalOCellPlaceInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCellPlaceInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Place = data
+		case "connection":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("connection"))
+			data, err := ec.unmarshalOCellConnectionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCellConnectionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Connection = data
+		case "recipe":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recipe"))
+			data, err := ec.unmarshalOCellRecipeInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCellRecipeInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Recipe = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputBuildCellInput(ctx context.Context, obj any) (BuildCellInput, error) {
+	var it BuildCellInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["force"]; !present {
+		asMap["force"] = "player"
+	}
+	if _, present := asMap["dryRun"]; !present {
+		asMap["dryRun"] = false
+	}
+
+	fieldsInOrder := [...]string{"actor", "surface", "force", "entries", "dryRun", "message"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "actor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actor"))
+			data, err := ec.unmarshalNActorInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Actor = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "force":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("force"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Force = data
+		case "entries":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("entries"))
+			data, err := ec.unmarshalNBuildCellEntryInput2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellEntryInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Entries = data
+		case "dryRun":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dryRun"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DryRun = data
+		case "message":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Message = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputBuildGhostsInput(ctx context.Context, obj any) (BuildGhostsInput, error) {
 	var it BuildGhostsInput
 	asMap := map[string]any{}
@@ -106626,6 +120388,260 @@ func (ec *executionContext) unmarshalInputCapsuleInput(ctx context.Context, obj 
 				return it, err
 			}
 			it.Message = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCellConnectionInput(ctx context.Context, obj any) (CellConnectionInput, error) {
+	var it CellConnectionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["kind"]; !present {
+		asMap["kind"] = "BELT"
+	}
+	if _, present := asMap["bend"]; !present {
+		asMap["bend"] = "AUTO"
+	}
+	if _, present := asMap["routing"]; !present {
+		asMap["routing"] = "DIRECT"
+	}
+	if _, present := asMap["allowUnderground"]; !present {
+		asMap["allowUnderground"] = false
+	}
+	if _, present := asMap["allowBeltAdjacency"]; !present {
+		asMap["allowBeltAdjacency"] = false
+	}
+	if _, present := asMap["allowFluidAdjacency"]; !present {
+		asMap["allowFluidAdjacency"] = false
+	}
+	if _, present := asMap["preferExisting"]; !present {
+		asMap["preferExisting"] = false
+	}
+	if _, present := asMap["avoidAreas"]; !present {
+		asMap["avoidAreas"] = []any{}
+	}
+
+	fieldsInOrder := [...]string{"item", "from", "to", "direction", "kind", "bend", "routing", "allowUnderground", "undergroundItem", "maxUndergroundDistance", "allowBeltAdjacency", "allowFluidAdjacency", "preferExisting", "avoidAreas"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "item":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Item = data
+		case "from":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+			data, err := ec.unmarshalOPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.From = data
+		case "to":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
+			data, err := ec.unmarshalOPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.To = data
+		case "direction":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("direction"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Direction = data
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalNConnectionKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "bend":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bend"))
+			data, err := ec.unmarshalNConnectionBend2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionBend(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Bend = data
+		case "routing":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("routing"))
+			data, err := ec.unmarshalNConnectionRouting2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionRouting(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Routing = data
+		case "allowUnderground":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("allowUnderground"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AllowUnderground = data
+		case "undergroundItem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("undergroundItem"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UndergroundItem = data
+		case "maxUndergroundDistance":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxUndergroundDistance"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxUndergroundDistance = data
+		case "allowBeltAdjacency":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("allowBeltAdjacency"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AllowBeltAdjacency = data
+		case "allowFluidAdjacency":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("allowFluidAdjacency"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AllowFluidAdjacency = data
+		case "preferExisting":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("preferExisting"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PreferExisting = data
+		case "avoidAreas":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avoidAreas"))
+			data, err := ec.unmarshalOFactoryAreaInput2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactoryAreaInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AvoidAreas = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCellPlaceInput(ctx context.Context, obj any) (CellPlaceInput, error) {
+	var it CellPlaceInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["direction"]; !present {
+		asMap["direction"] = 0
+	}
+	if _, present := asMap["fastReplace"]; !present {
+		asMap["fastReplace"] = false
+	}
+
+	fieldsInOrder := [...]string{"item", "position", "direction", "quality", "fastReplace"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "item":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Item = data
+		case "position":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("position"))
+			data, err := ec.unmarshalNPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Position = data
+		case "direction":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("direction"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Direction = data
+		case "quality":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quality"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Quality = data
+		case "fastReplace":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fastReplace"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FastReplace = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCellRecipeInput(ctx context.Context, obj any) (CellRecipeInput, error) {
+	var it CellRecipeInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["drain"]; !present {
+		asMap["drain"] = "ABORT"
+	}
+
+	fieldsInOrder := [...]string{"ref", "target", "recipe", "drain"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "ref":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ref"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Ref = data
+		case "target":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("target"))
+			data, err := ec.unmarshalOEntityRefInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐEntityRefInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Target = data
+		case "recipe":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recipe"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Recipe = data
+		case "drain":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("drain"))
+			data, err := ec.unmarshalNRecipeDrainMode2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐRecipeDrainMode(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Drain = data
 		}
 	}
 	return it, nil
@@ -107781,14 +121797,14 @@ func (ec *executionContext) unmarshalInputConnectEntitiesInput(ctx context.Conte
 			it.Force = data
 		case "from":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
-			data, err := ec.unmarshalNPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			data, err := ec.unmarshalOPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.From = data
 		case "to":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
-			data, err := ec.unmarshalNPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			data, err := ec.unmarshalOPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -108015,14 +122031,14 @@ func (ec *executionContext) unmarshalInputConnectionPlanInput(ctx context.Contex
 			it.Force = data
 		case "from":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
-			data, err := ec.unmarshalNPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			data, err := ec.unmarshalOPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.From = data
 		case "to":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
-			data, err := ec.unmarshalNPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			data, err := ec.unmarshalOPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -108366,6 +122382,12 @@ func (ec *executionContext) unmarshalInputCraftInput(ctx context.Context, obj an
 	if _, present := asMap["count"]; !present {
 		asMap["count"] = 1
 	}
+	if _, present := asMap["mode"]; !present {
+		asMap["mode"] = "MORE"
+	}
+	if _, present := asMap["expand"]; !present {
+		asMap["expand"] = false
+	}
 	if _, present := asMap["wait"]; !present {
 		asMap["wait"] = false
 	}
@@ -108373,7 +122395,7 @@ func (ec *executionContext) unmarshalInputCraftInput(ctx context.Context, obj an
 		asMap["waitTimeoutSeconds"] = 10
 	}
 
-	fieldsInOrder := [...]string{"actor", "recipe", "count", "wait", "waitTimeoutSeconds", "message"}
+	fieldsInOrder := [...]string{"actor", "recipe", "count", "mode", "expand", "wait", "waitTimeoutSeconds", "message"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -108401,6 +122423,20 @@ func (ec *executionContext) unmarshalInputCraftInput(ctx context.Context, obj an
 				return it, err
 			}
 			it.Count = data
+		case "mode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mode"))
+			data, err := ec.unmarshalNCraftMode2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftMode(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Mode = data
+		case "expand":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expand"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Expand = data
 		case "wait":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("wait"))
 			data, err := ec.unmarshalNBoolean2bool(ctx, v)
@@ -108437,8 +122473,11 @@ func (ec *executionContext) unmarshalInputCraftPlanInput(ctx context.Context, ob
 	if _, present := asMap["count"]; !present {
 		asMap["count"] = 1
 	}
+	if _, present := asMap["mode"]; !present {
+		asMap["mode"] = "MORE"
+	}
 
-	fieldsInOrder := [...]string{"actor", "recipe", "count"}
+	fieldsInOrder := [...]string{"actor", "recipe", "count", "mode"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -108466,67 +122505,13 @@ func (ec *executionContext) unmarshalInputCraftPlanInput(ctx context.Context, ob
 				return it, err
 			}
 			it.Count = data
-		}
-	}
-	return it, nil
-}
-
-func (ec *executionContext) unmarshalInputCraftPlanRunInput(ctx context.Context, obj any) (CraftPlanRunInput, error) {
-	var it CraftPlanRunInput
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	if _, present := asMap["count"]; !present {
-		asMap["count"] = 1
-	}
-	if _, present := asMap["waitTimeoutSeconds"]; !present {
-		asMap["waitTimeoutSeconds"] = 10
-	}
-
-	fieldsInOrder := [...]string{"actor", "recipe", "count", "waitTimeoutSeconds", "message"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "actor":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actor"))
-			data, err := ec.unmarshalNActorInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorInput(ctx, v)
+		case "mode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mode"))
+			data, err := ec.unmarshalNCraftMode2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftMode(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Actor = data
-		case "recipe":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recipe"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Recipe = data
-		case "count":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
-			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Count = data
-		case "waitTimeoutSeconds":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("waitTimeoutSeconds"))
-			data, err := ec.unmarshalNInt2int(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.WaitTimeoutSeconds = data
-		case "message":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Message = data
+			it.Mode = data
 		}
 	}
 	return it, nil
@@ -109743,6 +123728,9 @@ func (ec *executionContext) unmarshalInputExportMapSnapshotToMemgraphInput(ctx c
 	if _, present := asMap["concurrency"]; !present {
 		asMap["concurrency"] = 4
 	}
+	if _, present := asMap["pause"]; !present {
+		asMap["pause"] = true
+	}
 	if _, present := asMap["includeLineLinks"]; !present {
 		asMap["includeLineLinks"] = false
 	}
@@ -109750,7 +123738,7 @@ func (ec *executionContext) unmarshalInputExportMapSnapshotToMemgraphInput(ctx c
 		asMap["allowIncomplete"] = false
 	}
 
-	fieldsInOrder := [...]string{"force", "surfaces", "leafMax", "concurrency", "includeLineLinks", "allowIncomplete"}
+	fieldsInOrder := [...]string{"force", "surfaces", "leafMax", "concurrency", "pause", "includeLineLinks", "allowIncomplete"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -109785,6 +123773,13 @@ func (ec *executionContext) unmarshalInputExportMapSnapshotToMemgraphInput(ctx c
 				return it, err
 			}
 			it.Concurrency = data
+		case "pause":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pause"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Pause = data
 		case "includeLineLinks":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeLineLinks"))
 			data, err := ec.unmarshalNBoolean2bool(ctx, v)
@@ -111867,6 +125862,634 @@ func (ec *executionContext) unmarshalInputMapAreaInput(ctx context.Context, obj 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputMemgraphAreaGraphInput(ctx context.Context, obj any) (MemgraphAreaGraphInput, error) {
+	var it MemgraphAreaGraphInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["includePower"]; !present {
+		asMap["includePower"] = false
+	}
+	if _, present := asMap["includeBoundary"]; !present {
+		asMap["includeBoundary"] = true
+	}
+	if _, present := asMap["maxNodes"]; !present {
+		asMap["maxNodes"] = 2000
+	}
+
+	fieldsInOrder := [...]string{"surface", "area", "includePower", "includeBoundary", "maxNodes"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "area":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("area"))
+			data, err := ec.unmarshalNFactoryAreaInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactoryAreaInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Area = data
+		case "includePower":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includePower"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludePower = data
+		case "includeBoundary":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeBoundary"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeBoundary = data
+		case "maxNodes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxNodes"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxNodes = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphAuditInput(ctx context.Context, obj any) (MemgraphAuditInput, error) {
+	var it MemgraphAuditInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["limit"]; !present {
+		asMap["limit"] = 200
+	}
+
+	fieldsInOrder := [...]string{"surface", "limit"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphBeltStretchMapInput(ctx context.Context, obj any) (MemgraphBeltStretchMapInput, error) {
+	var it MemgraphBeltStretchMapInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["filter"]; !present {
+		asMap["filter"] = map[string]any{}
+	}
+	if _, present := asMap["mode"]; !present {
+		asMap["mode"] = "ITEM"
+	}
+
+	fieldsInOrder := [...]string{"filter", "mode", "area"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "filter":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
+			data, err := ec.unmarshalOMemgraphBeltStretchesInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBeltStretchesInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Filter = data
+		case "mode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mode"))
+			data, err := ec.unmarshalNMemgraphStretchMapMode2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchMapMode(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Mode = data
+		case "area":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("area"))
+			data, err := ec.unmarshalNFactoryAreaInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactoryAreaInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Area = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphBeltStretchesInput(ctx context.Context, obj any) (MemgraphBeltStretchesInput, error) {
+	var it MemgraphBeltStretchesInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["mixedOnly"]; !present {
+		asMap["mixedOnly"] = false
+	}
+	if _, present := asMap["limit"]; !present {
+		asMap["limit"] = 200
+	}
+
+	fieldsInOrder := [...]string{"surface", "item", "mixedOnly", "endKind", "nearX", "nearY", "limit"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "item":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Item = data
+		case "mixedOnly":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mixedOnly"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MixedOnly = data
+		case "endKind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endKind"))
+			data, err := ec.unmarshalOMemgraphStretchEnd2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchEnd(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EndKind = data
+		case "nearX":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nearX"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NearX = data
+		case "nearY":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nearY"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NearY = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphCellSummaryInput(ctx context.Context, obj any) (MemgraphCellSummaryInput, error) {
+	var it MemgraphCellSummaryInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["limit"]; !present {
+		asMap["limit"] = 100
+	}
+
+	fieldsInOrder := [...]string{"surface", "limit"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphChainCapacityInput(ctx context.Context, obj any) (MemgraphChainCapacityInput, error) {
+	var it MemgraphChainCapacityInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["maxHops"]; !present {
+		asMap["maxHops"] = 10
+	}
+
+	fieldsInOrder := [...]string{"unitNumber", "surface", "maxHops"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "unitNumber":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("unitNumber"))
+			data, err := ec.unmarshalNUnitNumber2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UnitNumber = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "maxHops":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxHops"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxHops = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphDownstreamChainInput(ctx context.Context, obj any) (MemgraphDownstreamChainInput, error) {
+	var it MemgraphDownstreamChainInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["maxHops"]; !present {
+		asMap["maxHops"] = 10
+	}
+	if _, present := asMap["maxPaths"]; !present {
+		asMap["maxPaths"] = 1000
+	}
+
+	fieldsInOrder := [...]string{"unitNumber", "surface", "maxHops", "maxPaths"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "unitNumber":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("unitNumber"))
+			data, err := ec.unmarshalNUnitNumber2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UnitNumber = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "maxHops":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxHops"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxHops = data
+		case "maxPaths":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxPaths"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxPaths = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphFactoryReportInput(ctx context.Context, obj any) (MemgraphFactoryReportInput, error) {
+	var it MemgraphFactoryReportInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["limit"]; !present {
+		asMap["limit"] = 500
+	}
+
+	fieldsInOrder := [...]string{"surface", "limit"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphFluidChainInput(ctx context.Context, obj any) (MemgraphFluidChainInput, error) {
+	var it MemgraphFluidChainInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["maxNodes"]; !present {
+		asMap["maxNodes"] = 500
+	}
+
+	fieldsInOrder := [...]string{"unitNumber", "surface", "maxNodes"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "unitNumber":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("unitNumber"))
+			data, err := ec.unmarshalNUnitNumber2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UnitNumber = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "maxNodes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxNodes"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxNodes = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphIngredientCoverageInput(ctx context.Context, obj any) (MemgraphIngredientCoverageInput, error) {
+	var it MemgraphIngredientCoverageInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["upstream"]; !present {
+		asMap["upstream"] = true
+	}
+	if _, present := asMap["maxHops"]; !present {
+		asMap["maxHops"] = 10
+	}
+
+	fieldsInOrder := [...]string{"unitNumber", "surface", "upstream", "maxHops"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "unitNumber":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("unitNumber"))
+			data, err := ec.unmarshalNUnitNumber2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UnitNumber = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "upstream":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("upstream"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Upstream = data
+		case "maxHops":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxHops"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxHops = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphItemSourcesInput(ctx context.Context, obj any) (MemgraphItemSourcesInput, error) {
+	var it MemgraphItemSourcesInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["limit"]; !present {
+		asMap["limit"] = 20
+	}
+
+	fieldsInOrder := [...]string{"item", "surface", "nearX", "nearY", "limit"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "item":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Item = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "nearX":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nearX"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NearX = data
+		case "nearY":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nearY"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NearY = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphNominalRateBalanceInput(ctx context.Context, obj any) (MemgraphNominalRateBalanceInput, error) {
+	var it MemgraphNominalRateBalanceInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["limit"]; !present {
+		asMap["limit"] = 50
+	}
+
+	fieldsInOrder := [...]string{"item", "surface", "limit"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "item":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Item = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputMemgraphQueryInput(ctx context.Context, obj any) (MemgraphQueryInput, error) {
 	var it MemgraphQueryInput
 	asMap := map[string]any{}
@@ -111926,6 +126549,231 @@ func (ec *executionContext) unmarshalInputMemgraphQueryInput(ctx context.Context
 				return it, err
 			}
 			it.Sync = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphRemovalImpactInput(ctx context.Context, obj any) (MemgraphRemovalImpactInput, error) {
+	var it MemgraphRemovalImpactInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["maxHops"]; !present {
+		asMap["maxHops"] = 10
+	}
+
+	fieldsInOrder := [...]string{"unitNumber", "surface", "maxHops"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "unitNumber":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("unitNumber"))
+			data, err := ec.unmarshalNUnitNumber2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UnitNumber = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "maxHops":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxHops"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxHops = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphRootCauseInput(ctx context.Context, obj any) (MemgraphRootCauseInput, error) {
+	var it MemgraphRootCauseInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["maxHops"]; !present {
+		asMap["maxHops"] = 10
+	}
+
+	fieldsInOrder := [...]string{"unitNumber", "surface", "maxHops"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "unitNumber":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("unitNumber"))
+			data, err := ec.unmarshalNUnitNumber2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UnitNumber = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "maxHops":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxHops"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxHops = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphRouteBetweenInput(ctx context.Context, obj any) (MemgraphRouteBetweenInput, error) {
+	var it MemgraphRouteBetweenInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["maxHops"]; !present {
+		asMap["maxHops"] = 10
+	}
+	if _, present := asMap["maxRoutes"]; !present {
+		asMap["maxRoutes"] = 10
+	}
+
+	fieldsInOrder := [...]string{"from", "to", "surface", "maxHops", "maxRoutes"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "from":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+			data, err := ec.unmarshalNUnitNumber2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.From = data
+		case "to":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
+			data, err := ec.unmarshalNUnitNumber2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.To = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "maxHops":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxHops"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxHops = data
+		case "maxRoutes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxRoutes"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxRoutes = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMemgraphSupplyChainInput(ctx context.Context, obj any) (MemgraphSupplyChainInput, error) {
+	var it MemgraphSupplyChainInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["resolution"]; !present {
+		asMap["resolution"] = "BELT"
+	}
+	if _, present := asMap["maxHops"]; !present {
+		asMap["maxHops"] = 10
+	}
+	if _, present := asMap["maxPaths"]; !present {
+		asMap["maxPaths"] = 1000
+	}
+
+	fieldsInOrder := [...]string{"unitNumber", "surface", "resolution", "maxHops", "maxPaths"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "unitNumber":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("unitNumber"))
+			data, err := ec.unmarshalNUnitNumber2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UnitNumber = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "resolution":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("resolution"))
+			data, err := ec.unmarshalNMemgraphSupplyResolution2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyResolution(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Resolution = data
+		case "maxHops":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxHops"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxHops = data
+		case "maxPaths":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxPaths"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxPaths = data
 		}
 	}
 	return it, nil
@@ -112351,6 +127199,93 @@ func (ec *executionContext) unmarshalInputNearestPlacementInput(ctx context.Cont
 				return it, err
 			}
 			it.MinResourceTiles = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputOccupancyInput(ctx context.Context, obj any) (OccupancyInput, error) {
+	var it OccupancyInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["surface"]; !present {
+		asMap["surface"] = "nauvis"
+	}
+	if _, present := asMap["force"]; !present {
+		asMap["force"] = "player"
+	}
+	if _, present := asMap["includeTerrain"]; !present {
+		asMap["includeTerrain"] = false
+	}
+	if _, present := asMap["terrainLimit"]; !present {
+		asMap["terrainLimit"] = 4096
+	}
+	if _, present := asMap["limit"]; !present {
+		asMap["limit"] = 1000
+	}
+	if _, present := asMap["offset"]; !present {
+		asMap["offset"] = 0
+	}
+
+	fieldsInOrder := [...]string{"surface", "force", "area", "includeTerrain", "terrainLimit", "limit", "offset"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "force":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("force"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Force = data
+		case "area":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("area"))
+			data, err := ec.unmarshalNFactoryAreaInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactoryAreaInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Area = data
+		case "includeTerrain":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeTerrain"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeTerrain = data
+		case "terrainLimit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("terrainLimit"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TerrainLimit = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		case "offset":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Offset = data
 		}
 	}
 	return it, nil
@@ -116744,6 +131679,8 @@ func (ec *executionContext) _ActionResult(ctx context.Context, sel ast.Selection
 			out.Values[i] = ec._ActionResult_waitTimedOut(ctx, field, obj)
 		case "waitedSeconds":
 			out.Values[i] = ec._ActionResult_waitedSeconds(ctx, field, obj)
+		case "chain":
+			out.Values[i] = ec._ActionResult_chain(ctx, field, obj)
 		case "instant":
 			out.Values[i] = ec._ActionResult_instant(ctx, field, obj)
 		case "mined":
@@ -116821,6 +131758,8 @@ func (ec *executionContext) _Actor(ctx context.Context, sel ast.SelectionSet, ob
 			out.Values[i] = ec._Actor_connected(ctx, field, obj)
 		case "controllerType":
 			out.Values[i] = ec._Actor_controllerType(ctx, field, obj)
+		case "cheatMode":
+			out.Values[i] = ec._Actor_cheatMode(ctx, field, obj)
 		case "inventory":
 			field := field
 
@@ -120217,6 +135156,233 @@ func (ec *executionContext) _BriefingResearch(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var buildCellResultImplementors = []string{"BuildCellResult"}
+
+func (ec *executionContext) _BuildCellResult(ctx context.Context, sel ast.SelectionSet, obj *BuildCellResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, buildCellResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BuildCellResult")
+		case "tick":
+			out.Values[i] = ec._BuildCellResult_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "surface":
+			out.Values[i] = ec._BuildCellResult_surface(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._BuildCellResult_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dryRun":
+			out.Values[i] = ec._BuildCellResult_dryRun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completed":
+			out.Values[i] = ec._BuildCellResult_completed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "placed":
+			out.Values[i] = ec._BuildCellResult_placed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failed":
+			out.Values[i] = ec._BuildCellResult_failed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skipped":
+			out.Values[i] = ec._BuildCellResult_skipped(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "steps":
+			out.Values[i] = ec._BuildCellResult_steps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var buildCellStepImplementors = []string{"BuildCellStep"}
+
+func (ec *executionContext) _BuildCellStep(ctx context.Context, sel ast.SelectionSet, obj *BuildCellStep) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, buildCellStepImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BuildCellStep")
+		case "index":
+			out.Values[i] = ec._BuildCellStep_index(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ref":
+			out.Values[i] = ec._BuildCellStep_ref(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._BuildCellStep_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ok":
+			out.Values[i] = ec._BuildCellStep_ok(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "applied":
+			out.Values[i] = ec._BuildCellStep_applied(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unitNumber":
+			out.Values[i] = ec._BuildCellStep_unitNumber(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._BuildCellStep_name(ctx, field, obj)
+		case "position":
+			out.Values[i] = ec._BuildCellStep_position(ctx, field, obj)
+		case "placed":
+			out.Values[i] = ec._BuildCellStep_placed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failed":
+			out.Values[i] = ec._BuildCellStep_failed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._BuildCellStep_message(ctx, field, obj)
+		case "conflicts":
+			out.Values[i] = ec._BuildCellStep_conflicts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._BuildCellStep_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var buildConnectionResultImplementors = []string{"BuildConnectionResult"}
+
+func (ec *executionContext) _BuildConnectionResult(ctx context.Context, sel ast.SelectionSet, obj *BuildConnectionResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, buildConnectionResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BuildConnectionResult")
+		case "tick":
+			out.Values[i] = ec._BuildConnectionResult_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "surface":
+			out.Values[i] = ec._BuildConnectionResult_surface(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._BuildConnectionResult_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dryRun":
+			out.Values[i] = ec._BuildConnectionResult_dryRun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "plan":
+			out.Values[i] = ec._BuildConnectionResult_plan(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "result":
+			out.Values[i] = ec._BuildConnectionResult_result(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -129416,6 +144582,1640 @@ func (ec *executionContext) _MapLegendEntry(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var memgraphImplementors = []string{"Memgraph"}
+
+func (ec *executionContext) _Memgraph(ctx context.Context, sel ast.SelectionSet, obj *Memgraph) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Memgraph")
+		case "schema":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_schema(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "query":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_query(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "areaGraph":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_areaGraph(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "factoryHealth":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_factoryHealth(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "powerAudit":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_powerAudit(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "fuelAudit":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_fuelAudit(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "inserterAudit":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_inserterAudit(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "sinkAudit":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_sinkAudit(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "fluidChain":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_fluidChain(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "cellSummary":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_cellSummary(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "factoryReport":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_factoryReport(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "rootCause":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_rootCause(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "nominalRateBalance":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_nominalRateBalance(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "removalImpact":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_removalImpact(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "chainCapacity":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_chainCapacity(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "routeBetween":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_routeBetween(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "itemSources":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_itemSources(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "beltStretches":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_beltStretches(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "beltStretchMap":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_beltStretchMap(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "supplyChain":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_supplyChain(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "ingredientCoverage":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_ingredientCoverage(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "downstreamChain":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Memgraph_downstreamChain(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphAffectedMachineImplementors = []string{"MemgraphAffectedMachine"}
+
+func (ec *executionContext) _MemgraphAffectedMachine(ctx context.Context, sel ast.SelectionSet, obj *MemgraphAffectedMachine) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphAffectedMachineImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphAffectedMachine")
+		case "machine":
+			out.Values[i] = ec._MemgraphAffectedMachine_machine(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ingredient":
+			out.Values[i] = ec._MemgraphAffectedMachine_ingredient(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "routesBefore":
+			out.Values[i] = ec._MemgraphAffectedMachine_routesBefore(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphAreaBoundaryEdgeImplementors = []string{"MemgraphAreaBoundaryEdge"}
+
+func (ec *executionContext) _MemgraphAreaBoundaryEdge(ctx context.Context, sel ast.SelectionSet, obj *MemgraphAreaBoundaryEdge) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphAreaBoundaryEdgeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphAreaBoundaryEdge")
+		case "inside":
+			out.Values[i] = ec._MemgraphAreaBoundaryEdge_inside(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "direction":
+			out.Values[i] = ec._MemgraphAreaBoundaryEdge_direction(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._MemgraphAreaBoundaryEdge_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "outside":
+			out.Values[i] = ec._MemgraphAreaBoundaryEdge_outside(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphAreaComponentImplementors = []string{"MemgraphAreaComponent"}
+
+func (ec *executionContext) _MemgraphAreaComponent(ctx context.Context, sel ast.SelectionSet, obj *MemgraphAreaComponent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphAreaComponentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphAreaComponent")
+		case "index":
+			out.Values[i] = ec._MemgraphAreaComponent_index(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "size":
+			out.Values[i] = ec._MemgraphAreaComponent_size(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kinds":
+			out.Values[i] = ec._MemgraphAreaComponent_kinds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nodeIds":
+			out.Values[i] = ec._MemgraphAreaComponent_nodeIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._MemgraphAreaComponent_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphAreaEdgeImplementors = []string{"MemgraphAreaEdge"}
+
+func (ec *executionContext) _MemgraphAreaEdge(ctx context.Context, sel ast.SelectionSet, obj *MemgraphAreaEdge) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphAreaEdgeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphAreaEdge")
+		case "from":
+			out.Values[i] = ec._MemgraphAreaEdge_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "to":
+			out.Values[i] = ec._MemgraphAreaEdge_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._MemgraphAreaEdge_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphAreaGraphImplementors = []string{"MemgraphAreaGraph"}
+
+func (ec *executionContext) _MemgraphAreaGraph(ctx context.Context, sel ast.SelectionSet, obj *MemgraphAreaGraph) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphAreaGraphImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphAreaGraph")
+		case "summary":
+			out.Values[i] = ec._MemgraphAreaGraph_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "outline":
+			out.Values[i] = ec._MemgraphAreaGraph_outline(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nodes":
+			out.Values[i] = ec._MemgraphAreaGraph_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "edges":
+			out.Values[i] = ec._MemgraphAreaGraph_edges(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "components":
+			out.Values[i] = ec._MemgraphAreaGraph_components(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "boundary":
+			out.Values[i] = ec._MemgraphAreaGraph_boundary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphAreaGraph_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphAreaGraph_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphAreaSummaryImplementors = []string{"MemgraphAreaSummary"}
+
+func (ec *executionContext) _MemgraphAreaSummary(ctx context.Context, sel ast.SelectionSet, obj *MemgraphAreaSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphAreaSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphAreaSummary")
+		case "nodeCount":
+			out.Values[i] = ec._MemgraphAreaSummary_nodeCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "edgeCount":
+			out.Values[i] = ec._MemgraphAreaSummary_edgeCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "componentCount":
+			out.Values[i] = ec._MemgraphAreaSummary_componentCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "boundaryCount":
+			out.Values[i] = ec._MemgraphAreaSummary_boundaryCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kindCounts":
+			out.Values[i] = ec._MemgraphAreaSummary_kindCounts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attention":
+			out.Values[i] = ec._MemgraphAreaSummary_attention(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphAuditImplementors = []string{"MemgraphAudit"}
+
+func (ec *executionContext) _MemgraphAudit(ctx context.Context, sel ast.SelectionSet, obj *MemgraphAudit) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphAuditImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphAudit")
+		case "summary":
+			out.Values[i] = ec._MemgraphAudit_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "counts":
+			out.Values[i] = ec._MemgraphAudit_counts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "findings":
+			out.Values[i] = ec._MemgraphAudit_findings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphAudit_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphAudit_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphAuditFindingImplementors = []string{"MemgraphAuditFinding"}
+
+func (ec *executionContext) _MemgraphAuditFinding(ctx context.Context, sel ast.SelectionSet, obj *MemgraphAuditFinding) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphAuditFindingImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphAuditFinding")
+		case "code":
+			out.Values[i] = ec._MemgraphAuditFinding_code(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "severity":
+			out.Values[i] = ec._MemgraphAuditFinding_severity(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "node":
+			out.Values[i] = ec._MemgraphAuditFinding_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._MemgraphAuditFinding_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "related":
+			out.Values[i] = ec._MemgraphAuditFinding_related(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "impact":
+			out.Values[i] = ec._MemgraphAuditFinding_impact(ctx, field, obj)
+		case "audit":
+			out.Values[i] = ec._MemgraphAuditFinding_audit(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphBeltStretchesImplementors = []string{"MemgraphBeltStretches"}
+
+func (ec *executionContext) _MemgraphBeltStretches(ctx context.Context, sel ast.SelectionSet, obj *MemgraphBeltStretches) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphBeltStretchesImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphBeltStretches")
+		case "summary":
+			out.Values[i] = ec._MemgraphBeltStretches_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "outline":
+			out.Values[i] = ec._MemgraphBeltStretches_outline(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stretches":
+			out.Values[i] = ec._MemgraphBeltStretches_stretches(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attention":
+			out.Values[i] = ec._MemgraphBeltStretches_attention(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphBeltStretches_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphBeltStretches_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphCauseImplementors = []string{"MemgraphCause"}
+
+func (ec *executionContext) _MemgraphCause(ctx context.Context, sel ast.SelectionSet, obj *MemgraphCause) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphCauseImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphCause")
+		case "node":
+			out.Values[i] = ec._MemgraphCause_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._MemgraphCause_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "detail":
+			out.Values[i] = ec._MemgraphCause_detail(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "route":
+			out.Values[i] = ec._MemgraphCause_route(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "routeText":
+			out.Values[i] = ec._MemgraphCause_routeText(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphCellImplementors = []string{"MemgraphCell"}
+
+func (ec *executionContext) _MemgraphCell(ctx context.Context, sel ast.SelectionSet, obj *MemgraphCell) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphCellImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphCell")
+		case "id":
+			out.Values[i] = ec._MemgraphCell_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._MemgraphCell_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recipes":
+			out.Values[i] = ec._MemgraphCell_recipes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "machineCount":
+			out.Values[i] = ec._MemgraphCell_machineCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "inserterCount":
+			out.Values[i] = ec._MemgraphCell_inserterCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "beltCount":
+			out.Values[i] = ec._MemgraphCell_beltCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "chestCount":
+			out.Values[i] = ec._MemgraphCell_chestCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "statusCounts":
+			out.Values[i] = ec._MemgraphCell_statusCounts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stalledCount":
+			out.Values[i] = ec._MemgraphCell_stalledCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "leftTopX":
+			out.Values[i] = ec._MemgraphCell_leftTopX(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "leftTopY":
+			out.Values[i] = ec._MemgraphCell_leftTopY(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rightBottomX":
+			out.Values[i] = ec._MemgraphCell_rightBottomX(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rightBottomY":
+			out.Values[i] = ec._MemgraphCell_rightBottomY(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphCellSummaryImplementors = []string{"MemgraphCellSummary"}
+
+func (ec *executionContext) _MemgraphCellSummary(ctx context.Context, sel ast.SelectionSet, obj *MemgraphCellSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphCellSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphCellSummary")
+		case "summary":
+			out.Values[i] = ec._MemgraphCellSummary_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cells":
+			out.Values[i] = ec._MemgraphCellSummary_cells(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "loneMachines":
+			out.Values[i] = ec._MemgraphCellSummary_loneMachines(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphCellSummary_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphCellSummary_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphChainCapacityImplementors = []string{"MemgraphChainCapacity"}
+
+func (ec *executionContext) _MemgraphChainCapacity(ctx context.Context, sel ast.SelectionSet, obj *MemgraphChainCapacity) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphChainCapacityImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphChainCapacity")
+		case "root":
+			out.Values[i] = ec._MemgraphChainCapacity_root(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "outputItem":
+			out.Values[i] = ec._MemgraphChainCapacity_outputItem(ctx, field, obj)
+		case "outputPerMinute":
+			out.Values[i] = ec._MemgraphChainCapacity_outputPerMinute(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "limiting":
+			out.Values[i] = ec._MemgraphChainCapacity_limiting(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stages":
+			out.Values[i] = ec._MemgraphChainCapacity_stages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "notes":
+			out.Values[i] = ec._MemgraphChainCapacity_notes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphChainCapacity_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphChainCapacity_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var memgraphCountImplementors = []string{"MemgraphCount"}
 
 func (ec *executionContext) _MemgraphCount(ctx context.Context, sel ast.SelectionSet, obj *MemgraphCount) graphql.Marshaler {
@@ -129437,6 +146237,87 @@ func (ec *executionContext) _MemgraphCount(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphDownstreamChainImplementors = []string{"MemgraphDownstreamChain"}
+
+func (ec *executionContext) _MemgraphDownstreamChain(ctx context.Context, sel ast.SelectionSet, obj *MemgraphDownstreamChain) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphDownstreamChainImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphDownstreamChain")
+		case "root":
+			out.Values[i] = ec._MemgraphDownstreamChain_root(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._MemgraphDownstreamChain_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "outline":
+			out.Values[i] = ec._MemgraphDownstreamChain_outline(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nodes":
+			out.Values[i] = ec._MemgraphDownstreamChain_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "paths":
+			out.Values[i] = ec._MemgraphDownstreamChain_paths(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sinks":
+			out.Values[i] = ec._MemgraphDownstreamChain_sinks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphDownstreamChain_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "graphCypher":
+			out.Values[i] = ec._MemgraphDownstreamChain_graphCypher(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "durationMs":
+			out.Values[i] = ec._MemgraphDownstreamChain_durationMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphDownstreamChain_snapshot(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -129569,6 +146450,547 @@ func (ec *executionContext) _MemgraphExportResult(ctx context.Context, sel ast.S
 	return out
 }
 
+var memgraphFactoryReportImplementors = []string{"MemgraphFactoryReport"}
+
+func (ec *executionContext) _MemgraphFactoryReport(ctx context.Context, sel ast.SelectionSet, obj *MemgraphFactoryReport) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphFactoryReportImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphFactoryReport")
+		case "summary":
+			out.Values[i] = ec._MemgraphFactoryReport_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "counts":
+			out.Values[i] = ec._MemgraphFactoryReport_counts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "findings":
+			out.Values[i] = ec._MemgraphFactoryReport_findings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sections":
+			out.Values[i] = ec._MemgraphFactoryReport_sections(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphFactoryReport_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphFactoryReport_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphFluidChainImplementors = []string{"MemgraphFluidChain"}
+
+func (ec *executionContext) _MemgraphFluidChain(ctx context.Context, sel ast.SelectionSet, obj *MemgraphFluidChain) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphFluidChainImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphFluidChain")
+		case "root":
+			out.Values[i] = ec._MemgraphFluidChain_root(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nodes":
+			out.Values[i] = ec._MemgraphFluidChain_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "links":
+			out.Values[i] = ec._MemgraphFluidChain_links(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sources":
+			out.Values[i] = ec._MemgraphFluidChain_sources(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sinks":
+			out.Values[i] = ec._MemgraphFluidChain_sinks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "findings":
+			out.Values[i] = ec._MemgraphFluidChain_findings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphFluidChain_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphFluidChain_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphFluidLinkImplementors = []string{"MemgraphFluidLink"}
+
+func (ec *executionContext) _MemgraphFluidLink(ctx context.Context, sel ast.SelectionSet, obj *MemgraphFluidLink) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphFluidLinkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphFluidLink")
+		case "from":
+			out.Values[i] = ec._MemgraphFluidLink_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "to":
+			out.Values[i] = ec._MemgraphFluidLink_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphIngredientCoverageImplementors = []string{"MemgraphIngredientCoverage"}
+
+func (ec *executionContext) _MemgraphIngredientCoverage(ctx context.Context, sel ast.SelectionSet, obj *MemgraphIngredientCoverage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphIngredientCoverageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphIngredientCoverage")
+		case "machines":
+			out.Values[i] = ec._MemgraphIngredientCoverage_machines(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "gaps":
+			out.Values[i] = ec._MemgraphIngredientCoverage_gaps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphIngredientCoverage_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphIngredientFeedImplementors = []string{"MemgraphIngredientFeed"}
+
+func (ec *executionContext) _MemgraphIngredientFeed(ctx context.Context, sel ast.SelectionSet, obj *MemgraphIngredientFeed) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphIngredientFeedImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphIngredientFeed")
+		case "item":
+			out.Values[i] = ec._MemgraphIngredientFeed_item(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "amount":
+			out.Values[i] = ec._MemgraphIngredientFeed_amount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "feedingArms":
+			out.Values[i] = ec._MemgraphIngredientFeed_feedingArms(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "covered":
+			out.Values[i] = ec._MemgraphIngredientFeed_covered(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphItemRateImplementors = []string{"MemgraphItemRate"}
+
+func (ec *executionContext) _MemgraphItemRate(ctx context.Context, sel ast.SelectionSet, obj *MemgraphItemRate) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphItemRateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphItemRate")
+		case "name":
+			out.Values[i] = ec._MemgraphItemRate_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "producedPerMinute":
+			out.Values[i] = ec._MemgraphItemRate_producedPerMinute(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "consumedPerMinute":
+			out.Values[i] = ec._MemgraphItemRate_consumedPerMinute(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "net":
+			out.Values[i] = ec._MemgraphItemRate_net(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "producers":
+			out.Values[i] = ec._MemgraphItemRate_producers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "consumers":
+			out.Values[i] = ec._MemgraphItemRate_consumers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unboundedSources":
+			out.Values[i] = ec._MemgraphItemRate_unboundedSources(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphItemSourceImplementors = []string{"MemgraphItemSource"}
+
+func (ec *executionContext) _MemgraphItemSource(ctx context.Context, sel ast.SelectionSet, obj *MemgraphItemSource) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphItemSourceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphItemSource")
+		case "kind":
+			out.Values[i] = ec._MemgraphItemSource_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "node":
+			out.Values[i] = ec._MemgraphItemSource_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "perMinute":
+			out.Values[i] = ec._MemgraphItemSource_perMinute(ctx, field, obj)
+		case "count":
+			out.Values[i] = ec._MemgraphItemSource_count(ctx, field, obj)
+		case "distance":
+			out.Values[i] = ec._MemgraphItemSource_distance(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphItemSourcesImplementors = []string{"MemgraphItemSources"}
+
+func (ec *executionContext) _MemgraphItemSources(ctx context.Context, sel ast.SelectionSet, obj *MemgraphItemSources) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphItemSourcesImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphItemSources")
+		case "item":
+			out.Values[i] = ec._MemgraphItemSources_item(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sources":
+			out.Values[i] = ec._MemgraphItemSources_sources(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphItemSources_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphItemSources_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphMachineCoverageImplementors = []string{"MemgraphMachineCoverage"}
+
+func (ec *executionContext) _MemgraphMachineCoverage(ctx context.Context, sel ast.SelectionSet, obj *MemgraphMachineCoverage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphMachineCoverageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphMachineCoverage")
+		case "machine":
+			out.Values[i] = ec._MemgraphMachineCoverage_machine(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ingredients":
+			out.Values[i] = ec._MemgraphMachineCoverage_ingredients(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphNominalRateBalanceImplementors = []string{"MemgraphNominalRateBalance"}
+
+func (ec *executionContext) _MemgraphNominalRateBalance(ctx context.Context, sel ast.SelectionSet, obj *MemgraphNominalRateBalance) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphNominalRateBalanceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphNominalRateBalance")
+		case "items":
+			out.Values[i] = ec._MemgraphNominalRateBalance_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deficits":
+			out.Values[i] = ec._MemgraphNominalRateBalance_deficits(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphNominalRateBalance_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphNominalRateBalance_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var memgraphQueryResultImplementors = []string{"MemgraphQueryResult"}
 
 func (ec *executionContext) _MemgraphQueryResult(ctx context.Context, sel ast.SelectionSet, obj *MemgraphQueryResult) graphql.Marshaler {
@@ -129600,6 +147022,252 @@ func (ec *executionContext) _MemgraphQueryResult(ctx context.Context, sel ast.Se
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphQueryResult_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphRemovalImpactImplementors = []string{"MemgraphRemovalImpact"}
+
+func (ec *executionContext) _MemgraphRemovalImpact(ctx context.Context, sel ast.SelectionSet, obj *MemgraphRemovalImpact) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphRemovalImpactImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphRemovalImpact")
+		case "root":
+			out.Values[i] = ec._MemgraphRemovalImpact_root(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "safe":
+			out.Values[i] = ec._MemgraphRemovalImpact_safe(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._MemgraphRemovalImpact_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "affected":
+			out.Values[i] = ec._MemgraphRemovalImpact_affected(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphRemovalImpact_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphRemovalImpact_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphReportSectionImplementors = []string{"MemgraphReportSection"}
+
+func (ec *executionContext) _MemgraphReportSection(ctx context.Context, sel ast.SelectionSet, obj *MemgraphReportSection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphReportSectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphReportSection")
+		case "name":
+			out.Values[i] = ec._MemgraphReportSection_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._MemgraphReportSection_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "findingCount":
+			out.Values[i] = ec._MemgraphReportSection_findingCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._MemgraphReportSection_error(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphRootCauseImplementors = []string{"MemgraphRootCause"}
+
+func (ec *executionContext) _MemgraphRootCause(ctx context.Context, sel ast.SelectionSet, obj *MemgraphRootCause) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphRootCauseImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphRootCause")
+		case "root":
+			out.Values[i] = ec._MemgraphRootCause_root(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stalled":
+			out.Values[i] = ec._MemgraphRootCause_stalled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._MemgraphRootCause_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "causes":
+			out.Values[i] = ec._MemgraphRootCause_causes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphRootCause_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphRootCause_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphRouteBetweenImplementors = []string{"MemgraphRouteBetween"}
+
+func (ec *executionContext) _MemgraphRouteBetween(ctx context.Context, sel ast.SelectionSet, obj *MemgraphRouteBetween) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphRouteBetweenImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphRouteBetween")
+		case "from":
+			out.Values[i] = ec._MemgraphRouteBetween_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "to":
+			out.Values[i] = ec._MemgraphRouteBetween_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "connected":
+			out.Values[i] = ec._MemgraphRouteBetween_connected(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "routes":
+			out.Values[i] = ec._MemgraphRouteBetween_routes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nodes":
+			out.Values[i] = ec._MemgraphRouteBetween_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "outline":
+			out.Values[i] = ec._MemgraphRouteBetween_outline(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphRouteBetween_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphRouteBetween_snapshot(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -129856,6 +147524,578 @@ func (ec *executionContext) _MemgraphSnapshotInfo(ctx context.Context, sel ast.S
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "tick":
+			out.Values[i] = ec._MemgraphSnapshotInfo_tick(ctx, field, obj)
+		case "ageSeconds":
+			out.Values[i] = ec._MemgraphSnapshotInfo_ageSeconds(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphStageRateImplementors = []string{"MemgraphStageRate"}
+
+func (ec *executionContext) _MemgraphStageRate(ctx context.Context, sel ast.SelectionSet, obj *MemgraphStageRate) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphStageRateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphStageRate")
+		case "node":
+			out.Values[i] = ec._MemgraphStageRate_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "item":
+			out.Values[i] = ec._MemgraphStageRate_item(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "supplyPerMinute":
+			out.Values[i] = ec._MemgraphStageRate_supplyPerMinute(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "demandPerMinute":
+			out.Values[i] = ec._MemgraphStageRate_demandPerMinute(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphStretchImplementors = []string{"MemgraphStretch"}
+
+func (ec *executionContext) _MemgraphStretch(ctx context.Context, sel ast.SelectionSet, obj *MemgraphStretch) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphStretchImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphStretch")
+		case "id":
+			out.Values[i] = ec._MemgraphStretch_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "headUnit":
+			out.Values[i] = ec._MemgraphStretch_headUnit(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tailUnit":
+			out.Values[i] = ec._MemgraphStretch_tailUnit(ctx, field, obj)
+		case "x":
+			out.Values[i] = ec._MemgraphStretch_x(ctx, field, obj)
+		case "y":
+			out.Values[i] = ec._MemgraphStretch_y(ctx, field, obj)
+		case "tiles":
+			out.Values[i] = ec._MemgraphStretch_tiles(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endKind":
+			out.Values[i] = ec._MemgraphStretch_endKind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "left":
+			out.Values[i] = ec._MemgraphStretch_left(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "right":
+			out.Values[i] = ec._MemgraphStretch_right(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "leftCount":
+			out.Values[i] = ec._MemgraphStretch_leftCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rightCount":
+			out.Values[i] = ec._MemgraphStretch_rightCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mixed":
+			out.Values[i] = ec._MemgraphStretch_mixed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "flowsIntoStretch":
+			out.Values[i] = ec._MemgraphStretch_flowsIntoStretch(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pickers":
+			out.Values[i] = ec._MemgraphStretch_pickers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "distance":
+			out.Values[i] = ec._MemgraphStretch_distance(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphStretchFindingImplementors = []string{"MemgraphStretchFinding"}
+
+func (ec *executionContext) _MemgraphStretchFinding(ctx context.Context, sel ast.SelectionSet, obj *MemgraphStretchFinding) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphStretchFindingImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphStretchFinding")
+		case "stretchId":
+			out.Values[i] = ec._MemgraphStretchFinding_stretchId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._MemgraphStretchFinding_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "detail":
+			out.Values[i] = ec._MemgraphStretchFinding_detail(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphStretchMapImplementors = []string{"MemgraphStretchMap"}
+
+func (ec *executionContext) _MemgraphStretchMap(ctx context.Context, sel ast.SelectionSet, obj *MemgraphStretchMap) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphStretchMapImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphStretchMap")
+		case "rows":
+			out.Values[i] = ec._MemgraphStretchMap_rows(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "legend":
+			out.Values[i] = ec._MemgraphStretchMap_legend(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "columns":
+			out.Values[i] = ec._MemgraphStretchMap_columns(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "originX":
+			out.Values[i] = ec._MemgraphStretchMap_originX(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "originY":
+			out.Values[i] = ec._MemgraphStretchMap_originY(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphStretchMap_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphStretchMap_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphStretchMapLegendImplementors = []string{"MemgraphStretchMapLegend"}
+
+func (ec *executionContext) _MemgraphStretchMapLegend(ctx context.Context, sel ast.SelectionSet, obj *MemgraphStretchMapLegend) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphStretchMapLegendImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphStretchMapLegend")
+		case "char":
+			out.Values[i] = ec._MemgraphStretchMapLegend_char(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._MemgraphStretchMapLegend_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "detail":
+			out.Values[i] = ec._MemgraphStretchMapLegend_detail(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cells":
+			out.Values[i] = ec._MemgraphStretchMapLegend_cells(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphStretchSummaryImplementors = []string{"MemgraphStretchSummary"}
+
+func (ec *executionContext) _MemgraphStretchSummary(ctx context.Context, sel ast.SelectionSet, obj *MemgraphStretchSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphStretchSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphStretchSummary")
+		case "stretchCount":
+			out.Values[i] = ec._MemgraphStretchSummary_stretchCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tileCount":
+			out.Values[i] = ec._MemgraphStretchSummary_tileCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "carryingCount":
+			out.Values[i] = ec._MemgraphStretchSummary_carryingCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mixedCount":
+			out.Values[i] = ec._MemgraphStretchSummary_mixedCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "noConsumerCount":
+			out.Values[i] = ec._MemgraphStretchSummary_noConsumerCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "items":
+			out.Values[i] = ec._MemgraphStretchSummary_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphSupplyChainImplementors = []string{"MemgraphSupplyChain"}
+
+func (ec *executionContext) _MemgraphSupplyChain(ctx context.Context, sel ast.SelectionSet, obj *MemgraphSupplyChain) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphSupplyChainImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphSupplyChain")
+		case "root":
+			out.Values[i] = ec._MemgraphSupplyChain_root(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._MemgraphSupplyChain_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "outline":
+			out.Values[i] = ec._MemgraphSupplyChain_outline(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nodes":
+			out.Values[i] = ec._MemgraphSupplyChain_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "paths":
+			out.Values[i] = ec._MemgraphSupplyChain_paths(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "origins":
+			out.Values[i] = ec._MemgraphSupplyChain_origins(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MemgraphSupplyChain_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "graphCypher":
+			out.Values[i] = ec._MemgraphSupplyChain_graphCypher(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "durationMs":
+			out.Values[i] = ec._MemgraphSupplyChain_durationMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MemgraphSupplyChain_snapshot(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphSupplyChainSummaryImplementors = []string{"MemgraphSupplyChainSummary"}
+
+func (ec *executionContext) _MemgraphSupplyChainSummary(ctx context.Context, sel ast.SelectionSet, obj *MemgraphSupplyChainSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphSupplyChainSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphSupplyChainSummary")
+		case "pathCount":
+			out.Values[i] = ec._MemgraphSupplyChainSummary_pathCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nodeCount":
+			out.Values[i] = ec._MemgraphSupplyChainSummary_nodeCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "maxHops":
+			out.Values[i] = ec._MemgraphSupplyChainSummary_maxHops(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kindCounts":
+			out.Values[i] = ec._MemgraphSupplyChainSummary_kindCounts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attention":
+			out.Values[i] = ec._MemgraphSupplyChainSummary_attention(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphSupplyPathImplementors = []string{"MemgraphSupplyPath"}
+
+func (ec *executionContext) _MemgraphSupplyPath(ctx context.Context, sel ast.SelectionSet, obj *MemgraphSupplyPath) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphSupplyPathImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphSupplyPath")
+		case "hops":
+			out.Values[i] = ec._MemgraphSupplyPath_hops(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "steps":
+			out.Values[i] = ec._MemgraphSupplyPath_steps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -129930,6 +148170,106 @@ func (ec *executionContext) _MemgraphSurfaceReport(ctx context.Context, sel ast.
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphTraceFindingImplementors = []string{"MemgraphTraceFinding"}
+
+func (ec *executionContext) _MemgraphTraceFinding(ctx context.Context, sel ast.SelectionSet, obj *MemgraphTraceFinding) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphTraceFindingImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphTraceFinding")
+		case "node":
+			out.Values[i] = ec._MemgraphTraceFinding_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._MemgraphTraceFinding_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var memgraphTraceNodeImplementors = []string{"MemgraphTraceNode"}
+
+func (ec *executionContext) _MemgraphTraceNode(ctx context.Context, sel ast.SelectionSet, obj *MemgraphTraceNode) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, memgraphTraceNodeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MemgraphTraceNode")
+		case "id":
+			out.Values[i] = ec._MemgraphTraceNode_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._MemgraphTraceNode_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unitNumber":
+			out.Values[i] = ec._MemgraphTraceNode_unitNumber(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._MemgraphTraceNode_name(ctx, field, obj)
+		case "recipe":
+			out.Values[i] = ec._MemgraphTraceNode_recipe(ctx, field, obj)
+		case "status":
+			out.Values[i] = ec._MemgraphTraceNode_status(ctx, field, obj)
+		case "x":
+			out.Values[i] = ec._MemgraphTraceNode_x(ctx, field, obj)
+		case "y":
+			out.Values[i] = ec._MemgraphTraceNode_y(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -130118,13 +148458,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "craft":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_craft(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "craftPlan":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_craftPlan(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -130430,6 +148763,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "buildCell":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_buildCell(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "connectEntities":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_connectEntities(ctx, field)
@@ -130437,9 +148777,9 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "placeBelt":
+		case "placeBelts":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_placeBelt(ctx, field)
+				return ec._Mutation_placeBelts(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -130447,6 +148787,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "placePipe":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_placePipe(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "buildConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_buildConnection(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -130931,6 +149278,192 @@ func (ec *executionContext) _Nearby(ctx context.Context, sel ast.SelectionSet, o
 			}
 		case "entities":
 			out.Values[i] = ec._Nearby_entities(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var occupancyEntryImplementors = []string{"OccupancyEntry"}
+
+func (ec *executionContext) _OccupancyEntry(ctx context.Context, sel ast.SelectionSet, obj *OccupancyEntry) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, occupancyEntryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OccupancyEntry")
+		case "unitNumber":
+			out.Values[i] = ec._OccupancyEntry_unitNumber(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._OccupancyEntry_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._OccupancyEntry_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._OccupancyEntry_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._OccupancyEntry_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "direction":
+			out.Values[i] = ec._OccupancyEntry_direction(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "footprint":
+			out.Values[i] = ec._OccupancyEntry_footprint(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ghostName":
+			out.Values[i] = ec._OccupancyEntry_ghostName(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var occupancyPageImplementors = []string{"OccupancyPage"}
+
+func (ec *executionContext) _OccupancyPage(ctx context.Context, sel ast.SelectionSet, obj *OccupancyPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, occupancyPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OccupancyPage")
+		case "tick":
+			out.Values[i] = ec._OccupancyPage_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "surface":
+			out.Values[i] = ec._OccupancyPage_surface(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._OccupancyPage_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "area":
+			out.Values[i] = ec._OccupancyPage_area(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._OccupancyPage_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "entries":
+			out.Values[i] = ec._OccupancyPage_entries(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "terrain":
+			out.Values[i] = ec._OccupancyPage_terrain(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "terrainTruncated":
+			out.Values[i] = ec._OccupancyPage_terrainTruncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var occupancyTerrainImplementors = []string{"OccupancyTerrain"}
+
+func (ec *executionContext) _OccupancyTerrain(ctx context.Context, sel ast.SelectionSet, obj *OccupancyTerrain) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, occupancyTerrainImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OccupancyTerrain")
+		case "position":
+			out.Values[i] = ec._OccupancyTerrain_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tile":
+			out.Values[i] = ec._OccupancyTerrain_tile(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -131795,6 +150328,8 @@ func (ec *executionContext) _PlayerInsight(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "cheatMode":
+			out.Values[i] = ec._PlayerInsight_cheatMode(ctx, field, obj)
 		case "surface":
 			out.Values[i] = ec._PlayerInsight_surface(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -133696,7 +152231,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "memgraphSchema":
+		case "memgraph":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -133705,29 +152240,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_memgraphSchema(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "queryMemgraph":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_queryMemgraph(ctx, field)
+				res = ec._Query_memgraph(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -133791,6 +152304,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_nearestPlacement(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "occupancy":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_occupancy(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -139566,6 +158101,11 @@ func (ec *executionContext) marshalNBeltRun2ᚖgithubᚗcomᚋwricardoᚋfactori
 	return ec._BeltRun(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNBeltRunInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBeltRunInput(ctx context.Context, v any) (BeltRunInput, error) {
+	res, err := ec.unmarshalInputBeltRunInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNBeltStretch2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBeltStretch(ctx context.Context, sel ast.SelectionSet, v BeltStretch) graphql.Marshaler {
 	return ec._BeltStretch(ctx, sel, &v)
 }
@@ -140116,6 +158656,85 @@ func (ec *executionContext) unmarshalNBriefingWatchItemInput2ᚖgithubᚗcomᚋw
 func (ec *executionContext) unmarshalNBuildAsPlayerInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildAsPlayerInput(ctx context.Context, v any) (BuildAsPlayerInput, error) {
 	res, err := ec.unmarshalInputBuildAsPlayerInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNBuildCellEntryInput2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellEntryInputᚄ(ctx context.Context, v any) ([]*BuildCellEntryInput, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*BuildCellEntryInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNBuildCellEntryInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellEntryInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNBuildCellEntryInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellEntryInput(ctx context.Context, v any) (*BuildCellEntryInput, error) {
+	res, err := ec.unmarshalInputBuildCellEntryInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNBuildCellInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellInput(ctx context.Context, v any) (BuildCellInput, error) {
+	res, err := ec.unmarshalInputBuildCellInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBuildCellResult2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellResult(ctx context.Context, sel ast.SelectionSet, v BuildCellResult) graphql.Marshaler {
+	return ec._BuildCellResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNBuildCellResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellResult(ctx context.Context, sel ast.SelectionSet, v *BuildCellResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BuildCellResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNBuildCellStep2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellStepᚄ(ctx context.Context, sel ast.SelectionSet, v []*BuildCellStep) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNBuildCellStep2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellStep(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNBuildCellStep2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellStep(ctx context.Context, sel ast.SelectionSet, v *BuildCellStep) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BuildCellStep(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNBuildConnectionResult2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildConnectionResult(ctx context.Context, sel ast.SelectionSet, v BuildConnectionResult) graphql.Marshaler {
+	return ec._BuildConnectionResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNBuildConnectionResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildConnectionResult(ctx context.Context, sel ast.SelectionSet, v *BuildConnectionResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BuildConnectionResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNBuildGhostsInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildGhostsInput(ctx context.Context, v any) (BuildGhostsInput, error) {
@@ -140846,6 +159465,16 @@ func (ec *executionContext) unmarshalNCraftInput2githubᚗcomᚋwricardoᚋfacto
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCraftMode2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftMode(ctx context.Context, v any) (CraftMode, error) {
+	var res CraftMode
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCraftMode2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftMode(ctx context.Context, sel ast.SelectionSet, v CraftMode) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNCraftPlan2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlan(ctx context.Context, sel ast.SelectionSet, v CraftPlan) graphql.Marshaler {
 	return ec._CraftPlan(ctx, sel, &v)
 }
@@ -140889,25 +159518,6 @@ func (ec *executionContext) marshalNCraftPlanMissing2ᚖgithubᚗcomᚋwricardo�
 		return graphql.Null
 	}
 	return ec._CraftPlanMissing(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNCraftPlanResult2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanResult(ctx context.Context, sel ast.SelectionSet, v CraftPlanResult) graphql.Marshaler {
-	return ec._CraftPlanResult(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNCraftPlanResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanResult(ctx context.Context, sel ast.SelectionSet, v *CraftPlanResult) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._CraftPlanResult(ctx, sel, v)
-}
-
-func (ec *executionContext) unmarshalNCraftPlanRunInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanRunInput(ctx context.Context, v any) (CraftPlanRunInput, error) {
-	res, err := ec.unmarshalInputCraftPlanRunInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNCraftPlanStep2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanStepᚄ(ctx context.Context, sel ast.SelectionSet, v []*CraftPlanStep) graphql.Marshaler {
@@ -143124,6 +161734,342 @@ func (ec *executionContext) marshalNMapLegendEntry2ᚖgithubᚗcomᚋwricardoᚋ
 	return ec._MapLegendEntry(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNMemgraph2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraph(ctx context.Context, sel ast.SelectionSet, v Memgraph) graphql.Marshaler {
+	return ec._Memgraph(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraph2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraph(ctx context.Context, sel ast.SelectionSet, v *Memgraph) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Memgraph(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphAffectedMachine2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAffectedMachineᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphAffectedMachine) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphAffectedMachine2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAffectedMachine(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphAffectedMachine2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAffectedMachine(ctx context.Context, sel ast.SelectionSet, v *MemgraphAffectedMachine) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphAffectedMachine(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphAreaBoundaryEdge2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaBoundaryEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphAreaBoundaryEdge) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphAreaBoundaryEdge2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaBoundaryEdge(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphAreaBoundaryEdge2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaBoundaryEdge(ctx context.Context, sel ast.SelectionSet, v *MemgraphAreaBoundaryEdge) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphAreaBoundaryEdge(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphAreaComponent2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaComponentᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphAreaComponent) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphAreaComponent2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaComponent(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphAreaComponent2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaComponent(ctx context.Context, sel ast.SelectionSet, v *MemgraphAreaComponent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphAreaComponent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphAreaEdge2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphAreaEdge) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphAreaEdge2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaEdge(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphAreaEdge2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaEdge(ctx context.Context, sel ast.SelectionSet, v *MemgraphAreaEdge) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphAreaEdge(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphAreaGraph2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaGraph(ctx context.Context, sel ast.SelectionSet, v MemgraphAreaGraph) graphql.Marshaler {
+	return ec._MemgraphAreaGraph(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphAreaGraph2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaGraph(ctx context.Context, sel ast.SelectionSet, v *MemgraphAreaGraph) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphAreaGraph(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphAreaGraphInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaGraphInput(ctx context.Context, v any) (MemgraphAreaGraphInput, error) {
+	res, err := ec.unmarshalInputMemgraphAreaGraphInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphAreaSummary2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAreaSummary(ctx context.Context, sel ast.SelectionSet, v *MemgraphAreaSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphAreaSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphAudit2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAudit(ctx context.Context, sel ast.SelectionSet, v MemgraphAudit) graphql.Marshaler {
+	return ec._MemgraphAudit(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphAudit2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAudit(ctx context.Context, sel ast.SelectionSet, v *MemgraphAudit) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphAudit(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphAuditFinding2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditFindingᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphAuditFinding) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphAuditFinding2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditFinding(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphAuditFinding2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditFinding(ctx context.Context, sel ast.SelectionSet, v *MemgraphAuditFinding) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphAuditFinding(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphAuditInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditInput(ctx context.Context, v any) (MemgraphAuditInput, error) {
+	res, err := ec.unmarshalInputMemgraphAuditInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNMemgraphAuditSeverity2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditSeverity(ctx context.Context, v any) (MemgraphAuditSeverity, error) {
+	var res MemgraphAuditSeverity
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphAuditSeverity2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphAuditSeverity(ctx context.Context, sel ast.SelectionSet, v MemgraphAuditSeverity) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNMemgraphBeltStretchMapInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBeltStretchMapInput(ctx context.Context, v any) (MemgraphBeltStretchMapInput, error) {
+	res, err := ec.unmarshalInputMemgraphBeltStretchMapInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphBeltStretches2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBeltStretches(ctx context.Context, sel ast.SelectionSet, v MemgraphBeltStretches) graphql.Marshaler {
+	return ec._MemgraphBeltStretches(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphBeltStretches2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBeltStretches(ctx context.Context, sel ast.SelectionSet, v *MemgraphBeltStretches) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphBeltStretches(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphBeltStretchesInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBeltStretchesInput(ctx context.Context, v any) (MemgraphBeltStretchesInput, error) {
+	res, err := ec.unmarshalInputMemgraphBeltStretchesInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNMemgraphBoundaryDirection2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBoundaryDirection(ctx context.Context, v any) (MemgraphBoundaryDirection, error) {
+	var res MemgraphBoundaryDirection
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphBoundaryDirection2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBoundaryDirection(ctx context.Context, sel ast.SelectionSet, v MemgraphBoundaryDirection) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNMemgraphCause2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCauseᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphCause) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphCause2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCause(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphCause2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCause(ctx context.Context, sel ast.SelectionSet, v *MemgraphCause) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphCause(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphCauseReason2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCauseReason(ctx context.Context, v any) (MemgraphCauseReason, error) {
+	var res MemgraphCauseReason
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphCauseReason2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCauseReason(ctx context.Context, sel ast.SelectionSet, v MemgraphCauseReason) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNMemgraphCell2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCellᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphCell) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphCell2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCell(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphCell2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCell(ctx context.Context, sel ast.SelectionSet, v *MemgraphCell) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphCell(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphCellSummary2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCellSummary(ctx context.Context, sel ast.SelectionSet, v MemgraphCellSummary) graphql.Marshaler {
+	return ec._MemgraphCellSummary(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphCellSummary2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCellSummary(ctx context.Context, sel ast.SelectionSet, v *MemgraphCellSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphCellSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphCellSummaryInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCellSummaryInput(ctx context.Context, v any) (MemgraphCellSummaryInput, error) {
+	res, err := ec.unmarshalInputMemgraphCellSummaryInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphChainCapacity2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphChainCapacity(ctx context.Context, sel ast.SelectionSet, v MemgraphChainCapacity) graphql.Marshaler {
+	return ec._MemgraphChainCapacity(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphChainCapacity2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphChainCapacity(ctx context.Context, sel ast.SelectionSet, v *MemgraphChainCapacity) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphChainCapacity(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphChainCapacityInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphChainCapacityInput(ctx context.Context, v any) (MemgraphChainCapacityInput, error) {
+	res, err := ec.unmarshalInputMemgraphChainCapacityInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNMemgraphCount2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphCountᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphCount) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -143150,6 +162096,25 @@ func (ec *executionContext) marshalNMemgraphCount2ᚖgithubᚗcomᚋwricardoᚋf
 	return ec._MemgraphCount(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNMemgraphDownstreamChain2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphDownstreamChain(ctx context.Context, sel ast.SelectionSet, v MemgraphDownstreamChain) graphql.Marshaler {
+	return ec._MemgraphDownstreamChain(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphDownstreamChain2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphDownstreamChain(ctx context.Context, sel ast.SelectionSet, v *MemgraphDownstreamChain) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphDownstreamChain(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphDownstreamChainInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphDownstreamChainInput(ctx context.Context, v any) (MemgraphDownstreamChainInput, error) {
+	res, err := ec.unmarshalInputMemgraphDownstreamChainInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNMemgraphExportResult2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphExportResult(ctx context.Context, sel ast.SelectionSet, v MemgraphExportResult) graphql.Marshaler {
 	return ec._MemgraphExportResult(ctx, sel, &v)
 }
@@ -143162,6 +162127,241 @@ func (ec *executionContext) marshalNMemgraphExportResult2ᚖgithubᚗcomᚋwrica
 		return graphql.Null
 	}
 	return ec._MemgraphExportResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphFactoryReport2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFactoryReport(ctx context.Context, sel ast.SelectionSet, v MemgraphFactoryReport) graphql.Marshaler {
+	return ec._MemgraphFactoryReport(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphFactoryReport2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFactoryReport(ctx context.Context, sel ast.SelectionSet, v *MemgraphFactoryReport) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphFactoryReport(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphFactoryReportInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFactoryReportInput(ctx context.Context, v any) (MemgraphFactoryReportInput, error) {
+	res, err := ec.unmarshalInputMemgraphFactoryReportInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphFluidChain2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFluidChain(ctx context.Context, sel ast.SelectionSet, v MemgraphFluidChain) graphql.Marshaler {
+	return ec._MemgraphFluidChain(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphFluidChain2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFluidChain(ctx context.Context, sel ast.SelectionSet, v *MemgraphFluidChain) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphFluidChain(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphFluidChainInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFluidChainInput(ctx context.Context, v any) (MemgraphFluidChainInput, error) {
+	res, err := ec.unmarshalInputMemgraphFluidChainInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphFluidLink2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFluidLinkᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphFluidLink) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphFluidLink2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFluidLink(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphFluidLink2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphFluidLink(ctx context.Context, sel ast.SelectionSet, v *MemgraphFluidLink) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphFluidLink(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphIngredientCoverage2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphIngredientCoverage(ctx context.Context, sel ast.SelectionSet, v MemgraphIngredientCoverage) graphql.Marshaler {
+	return ec._MemgraphIngredientCoverage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphIngredientCoverage2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphIngredientCoverage(ctx context.Context, sel ast.SelectionSet, v *MemgraphIngredientCoverage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphIngredientCoverage(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphIngredientCoverageInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphIngredientCoverageInput(ctx context.Context, v any) (MemgraphIngredientCoverageInput, error) {
+	res, err := ec.unmarshalInputMemgraphIngredientCoverageInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphIngredientFeed2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphIngredientFeedᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphIngredientFeed) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphIngredientFeed2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphIngredientFeed(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphIngredientFeed2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphIngredientFeed(ctx context.Context, sel ast.SelectionSet, v *MemgraphIngredientFeed) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphIngredientFeed(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphItemRate2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemRateᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphItemRate) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphItemRate2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemRate(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphItemRate2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemRate(ctx context.Context, sel ast.SelectionSet, v *MemgraphItemRate) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphItemRate(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphItemSource2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSourceᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphItemSource) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphItemSource2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSource(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphItemSource2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSource(ctx context.Context, sel ast.SelectionSet, v *MemgraphItemSource) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphItemSource(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphItemSourceKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSourceKind(ctx context.Context, v any) (MemgraphItemSourceKind, error) {
+	var res MemgraphItemSourceKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphItemSourceKind2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSourceKind(ctx context.Context, sel ast.SelectionSet, v MemgraphItemSourceKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNMemgraphItemSources2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSources(ctx context.Context, sel ast.SelectionSet, v MemgraphItemSources) graphql.Marshaler {
+	return ec._MemgraphItemSources(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphItemSources2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSources(ctx context.Context, sel ast.SelectionSet, v *MemgraphItemSources) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphItemSources(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphItemSourcesInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphItemSourcesInput(ctx context.Context, v any) (MemgraphItemSourcesInput, error) {
+	res, err := ec.unmarshalInputMemgraphItemSourcesInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphMachineCoverage2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphMachineCoverageᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphMachineCoverage) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphMachineCoverage2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphMachineCoverage(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphMachineCoverage2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphMachineCoverage(ctx context.Context, sel ast.SelectionSet, v *MemgraphMachineCoverage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphMachineCoverage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphNominalRateBalance2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphNominalRateBalance(ctx context.Context, sel ast.SelectionSet, v MemgraphNominalRateBalance) graphql.Marshaler {
+	return ec._MemgraphNominalRateBalance(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphNominalRateBalance2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphNominalRateBalance(ctx context.Context, sel ast.SelectionSet, v *MemgraphNominalRateBalance) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphNominalRateBalance(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphNominalRateBalanceInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphNominalRateBalanceInput(ctx context.Context, v any) (MemgraphNominalRateBalanceInput, error) {
+	res, err := ec.unmarshalInputMemgraphNominalRateBalanceInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNMemgraphQueryInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphQueryInput(ctx context.Context, v any) (MemgraphQueryInput, error) {
@@ -143181,6 +162381,89 @@ func (ec *executionContext) marshalNMemgraphQueryResult2ᚖgithubᚗcomᚋwricar
 		return graphql.Null
 	}
 	return ec._MemgraphQueryResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphRemovalImpact2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRemovalImpact(ctx context.Context, sel ast.SelectionSet, v MemgraphRemovalImpact) graphql.Marshaler {
+	return ec._MemgraphRemovalImpact(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphRemovalImpact2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRemovalImpact(ctx context.Context, sel ast.SelectionSet, v *MemgraphRemovalImpact) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphRemovalImpact(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphRemovalImpactInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRemovalImpactInput(ctx context.Context, v any) (MemgraphRemovalImpactInput, error) {
+	res, err := ec.unmarshalInputMemgraphRemovalImpactInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphReportSection2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphReportSectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphReportSection) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphReportSection2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphReportSection(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphReportSection2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphReportSection(ctx context.Context, sel ast.SelectionSet, v *MemgraphReportSection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphReportSection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphRootCause2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRootCause(ctx context.Context, sel ast.SelectionSet, v MemgraphRootCause) graphql.Marshaler {
+	return ec._MemgraphRootCause(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphRootCause2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRootCause(ctx context.Context, sel ast.SelectionSet, v *MemgraphRootCause) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphRootCause(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphRootCauseInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRootCauseInput(ctx context.Context, v any) (MemgraphRootCauseInput, error) {
+	res, err := ec.unmarshalInputMemgraphRootCauseInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphRouteBetween2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRouteBetween(ctx context.Context, sel ast.SelectionSet, v MemgraphRouteBetween) graphql.Marshaler {
+	return ec._MemgraphRouteBetween(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphRouteBetween2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRouteBetween(ctx context.Context, sel ast.SelectionSet, v *MemgraphRouteBetween) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphRouteBetween(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphRouteBetweenInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphRouteBetweenInput(ctx context.Context, v any) (MemgraphRouteBetweenInput, error) {
+	res, err := ec.unmarshalInputMemgraphRouteBetweenInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNMemgraphSchema2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSchema(ctx context.Context, sel ast.SelectionSet, v MemgraphSchema) graphql.Marshaler {
@@ -143275,6 +162558,229 @@ func (ec *executionContext) marshalNMemgraphSchemaRelationship2ᚖgithubᚗcom�
 	return ec._MemgraphSchemaRelationship(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNMemgraphStageRate2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStageRateᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphStageRate) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphStageRate2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStageRate(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphStageRate2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStageRate(ctx context.Context, sel ast.SelectionSet, v *MemgraphStageRate) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphStageRate(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphStretch2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphStretch) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphStretch2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretch(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphStretch2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretch(ctx context.Context, sel ast.SelectionSet, v *MemgraphStretch) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphStretch(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphStretchEnd2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchEnd(ctx context.Context, v any) (MemgraphStretchEnd, error) {
+	var res MemgraphStretchEnd
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphStretchEnd2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchEnd(ctx context.Context, sel ast.SelectionSet, v MemgraphStretchEnd) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNMemgraphStretchFinding2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchFindingᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphStretchFinding) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphStretchFinding2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchFinding(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphStretchFinding2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchFinding(ctx context.Context, sel ast.SelectionSet, v *MemgraphStretchFinding) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphStretchFinding(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphStretchMap2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchMap(ctx context.Context, sel ast.SelectionSet, v MemgraphStretchMap) graphql.Marshaler {
+	return ec._MemgraphStretchMap(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphStretchMap2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchMap(ctx context.Context, sel ast.SelectionSet, v *MemgraphStretchMap) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphStretchMap(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphStretchMapLegend2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchMapLegendᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphStretchMapLegend) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphStretchMapLegend2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchMapLegend(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphStretchMapLegend2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchMapLegend(ctx context.Context, sel ast.SelectionSet, v *MemgraphStretchMapLegend) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphStretchMapLegend(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphStretchMapMode2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchMapMode(ctx context.Context, v any) (MemgraphStretchMapMode, error) {
+	var res MemgraphStretchMapMode
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphStretchMapMode2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchMapMode(ctx context.Context, sel ast.SelectionSet, v MemgraphStretchMapMode) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNMemgraphStretchReason2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchReason(ctx context.Context, v any) (MemgraphStretchReason, error) {
+	var res MemgraphStretchReason
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphStretchReason2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchReason(ctx context.Context, sel ast.SelectionSet, v MemgraphStretchReason) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNMemgraphStretchSummary2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchSummary(ctx context.Context, sel ast.SelectionSet, v *MemgraphStretchSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphStretchSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphSupplyChain2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyChain(ctx context.Context, sel ast.SelectionSet, v MemgraphSupplyChain) graphql.Marshaler {
+	return ec._MemgraphSupplyChain(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMemgraphSupplyChain2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyChain(ctx context.Context, sel ast.SelectionSet, v *MemgraphSupplyChain) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphSupplyChain(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphSupplyChainInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyChainInput(ctx context.Context, v any) (MemgraphSupplyChainInput, error) {
+	res, err := ec.unmarshalInputMemgraphSupplyChainInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphSupplyChainSummary2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyChainSummary(ctx context.Context, sel ast.SelectionSet, v *MemgraphSupplyChainSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphSupplyChainSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphSupplyPath2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyPathᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphSupplyPath) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphSupplyPath2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyPath(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphSupplyPath2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyPath(ctx context.Context, sel ast.SelectionSet, v *MemgraphSupplyPath) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphSupplyPath(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMemgraphSupplyResolution2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyResolution(ctx context.Context, v any) (MemgraphSupplyResolution, error) {
+	var res MemgraphSupplyResolution
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMemgraphSupplyResolution2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSupplyResolution(ctx context.Context, sel ast.SelectionSet, v MemgraphSupplyResolution) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNMemgraphSurfaceReport2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSurfaceReportᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphSurfaceReport) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -143299,6 +162805,58 @@ func (ec *executionContext) marshalNMemgraphSurfaceReport2ᚖgithubᚗcomᚋwric
 		return graphql.Null
 	}
 	return ec._MemgraphSurfaceReport(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphTraceFinding2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceFindingᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphTraceFinding) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphTraceFinding2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceFinding(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphTraceFinding2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceFinding(ctx context.Context, sel ast.SelectionSet, v *MemgraphTraceFinding) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphTraceFinding(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMemgraphTraceNode2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNodeᚄ(ctx context.Context, sel ast.SelectionSet, v []*MemgraphTraceNode) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMemgraphTraceNode2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphTraceNode(ctx context.Context, sel ast.SelectionSet, v *MemgraphTraceNode) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MemgraphTraceNode(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNMineInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMineInput(ctx context.Context, v any) (MineInput, error) {
@@ -143373,6 +162931,77 @@ func (ec *executionContext) marshalNNearby2ᚖgithubᚗcomᚋwricardoᚋfactorio
 func (ec *executionContext) unmarshalNNearestPlacementInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐNearestPlacementInput(ctx context.Context, v any) (NearestPlacementInput, error) {
 	res, err := ec.unmarshalInputNearestPlacementInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNOccupancyEntry2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*OccupancyEntry) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOccupancyEntry2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyEntry(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOccupancyEntry2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyEntry(ctx context.Context, sel ast.SelectionSet, v *OccupancyEntry) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OccupancyEntry(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNOccupancyInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyInput(ctx context.Context, v any) (OccupancyInput, error) {
+	res, err := ec.unmarshalInputOccupancyInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNOccupancyPage2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyPage(ctx context.Context, sel ast.SelectionSet, v OccupancyPage) graphql.Marshaler {
+	return ec._OccupancyPage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOccupancyPage2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyPage(ctx context.Context, sel ast.SelectionSet, v *OccupancyPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OccupancyPage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOccupancyTerrain2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyTerrainᚄ(ctx context.Context, sel ast.SelectionSet, v []*OccupancyTerrain) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOccupancyTerrain2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyTerrain(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOccupancyTerrain2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐOccupancyTerrain(ctx context.Context, sel ast.SelectionSet, v *OccupancyTerrain) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OccupancyTerrain(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *PageInfo) graphql.Marshaler {
@@ -143933,6 +163562,16 @@ func (ec *executionContext) marshalNRecipe2ᚖgithubᚗcomᚋwricardoᚋfactorio
 		return graphql.Null
 	}
 	return ec._Recipe(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRecipeDrainMode2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐRecipeDrainMode(ctx context.Context, v any) (RecipeDrainMode, error) {
+	var res RecipeDrainMode
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRecipeDrainMode2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐRecipeDrainMode(ctx context.Context, sel ast.SelectionSet, v RecipeDrainMode) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNRecipeEnabledInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐRecipeEnabledInput(ctx context.Context, v any) (RecipeEnabledInput, error) {
@@ -145255,6 +164894,36 @@ func (ec *executionContext) marshalNUnitNumber2string(ctx context.Context, sel a
 	return res
 }
 
+func (ec *executionContext) unmarshalNUnitNumber2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNUnitNumber2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNUnitNumber2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNUnitNumber2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalNUnlockTechnologiesInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐUnlockTechnologiesInput(ctx context.Context, v any) (UnlockTechnologiesInput, error) {
 	res, err := ec.unmarshalInputUnlockTechnologiesInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -146013,6 +165682,30 @@ func (ec *executionContext) unmarshalOBriefingWatchItemInput2ᚕᚖgithubᚗcom�
 	return res, nil
 }
 
+func (ec *executionContext) unmarshalOCellConnectionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCellConnectionInput(ctx context.Context, v any) (*CellConnectionInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputCellConnectionInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOCellPlaceInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCellPlaceInput(ctx context.Context, v any) (*CellPlaceInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputCellPlaceInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOCellRecipeInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCellRecipeInput(ctx context.Context, v any) (*CellRecipeInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputCellRecipeInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalOCharactersInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCharactersInput(ctx context.Context, v any) (*CharactersInput, error) {
 	if v == nil {
 		return nil, nil
@@ -146072,6 +165765,13 @@ func (ec *executionContext) marshalOCombinatorParameters2ᚖgithubᚗcomᚋwrica
 	return ec._CombinatorParameters(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalOConnectEntitiesResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectEntitiesResult(ctx context.Context, sel ast.SelectionSet, v *ConnectEntitiesResult) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ConnectEntitiesResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalOConnectionEndpointInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐConnectionEndpointInput(ctx context.Context, v any) (*ConnectionEndpointInput, error) {
 	if v == nil {
 		return nil, nil
@@ -146118,6 +165818,13 @@ func (ec *executionContext) marshalOContainerSettings2ᚖgithubᚗcomᚋwricardo
 		return graphql.Null
 	}
 	return ec._ContainerSettings(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOCraftPlanResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐCraftPlanResult(ctx context.Context, sel ast.SelectionSet, v *CraftPlanResult) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CraftPlanResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalODeciderCombinatorParameters2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐDeciderCombinatorParameters(ctx context.Context, sel ast.SelectionSet, v *DeciderCombinatorParameters) graphql.Marshaler {
@@ -146628,11 +166335,35 @@ func (ec *executionContext) unmarshalOMachinesInput2ᚖgithubᚗcomᚋwricardo�
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalOMemgraphBeltStretchesInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphBeltStretchesInput(ctx context.Context, v any) (*MemgraphBeltStretchesInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputMemgraphBeltStretchesInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalOMemgraphSnapshotInfo2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphSnapshotInfo(ctx context.Context, sel ast.SelectionSet, v *MemgraphSnapshotInfo) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._MemgraphSnapshotInfo(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOMemgraphStretchEnd2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchEnd(ctx context.Context, v any) (*MemgraphStretchEnd, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(MemgraphStretchEnd)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOMemgraphStretchEnd2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐMemgraphStretchEnd(ctx context.Context, sel ast.SelectionSet, v *MemgraphStretchEnd) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) marshalONavigationJob2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐNavigationJob(ctx context.Context, sel ast.SelectionSet, v *NavigationJob) graphql.Marshaler {

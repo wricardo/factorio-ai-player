@@ -93,6 +93,12 @@ for i,p in ipairs(placements) do
   if ok and not p.fast_replace then
     local blockers=tile_occupants(s,{x=p.x,y=p.y},layers)
     if #blockers>0 then ok=false; fail_at(i,"COLLISION","tile is occupied by "..table.concat(blockers,", "),p) end
+    -- A multi-tile prototype's footprint can cover a neighbour while its centre
+    -- tile is free; refuse it here so nothing is written for that entry.
+    if ok then
+      local footprint=footprint_occupants(s,name,{x=p.x,y=p.y},layers)
+      if #footprint>0 then ok=false; fail_at(i,"COLLISION","footprint overlaps "..table.concat(footprint,", "),p) end
+    end
   end
   if ok and p.fast_replace and not (s.can_fast_replace{name=name,position={x=p.x,y=p.y},direction=p.direction,force=c.force} or s.can_place_entity{name=name,position={x=p.x,y=p.y},direction=p.direction,force=c.force,build_check_type=defines.build_check_type.manual}) then
     ok=false; fail_at(i,"COLLISION","cannot fast-replace: nothing fast-replaceable there and the tile is blocked",p)
@@ -114,6 +120,13 @@ for i,p in ipairs(placements) do
     -- The engine can raise or return nil after committing the entity; refunding
     -- then would duplicate the item and report a failure that did not happen.
     if not entity then entity=new_tile_entity(s,{x=p.x,y=p.y},before) end
+    -- tile_occupants tests one tile per placement, so a multi-tile prototype can
+    -- still land on a neighbour; undo that creation and report it as a collision.
+    local overlap=nil
+    if entity then overlap=undo_overlap(entity,inv,item,quality,layers) end
+    if entity and overlap then
+      entity=nil
+    end
     if entity then
       placed=placed+1
       -- Only an underground half has a ground type, and the probe tolerates
@@ -121,16 +134,20 @@ for i,p in ipairs(placements) do
       local underground_type=underground_info(entity)
       entities[#entities+1]={index=i-1,name=entity.name,type=entity.type,position=entity.position,unit_number=entity.unit_number,direction=entity.direction,underground_type=underground_type}
     else
-      inv.insert{name=item,quality=quality,count=1}
-      -- The engine decides whether a position is usable: can_place_entity can
-      -- reject a box it would snap onto a free tile, so it must not gate the
-      -- attempt. It only classifies a creation the engine refused.
-      if not created then
-        fail_at(i,"ENGINE","entity creation failed: "..tostring(err),p)
-      elseif s.can_place_entity{name=name,position={x=p.x,y=p.y},direction=p.direction,force=c.force,build_check_type=defines.build_check_type.manual} then
-        fail_at(i,"ENGINE","entity creation failed",p)
+      if overlap then
+        fail_at(i,"COLLISION",overlap,p)
       else
-        fail_at(i,"COLLISION","cannot place entity",p)
+        inv.insert{name=item,quality=quality,count=1}
+        -- The engine decides whether a position is usable: can_place_entity can
+        -- reject a box it would snap onto a free tile, so it must not gate the
+        -- attempt. It only classifies a creation the engine refused.
+        if not created then
+          fail_at(i,"ENGINE","entity creation failed: "..tostring(err),p)
+        elseif s.can_place_entity{name=name,position={x=p.x,y=p.y},direction=p.direction,force=c.force,build_check_type=defines.build_check_type.manual} then
+          fail_at(i,"ENGINE","entity creation failed",p)
+        else
+          fail_at(i,"COLLISION","cannot place entity",p)
+        end
       end
     end
   end

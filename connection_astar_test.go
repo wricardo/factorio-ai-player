@@ -30,6 +30,7 @@ func TestConnectionPlanRoutingValidation(t *testing.T) {
 		want   string
 	}{
 		{"direct allowUnderground", func(in *ConnectionPlanInput) { in.Routing = ConnectionRoutingDirect; in.AllowUnderground = true }, "allowUnderground apply to ASTAR routing only"},
+		{"astar bend", func(in *ConnectionPlanInput) { in.Bend = ConnectionBendHorizontalFirst }, "bend applies to DIRECT routing only"},
 		{"direct avoid areas", func(in *ConnectionPlanInput) {
 			in.Routing = ConnectionRoutingDirect
 			in.AvoidAreas = []*FactoryAreaInput{{RightBottomX: 1, RightBottomY: 1}}
@@ -278,5 +279,38 @@ func TestConnectEntitiesAStarPlacesPlannedSteps(t *testing.T) {
 		if !strings.Contains(apply, want) {
 			t.Fatalf("placement Lua missing %q\n%s", want, apply)
 		}
+	}
+}
+
+// The direction survives the whole ASTAR path: request, plan, placement Lua.
+func TestConnectEntitiesAStarSingleTileUsesDirection(t *testing.T) {
+	region := `{"tick":50,"surface":"nauvis","force":"player","entity":"transport-belt","maxTunnel":0,"open":["1"],"fluid":["0"],"tunnel":["0"],"existing":{}}`
+	applied := `{"tick":60,"surface":"nauvis","force":"player","kind":"BELT","item":"transport-belt","from":{"x":0.5,"y":0.5},"to":{"x":0.5,"y":0.5},"bend":"AUTO","possible":true,"placed":1,"skipped":0,"failed":0,"entities":[{"name":"transport-belt","type":"transport-belt","position":{"x":0.5,"y":0.5},"unitNumber":1,"direction":8}],"conflicts":{},"errors":{}}`
+	r, recorder := serveScriptedRCON(t, []scriptRule{{"local steps=", applied}, {"grid_rows(entity_name)", region}})
+	margin := 0
+	direction := 8
+	input := ConnectEntitiesInput{
+		Actor: &ActorInput{Character: new("5")}, Surface: "nauvis", Force: "player",
+		From: &PositionInput{X: 0, Y: 0}, To: &PositionInput{X: 0, Y: 0}, Kind: ConnectionKindBelt,
+		Bend: ConnectionBendAuto, Routing: ConnectionRoutingAstar, Direction: &direction, SearchMargin: &margin,
+	}
+	result, err := connectEntities(r, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Possible || result.Placed != 1 || result.Routing != ConnectionRoutingAstar {
+		t.Fatalf("placed: %+v", result)
+	}
+	var apply string
+	for _, command := range recorder.commands {
+		if strings.Contains(command, "local steps=") {
+			apply = command
+		}
+	}
+	if apply == "" {
+		t.Fatal("no placement command was sent")
+	}
+	if !strings.Contains(apply, "direction=8") {
+		t.Fatalf("placement Lua lost the requested direction\n%s", apply)
 	}
 }

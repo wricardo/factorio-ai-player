@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -134,15 +135,17 @@ func TestRouteAStarUndergroundBeltCrossing(t *testing.T) {
 	params.allowTunnel = true
 	params.maxTunnel = 5
 	result := routeAStar(grid, params)
-	if result.stop != ConnectionStopReasonFound || len(result.steps) != 2 {
+	// The shortest span that clears the wall wins: surface tile, a 2-tile
+	// tunnel (2*1.05), the exit half and the goal belt.
+	if result.stop != ConnectionStopReasonFound || len(result.steps) != 4 {
 		t.Fatalf("tunnel route: %+v", result)
 	}
-	entrance, exit := result.steps[0], result.steps[1]
-	if entrance.tunnel != "input" || entrance.x != 0 || entrance.direction != 4 || exit.tunnel != "output" || exit.x != 4 || exit.direction != 4 {
+	entrance, exit := result.steps[1], result.steps[2]
+	if entrance.tunnel != "input" || entrance.x != 1 || entrance.direction != 4 || exit.tunnel != "output" || exit.x != 3 || exit.direction != 4 {
 		t.Fatalf("tunnel halves: %+v %+v", entrance, exit)
 	}
-	if result.cost != 4 {
-		t.Fatalf("cost=%v, want 2 per half", result.cost)
+	if result.cost != 5.1 {
+		t.Fatalf("cost=%v, want 1 + 2*1.05 + 1 + 1", result.cost)
 	}
 
 	// With a shorter span the entrance moves up to the first tile that can reach
@@ -503,20 +506,80 @@ func TestRouteAStarRejectsForeignBeltFeed(t *testing.T) {
 	}
 }
 
-// The heuristic scale must divide by maxTunnel+1: the entrance and exit costs are
-// two moves apart, so a chain otherwise looks cheaper per tile than it is.
-func TestRouteTunnelScaleIsAdmissible(t *testing.T) {
-	for _, maxTunnel := range []int{2, 4, 6, 8} {
-		scale := routeTunnelScale(maxTunnel)
-		perTile := 2 * routeCostTunnel / float64(maxTunnel+1)
-		if scale != perTile {
-			t.Fatalf("maxTunnel=%d scale=%g want %g", maxTunnel, scale, perTile)
-		}
-		if scale > 2*routeCostTunnel/float64(maxTunnel) {
-			t.Fatalf("scale must not exceed the per-tile tunnel cost")
+// An open straight must stay a line of belts: a tunnel is priced above the
+// surface tiles it skips, so it is only chosen when the surface is blocked.
+func TestRouteAStarOpenStraightStaysOnSurface(t *testing.T) {
+	grid, params := asciiRouteGrid(t, []string{"S......G"})
+	params.allowTunnel = true
+	params.maxTunnel = 5
+	result := routeAStar(grid, params)
+	if result.stop != ConnectionStopReasonFound || len(result.steps) != 8 {
+		t.Fatalf("open straight: %+v", result)
+	}
+	for _, step := range result.steps {
+		if step.tunnel != "" {
+			t.Fatalf("open ground must not tunnel: %+v", result.steps)
 		}
 	}
-	if scale := routeTunnelScale(1); scale != 0 {
-		t.Fatalf("tunnels need an offset of 2 or more, got %g", scale)
+}
+
+// A goal tile fed by a foreign belt fails at once with the feeder named, not
+// as an expansion-limit search blow-up.
+func TestRouteAStarFedGoalIsTypedBeltAdjacency(t *testing.T) {
+	grid := newRouteGrid(0, 0, 5, 3)
+	for i := range grid.open {
+		grid.open[i] = true
+	}
+	grid.feed = make([]bool, len(grid.open))
+	grid.feed[grid.index(4, 1)] = true
+	grid.open[grid.index(3, 1)] = false
+	grid.existing[grid.index(3, 1)] = 1 // east-facing belt feeding the goal
+	params := routeParams{fromX: 0, fromY: 1, toX: 4, toY: 1, maxExpanded: 3}
+	result := routeAStar(grid, params)
+	if result.stop != ConnectionStopReasonEndpointBlocked {
+		t.Fatalf("fed goal must stop before searching, got %+v", result)
+	}
+	conflict := routeFailureConflict(connectionRequest{item: "transport-belt"}, grid, params, result, 3)
+	if conflict.Kind != ConnectionConflictKindBeltAdjacency || conflict.Position.X != 4.5 || !strings.Contains(conflict.Message, "3,1") {
+		t.Fatalf("conflict: %+v", conflict)
+	}
+	params.allowBeltAdjacency = true
+	params.maxExpanded = 50000
+	if result := routeAStar(grid, params); result.stop != ConnectionStopReasonFound {
+		t.Fatalf("allowBeltAdjacency must accept the merge: %+v", result)
+	}
+}
+
+// A single-tile run has no route to derive a heading from, so the direction the
+// caller validated must reach the step. Before this the ASTAR branch dropped it
+// and every one-tile placement came out north-facing.
+func TestRouteAStarSingleTileKeepsRequestedDirection(t *testing.T) {
+	for _, want := range []int{0, 4, 8, 12} {
+		grid := newRouteGrid(0, 0, 1, 1)
+		grid.open[0] = true
+		direction := want
+		result := routeAStar(grid, routeParams{
+			fromX: 0, fromY: 0, toX: 0, toY: 0, maxExpanded: 50000, direction: &direction,
+		})
+		if result.stop != ConnectionStopReasonFound || len(result.steps) != 1 {
+			t.Fatalf("direction %d: %+v", want, result)
+		}
+		if got := result.steps[0]; got.direction != want || got.x != 0 || got.y != 0 {
+			t.Fatalf("direction %d: step %+v", want, got)
+		}
+	}
+}
+
+// Without an explicit direction the single-tile step keeps the engine default so
+// the planner stays usable outside a validated API call.
+func TestRouteAStarSingleTileWithoutDirection(t *testing.T) {
+	grid := newRouteGrid(0, 0, 1, 1)
+	grid.open[0] = true
+	result := routeAStar(grid, routeParams{fromX: 0, fromY: 0, toX: 0, toY: 0, maxExpanded: 50000})
+	if result.stop != ConnectionStopReasonFound || len(result.steps) != 1 {
+		t.Fatalf("result: %+v", result)
+	}
+	if got := result.steps[0].direction; got != 0 {
+		t.Fatalf("direction %d, want the 0 default", got)
 	}
 }

@@ -15,9 +15,9 @@ func (r *mutationResolver) ConnectEntities(ctx context.Context, input ConnectEnt
 	return setActorResult(result, input.Actor, err)
 }
 
-// PlaceBelt is the resolver for the placeBelt field.
-func (r *mutationResolver) PlaceBelt(ctx context.Context, input BeltPipeRunInput) (*ConnectEntitiesResult, error) {
-	result, err := placeBeltRun(r.Resolver, input)
+// PlaceBelts is the resolver for the placeBelts field.
+func (r *mutationResolver) PlaceBelts(ctx context.Context, input BeltRunInput) (*ConnectEntitiesResult, error) {
+	result, err := placeBeltsRun(r.Resolver, input)
 	return setActorResult(result, input.Actor, err)
 }
 
@@ -25,6 +25,21 @@ func (r *mutationResolver) PlaceBelt(ctx context.Context, input BeltPipeRunInput
 func (r *mutationResolver) PlacePipe(ctx context.Context, input BeltPipeRunInput) (*ConnectEntitiesResult, error) {
 	result, err := placePipeRun(r.Resolver, input)
 	return setActorResult(result, input.Actor, err)
+}
+
+// BuildConnection is the resolver for the buildConnection field.
+func (r *mutationResolver) BuildConnection(ctx context.Context, input ConnectEntitiesInput, dryRun bool) (*BuildConnectionResult, error) {
+	result, err := buildConnection(r.Resolver, input, dryRun)
+	if err != nil {
+		return nil, err
+	}
+	// The nested result repeats the non-null ActorIdentity contract of its own
+	// mutation: attach the same identity the sibling resolvers attach, or a
+	// client selecting result.actor fails the null check.
+	if result != nil && result.Result != nil {
+		attachActorIdentity(result.Result, newActorIdentity(input.Actor))
+	}
+	return result, nil
 }
 
 // ConnectionPlan is the resolver for the connectionPlan field.

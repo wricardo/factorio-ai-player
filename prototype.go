@@ -109,7 +109,7 @@ func placeNextTo(r *Resolver, input PlaceNextToInput) (*PlaceNextToResult, error
 		return nil, errors.New("direction must be a cardinal engine direction: 0, 4, 8, or 12")
 	}
 	if input.Gap < 0 || input.Gap > 16 {
-		return nil, errors.New("gap must be between 0 and 64")
+		return nil, errors.New("gap must be between 0 and 16")
 	}
 	quality, err := resolveQuality(input.Quality)
 	if err != nil {
@@ -176,6 +176,7 @@ local function keeps_gap(position)
 end
 local out_of_reach=false
 local refused=false
+local layers=(prototypes.entity[new_proto.name] and prototypes.entity[new_proto.name].collision_mask or {}).layers
 for _,offset in ipairs(offsets) do
   local position={x=base.x+offset[1],y=base.y+offset[2]}
   if keeps_gap(position) then
@@ -185,6 +186,10 @@ for _,offset in ipairs(offsets) do
     elseif #tile_occupants(target_surface,position)>0 then
       -- create_entity ignores collision boxes, so an occupied candidate tile
       -- would stack a second entity instead of failing; try the next offset.
+      refused=true
+    elseif #footprint_occupants(target_surface,new_proto.name,position,layers)>0 then
+      -- The centre tile can be free while a multi-tile footprint covers a
+      -- neighbour; try the next offset instead of creating and undoing it.
       refused=true
     elseif inv.get_item_count{name=item,quality=quality}<1 then
       fail("actor lacks item"); return
@@ -200,12 +205,19 @@ for _,offset in ipairs(offsets) do
       -- refunding then would duplicate the item and report a false failure.
       if not e then e=new_tile_entity(target_surface,position,before) end
       if e then
-        rcon.print(helpers.table_to_json{tick=game.tick,surface=target_surface.name,force=c.force.name,item=item,name=e.name,unitNumber=e.unit_number,position={x=e.position.x,y=e.position.y},relativeTo=target.unit_number,side=side,gap=gap})
-        return
+        -- tile_occupants tests one tile, so a multi-tile prototype can still land
+        -- on a neighbour; undo it and try the next offset instead.
+        local overlap=undo_overlap(e,inv,item,quality,(prototypes.entity[new_proto.name] and prototypes.entity[new_proto.name].collision_mask or {}).layers)
+        if not overlap then
+          rcon.print(helpers.table_to_json{tick=game.tick,surface=target_surface.name,force=c.force.name,item=item,name=e.name,unitNumber=e.unit_number,position={x=e.position.x,y=e.position.y},relativeTo=target.unit_number,side=side,gap=gap})
+          return
+        end
+        refused=true
+      else
+        inv.insert{name=item,quality=quality,count=1}
+        if not created then fail("entity creation failed: "..tostring(err)); return end
+        refused=true
       end
-      inv.insert{name=item,quality=quality,count=1}
-      if not created then fail("entity creation failed: "..tostring(err)); return end
-      refused=true
     end
   end
 end

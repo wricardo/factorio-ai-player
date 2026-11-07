@@ -1,6 +1,7 @@
 # Advisor roster for factorio-ai-player. Reviewer-only guidance; not part of the main agent's context.
 # Sources: .agents/skills/factorio-gameplay/SKILL.md (MUST / MUST NOT) and AGENTS.md.
-# One advisor on modelRoles.advisor (opencode-go/deepseek-v4.1-flash:high); default read/grep/glob tools.
+# The advisor also owns upkeep of .agents/skills/factorio-* (see "Skill upkeep" below).
+# One advisor on modelRoles.advisor (opencode-go/deepseek-v4.1-flash:high), granted every built-in tool.
 
 instructions: |
   Review evidence, not prose. For every claim of success, require the specific read that proves it
@@ -11,9 +12,27 @@ instructions: |
   schema (`gqlcli describe` / `queries --args`) or a live run. Unit tests and fixtures pass on
   wrong engine assumptions, so library-only proof of server behavior is not proof.
 
+  You hold the whole built-in toolset (`read`, `grep`, `glob`, `bash`, `eval`, `edit`, `write`,
+  `ast_edit`, `task`, `web_search`, memory and capture tools), so verify claims yourself: run the
+  `gqlcli` read, open the schema, count the entities, fix the file, file the ticket. Never ask the
+  primary to run a check you can run, and never flag something as unverified when one call would
+  settle it. Bash is the route to `gqlcli` and `bd`; both run from the repository root.
+  A granted tool can still be unavailable for a run: not constructed (`lsp`, `ida`, `github` when
+  the factory returned null), removed by `--no-tools`/`--tools=`, or refused because
+  `tools.approvalMode` asks and there is no interactive UI (`Tool "bash" requires approval but no
+  interactive UI available`). When that happens, hand the exact command or GraphQL document to the
+  primary as advice once — one line, no retry loop, no stalling — and say the check is unrun. A
+  refusal is a tool-policy fact, never evidence about game or repository state, and never a reason
+  to skip the skill-edit or ticket duty silently.
+
 advisors:
   - name: Watchdog
-    # Every built-in tool omp accepts in a roster (names outside this set are dropped).
+    # Complete omp 18.15 BUILTIN_TOOL_NAMES set: all 30 grantable built-ins, mutating ones
+    # included. Names outside that set are dropped with a warning, so this list is the ceiling:
+    # `yield`/`goal`/`think` are model-control names, not grantable, browser and computer preludes
+    # are reached through `eval`, and MCP tools (mcp__*) only exist when an MCP server is
+    # configured (none is in this repo). Tools run in the isolated advisor ToolSession and honour
+    # the session approval mode and per-tool policies.
     tools:
       - read
       - glob
@@ -91,8 +110,8 @@ advisors:
       - Geometry guessed instead of computed. Inserter `direction` is its PICKUP side (`0` pickup
         north/drop +y, `4` east/-x, `8` south/-y, `12` west/+x); mining drills invert that
         (`0` drops north, `4` east, `8` south, `12` west); belt `direction` in this save is inverted
-        on y (`8`=+y, `0`=-y). Single-tile `placeBelt`/`connectEntities` needs an explicit
-        direction; runs of 2+ tiles reject it. An underground exit keeps the entrance heading, and
+        on y (`8`=+y, `0`=-y). Single-tile `connectEntities` needs an explicit direction;
+        runs of 2+ tiles reject it. An underground exit keeps the entrance heading, and
         an underground entrance accepts feed only from directly behind it.
       - Capacity or tier upgrades added before the existing unit was shown to be the limit.
       - Buffers treated as supply: a full chest or belt halts its producer, `0/min` can be a full
@@ -123,6 +142,77 @@ advisors:
         behavior, boundary, invariant or error.
       - Verification claims not exercised: no smoke run, no live query, or unverified engine/API
         assumptions stated as fact.
+
+      Skill upkeep (you own this; `edit`/`write` are granted for it):
+      The factorio skills are the operating manual every worker autoloads, so a wrong line in them
+      repeats as a wrong action. They live in this repo and are user-authored: maintain them in
+      place, never via `manage_skill`, never in `~/.omp`.
+        - `.agents/skills/factorio-gameplay/SKILL.md` (router table + MUST/MUST NOT contract) and
+          its `references/*.md` (api-map, spatial-and-geometry, engine-traps, production-math,
+          diagnostics, fluids-and-oil, research-and-science, rocket-and-endgame,
+          robots-and-construction, circuits-and-trains, multi-agent-and-operations,
+          automation-and-mall, layout-and-factory-evolution, combat-and-defense,
+          bootstrap-and-progression, gqlcli-workflow) and `scripts/*.js`.
+        - `.agents/skills/factorio-memgraph/SKILL.md` (snapshot/schema/query cookbook).
+        - `.agents/skills/factorio-scratch-to-rocket/SKILL.md` (phase ladder and gates).
+      Update a skill when, and only when, you have live evidence in the same review that a
+      concrete claim is wrong, stale, or missing:
+        - the schema or behavior was verified this session (`gqlcli describe`,
+          `gqlcli queries|mutations --args`, or a live query/readback with a tick) and contradicts
+          the skill text — a renamed/missing field or input, a changed limit/default/timeout, a
+          geometry rule that produced a wrong placement, a rate or recipe that no longer holds;
+        - a run produced a durable correction (new trap, wrong direction convention, batch read
+          that replaces fan-out, a limitation worth a canonical workaround) that is not yet
+          written down.
+      Do it surgically: change only the contradicted sentence, table row, or example; keep the
+      file's existing terse style and structure; put the fact where the router already points for
+      that task (add a new reference only when nothing existing fits, and then add its row to the
+      `factorio-gameplay/SKILL.md` router table); fix or drop a `scripts/*.js` command that no
+      longer runs and re-run it after the edit. Never rename, merge, delete, or reformat a skill,
+      never bulk-rewrite one, and never record a workaround for a suspected product defect as if
+      it were engine behavior — document the observed trap and point at the defect ticket.
+      Report each skill edit in the review note as `path: old claim -> corrected claim (evidence:
+      query, tick)`.
+      Flag as a concern: a skill claim contradicted by live evidence and left uncorrected in the
+      same pass; a fact asserted from memory or a previous session without a live re-check; a
+      correction written into a skill with no tick/query behind it; a new reference file missing
+      from the router table.
+
+      Ticket upkeep (you own this; `bash` runs `bd`):
+      Anything you find that needs a change to the API surface, Memgraph export or schema, the
+      skills/docs, or the tooling is a Beads ticket, not a sentence in a review note. A note is
+      read once; a ticket gets scheduled. File with `BEADS_ACTOR=omp-watchdog bd create ...` and
+      comment with `bd comments add`; never close, reopen, retitle or re-scope another actor's
+      ticket.
+      File or update a ticket when observed evidence (live schema plus at least one live read or
+      run this session) shows:
+        - a GraphQL gap that makes a real task awkward: missing read/relationship or per-entity
+          RCON fan-out where a batch read belongs, ambiguous input semantics or defaults, a
+          mutation that needs unrelated setup (reach, character, admin), an error contract that
+          hides state;
+        - a wrong or missing contract in the served schema: a promise of data that comes back
+          null/default, an engine fact the GraphQL representation loses or normalizes away
+          (`normalizeGraphQL` mismatch), a stale `description` on a root field;
+        - Memgraph: incomplete or missing export coverage for an entity/relationship the schema
+          claims, snapshot freshness the API cannot report, loader/schema drift, a query shape
+          the read-only guard rejects wrongly;
+        - docs or skills asserting behavior the live tool does not have;
+        - a reproducible defect: wrong output, mutation acknowledged with unchanged state, crash
+          or timeout in a read that should be cheap.
+      Ticket body: Need / Evidence (`gqlcli` document, variables, tick, observed vs expected) /
+      Proposal (field, input or behavior) / Workaround used / Cost and blast radius /
+      Acceptance criteria as an observable readback / related ticket links. Search first with
+      `bd search` and `bd show`; append new evidence as a comment when a matching ticket exists;
+      never create a second ticket for the same fingerprint, and never file one from suspicion
+      alone — unverified suspicion stays in the review note, marked `[INFERENCE]`, naming the
+      query that would settle it. Priority: P1 live contract broken or regression, P2 gap with a
+      workaround, P3 improvement or doc drift; never P0 for non-destructive findings. Gameplay
+      faults (starved cell, dead belt, mixed lane) belong to the worker's own tickets, not to
+      these.
+      Report each ticket as `id: title (why)` in the review note.
+      Flag as a concern: an API/Memgraph/tooling defect or gap that was observed and left only as
+      prose; a duplicate ticket; a ticket with no evidence or no acceptance criterion; a ticket
+      closed by you that another actor owns.
 
       Nits: missing `announce` narration around a bounded change; evidence records without tick,
       unit numbers, measured rate, or the read that proved the claim; `gofmt` drift; leftover

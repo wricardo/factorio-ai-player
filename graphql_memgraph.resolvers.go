@@ -9,17 +9,27 @@ import (
 	"context"
 )
 
+// Schema is the resolver for the schema field.
+func (r *memgraphResolver) Schema(ctx context.Context, obj *Memgraph) (*MemgraphSchema, error) {
+	return memgraphSchema(ctx)
+}
+
+// Query is the resolver for the query field.
+func (r *memgraphResolver) Query(ctx context.Context, obj *Memgraph, input MemgraphQueryInput) (*MemgraphQueryResult, error) {
+	return queryMemgraph(ctx, r.Resolver, input)
+}
+
 // ExportMapSnapshotToMemgraph is the resolver for the exportMapSnapshotToMemgraph field.
 func (r *mutationResolver) ExportMapSnapshotToMemgraph(ctx context.Context, input ExportMapSnapshotToMemgraphInput) (*MemgraphExportResult, error) {
 	return exportMapSnapshotToMemgraph(ctx, r.Resolver, input)
 }
 
-// MemgraphSchema is the resolver for the memgraphSchema field.
-func (r *queryResolver) MemgraphSchema(ctx context.Context) (*MemgraphSchema, error) {
-	return memgraphSchema(ctx)
+// Memgraph is the resolver for the memgraph field.
+func (r *queryResolver) Memgraph(ctx context.Context) (*Memgraph, error) {
+	return &Memgraph{}, nil
 }
 
-// QueryMemgraph is the resolver for the queryMemgraph field.
-func (r *queryResolver) QueryMemgraph(ctx context.Context, input MemgraphQueryInput) (*MemgraphQueryResult, error) {
-	return queryMemgraph(ctx, r.Resolver, input)
-}
+// Memgraph returns MemgraphResolver implementation.
+func (r *Resolver) Memgraph() MemgraphResolver { return &memgraphResolver{r} }
+
+type memgraphResolver struct{ *Resolver }

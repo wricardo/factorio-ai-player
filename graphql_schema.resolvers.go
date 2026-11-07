@@ -164,11 +164,6 @@ func (r *mutationResolver) Craft(ctx context.Context, input CraftInput) (*Action
 	return craftMutation(ctx, r.Resolver, input)
 }
 
-// CraftPlan is the resolver for the craftPlan field.
-func (r *mutationResolver) CraftPlan(ctx context.Context, input CraftPlanRunInput) (*CraftPlanResult, error) {
-	return craftPlanMutation(ctx, r.Resolver, input)
-}
-
 // CancelCraft is the resolver for the cancelCraft field.
 func (r *mutationResolver) CancelCraft(ctx context.Context, input CancelCraftInput) (*CraftQueue, error) {
 	return command[CraftQueue](r.Resolver, "cancel-craft", input)

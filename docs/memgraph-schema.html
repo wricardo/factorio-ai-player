@@ -136,10 +136,10 @@
 <h2>1 · Quick start</h2>
 
 <pre><code>just graph-up        # Memgraph on bolt://127.0.0.1:7687, Lab on http://127.0.0.1:3000
-just graph-sync      # export the live save, then load it (replaces the previous snapshot)
+just graph-sync      # pause for game reads, then write, load, and resume the game
 just graph-shell     # mgconsole inside the container</code></pre>
 
-<p>The export is read-only on the game. Snapshots land in <code>.factorio/graph/snap-*</code> (newest five kept, <code>LATEST</code> names the newest); <code>just graph-load --in DIR</code> loads any of them again.</p>
+<p>Exports do not change game entities, but <b>briefly pause the shared save by default</b> for all game reads. The prior pause state is restored on success, error or cancellation before snapshot disk writes and Memgraph loading; an already paused game stays paused. <code>graph sync</code> then clears any pause lease and resumes the simulation, so it always ends with the game running. Use <code>just graph-sync --pause=false</code> or <code>just graph-export --pause=false</code> to leave pause state untouched during the reads. Snapshots land in <code>.factorio/graph/snap-*</code> (newest five kept, <code>LATEST</code> names the newest); <code>just graph-load --in DIR</code> loads any of them again without touching the game's pause state.</p>
 
 <div class="tw"><table>
   <thead><tr><th>Recipe</th><th>Runs</th><th>Effect</th></tr></thead>
@@ -152,6 +152,8 @@ just graph-shell     # mgconsole inside the container</code></pre>
     <tr><td><code>graph-schema</code></td><td><code>go run . graph schema</code></td><td>reapply constraints and indexes</td></tr>
   </tbody>
 </table></div>
+
+<p>The GraphQL mutation <code>exportMapSnapshotToMemgraph</code> has the same default (<code>pause: Boolean! = true</code>). Opt out with <code>mutation { exportMapSnapshotToMemgraph(input: {pause: false}) { snapshot status } }</code>. <code>memgraph { query(input: {sync: true, cypher: "MATCH (n) RETURN count(n)"}) }</code> uses the paused-export defaults too; for an unpaused refresh, call the mutation with <code>pause:false</code> first, then query without <code>sync:true</code>.</p>
 
 <h2>2 · Pipeline</h2>
 
@@ -196,12 +198,13 @@ just graph-shell     # mgconsole inside the container</code></pre>
 </div>
 
 <ol>
+  <li><b>Pause guard.</b> Unless <code>--pause=false</code> or mutation input <code>pause:false</code> is supplied, remember the prior game pause state and pause the shared save before any export reads.</li>
   <li><b>Census before.</b> One call totals each surface for the force: <em>static</em> entities (exported by leaves), <em>mobile</em> entities (characters, cars, spidertrons, rolling stock) and <em>skipped</em> ones (robots and transient effects such as projectiles and fire).</li>
   <li><b>Chunk census.</b> Generated chunks are visited in pages of 20,000 and every chunk intersecting an entity of the force is kept with its count.</li>
   <li><b>Leaf plan.</b> Non-empty chunks are grouped into aligned 256-tile cells and each cell is split into quadrants until its estimated count fits <code>--leaf-max</code> (default 2000) or it is a single chunk. Leaves never overlap and cover every non-empty chunk.</li>
   <li><b>Leaf reads.</b> One RCON call per leaf, up to <code>--concurrency</code> (default 4) in parallel. A leaf owns every static entity whose <em>centre</em> lies in its half-open rectangle <code>[lx,rx)×[ly,ry)</code>, so each entity is owned exactly once; the scan is padded by 3 tiles so arms and drills at the border still resolve their targets. A leaf that fails on transport is split into quadrants and retried.</li>
   <li><b>Mobile read.</b> One call per surface reads every mobile entity in a single tick, so moving vehicles are neither missed nor counted twice.</li>
-  <li><b>Census after</b> and reconciliation (§6), then the builder routes raw engine links into relationship types (§4) and writes the snapshot directory atomically.</li>
+  <li><b>Census after</b> and reconciliation (§6), then the builder routes raw engine links into relationship types (§4) and reads production catalogs. After the final game read, the prior pause state is restored before writing the snapshot directory atomically; error and cancellation paths also restore it. An already paused game remains paused.</li>
   <li><b>Load.</b> Schema applied, nodes and edges MERGEd in batches, then everything in the snapshot's scopes that does not carry its id is deleted.</li>
 </ol>
 
@@ -217,6 +220,7 @@ just graph-shell     # mgconsole inside the container</code></pre>
     <tr><td><code>:Belt</code></td><td>transport-belt, underground-belt, splitter (also <code>:Splitter</code>), loader, loader-1x1, linked-belt, lane-splitter</td></tr>
     <tr><td><code>:Inserter</code></td><td>inserter</td></tr>
     <tr><td><code>:Chest</code></td><td>container, logistic-container, linked-container, infinity-container</td></tr>
+    <tr><td><code>:LogisticChest</code> + role</td><td>a logistic-container or infinity-container whose prototype <code>logistic_mode</code> is not <code>none</code>; <code>logisticMode</code> holds the engine value and exactly one role label is added: <code>:ActiveProviderChest</code> (purple, <code>active-provider</code>), <code>:PassiveProviderChest</code> (red, <code>passive-provider</code>), <code>:StorageChest</code> (yellow, <code>storage</code>), <code>:RequesterChest</code> (blue, <code>requester</code>), <code>:BufferChest</code> (green, <code>buffer</code>). The role is the prototype mode, so a chest outside every network still has one; plain and infinity chests that report no mode get no role label</td></tr>
     <tr><td><code>:FluidEntity</code></td><td>pipe, pipe-to-ground, pump, offshore-pump, storage-tank, infinity-pipe, heat-exchanger, boiler, generator, fusion-generator</td></tr>
     <tr><td><code>:PowerSource</code></td><td>boiler, generator, fusion-generator, fusion-reactor, solar-panel, accumulator, reactor, burner-generator, electric-energy-interface, lightning-attractor</td></tr>
     <tr><td><code>:Pole</code></td><td>electric-pole, power-switch</td></tr>
@@ -228,17 +232,33 @@ just graph-shell     # mgconsole inside the container</code></pre>
     <tr><td><code>:Ghost</code></td><td>entity-ghost, tile-ghost (<code>ghostName</code>, <code>ghostType</code>)</td></tr>
     <tr><td><code>:ResourceTile</code></td><td>resource (only as a drill's mining target)</td></tr>
     <tr><td><code>:External</code></td><td>an edge endpoint no leaf owns: neutral resources, another force's entities</td></tr>
+    <tr><td><code>:BeltStretch</code></td><td>derived node, not an engine entity: one sequential belt run (see <b>Belt stretches</b>)</td></tr>
+    <tr><td><code>:Item</code></td><td>derived node, not an engine entity: one item or fluid per surface, <code>surface:item:name</code> (see <b>Production graph</b>)</td></tr>
+    <tr><td><code>:Recipe</code></td><td>derived node, not an engine entity: one recipe per surface, <code>surface:recipe:name</code> (see <b>Production graph</b>)</td></tr>
+    <tr><td><code>:Technology</code></td><td>derived node, per surface that holds a lab, <code>surface:technology:name</code>: <code>count</code> and <code>energy</code> per research unit. Only technologies whose every pack some lab on the map accepts are exported. Structure only: current research, queue and progress are live force state and are not in the graph</td></tr>
     <tr><td><i>(none)</i></td><td>any other type is still an <code>:Entity</code> with its <code>type</code> property</td></tr>
   </tbody>
 </table></div>
 
-<p><b>Entity properties:</b> <code>id</code>, <code>unit</code>, <code>name</code>, <code>type</code>, <code>surface</code>, <code>force</code>, <code>x</code>, <code>y</code>, <code>direction</code>, <code>quality</code>, <code>status</code> (engine status name), <code>recipe</code>, <code>recipeQuality</code>, <code>recipeSource</code> (<code>previous</code> for an idle furnace), <code>modules</code> (<code>name:quality:count</code> strings), <code>electricNetwork</code>, <code>logisticNetwork</code>, <code>train</code>, <code>mobile</code>, <code>tick</code> (the tick of the read that owned it), <code>snapshot</code>, <code>scope</code>.</p>
+<p><b>Entity properties:</b> <code>id</code>, <code>unit</code>, <code>name</code>, <code>type</code>, <code>surface</code>, <code>force</code>, <code>x</code>, <code>y</code>, <code>direction</code>, <code>quality</code>, <code>status</code> (engine status name), <code>recipe</code>, <code>recipeQuality</code>, <code>recipeSource</code> (<code>previous</code> for an idle furnace), <code>modules</code> (<code>name:quality:count</code> strings), <code>electricNetwork</code>, <code>logisticNetwork</code>, <code>train</code>, <code>mobile</code>, <code>tick</code> (the tick of the read that owned it), <code>snapshot</code>, <code>scope</code>. Fluid-bearing entities also carry <code>fluids</code> (<code>index|name|amount|temperature</code> per non-empty fluidbox), <code>fluidTotal</code> and <code>fluidCapacity</code>; ghost buildings carry <code>ghostRecipe</code>; requester and buffer chests carry <code>requests</code>; roboports carry <code>robots</code>.</p>
+
+<p><b>Crafting counters</b> (assembling-machine, furnace, rocket-silo): <code>productsFinished</code> (cumulative crafts since build), <code>craftingProgress</code> (0–1 of the current craft), <code>craftingSpeed</code> (the machine's current speed after module and beacon effects, so <code>60 × craftingSpeed / recipe.energy</code> is the real rate) and on furnaces <code>previousRecipe</code> — when it differs from <code>recipe</code> the furnace has switched recipes, which is how a drill over two ores makes one furnace emit two products.</p>
+
+<p><b>Drills</b> carry <code>areaResources</code> and <code>areaAmounts</code> (sorted <code>name:tiles</code> / <code>name:amount</code> over the whole <code>mining_area</code>), <code>areaTiles</code>, and the area corners <code>miningLeft</code>, <code>miningTop</code>, <code>miningRight</code>, <code>miningBottom</code>. <code>MINES</code> still points at the single current <code>mining_target</code>, so a drill whose <code>areaResources</code> has two entries is the one that mixes ores.</p>
+
+<p><b>Inserters</b> carry <code>pickupX</code>/<code>pickupY</code>, <code>dropX</code>/<code>dropY</code>, <code>pickupLeftLane</code>/<code>pickupRightLane</code>, <code>useFilters</code>, <code>filterMode</code>, <code>filters</code> (<code>{index,name,quality}</code>), <code>stackSizeOverride</code>, <code>held</code> (<code>name:count</code> in the hand), and <code>dropResolved:false</code> when the drop tile holds no entity (an arm pointing at nothing, not an export bug).</p>
+
+<p><b>Belt lanes.</b> Every belt-family node (transport, underground, splitter, loader, linked) samples all engine transport lines: <code>lanes</code> holds one <code>index|lineName|side|item:count+…</code> string per non-empty line, <code>left</code>/<code>right</code> stay lines 1 and 2 (line 1 is <code>left_line</code>), while <code>leftCount</code>/<code>rightCount</code> sum every line of that side — a splitter keeps items on lines 5–8 and an underground on 3–4, so counting lines 1–2 alone would report zero. <code>mixedLeft</code>/<code>mixedRight</code> are true when a side holds more than one item or quality anywhere on that entity. Line names are pinned per index (<code>1 left_line</code>, <code>2 right_line</code>, <code>3 left_underground_line</code>, <code>4 right_underground_line</code>, <code>5 left_split_line</code>, <code>6 right_split_line</code>, <code>7 secondary_left_split_line</code>, <code>8 secondary_right_split_line</code>) and match <code>beltTiles</code>/<code>beltStretch</code>, because <code>defines.transport_line</code> collides on 3/4 and 7/8 and an index-built table would rename lanes between loads.</p>
+
+<p><b>Belt stretches.</b> <code>:BeltStretch {id}</code> is one sequential run: every belt outputs into the next, underground and linked pairs are followed, curves continue, and a splitter always ends the run — each splitter output starts a new one. A side-load ends the loading run and joins it to the main run. Properties: <code>belts</code>, <code>undergrounds</code>, <code>headUnit</code>/<code>headX</code>/<code>headY</code>, <code>tailUnit</code>/<code>tailX</code>/<code>tailY</code>, <code>endKind</code> (<code>splitter</code> · <code>sideload</code> · <code>deadend</code> · <code>loader</code> · <code>loop</code>), per-item lists <code>itemsLeft</code>/<code>itemsRight</code> (<code>name:count</code> strings, e.g. <code>iron-gear-wheel:87</code>), <code>leftCount</code>/<code>rightCount</code>, <code>mixedLeft</code>/<code>mixedRight</code>. Id is <code>surface:stretch:&lt;head unit&gt;</code> (a headless loop uses its smallest unit), so it is stable while that head belt exists.</p>
+
+<p><b>Production graph.</b> <code>:Item {id}</code> (<code>surface:item:name</code>) exists once per item or fluid a snapshot references, with <code>name</code> and <code>kind</code> (<code>item</code> · <code>fluid</code>); quality is never a separate node, it lives on the edge. <code>:Recipe {id}</code> (<code>surface:recipe:name</code>) carries <code>energy</code> (craft seconds at speed 1) and <code>category</code>. Both are derived, per surface, and pruned with the scope they belong to. Entities reach items through <code>RUNS</code> (machine → recipe), <code>PRODUCES</code>/<code>CONSUMES</code> (recipe → item per craft, entity → item per minute), <code>BURNS</code> (fuel), <code>CONTAINS</code> (chest stock) and <code>HOLDS</code> (machine input/output/fuel slots). Rates are <b>nameplates</b>: <code>perMinute = 60 × craftingSpeed / recipe.energy × amount</code>, ignoring modules, beacons and productivity modules; a drill adds <code>miningTime</code> and the force's mining productivity bonus. <code>CONTAINS</code> and <code>HOLDS</code> are frozen at the leaf tick like belt lanes — a sample, not live stock. Infinity containers report their filters and contents; linked-container contents are not exported.</p>
 
 <p><b>Identity.</b> <code>id = surface:unit_number</code>, else <code>surface:type:name:x:y</code> (resources have no unit number). Unit numbers are global, the surface prefix keeps ids readable and linked belts across surfaces distinct.</p>
 
 <p><b>Network nodes.</b> <code>:Network:ElectricNetwork</code> (<code>surface:electric:N</code>), <code>:Network:LogisticNetwork</code> (<code>surface:force:logistic:N</code>), <code>:Network:CircuitNetwork</code> (<code>surface:circuit:N</code>, with <code>color</code>).</p>
 
-<p><b>Sequence splitters.</b> A splitter is a <code>:Belt</code> and a <code>:Splitter</code> with <code>inputPriority</code>/<code>outputPriority</code> (<code>none</code>, <code>left</code>, <code>right</code>) and, where the build exposes them, <code>filters</code> (<code>{index, name, quality}</code>). Its two outputs are separate edges with <code>fromPort</code> = <code>left</code> or <code>right</code>, resolved geometrically from the two bounding boxes and the splitter's direction — the side counter-clockwise of travel, so an eastward splitter's north output is <code>left</code>. An edge entering the splitter carries <code>toPort</code>. Neither engine source names the side: <code>belt_neighbours</code> keys are ordering only, and the transport-line names <code>left_split_line</code>/<code>right_split_line</code> are the two <em>lanes of one output belt</em> while <code>secondary_*_split_line</code> names the second output — measured on a connected splitter. Both neighbouring belts report the same link back without a port, and the loader merges the port onto the single edge instead of creating a second. When the geometry cannot resolve (<code>fromPort</code>/<code>toPort</code> absent) the raw neighbour key is kept separately as <code>fromPortIndex</code>/<code>toPortIndex</code>, so <code>fromPort</code> only ever holds <code>left</code> or <code>right</code>.</p>
+<p><b>Sequence splitters.</b> A splitter (or lane-splitter) is a <code>:Belt</code> and a <code>:Splitter</code> with <code>inputPriority</code>/<code>outputPriority</code> (<code>none</code>, <code>left</code>, <code>right</code>) and <code>filters</code> (<code>{index: 1, name, quality}</code>) read from the engine's single <code>splitter_filter</code> property — not from <code>get_filter(slot)</code>, which does not apply to splitters in 2.0.77. Its two outputs are separate edges with <code>fromPort</code> = <code>left</code> or <code>right</code>, resolved geometrically from the two bounding boxes and the splitter's direction — the side counter-clockwise of travel, so an eastward splitter's north output is <code>left</code>. An edge entering the splitter carries <code>toPort</code>. Neither engine source names the side: <code>belt_neighbours</code> keys are ordering only, and the transport-line names <code>left_split_line</code>/<code>right_split_line</code> are the two <em>lanes of one output belt</em> while <code>secondary_*_split_line</code> names the second output — measured on a connected splitter. Both neighbouring belts report the same link back without a port, and the loader merges the port onto the single edge instead of creating a second. When the geometry cannot resolve (<code>fromPort</code>/<code>toPort</code> absent) the raw neighbour key is kept separately as <code>fromPortIndex</code>/<code>toPortIndex</code>, so <code>fromPort</code> only ever holds <code>left</code> or <code>right</code>.</p>
 
 <h2>4 · Relationships</h2>
 
@@ -249,7 +269,7 @@ just graph-shell     # mgconsole inside the container</code></pre>
     <tr><td><code>PICKS_FROM</code></td><td>inserter → source</td><td><code>side</code> (<code>left</code> · <code>right</code>) when the source is a belt: the side of the belt the inserter stands on</td><td><code>pickup_target</code>, else the entity on the arm's pickup tile</td></tr>
     <tr><td><code>DROPS_TO</code></td><td>inserter → destination</td><td><code>side</code> when the destination is a belt: the lane the item lands on</td><td><code>drop_target</code>, else the entity on the drop tile</td></tr>
     <tr><td><code>DROPS_ON</code></td><td>drill / machine → target</td><td>—</td><td>machine <code>drop_target</code> with the same tile fallback</td></tr>
-    <tr><td><code>MINES</code></td><td>drill → <code>:ResourceTile</code></td><td>—</td><td><code>mining_target</code> (none for a dry or unstarted drill)</td></tr>
+    <tr><td><code>MINES</code></td><td>drill → <code>:ResourceTile</code></td><td>—</td><td><code>mining_target</code> (none for a dry or unstarted drill); the whole area is on the drill's <code>areaResources</code></td></tr>
     <tr><td><code>AFFECTS</code></td><td>beacon → machine</td><td>—</td><td><code>get_beacon_effect_receivers()</code></td></tr>
     <tr><td><code>FLUID_LINK</code></td><td>canonical pair (stored a→b, read undirected)</td><td><code>dirA</code>, <code>dirB</code>, <code>ports</code></td><td><code>fluidbox.get_pipe_connections</code> on every entity with a fluidbox, machines included</td></tr>
     <tr><td><code>POWER_WIRE</code></td><td>canonical pair</td><td><code>connectorA</code>, <code>connectorB</code></td><td>copper wire connectors</td></tr>
@@ -257,7 +277,22 @@ just graph-shell     # mgconsole inside the container</code></pre>
     <tr><td><code>RAIL_LINK</code></td><td>canonical pair</td><td>—</td><td><code>get_connected_rail</code> in every direction</td></tr>
     <tr><td><code>POWERED_BY</code></td><td>entity → <code>:ElectricNetwork</code></td><td>—</td><td><code>electric_network_id</code></td></tr>
     <tr><td><code>IN_LOGISTIC_NETWORK</code></td><td>entity → <code>:LogisticNetwork</code></td><td>—</td><td><code>logistic_network</code></td></tr>
+    <tr><td><code>LOGISTIC_COVERS</code></td><td><code>:Roboport</code> → <code>:LogisticChest</code></td><td><code>construction</code> (bool): the chest also lies in the roboport's construction area</td><td>the roboport's <code>logistic_cell</code> <code>is_in_logistic_range</code> / <code>is_in_construction_range</code> over the chests in its logistic area. A chest in range of several roboports gets one edge from each; a chest in no roboport's range has no edge and no network</td></tr>
     <tr><td><code>ON_CIRCUIT</code></td><td>entity → <code>:CircuitNetwork</code></td><td><code>connector</code>, <code>color</code></td><td>wire connector <code>network_id</code></td></tr>
+    <tr><td><code>RUNS</code></td><td>machine → <code>:Recipe</code></td><td><code>recipeSource</code> (<code>previous</code> when an idle furnace reports its last recipe)</td><td>the machine's <code>recipe</code> property plus the recipe catalog</td></tr>
+    <tr><td><code>PRODUCES</code></td><td><code>:Recipe</code> → <code>:Item</code>, entity → <code>:Item</code></td><td>recipe edge: <code>amount</code> (expected per craft, probability applied), <code>probability</code>, <code>kind</code>; entity edge: <code>via</code> (<code>recipe</code> · <code>mining</code> · <code>infinity</code>), <code>perMinute</code> (nameplate; absent for infinity), <code>kind</code>, and for infinity <code>count</code>/<code>mode</code></td><td>recipe <code>products</code>; drill <code>mining_target</code> resource products; infinity container filters</td></tr>
+    <tr><td><code>CONSUMES</code></td><td><code>:Recipe</code> → <code>:Item</code>, entity → <code>:Item</code></td><td><code>amount</code> / <code>perMinute</code>, <code>kind</code>, <code>via:"recipe"</code> on the entity edge</td><td>recipe <code>ingredients</code></td></tr>
+    <tr><td><code>ACCEPTS</code></td><td>lab → <code>:Item</code></td><td>none</td><td>the lab prototype's <code>lab_inputs</code>: the packs it takes</td></tr>
+    <tr><td><code>REQUIRES_PACK</code></td><td><code>:Technology</code> → <code>:Item</code></td><td><code>amount</code> (packs per research unit)</td><td>technology <code>research_unit_ingredients</code></td></tr>
+    <tr><td><code>PREREQUISITE</code></td><td><code>:Technology</code> → <code>:Technology</code></td><td>none</td><td>technology <code>prerequisites</code>; omitted when the prerequisite is not an exported node</td></tr>
+    <tr><td><code>UNLOCKS</code></td><td><code>:Technology</code> → <code>:Recipe</code></td><td>none</td><td>technology <code>unlock-recipe</code> effects; only recipes the snapshot already has a <code>:Recipe</code> node for</td></tr>
+    <tr><td><code>BURNS</code></td><td>entity → <code>:Item</code></td><td>—</td><td>the node's <code>fuel</code> contents sample</td></tr>
+    <tr><td><code>CONTAINS</code></td><td><code>:Chest</code> → <code>:Item</code></td><td><code>count</code>, <code>quality</code></td><td>the node's <code>items</code> sample; infinity containers from their inventory</td></tr>
+    <tr><td><code>HOLDS</code></td><td>machine / drill → <code>:Item</code></td><td><code>slot</code> (<code>input</code> · <code>output</code> · <code>fuel</code>), <code>count</code>, <code>quality</code></td><td>the node's <code>input</code>/<code>output</code>/<code>fuel</code> samples</td></tr>
+    <tr><td><code>IN_STRETCH</code></td><td>belt → <code>:BeltStretch</code></td><td><code>index</code> (0 = head, upstream tiles have a smaller index)</td><td>derived from <code>BELT_OUT</code> plus <code>beltShape</code></td></tr>
+    <tr><td><code>FEEDS_STRETCH</code></td><td>inserter · drill · splitter port · side-loading tail belt → <code>:BeltStretch</code></td><td><code>atUnit</code>, <code>index</code>, <code>side</code> (inserter drop lane), <code>via</code> (<code>splitter</code> · <code>sideload</code>), <code>fromPort</code>/<code>fromPortIndex</code></td><td>derived from <code>DROPS_TO</code>/<code>DROPS_ON</code>/splitter ports</td></tr>
+    <tr><td><code>TAKES_FROM_STRETCH</code></td><td>inserter · splitter input port → <code>:BeltStretch</code></td><td><code>atUnit</code>, <code>index</code>, <code>side</code>, <code>toPort</code>/<code>toPortIndex</code></td><td>derived from <code>PICKS_FROM</code>/splitter ports; same direction convention as <code>PICKS_FROM</code></td></tr>
+    <tr><td><code>FLOWS_INTO</code></td><td><code>:BeltStretch</code> → <code>:BeltStretch</code></td><td><code>via</code> (<code>splitter</code> · <code>sideload</code>), <code>viaUnit</code>, <code>atUnit</code>, <code>side</code>, <code>fromPort</code>/<code>fromPortIndex</code></td><td>derived; exists only where a splitter or a side-load joins two runs</td></tr>
   </tbody>
 </table></div>
 
@@ -277,14 +312,16 @@ just graph-shell     # mgconsole inside the container</code></pre>
       <li>Every vehicle, character and piece of rolling stock (one-tick mobile pass).</li>
       <li>Belt, inserter, drill, beacon, fluid, copper, circuit and rail connections; electric, logistic and circuit network membership.</li>
       <li>Recipe, modules, status, quality and direction on each node.</li>
+      <li>Production: item and recipe nodes, per-minute nameplate rates for crafters, drills and infinity containers, plus point-in-time <code>CONTAINS</code>/<code>HOLDS</code>/<code>BURNS</code> contents.</li>
+      <li>Fluidbox contents (<code>fluids</code>, <code>fluidTotal</code>, <code>fluidCapacity</code>), vehicle, wagon, turret and lab inventories, roboport robot stock, requester-chest requests, ghost recipes, and each crafting machine's effective <code>craftingSpeed</code>.</li>
     </ul>
   </div>
   <div class="warn">
     <p><b>Deliberately not captured</b></p>
     <ul>
-      <li>Robots and transient effects (counted as <em>skipped</em> in the census).</li>
-      <li>Item contents, belt lane contents and measured throughput — they change every tick and belong on dated measurement edges.</li>
-      <li>Splitter lane routing, heat-pipe connectivity, train schedules and paths, tiles, trees, enemies.</li>
+      <li>Robots and transient effects (counted as <em>skipped</em> in the census); roboport coverage cells and logistic-network robot counts stay live reads.</li>
+      <li>Live stock and measured throughput — contents appear only as leaf-tick samples (<code>items</code>, <code>fluids</code>, <code>fuel</code>, <code>input</code>, <code>output</code>, lanes); linked-container contents are not sampled at all.</li>
+      <li>Splitter lane routing (engine-private), heat-pipe connectivity and temperature, heat networks, train schedules and paths, rail block/signal state, combinator <code>parameters</code> and live circuit signal values, electric-network statistics, tiles, trees, enemies.</li>
     </ul>
   </div>
 </div>
@@ -292,6 +329,8 @@ just graph-shell     # mgconsole inside the container</code></pre>
 <h2>6 · Completeness</h2>
 
 <p>The census counts entities by force and type; leaves own entities by centre. Because leaves partition every non-empty chunk, each static entity is exported exactly once, and the exported count must equal the census. The census is taken before and after the scan:</p>
+
+<p>The default pause prevents normal simulation changes during the scan. With <code>--pause=false</code> or <code>pause:false</code>, the save can advance between reads and produce drift; pausing does not exclude concurrent external edits through other clients.</p>
 
 <div class="tw"><table>
   <thead><tr><th>Status</th><th>Condition</th><th>Meaning</th><th>Exit / load</th></tr></thead>
@@ -332,7 +371,7 @@ just graph-shell     # mgconsole inside the container</code></pre>
 
 <h2>9 · Query cookbook</h2>
 
-<p>Through GraphQL, <code>query { memgraphSchema { labels { name nodes properties { name count } } relationships { name edges properties { name count } } snapshot { id status nodes edges } } }</code> returns the labels, relationship types, property keys and latest loaded snapshot without writing Cypher. It is derived from loaded data, so a label, type or property that was never loaded is absent, and declared indexes/constraints remain in <code>memgraph/schema.cypherl</code>.</p>
+<p>Through GraphQL, <code>query { memgraph { schema { labels { name nodes properties { name count } } relationships { name edges properties { name count } } snapshot { id status nodes edges } } }</code> returns the labels, relationship types, property keys and latest loaded snapshot without writing Cypher. It is derived from loaded data, so a label, type or property that was never loaded is absent, and declared indexes/constraints remain in <code>memgraph/schema.cypherl</code>.</p>
 
 <h3>Mine → belt run → inserter → smelter</h3>
 <pre><code>MATCH p = (d:MiningDrill)-[:DROPS_ON]-&gt;(:Belt)-[:BELT_OUT*0..300]-&gt;(b:Belt)
@@ -345,6 +384,25 @@ RETURN ore.name, d.id, i.id, m.name, m.recipe, length(p) AS hops;</code></pre>
 OPTIONAL MATCH (up:Belt)-[:BELT_OUT*1..300]-&gt;(src)
 OPTIONAL MATCH (up)&lt;-[:DROPS_ON|DROPS_TO]-(feeder)
 RETURN i.status, src.name, collect(DISTINCT feeder.name) AS feeders;</code></pre>
+
+<h3>Everything that puts items into a belt stretch (including upstream runs)</h3>
+<pre><code>MATCH (:Belt {unit: 815})-[:IN_STRETCH]-&gt;(s:BeltStretch)
+MATCH (up:BeltStretch)-[:FLOWS_INTO*0..100]-&gt;(s)
+MATCH (x)-[f:FEEDS_STRETCH]-&gt;(up) WHERE NOT x:Splitter AND f.via IS NULL
+OPTIONAL MATCH (x:Inserter)-[:PICKS_FROM]-&gt;(src)
+RETURN DISTINCT labels(x), x.name, x.unit, src.name, src.unit, src.recipe, up.id;</code></pre>
+
+<h3>Where a machine's output goes</h3>
+<pre><code>MATCH (m:Machine {unit: $u})&lt;-[:PICKS_FROM]-(i:Inserter)-[:FEEDS_STRETCH]-&gt;(s)
+MATCH (s)-[:FLOWS_INTO*0..100]-&gt;(d)&lt;-[:TAKES_FROM_STRETCH]-(t:Inserter)-[:DROPS_TO]-&gt;(c)
+RETURN DISTINCT c.name, c.unit, c.recipe;</code></pre>
+
+<h3>Drills that mine more than one ore, and mixed lanes</h3>
+<pre><code>MATCH (d:MiningDrill) WHERE size(d.areaResources) &gt; 1
+MATCH (d)-[:DROPS_ON]-&gt;(t) RETURN d.unit, d.x, d.y, d.areaResources, t.unit, t.name, t.recipe;
+
+MATCH (b:Belt) WHERE b.mixedLeft OR b.mixedRight
+RETURN b.unit, b.type, b.x, b.y, b.lanes ORDER BY b.unit;</code></pre>
 
 <h3>Belt heads nothing feeds</h3>
 <pre><code>MATCH (b:Belt)
@@ -361,7 +419,7 @@ RETURN s.id, s.x, s.y, s.outputPriority, port, b.id,
 <pre><code>MATCH (a:Belt)&lt;-[:PICKS_FROM]-(i:Inserter)-[:DROPS_TO]-&gt;(b:Belt) RETURN i.id, i.x, i.y;</code></pre>
 
 <h3>Burner machines with no fuel anywhere upstream (point-in-time contents)</h3>
-<p>Nodes carry a contents sample taken at the leaf tick: <code>fuel</code>, <code>input</code>, <code>output</code> (furnaces, assemblers, burner drills/boilers/inserters), <code>items</code> (chests) and <code>left</code> / <code>right</code> (per-lane items of a <code>transport-belt</code>: engine transport line 1 exported as <code>left</code>, line 2 as <code>right</code>; the side mapping is not independently verified), each a sorted list of <code>name:count</code> (<code>name@quality:count</code> when not normal). Each list has a matching <code>…Count</code>, present whenever the entity has that inventory, so <code>fuelCount = 0</code> (burner, empty) differs from no <code>fuelCount</code> (no fuel inventory); the list itself is absent when empty. <code>PICKS_FROM.side</code> is the side of the belt (relative to travel) the inserter stands on; <code>DROPS_TO.side</code> is the lane the dropped item lands on. Contents are volatile: compare against <code>tick</code> and re-export before trusting them.</p>
+<p>Nodes carry a contents sample taken at the leaf tick: <code>fuel</code>, <code>input</code>, <code>output</code> (furnaces, assemblers, rocket silos, burner drills/boilers/inserters, labs), <code>items</code> (chests, cargo wagons, car and spider trunks), <code>ammo</code> (turrets), <code>robots</code> (roboports), <code>fluids</code> (<code>index|name|amount|temperature</code> per non-empty fluidbox plus <code>fluidTotal</code>/<code>fluidCapacity</code>, so tanks, pipes, fluid wagons and machine boxes are sampled) and <code>left</code> / <code>right</code> (engine transport lines 1 and 2 of any belt-family entity) and <code>left</code> / <code>right</code> (engine transport lines 1 and 2 of any belt-family entity), <code>lanes</code> (<code>index|lineName|side|items</code> for every non-empty line, including underground tunnel and splitter lines) and <code>mixedLeft</code>/<code>mixedRight</code>, each a sorted list of <code>name:count</code> (<code>name@quality:count</code> when not normal). Each list has a matching <code>…Count</code>, present whenever the entity has that inventory, so <code>fuelCount = 0</code> (burner, empty) differs from no <code>fuelCount</code> (no fuel inventory); the list itself is absent when empty. <code>PICKS_FROM.side</code> is the side of the belt (relative to travel) the inserter stands on; <code>DROPS_TO.side</code> is the lane the dropped item lands on. Contents are volatile: compare against <code>tick</code> and re-export before trusting them.</p>
 <pre><code>MATCH (m:Machine) WHERE m.fuelCount = 0
   AND NOT EXISTS { MATCH (m)&lt;-[:DROPS_TO]-(:Inserter)-[:PICKS_FROM]-&gt;(b:Belt)
                    WHERE any(x IN coalesce(b.left,[]) + coalesce(b.right,[]) WHERE x STARTS WITH 'coal') }
@@ -382,6 +440,56 @@ RETURN m.recipe, m.id, count(b) AS beacons ORDER BY beacons;</code></pre>
 <h3>Latest loaded snapshot</h3>
 <pre><code>MATCH (s:Snapshot {loaded: true}) RETURN s ORDER BY s.id DESC LIMIT 1;</code></pre>
 
+<h3>Who produces an item (any producer, recipe or not)</h3>
+<pre><code>MATCH (e:Entity)-[p:PRODUCES]-&gt;(i:Item {name: "iron-plate"})
+RETURN e.name, e.unit, e.x, e.y, e.status, p.via, p.perMinute
+ORDER BY p.perMinute DESC;</code></pre>
+
+<h3>Supply vs demand per item (nameplate rates)</h3>
+<pre><code>MATCH (i:Item)
+OPTIONAL MATCH ()-[p:PRODUCES]-&gt;(i) WHERE p.perMinute IS NOT NULL
+WITH i, sum(p.perMinute) AS supply
+OPTIONAL MATCH (:Entity)-[q:CONSUMES]-&gt;(i)
+RETURN i.name, supply, sum(q.perMinute) AS demand
+ORDER BY coalesce(demand, 0) - coalesce(supply, 0) DESC;</code></pre>
+
+<h3>Recipe input tree of a machine</h3>
+<pre><code>MATCH (m:Machine {unit: $unit})-[:RUNS]-&gt;(r:Recipe)
+OPTIONAL MATCH (r)-[c:CONSUMES]-&gt;(in:Item)
+OPTIONAL MATCH (r)-[p:PRODUCES]-&gt;(out:Item)
+RETURN r.name, r.energy, collect(DISTINCT in.name + " x" + toString(c.amount)) AS inputs,
+       collect(DISTINCT out.name + " x" + toString(p.amount)) AS outputs;</code></pre>
+
+<h3>Where an item is stored right now (snapshot sample)</h3>
+<pre><code>MATCH (c:Chest)-[x:CONTAINS]-&gt;(:Item {name: "coal"})
+RETURN c.name, c.unit, x.count, x.quality ORDER BY x.count DESC;</code></pre>
+
+<h3>Machines holding an item in a slot</h3>
+<pre><code>MATCH (m)-[h:HOLDS]-&gt;(:Item {name: "iron-ore"})
+RETURN m.name, m.unit, h.slot, h.count, h.quality;</code></pre>
+
+<h2>9b · Typed trace reads (no Cypher)</h2>
+
+<p>Each read is a field under <code>memgraph { }</code>, takes a <code>unitNumber</code> (decimal string) and answers summary, then <code>outline</code>, then normalized detail (<code>nodes</code>, <code>paths</code> as node ids), with <code>truncated</code> and <code>snapshot</code> on every result. Edge directions: <code>PICKS_FROM</code> and <code>DROPS_TO</code> both leave the inserter; the reads chain them for you. Named gqlcli ops: <code>supply-chain</code>, <code>downstream-chain</code>, <code>ingredient-coverage</code>, <code>area-graph</code>, <code>memgraph-query</code>, <code>memgraph-schema</code>.</p>
+
+<h3>supplyChain: everything upstream of a Machine, Chest or Belt</h3>
+<pre><code>query { memgraph { supplyChain(input: {unitNumber: "143"}) { summary { pathCount nodeCount } outline origins { id name } truncated } } }</code></pre>
+<p>Validated: the outline reads <code>143 assembling-machine-1 (electronic-circuit) [working] &lt;- arm 239 ... &lt;- 37 infinity-chest [normal]</code>; <code>&lt;-</code> means "is fed by". <code>resolution: STRETCH</code> is compact but coarse; <code>BELT</code> (default) is exact. <code>origins</code> are the roots of the walk (drills, chests, furnaces).</p>
+
+<h3>downstreamChain: where a node's output goes</h3>
+<pre><code>query { memgraph { downstreamChain(input: {unitNumber: "391"}) { outline sinks { id name } truncated } } }</code></pre>
+<p>Validated: belt 391 &rarr; arm 390 &rarr; 370 assembling-machine-1 &rarr; arm 435 &rarr; 436 infinity-chest. <code>-&gt;</code> means "feeds"; <code>attention</code> flags <code>sink:belt</code>, a line nothing picks from. BELT resolution only.</p>
+
+<h3>ingredientCoverage: does every recipe ingredient have a feeding inserter</h3>
+<pre><code>query { memgraph { ingredientCoverage(input: {unitNumber: "370"}) { gaps machines { machine { id } ingredients { item feedingArms covered } } } } }</code></pre>
+<p>Validated: <code>gaps</code> is the list of ingredients with no feed path (empty means fully covered; unit 370 returned <code>[]</code> when checked). Topology only, not stock.</p>
+
+<h3>areaGraph: everything in an XY box and how it connects</h3>
+<pre><code>query { memgraph { areaGraph(input: {area: {leftTopX: -10, leftTopY: -10, rightBottomX: 10, rightBottomY: 10}}) { summary { nodeCount edgeCount componentCount boundaryCount } outline nodes { id kind } edges { from to type } boundary { inside direction type outside { id } } truncated } } }</code></pre>
+<p>Validated: the &plusmn;10 box returned 121 nodes, 123 edges, 4 components, 16 boundary edges. Box sides up to 1024 tiles; <code>includePower</code> adds <code>POWERED_BY</code>/<code>POWER_WIRE</code>; <code>maxNodes</code> (default 2000) keeps the lowest unit numbers.</p>
+
+<p>Also available: <code>rootCause</code>, <code>nominalRateBalance</code>, <code>removalImpact</code>, <code>chainCapacity</code>, <code>routeBetween</code>, <code>itemSources</code> (see the skill <code>.agents/skills/factorio-memgraph/SKILL.md</code>).</p>
+
 <h2>10 · Invariants</h2>
 
 <ul>
@@ -391,7 +499,7 @@ RETURN m.recipe, m.id, count(b) AS beacons ORDER BY beacons;</code></pre>
   <li><b>Snapshots replace scopes.</b> A partial or older snapshot never patches a newer world.</li>
   <li><b>Ticks are per read.</b> Each node carries the tick of the leaf that owned it; a multi-leaf snapshot spans ticks and says so in the manifest.</li>
   <li><b>Inline and mod Lua are one text.</b> <code>TestTopologyModPreludeParity</code> fails when the <code>graph_prelude</code>, <code>graph_leaf</code> or <code>graph_mobile</code> regions of <code>topology.lua</code> drift from the Go fallback.</li>
-  <li><b>The graph is a snapshot, not live state.</b> Refresh with <code>just graph-sync</code> or the GraphQL mutation <code>exportMapSnapshotToMemgraph</code>; read with the read-only <code>queryMemgraph</code>. Each <code>Entity</code> carries the <code>tick</code> and <code>snapshot</code> id it was exported at.</li>
+  <li><b>The graph is a snapshot, not live state.</b> Refresh with <code>just graph-sync</code> or the GraphQL mutation <code>exportMapSnapshotToMemgraph</code>; read with the read-only <code>memgraph { query }</code> field. Each <code>Entity</code> carries the <code>tick</code> and <code>snapshot</code> id it was exported at.</li>
 </ul>
 
 <footer>

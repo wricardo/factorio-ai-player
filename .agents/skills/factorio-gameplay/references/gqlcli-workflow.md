@@ -7,9 +7,12 @@ How to drive the live game efficiently through `gqlcli` against `http://127.0.0.
 ```sh
 cd /Users/wricardo/go/src/github.com/wricardo/factorio-ai-player     # gqlcli reads .gqlcli.json from CWD
 gqlcli config list                                                   # env `local` must point at http://127.0.0.1:8080/query
+gqlcli op list                                                       # ~48 saved named ops; run these before writing documents
 gqlcli query '{ status { tick speed paused players { name } } }'    # proves endpoint + RCON + game are alive
 gqlcli schema refresh                                                # only if a field you expect is missing/invalid
 ```
+
+- **Saved ops are the play interface.** `gqlcli op list` prints name + type + document for each entry; `gqlcli op show --name <name>` prints the document (name/type/query; the variables are yours to pass). Play with `gqlcli query --op <name> --variables '{...}'` / `gqlcli mutation --op <name> --input '{...}'` (stored variables merge with `--variables`; explicit values win). They cover the ordinary moves — read (`status`, `entities`, `nearby`, `inspect`, `inspect-many`, `stock`, `production`, `power`, `briefing`, `factory-alerts`, `belt-stretch`, `dead-belts`, `fluids`, `fluid-segments`, `research`, `trains`, `construction`, `ghosts`, `occupancy`) and write (`connection-plan`, `build-connection`, `place-belt`, `place-item`, `place-many`, `build-cell`, `set-recipe`, `transfer`, `remove-many`, `queue-research`, `spawn-character`, `wait-until`) — so pick the op for the move you want instead of assembling an equivalent request. Add a genuinely missing repeatable move with `gqlcli op save` (shared file: ask first, keep existing entries).
 
 - **CWD matters.** Run from the repository root. From another directory gqlcli has no `.gqlcli.json`, falls back to a default URL and fails with `404 page not found` / `introspection failed`. Fix: `cd` to the repo or pass `--url http://127.0.0.1:8080/query`.
 - If the endpoint is down, check `just logs` / the `serve` process before blaming the API, and report it. Never stop or restart the managed server for a gameplay task. gqlcli over HTTP is the only interface: no `go run`, no raw RCON.
@@ -157,7 +160,7 @@ These exact mistakes appeared repeatedly in a 2026-10-31/11-01 gameplay session.
 | `WorldResourceEntry { bounds }` | `bounds` exists on `patches[]`, not individual entries |
 | `FactoryAreaInput { min, max }` | `{ leftTopX, leftTopY, rightBottomX, rightBottomY }` |
 | `EntitiesInput { query: ... }` | no `query`; `area` is required; select `entities { ... }` on the page |
-| `mapArea(maxColumns:150)` | maxRows/maxColumns are 1..256 |
+| `mapArea(maxColumns:2000)` | maxRows/maxColumns are 1..1024 |
 | `Mutation.transferItems`, `closeBeadsTicket` | not part of this API; use `transfer`/`transferMany` and `bd` |
 
-Also: areas and most scans cap at 1024 tiles per side; `probePlacement` caps at 65536 sampled tiles; `adjacency` caps at 1024 tiles per side. Select object subfields (`position {x y}`, `from { ... }`, `status { ... }`) — GraphQL requires them. On error, gqlcli prints human text; use `-f json` if a downstream parser needs JSON.
+Also: areas and most scans cap at 1024 tiles per side; `probePlacement` caps at 262144 sampled tiles; `adjacency` caps at 1024 tiles per side. Select object subfields (`position {x y}`, `from { ... }`, `status { ... }`) — GraphQL requires them. On error, gqlcli prints human text; use `-f json` if a downstream parser needs JSON.

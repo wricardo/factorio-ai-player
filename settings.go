@@ -861,7 +861,7 @@ if not applied or applied.name~=filter.name then fail("engine did not apply the 
 	body.WriteString(`elseif e.type=="infinity-container" then
 `)
 	if len(fluids) > 0 {
-		body.WriteString(`fail("fluidFilters only apply to infinity pipes"); return
+		body.WriteString(`fail("fluidFilters only apply to infinity pipes"); do return end
 `)
 	}
 	body.WriteString(checks.String())

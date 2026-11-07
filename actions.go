@@ -139,6 +139,74 @@ local function new_tile_entity(surface,position,before)
   end
   return nil
 end
+-- footprint_occupants is the pre-create form of the same rule: it scans the
+-- area the prototype's own collision_box would cover at this position, so an
+-- overlap is refused before create_entity raises a build event for an entity
+-- that is then destroyed. Returning names keeps the existing error wording.
+local function footprint_occupants(surface,name,position,layers)
+  local proto=prototypes.entity[name]
+  local cbox=proto and proto.collision_box
+  if not cbox then return {} end
+  local area={{position.x+cbox.left_top.x,position.y+cbox.left_top.y},
+              {position.x+cbox.right_bottom.x,position.y+cbox.right_bottom.y}}
+  local occupants={}
+  local epsilon=0.000001
+  for _,candidate in pairs(surface.find_entities_filtered{area=area,limit=64}) do
+    local kind=candidate.type
+    local other=candidate.bounding_box
+    -- Entities that merely touch along a tile edge are neighbours, not overlaps;
+    -- the area query returns them because the boxes share an edge.
+    if candidate.valid and other
+      and other.left_top.x<area[2][1]-epsilon and other.right_bottom.x>area[1][1]+epsilon
+      and other.left_top.y<area[2][2]-epsilon and other.right_bottom.y>area[1][2]+epsilon
+      and kind~="entity-ghost" and kind~="tile-ghost" and kind~="item-entity"
+      and kind~="item-request-proxy" and kind~="resource" and tile_blocks_build(candidate,layers) then
+      occupants[#occupants+1]=candidate.name
+    end
+  end
+  return occupants
+end
+-- name_overlapping_entity reports a built entity that shares tiles with the one
+-- just created. tile_occupants only inspects the tile under the requested
+-- position, so a 2x2 or 3x3 prototype whose centre lands on a free tile could
+-- still be created on top of a neighbour: create_entity ignores collision boxes.
+-- The engine's own bounding boxes decide, with the same collision-mask rule
+-- tile_occupants uses, so a corpse (doodad layer, collides with tiles only) or a
+-- resource never counts as an obstruction, and touching edges are not an
+-- overlap.
+local function name_overlapping_entity(entity,layers)
+  if not (entity and entity.valid) then return nil end
+  local surface=entity.surface
+  local box=entity.bounding_box
+  -- A replay stub can hand back a table without engine fields; the real engine
+  -- always supplies both.
+  if not surface or not box then return nil end
+  local epsilon=0.000001
+  local area={{box.left_top.x,box.left_top.y},{box.right_bottom.x,box.right_bottom.y}}
+  for _,candidate in pairs(surface.find_entities_filtered{area=area,limit=64}) do
+    local kind=candidate.type
+    local other=candidate.bounding_box
+    if candidate.valid and other and candidate.unit_number~=entity.unit_number
+      and kind~="entity-ghost" and kind~="tile-ghost" and kind~="item-entity"
+      and kind~="item-request-proxy" and kind~="resource"
+      and tile_blocks_build(candidate,layers) then
+      if other.left_top.x<box.right_bottom.x-epsilon and other.right_bottom.x>box.left_top.x+epsilon
+        and other.left_top.y<box.right_bottom.y-epsilon and other.right_bottom.y>box.left_top.y+epsilon then
+        return candidate.name
+      end
+    end
+  end
+  return nil
+end
+-- undo_overlap destroys a creation that overlaps a pre-existing built entity and
+-- puts the item back, so a refused placement never leaves a buried entity behind.
+local function undo_overlap(entity,inv,item,quality,layers)
+  local blocker=name_overlapping_entity(entity,layers)
+  if not blocker then return nil end
+  entity.destroy()
+  inv.insert{name=item,quality=quality,count=1}
+  return "cannot place entity at position: footprint overlaps "..blocker
+end
 `
 
 const luaActionActor = `local unit=%d; local p; if unit~=0 then p=game.get_entity_by_unit_number(unit); if not p or p.type~="character" then fail("character not found"); return end else p=game.get_player(%s); if not p then fail("player not found"); return end end; `
@@ -215,9 +283,15 @@ if not (s.can_fast_replace{name=name,position=position,direction=%d,force=p.forc
 		// A plain place must not stack a second entity on an occupied tile:
 		// create_entity ignores collision boxes. Refuse the spot explicitly so
 		// the caller gets a collision error instead of a silently buried entity.
-		occupied := ""
+		// layers is the placed prototype's collision mask: the occupancy rule that
+		// decides which neighbours obstruct this build.
+		occupied := `local layers=(prototypes.entity[name] and prototypes.entity[name].collision_mask or {}).layers; `
 		if !*fastReplace {
-			occupied = `local layers=(prototypes.entity[name] and prototypes.entity[name].collision_mask or {}).layers; local blockers=tile_occupants(s,position,layers); if #blockers>0 then fail("cannot place entity at position: tile is occupied by "..table.concat(blockers,", ")); return end`
+			// The engine's own footprint decides: tile_occupants only names
+			// occupants on the centre tile, so a 2x2 or 3x3 prototype would pass
+			// and then be created on top of a neighbour. A fast replace destroys
+			// its target, so it keeps the centre-tile rule and the post-create check.
+			occupied += `local blockers=tile_occupants(s,position,layers); if #blockers>0 then fail("cannot place entity at position: tile is occupied by "..table.concat(blockers,", ")); return end; local footprint=footprint_occupants(s,name,position,layers); if #footprint>0 then fail("cannot place entity at position: footprint overlaps "..table.concat(footprint,", ")); return end`
 		}
 		helpers := luaTileOccupants + luaUndergroundInfoLua
 		return helpers + prefix + fmt.Sprintf(`local proto=prototypes.item[item]; if not proto or not proto.place_result then fail("item does not place an entity"); return end; local name=proto.place_result.name; local forced_type=%s
@@ -234,6 +308,9 @@ local e=nil; if ok then e=err end
 -- then would duplicate the item and report a failure that did not happen.
 if not e then e=new_tile_entity(s,position,before) end
 if not e then inv.insert{name=item,quality=quality,count=1}; if not ok then fail("entity creation failed: "..tostring(err)); return end; %s end
+-- tile_occupants tests one tile, so a multi-tile prototype can still land on a
+-- neighbour; undo that creation instead of leaving a buried entity.
+do local overlap=undo_overlap(e,inv,item,quality,layers); if overlap then fail(overlap); return end end
 local underground_type,paired_unit_number=underground_info(e); rcon.print(helpers.table_to_json({tick=game.tick,name=e.name,position=e.position,surface=s.name,force=c.force.name,direction=e.direction,unit_number=e.unit_number,item=item,underground_type=underground_type,paired_unit_number=paired_unit_number}))`, luaString(forcedType), occupied, dir, replace, classify), nil
 	}
 	if *count < 1 {
@@ -261,12 +338,24 @@ func craftLua(args []string, out io.Writer) (string, error) {
 	player := fs.String("player", "", "Player name (alternative to --character)")
 	character := fs.Uint64("character", 0, "Character unit number (alternative to --player)")
 	recipe := fs.String("recipe", "", "Recipe name (required)")
-	count := fs.Uint64("count", 1, "Number of recipe crafts to queue")
+	count := fs.Uint64("count", 1, "Number of recipe crafts to queue, or the wanted product total with --mode UP_TO")
+	mode := fs.String("mode", "MORE", "MORE queues count more crafts; UP_TO queues only the crafts missing to reach count products")
 	if err := fs.Parse(args); err != nil {
 		return "", err
 	}
 	if fs.NArg() != 0 || (*player == "") == (*character == 0) || *character > math.MaxUint32 || *recipe == "" || *count == 0 || *count > math.MaxUint32 {
 		return "", errors.New("exactly one of player or character, recipe, and count between 1 and 4294967295 are required")
 	}
-	return fmt.Sprintf(luaFail+luaActionActor+`local name=%s; local recipe=p.force.recipes[name]; if not recipe then fail("recipe not found"); return end; if not recipe.enabled then fail("recipe is not enabled"); return end; local requested=%d; local started=p.begin_crafting{recipe=name,count=requested,silent=true}; if started==0 then fail("could not queue recipe; check ingredients and actor crafting capability"); return end; local result={recipe=name,requested=requested,started=started,queue_size=p.crafting_queue_size}; if unit~=0 then result.character=unit else result.player=p.name end; rcon.print(helpers.table_to_json(result))`, *character, luaString(*player), luaString(*recipe), *count), nil
+	if *mode != "MORE" && *mode != "UP_TO" {
+		return "", errors.New("mode must be MORE or UP_TO")
+	}
+	return fmt.Sprintf(luaFail+luaActionActor+craftHandLua+craftStockLua+`local name=%s; local recipe=p.force.recipes[name]; if not recipe then fail("recipe not found"); return end; if not recipe.enabled then fail("recipe is not enabled"); return end
+if not hand_craftable(recipe) then fail("recipe is not hand-craftable by a character"); return end
+local requested=craft_crafts_needed(recipe,craft_free_stock(),%s,%d)
+local started=0
+if requested>0 then
+  started=p.begin_crafting{recipe=name,count=requested,silent=true}
+  if started==0 then fail("could not queue recipe; check ingredients and actor crafting capability"); return end
+end
+local result={recipe=name,requested=requested,started=started,queue_size=p.crafting_queue_size}; if unit~=0 then result.character=unit else result.player=p.name end; rcon.print(helpers.table_to_json(result))`, *character, luaString(*player), luaString(*recipe), luaString(*mode), *count), nil
 }

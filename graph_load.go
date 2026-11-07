@@ -42,7 +42,10 @@ var graphIdentifier = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)
 var graphRelationshipTypes = map[string]bool{
 	"BELT_OUT": true, "PICKS_FROM": true, "DROPS_TO": true, "DROPS_ON": true, "MINES": true, "AFFECTS": true,
 	"RAIL_LINK": true, "FLUID_LINK": true, "POWER_WIRE": true, "CIRCUIT_WIRE": true,
-	"POWERED_BY": true, "IN_LOGISTIC_NETWORK": true, "ON_CIRCUIT": true,
+	"POWERED_BY": true, "IN_LOGISTIC_NETWORK": true, "LOGISTIC_COVERS": true, "ON_CIRCUIT": true,
+	"RUNS": true, "PRODUCES": true, "CONSUMES": true, "BURNS": true, "CONTAINS": true, "HOLDS": true,
+	"IN_STRETCH": true, "FEEDS_STRETCH": true, "TAKES_FROM_STRETCH": true, "FLOWS_INTO": true,
+	"ACCEPTS": true, "REQUIRES_PACK": true, "PREREQUISITE": true, "UNLOCKS": true,
 }
 
 // graphSchemaStatements reads memgraph/schema.cypherl, which holds one
@@ -249,8 +252,9 @@ func graphRunWrite(ctx context.Context, session neo4j.SessionWithContext, query 
 }
 
 func graphNodeQuery(labels []string) (string, error) {
-	if len(labels) == 0 || (labels[0] != "Entity" && labels[0] != "Network") {
-		return "", fmt.Errorf("node labels %v must start with Entity or Network", labels)
+	if len(labels) == 0 || (labels[0] != "Entity" && labels[0] != "Network" && labels[0] != beltStretchLabel &&
+		labels[0] != itemLabel && labels[0] != recipeLabel && labels[0] != technologyLabel) {
+		return "", fmt.Errorf("node labels %v must start with Entity, Network, %s, %s, %s or %s", labels, beltStretchLabel, itemLabel, recipeLabel, technologyLabel)
 	}
 	for _, l := range labels {
 		if !graphIdentifier.MatchString(l) {
@@ -274,7 +278,7 @@ func graphEdgeQuery(typ, fromLabel, toLabel string) (string, error) {
 		return "", fmt.Errorf("unknown relationship type %q", typ)
 	}
 	for _, l := range []string{fromLabel, toLabel} {
-		if l != "Entity" && l != "Network" {
+		if l != "Entity" && l != "Network" && l != beltStretchLabel && l != itemLabel && l != recipeLabel && l != technologyLabel {
 			return "", fmt.Errorf("invalid endpoint label %q", l)
 		}
 	}
@@ -353,23 +357,41 @@ func eachGraphLine(path string, fn func([]byte) error) error {
 	return sc.Err()
 }
 
+// graphSnapshotProps is the Snapshot node written by a load: the manifest
+// summary plus the load state. The capture tick is omitted for a manifest
+// written before the field existed, so a read reports null instead of a false
+// tick 0.
+func graphSnapshotProps(m *graphManifest, dir string) map[string]any {
+	surfaces := make([]any, 0, len(m.Surfaces))
+	scopes := make([]any, 0, len(m.Surfaces))
+	statuses := make([]any, 0, len(m.Surfaces))
+	for _, s := range m.Surfaces {
+		surfaces = append(surfaces, s.Surface)
+		scopes = append(scopes, s.Scope)
+		statuses = append(statuses, s.Surface+":"+s.Status)
+	}
+	props := map[string]any{"id": m.Snapshot, "force": m.Force, "status": m.Status, "createdAt": m.CreatedAt.Format(time.RFC3339Nano),
+		"surfaces": surfaces, "scopes": scopes, "surfaceStatus": statuses, "nodes": m.Nodes, "edges": m.Edges, "loaded": false, "dir": dir}
+	if m.Tick > 0 {
+		props["tick"] = m.Tick
+	}
+	return props
+}
+
+// graphSnapshotNodesKept bounds the :Snapshot metadata nodes in Memgraph to the
+// same count of snapshot directories kept on disk by graph export.
+const graphSnapshotNodesKept = 5
+
 func writeGraphSnapshotToMemgraph(ctx context.Context, driver neo4j.DriverWithContext, dir string, m *graphManifest, batch int) (graphLoadCounts, error) {
 	var counts graphLoadCounts
 	session := driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
 	defer session.Close(ctx)
 
 	scopes := make([]any, 0, len(m.Surfaces))
-	surfaces := make([]any, 0, len(m.Surfaces))
 	for _, s := range m.Surfaces {
 		scopes = append(scopes, s.Scope)
-		surfaces = append(surfaces, s.Surface)
 	}
-	statuses := make([]any, 0, len(m.Surfaces))
-	for _, s := range m.Surfaces {
-		statuses = append(statuses, s.Surface+":"+s.Status)
-	}
-	snapshotProps := map[string]any{"id": m.Snapshot, "force": m.Force, "status": m.Status, "createdAt": m.CreatedAt.Format(time.RFC3339Nano),
-		"surfaces": surfaces, "scopes": scopes, "surfaceStatus": statuses, "nodes": m.Nodes, "edges": m.Edges, "loaded": false, "dir": dir}
+	snapshotProps := graphSnapshotProps(m, dir)
 	if _, err := graphRunWrite(ctx, session, "MERGE (s:Snapshot {id: $id}) SET s = $props RETURN count(*)",
 		map[string]any{"id": m.Snapshot, "props": snapshotProps}); err != nil {
 		return counts, fmt.Errorf("record snapshot: %w", err)
@@ -419,15 +441,19 @@ func writeGraphSnapshotToMemgraph(ctx context.Context, driver neo4j.DriverWithCo
 	counts.edges = edges.written
 
 	params := map[string]any{"scopes": scopes, "snapshot": m.Snapshot}
+	// Edges are pruned by their own snapshot stamp whatever their source label is:
+	// stretch-to-stretch FLOWS_INTO and recipe/item edges do not start at an
+	// :Entity, and a pruned-node DETACH DELETE never reaches them while both
+	// endpoints persist, so a vanished sideload would otherwise live on forever.
 	prune := []struct {
 		target *int
 		query  string
 	}{
-		{&counts.prunedEdges, "MATCH (:Entity)-[r]->() WHERE r.scope IN $scopes AND r.snapshot <> $snapshot WITH collect(r) AS rs " +
+		{&counts.prunedEdges, "MATCH ()-[r]->() WHERE r.scope IN $scopes AND r.snapshot <> $snapshot WITH collect(r) AS rs " +
 			"FOREACH (r IN rs | DELETE r) RETURN size(rs)"},
 		{&counts.prunedNodes, "MATCH (n:Entity) WHERE n.scope IN $scopes AND n.snapshot <> $snapshot WITH collect(n) AS ns " +
 			"FOREACH (n IN ns | DETACH DELETE n) RETURN size(ns)"},
-		{&counts.prunedNetworks, "MATCH (n:Network) WHERE n.scope IN $scopes AND n.snapshot <> $snapshot WITH collect(n) AS ns " +
+		{&counts.prunedNetworks, "MATCH (n) WHERE (n:Network OR n:" + beltStretchLabel + " OR n:" + itemLabel + " OR n:" + recipeLabel + " OR n:" + technologyLabel + ") AND n.scope IN $scopes AND n.snapshot <> $snapshot WITH collect(n) AS ns " +
 			"FOREACH (n IN ns | DETACH DELETE n) RETURN size(ns)"},
 	}
 	for _, p := range prune {
@@ -437,9 +463,21 @@ func writeGraphSnapshotToMemgraph(ctx context.Context, driver neo4j.DriverWithCo
 		}
 		*p.target = int(n)
 	}
-	if _, err := graphRunWrite(ctx, session, "MATCH (s:Snapshot {id: $id}) SET s.loaded = true, s.loadedAt = $at RETURN count(*)",
-		map[string]any{"id": m.Snapshot, "at": time.Now().UTC().Format(time.RFC3339Nano)}); err != nil {
+	at := time.Now().UTC().Format(graphLoadedAtLayout)
+	if _, err := graphRunWrite(ctx, session, "MATCH (s:Snapshot) WHERE s.id <> $id AND s.loaded = true SET s.loaded = false RETURN count(*)",
+		map[string]any{"id": m.Snapshot}); err != nil {
 		return counts, err
+	}
+	if _, err := graphRunWrite(ctx, session, "MATCH (s:Snapshot {id: $id}) SET s.loaded = true, s.loadedAt = $at RETURN count(*)",
+		map[string]any{"id": m.Snapshot, "at": at}); err != nil {
+		return counts, err
+	}
+	// Snapshot ids are timestamps, so ordering by id keeps the newest. The
+	// loaded one is never deleted, matching the on-disk retention.
+	if _, err := graphRunWrite(ctx, session, "MATCH (s:Snapshot) WITH s ORDER BY s.id DESC SKIP $keep "+
+		"WHERE s.loaded IS NULL OR s.loaded = false WITH collect(s) AS old FOREACH (s IN old | DETACH DELETE s) RETURN size(old)",
+		map[string]any{"keep": graphSnapshotNodesKept}); err != nil {
+		return counts, fmt.Errorf("prune snapshots: %w", err)
 	}
 	return counts, nil
 }
@@ -465,6 +503,9 @@ var graphIntegerProps = map[string]bool{
 	"unit": true, "direction": true, "electricNetwork": true, "logisticNetwork": true, "network": true,
 	"train": true, "ports": true, "tick": true,
 	"fuelCount": true, "inputCount": true, "outputCount": true, "itemsCount": true, "leftCount": true, "rightCount": true,
+	"ammoCount": true, "robotsCount": true,
+	// Production edges count items: 50 stays 50, not 50.0.
+	"count": true,
 }
 
 func runGraphSync(args []string, out io.Writer, addr, password string) error {
@@ -488,8 +529,19 @@ func runGraphSync(args []string, out io.Writer, addr, password string) error {
 		return err
 	}
 	dir, err := exportGraph(exportOpts, out, addr, password)
+	// sync is the refresh entry point for a live factory: it always leaves the
+	// simulation running. Run the unpause even when the export failed, because
+	// the export release restores a previously paused state and a killed
+	// earlier export can leave a stale lease behind.
+	unpauseErr := unpauseGraphSnapshot(context.Background(), &Resolver{addr: addr, password: password})
+	if unpauseErr != nil {
+		unpauseErr = fmt.Errorf("unpause after graph export: %w", unpauseErr)
+	}
 	if err != nil {
-		return err
+		return errors.Join(err, unpauseErr)
+	}
+	if unpauseErr != nil {
+		return unpauseErr
 	}
 	loadOpts.In = dir
 	loadOpts.AllowIncomplete = exportOpts.AllowIncomplete

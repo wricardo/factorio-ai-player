@@ -1,0 +1,131 @@
+extend type Memgraph {
+  """Lists belt stretches (one sequential belt run; a splitter ends a run and each splitter output starts a new one) with the items they carry. Filters are all optional: with none, every stretch on the surface is returned. Contents are the lane sample taken at export time, not a throughput; use beltStretchMeasure for rates. Findings: MIXED_LANE (two or more items on one lane) and NO_CONSUMER (the stretch carries items, flows into no other stretch and no inserter picks from it, so items only pile up). A stretch that ends in a splitter or side-load flows into the next stretch and is never a NO_CONSUMER finding. summary counts cover every stretch that matched the filters; stretches and outline are cut to limit. Check snapshot.ageSeconds."""
+  beltStretches(input: MemgraphBeltStretchesInput! = {}): MemgraphBeltStretches! @goField(forceResolver: true)
+  """Draws belt stretches as ASCII for a headless client, with a legend, in the style of mapArea. Rows run from the smallest y (north) to the largest, columns from the smallest x (west); one character per tile. The area is required: there is no downsampling or whole-map mode. Only belt tiles of the stretches that match the filter are drawn; other entities are not. In ITEM mode each distinct carried item gets a letter (most common first), `#` is a stretch with a mixed lane, `.` an empty stretch and a space no belt. In STRETCH mode each stretch gets its own character (A-Z, a-z, 0-9; `*` past 62), and the legend lists the stretch and its items. A cell shared by several stretches shows a stretch with items before an empty one."""
+  beltStretchMap(input: MemgraphBeltStretchMapInput!): MemgraphStretchMap! @goField(forceResolver: true)
+}
+
+enum MemgraphStretchEnd {
+  """The run ends at a splitter; each splitter output starts a new stretch."""
+  SPLITTER
+  """The run ends by side-loading onto another belt."""
+  SIDELOAD
+  """The run ends with nothing after it in the graph."""
+  DEADEND
+}
+
+input MemgraphBeltStretchesInput {
+  surface: String! = "nauvis"
+  """Only stretches carrying this item on either lane."""
+  item: String
+  """Only stretches with two or more items on one lane."""
+  mixedOnly: Boolean! = false
+  """Only stretches ending this way."""
+  endKind: MemgraphStretchEnd
+  """Order by distance from this point (the stretch head) when both are given, otherwise by head unit."""
+  nearX: Float
+  nearY: Float
+  """Rows returned in stretches, 1 through 1000."""
+  limit: Int! = 200
+}
+
+type MemgraphBeltStretches {
+  summary: MemgraphStretchSummary!
+  """One line per returned stretch: `HEAD [N belts -> END] L: item count | R: item count`, with MIXED and NO CONSUMER flags. Read this first."""
+  outline: String!
+  stretches: [MemgraphStretch!]!
+  """Stretches among the matched set with a finding."""
+  attention: [MemgraphStretchFinding!]!
+  """True when limit cut stretches (summary still covers every match)."""
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphStretchSummary {
+  stretchCount: Int!
+  """Belt tiles across the matched stretches."""
+  tileCount: Int!
+  """Stretches with at least one item on a lane."""
+  carryingCount: Int!
+  mixedCount: Int!
+  """Stretches with a NO_CONSUMER finding."""
+  noConsumerCount: Int!
+  """Items on the matched stretches, summed over both lanes, most common first."""
+  items: [MemgraphCount!]!
+}
+
+type MemgraphStretch {
+  """Graph id, surface:stretch:head."""
+  id: String!
+  headUnit: UnitNumber!
+  tailUnit: UnitNumber
+  """Head position."""
+  x: Float
+  y: Float
+  """Belt tiles in the run."""
+  tiles: Int!
+  endKind: MemgraphStretchEnd!
+  """Items on the left lane, most common first."""
+  left: [MemgraphCount!]!
+  """Items on the right lane, most common first."""
+  right: [MemgraphCount!]!
+  leftCount: Int!
+  rightCount: Int!
+  """Two or more items on one lane."""
+  mixed: Boolean!
+  """The stretch flows into another stretch (splitter or side-load)."""
+  flowsIntoStretch: Boolean!
+  """Inserters picking from the stretch."""
+  pickers: Int!
+  """Distance from near to the head when near was given."""
+  distance: Float
+}
+
+enum MemgraphStretchReason {
+  MIXED_LANE
+  NO_CONSUMER
+}
+
+type MemgraphStretchFinding {
+  stretchId: String!
+  reason: MemgraphStretchReason!
+  detail: String!
+}
+
+enum MemgraphStretchMapMode {
+  """One character per carried item."""
+  ITEM
+  """One character per stretch."""
+  STRETCH
+}
+
+input MemgraphBeltStretchMapInput {
+  """Which stretches to draw; same filters as beltStretches (limit and near are ignored)."""
+  filter: MemgraphBeltStretchesInput = {}
+  mode: MemgraphStretchMapMode! = ITEM
+  """The box to draw, left/top inclusive and right/bottom exclusive (a belt tile is drawn when its centre satisfies left <= x < right and top <= y < bottom, the same convention as areaGraph): positive size, at most 1024 tiles per side and 65536 tiles in total. One character per tile, so the grid spans exactly the box and originX/originY is its top-left corner."""
+  area: FactoryAreaInput!
+}
+
+type MemgraphStretchMap {
+  """Grid rows, north first. Join with newlines to print."""
+  rows: [String!]!
+  legend: [MemgraphStretchMapLegend!]!
+  columns: Int!
+  """World coordinate of the top-left cell's corner."""
+  originX: Float!
+  originY: Float!
+  """True when a graph read hit its row cap, so belts may be missing."""
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphStretchMapLegend {
+  char: String!
+  """Item name (ITEM mode), stretch id (STRETCH mode), `mixed lane` or `empty stretch`."""
+  label: String!
+  """STRETCH mode: the stretch's items and end; ITEM mode: empty."""
+  detail: String!
+  """Cells showing this character."""
+  cells: Int!
+}

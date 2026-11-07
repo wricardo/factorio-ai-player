@@ -69,6 +69,12 @@ navigation-install:
     ln -s "$PWD/mods/factorio_ai_navigation" "$target"
     echo "Navigation mod linked at $target. Restart Factorio to load it."
 
+# Repair mod symlink names in every mod directory (server and client) after a
+# version bump; Factorio rejects "<name>_<old version>" directories.
+mod-links:
+    @bash scripts/mod-link.sh "$HOME/Library/Application Support/factorio/mods"
+    @bash scripts/mod-link.sh "$HOME/factorio-client/mods"
+
 # Launch a client with separate data to watch the local server.
 observe:
     #!/usr/bin/env bash
@@ -78,6 +84,7 @@ observe:
     if [[ ! -e "$client_dir/config.ini" ]]; then
         printf '[path]\nread-data=__PATH__system-read-data__\nwrite-data=%s\n' "$client_dir" > "$client_dir/config.ini"
     fi
+    bash scripts/mod-link.sh "$client_dir/mods" >/dev/null
     exec "${FACTORIO_BIN:-/Applications/factorio.app/Contents/MacOS/factorio}" --config "$client_dir/config.ini"
 
 # Save and cleanly stop the managed server.
@@ -179,7 +186,7 @@ graph-export *args:
 graph-load *args:
     go run . graph load {{args}}
 
-# Export, then load: one full refresh of the factory graph.
+# Export, then load: one full refresh of the factory graph. Leaves the game unpaused.
 graph-sync *args:
     #!/usr/bin/env bash
     set -euo pipefail

@@ -58,3 +58,7 @@ Research path (`research-and-science.md` section 6 holds the ordered sequence): 
 ## 6. After the first launch
 
 A completed launch resets the silo. Decide explicitly whether to continue (keep ingredient supply and the labs running) or stop; record that decision with the tick and unit numbers. Base game vs Space Age launch semantics differ (satellites, cargo, platforms): never hard-code landing-pad or platform prerequisites without live evidence.
+
+## 7. Space platforms (only when the objective is space science)
+
+`spacePlatforms(force)` lists platforms with `started`, `surface`/`spaceLocation`, `hubUnitNumber`, `foundationTiles` and `entityCount`; a platform whose starter pack has not been applied reports `started:false`, a null surface and 0 tiles, so those zeros are a state, not a bug. `createSpacePlatform({force, planet, starterPack, starterPackQuality?, name?, applyStarterPack})` creates that pending platform and only `applyStarterPack({force, platform})` (or `applyStarterPack:true` in the same call, the scripted equivalent of a rocket delivery) makes the hub and foundation appear. `deleteSpacePlatform({force, platform})` schedules deletion only: the platform stays listed until the engine completes it, so a later `spacePlatforms` read is the proof. Scripted `create_entity` on a space platform surface can refuse manual-placement checks, which is why `buildAsPlayer` exists for triggers; read the engine's own refusal instead of retrying (see `api-map.md`).

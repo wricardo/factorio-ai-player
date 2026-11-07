@@ -1,15 +1,17 @@
 extend type Query {
-  """Plan one connection run without changing the world. DIRECT routing (default) is one axis-aligned straight or single-bend run; ASTAR searches a bounded region for a shortest legal BELT or PIPE route around obstacles and, when allowed, under them with underground belts or pipe-to-ground. The route snaps both endpoints to tile centers and reports every step with the direction needed for that tile. A tile that already holds the requested entity with the required direction is marked existing and is not counted in needed. Conflicts are typed and explain why a step cannot be built, so a caller can move an endpoint instead of spending items on a partial run. Pipes are additionally checked for orthogonal neighbours that are not part of this run; joining a foreign fluid network is rejected unless allowFluidAdjacency is true. DIRECT plans surface tiles only: an obstruction is reported as a collision. ASTAR reports NO_PATH, EXPANSION_LIMIT or an endpoint collision with stopReason instead. Both endpoints must be finite; DIRECT rejects a route longer than 512 tiles (|dx| + |dy| + 1) before running and reports at most 200 conflicts, while ASTAR rejects a padded search region above 65536 tiles. Nothing is placed and no item is consumed, so a plan can be re-run after moving an endpoint or raising the search limits."""
+  """Plan one connection run without changing the world. DIRECT routing (default) is one axis-aligned straight or single-bend run; ASTAR searches a bounded region for a shortest legal BELT or PIPE route around obstacles and, when allowed, under them with underground belts or pipe-to-ground. The route snaps both endpoints to tile centers and reports every step with the direction needed for that tile. A tile that already holds the requested entity with the required direction is marked existing and is not counted in needed. Conflicts are typed and explain why a step cannot be built, so a caller can move an endpoint instead of spending items on a partial run. Pipes are additionally checked for orthogonal neighbours that are not part of this run; joining a foreign fluid network is rejected unless allowFluidAdjacency is true. DIRECT plans surface tiles only: an obstruction is reported as a collision. ASTAR reports NO_PATH, EXPANSION_LIMIT or an endpoint collision with stopReason instead. Both endpoints must be finite; DIRECT rejects a route longer than 4096 tiles (|dx| + |dy| + 1) before running and reports at most 200 conflicts, while ASTAR rejects a padded search region above 65536 tiles. Nothing is placed and no item is consumed, so a plan can be re-run after moving an endpoint or raising the search limits."""
   connectionPlan(input: ConnectionPlanInput!): ConnectionPlan!
 }
 
 extend type Mutation {
   """Plan and then place one belt, pipe or power-pole run. The mutation requires the actor's character to be on the requested surface and force, and refuses to place anything when the plan has conflicts or the actor lacks the needed items, so a refusal leaves the world unchanged: a conflicted plan returns possible false with the typed conflicts and no placed tiles, while a missing-item shortfall fails the call as a GraphQL error before any tile is touched. Each existing tile is skipped and each placed tile consumes one normal-quality item from the actor's main inventory and raises a built event. Reach applies to every placed tile when reach enforcement is enabled; other per-tile failures (collision, inventory, engine rejection) are recorded in errors, capped at 20 entries, and the run continues so a call can end partially applied. The generated notification is printed only when at least one entity was placed, unless message overrides it. ASTAR plans first and then re-checks every tile while applying, so the applied run can still differ from the plan if the world changed between the two RCON reads."""
   connectEntities(input: ConnectEntitiesInput!): ConnectEntitiesResult!
-  """Places one belt run, equivalent to connectEntities with kind BELT. Use this instead of place/placeMany for transport belts: it routes the run, can tunnel under crossings with underground belts, and refuses foreign side-loads unless allowBeltAdjacency is true."""
-  placeBelt(input: BeltPipeRunInput!): ConnectEntitiesResult!
-  """Places one pipe run, equivalent to connectEntities with kind PIPE. Use this instead of place/placeMany for pipes: it routes the run, can tunnel under crossings with pipe-to-ground, and refuses foreign fluid adjacency unless allowFluidAdjacency is true."""
+  """Places a belt run (transport belts of any tier), equivalent to connectEntities with kind BELT and the same planner/applier, but with an input limited to belt fields. A single tile is from equal to to plus direction (0 north, 4 east, 8 south, 12 west); runs of two or more tiles take their directions from the route. Tunnelling needs routing ASTAR plus allowUnderground; the DIRECT default never tunnels. A refused run is a normal response, not an error: possible is false, stopReason and the typed conflicts name the blocking tile, placed and failed are 0 and errors is empty, so read possible before treating placed 0 as success."""
+  placeBelts(input: BeltRunInput!): ConnectEntitiesResult!
+  """Places one pipe run per call, equivalent to connectEntities with kind PIPE. Plan the route with connectionPlan first when it has to pass obstacles; that read reports FLUID_ADJACENCY and other conflicts before any item is spent. Use this instead of place/placeMany for pipes: it routes the run, can tunnel under crossings with pipe-to-ground, and refuses foreign fluid adjacency unless allowFluidAdjacency is true. Tunnelling only happens with routing ASTAR plus allowUnderground (and optionally undergroundItem); the DIRECT default never tunnels, and nor does a caller that leaves routing unset. A refused run is a normal response, not an error: possible is false, stopReason and the typed conflicts name the blocking tile, placed and failed are 0 and errors is empty, so read possible before treating placed 0 as success. """
   placePipe(input: BeltPipeRunInput!): ConnectEntitiesResult!
+  """Plan and then build one connection in a single call and return both halves: the connectionPlan result and the placement result. This is the convenience wrapper for laying belts, pipes and power-pole chains without a second round trip, and it never places anything a plan refuses. dryRun true returns the plan and stops, so a caller can inspect steps and conflicts without spending items. Nothing is transactional: when the plan is possible the placement runs afterwards and its per-tile failures are reported in errors, so re-read the world after a failure instead of assuming a rollback."""
+  buildConnection(input: ConnectEntitiesInput!, dryRun: Boolean! = false): BuildConnectionResult!
 }
 
 enum ConnectionKind {
@@ -22,7 +24,7 @@ enum ConnectionKind {
 }
 
 enum ConnectionBend {
-  """Plans both single-bend orientations and keeps the one with fewer conflicts; a tie keeps horizontal-first. A route that is already straight reports the orientation it lies on."""
+  """Plans both single-bend orientations and keeps the one with fewer conflicts; a tie keeps horizontal-first. A route that is already straight reports the orientation it lies on. ASTAR accepts only AUTO, because it derives corners from the shortest route."""
   AUTO
   """Walk the horizontal leg first, then the vertical leg."""
   HORIZONTAL_FIRST
@@ -34,7 +36,7 @@ enum ConnectionBend {
 enum ConnectionRouting {
   """One straight or single-bend run; supports BELT, PIPE and POWER_POLE_CHAIN."""
   DIRECT
-  """Bounded A* search for BELT and PIPE. Step costs: 1 per new tile, 0.25 per reused existing tile, 0.25 per bend, 2 per underground half. Underground belts pair at an offset of at most the prototype's max underground distance; spans may pass under any entity except another underground belt, linked belt or pipe-to-ground. A new underground half may not be placed inside an existing same-name span on the same axis, because it would re-pair with that span's other half and break the existing line. With BELT routing a new tile also refuses a neighbouring belt that points into it unless allowBeltAdjacency is true; the goal tile may still be an existing belt the run side-loads into."""
+  """Bounded A* search for BELT and PIPE. Step costs: 1 per new tile, 0.25 per reused existing tile, 0.25 per bend, and 1.05 per tile a new underground half covers plus one tile for the exit half, so a tunnel is only chosen where the surface is blocked and an open straight stays a line of belts. Underground belts pair at an offset of at most the prototype's max underground distance; spans may pass under any entity except another underground belt, linked belt or pipe-to-ground. A new underground half may not be placed inside an existing same-name span on the same axis, because it would re-pair with that span's other half and break the existing line. With BELT routing a new tile also refuses a neighbouring belt that points into it unless allowBeltAdjacency is true; the goal tile may still be an existing belt the run side-loads into. ASTAR derives corners from the shortest route, so bend accepts AUTO only and any other value is rejected."""
   ASTAR
 }
 
@@ -80,10 +82,10 @@ enum ConnectionConflictKind {
 input ConnectionPlanInput {
   surface: String! = "nauvis"
   force: String! = "player"
-  """Start position; it snaps to the center of the tile containing it."""
-  from: PositionInput!
-  """End position; it snaps to the center of the tile containing it."""
-  to: PositionInput!
+  """Start tile; mutually exclusive with fromEntity. It snaps to the center of the tile containing it."""
+  from: PositionInput
+  """End tile; mutually exclusive with toEntity. It snaps to the center of the tile containing it."""
+  to: PositionInput
   kind: ConnectionKind!
   """Entity item to place; defaults to transport-belt, pipe, or medium-electric-pole for the kind. The item must place a matching entity type."""
   item: String
@@ -114,11 +116,11 @@ input ConnectionPlanInput {
   allowBeltAdjacency: Boolean! = false
 }
 
-"""An entity endpoint instead of a tile. The planner resolves the tile to use: the entity's own tile when it already holds the route entity, and otherwise the adjacent free tile on the chosen side, oriented away from the entity for a start and into it for a goal. No manual coordinates or directions are needed."""
+"""An entity endpoint instead of a tile. The planner resolves the tile to use: the entity's own tile when it already holds the route entity, and otherwise the adjacent free tile on the chosen side, oriented away from the entity for a start and into it for a goal. For a PIPE run a fluid machine resolves to one of its fluidbox pipe-connection target tiles (the same tiles as inspect.fluidPorts target), not a tile beside its centre. No manual coordinates or directions are needed."""
 input ConnectionEndpointInput {
   """Entity to connect, by unitNumber or exact center position; surface defaults to the plan surface."""
   entity: EntityRefInput!
-  """Preferred side of the entity: auto (default), north, east, south or west. Other sides are tried when the preferred side has no free tile."""
+  """Preferred side of the entity: auto (default), north, east, south or west. Other sides are tried when the preferred side has no free tile. For a PIPE run to a machine with several fluid ports this picks the port on that side; otherwise the port facing the other endpoint, then the first free port, wins."""
   side: String
   """Preferred belt lane for a side-loading goal: left, right or auto (default). Reported back as ConnectionPlan.lane when the route ends on an existing belt."""
   lane: String
@@ -129,8 +131,8 @@ input ConnectEntitiesInput {
   surface: String! = "nauvis"
   """Force the run belongs to; must match the acting character's force."""
   force: String! = "player"
-  from: PositionInput!
-  to: PositionInput!
+  from: PositionInput
+  to: PositionInput
   kind: ConnectionKind!
   item: String
   """Engine direction of the single-tile run, 0 north, 4 east, 8 south or 12 west. Required when from and to resolve to the same tile, because the route itself cannot imply a heading there; rejected for runs of two or more tiles, whose directions follow the route. Without it a one-tile run used to place a north-facing entity silently."""
@@ -163,7 +165,7 @@ input ConnectEntitiesInput {
   message: String
 }
 
-"""Shared input for placeBelt and placePipe. kind is fixed by the mutation, so it is not accepted here."""
+"""Shared input for placePipe. kind is fixed by the mutation, so it is not accepted here."""
 input BeltPipeRunInput {
   actor: ActorInput!
   surface: String! = "nauvis"
@@ -177,6 +179,33 @@ input BeltPipeRunInput {
   allowFluidAdjacency: Boolean! = false
   routing: ConnectionRouting! = DIRECT
   allowUnderground: Boolean! = false
+  undergroundItem: String
+  maxUndergroundDistance: Int
+  avoidAreas: [FactoryAreaInput!] = []
+  preferExisting: Boolean! = false
+  maxExpandedTiles: Int
+  searchMargin: Int
+  fromEntity: ConnectionEndpointInput
+  toEntity: ConnectionEndpointInput
+  allowBeltAdjacency: Boolean! = false
+  message: String
+}
+
+"""Input for placeBelts: the connectEntities fields that apply to belts. kind is fixed to BELT and the pipe-only allowFluidAdjacency is not accepted."""
+input BeltRunInput {
+  actor: ActorInput!
+  surface: String! = "nauvis"
+  force: String! = "player"
+  from: PositionInput
+  to: PositionInput
+  """Belt item, for example fast-transport-belt; defaults to transport-belt."""
+  item: String
+  """Engine direction of the single-tile run, 0 north, 4 east, 8 south or 12 west. Required when from and to resolve to the same tile; rejected for runs of two or more tiles."""
+  direction: Int
+  bend: ConnectionBend! = AUTO
+  routing: ConnectionRouting! = DIRECT
+  allowUnderground: Boolean! = false
+  """Underground belt item for tunnel halves; defaults to underground-belt. Requires allowUnderground."""
   undergroundItem: String
   maxUndergroundDistance: Int
   avoidAreas: [FactoryAreaInput!] = []
@@ -243,6 +272,19 @@ type ConnectionPlan {
   conflicts: [ConnectionConflict!]!
 }
 
+"""Plan-then-build result: the read-only plan that was produced, and the placement that followed it."""
+type BuildConnectionResult {
+  tick: Float!
+  surface: String!
+  force: String!
+  """True when the call was asked to plan only and placed nothing."""
+  dryRun: Boolean!
+  """The connectionPlan this call computed for the same input and surface state."""
+  plan: ConnectionPlan!
+  """Null on a dry run, and on a plan with conflicts, which places nothing."""
+  result: ConnectEntitiesResult
+}
+
 type ConnectEntitiesResult {
   tick: Float!
   surface: String!
@@ -261,6 +303,7 @@ type ConnectEntitiesResult {
   """Existing tiles that already held the requested entity."""
   skipped: Int!
   failed: Int!
+  """Each created entity with the engine direction it was built with (0 north is reported as 0) and, for underground halves, undergroundType."""
   entities: [PlacedEntity!]!
   conflicts: [ConnectionConflict!]!
   errors: [BatchError!]!

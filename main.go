@@ -316,7 +316,7 @@ func executeGameOperation(args []string, out io.Writer, addr, password string) e
 		force := fs.String("force", "", "Filter by force name")
 		order := fs.String("order", "distance", "Result order: distance or unit-number")
 		offset := fs.Int("offset", 0, "Zero-based offset into the ordered matches")
-		limit := fs.Int("limit", 100, "Maximum returned entities (1-1000)")
+		limit := fs.Int("limit", 100, "Maximum returned entities (1-10000)")
 		if err := fs.Parse(args[1:]); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
 				return nil

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -14,11 +15,15 @@ type craftCommandInput struct {
 	Character *string  `json:"character,omitempty"`
 	Recipe    string   `json:"recipe"`
 	Count     *float64 `json:"count,omitempty"`
+	Mode      string   `json:"mode,omitempty"`
 }
 
 func craftMutation(ctx context.Context, r *Resolver, input CraftInput) (*ActionResult, error) {
 	if input.WaitTimeoutSeconds < 1 {
 		return nil, errors.New("waitTimeoutSeconds must be at least 1")
+	}
+	if input.Expand {
+		return craftExpand(ctx, r, input)
 	}
 	player, character := actorFields(input.Actor)
 	result, err := commandQuiet[ActionResult](r, "craft", craftCommandInput{
@@ -26,9 +31,10 @@ func craftMutation(ctx context.Context, r *Resolver, input CraftInput) (*ActionR
 		Character: character,
 		Recipe:    input.Recipe,
 		Count:     input.Count,
+		Mode:      craftModeValue(input.Mode),
 	})
 	if err != nil {
-		return nil, err
+		return nil, explainCraftRefusal(ctx, r, input, err)
 	}
 	if !input.Wait {
 		announceMutation(r, input.Message, mutationSummary("craft", result))
@@ -115,4 +121,30 @@ rcon.print(helpers.table_to_json({queue_size=p.crafting_queue_size}))`, unit, lu
 		return 0, errors.New("craft queue status omitted queue size")
 	}
 	return *state.QueueSize, nil
+}
+
+// craftRefusalMarker is the engine-side message craft returns when
+// begin_crafting queued nothing, which does not say why.
+const craftRefusalMarker = "could not queue recipe"
+
+// explainCraftRefusal replaces the generic refusal with the concrete reason
+// craftPlan already computes: not hand-craftable, or the ingredients the full
+// hand-craft chain still lacks. It costs one extra read only on this failure
+// path and falls back to the original error when the plan cannot say more.
+func explainCraftRefusal(ctx context.Context, r *Resolver, input CraftInput, original error) error {
+	if !strings.Contains(original.Error(), craftRefusalMarker) {
+		return original
+	}
+	plan, err := craftPlanQuery(ctx, r, CraftPlanInput{Actor: input.Actor, Recipe: input.Recipe, Count: input.Count, Mode: input.Mode})
+	if err != nil {
+		return fmt.Errorf("craft %s refused: %w", input.Recipe, err)
+	}
+	if len(plan.Missing) == 0 {
+		return fmt.Errorf("craft %s refused: the direct ingredients are not in the actor's inventory, but the hand-craft chain is satisfiable, so craftPlan can craft the intermediates first (%w)", input.Recipe, original)
+	}
+	parts := make([]string, 0, len(plan.Missing))
+	for _, missing := range plan.Missing {
+		parts = append(parts, fmt.Sprintf("%s %s", missing.Name, numberValue(&missing.Amount)))
+	}
+	return fmt.Errorf("craft %s refused: the actor lacks %s for the hand-craft chain (%w)", input.Recipe, strings.Join(parts, ", "), original)
 }

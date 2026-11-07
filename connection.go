@@ -373,7 +373,7 @@ func connectionPlanQuery(r *Resolver, input *ConnectionPlanInput) (*ConnectionPl
 		return nil, err
 	}
 	if runDirection(from, to) == runDirectionSingleTile {
-		return nil, errors.New("from and to resolve to the same tile; connectionPlan cannot orient a single tile, use placeBelt or connectEntities with an explicit direction")
+		return nil, errors.New("from and to resolve to the same tile; connectionPlan cannot orient a single tile, use connectEntities with an explicit direction")
 	}
 	if from == nil || to == nil {
 		return nil, errors.New("from and to are required")
@@ -422,8 +422,8 @@ rcon.print(helpers.table_to_json{tick=game.tick,surface=surface.name,force=force
 // connectEntities plans and applies one run. It refuses to place anything when
 // the plan has conflicts or the actor lacks the items, so a refusal leaves the
 // world unchanged.
-// beltPipeRunInput converts the shared placeBelt/placePipe input into the
-// connectEntities input with the mutation's fixed kind.
+// beltPipeRunInput converts the placePipe input into the connectEntities
+// input with the mutation's fixed kind.
 func beltPipeRunInput(kind ConnectionKind, in BeltPipeRunInput) ConnectEntitiesInput {
 	return ConnectEntitiesInput{
 		Actor: in.Actor, Surface: in.Surface, Force: in.Force, From: in.From, To: in.To,
@@ -437,8 +437,18 @@ func beltPipeRunInput(kind ConnectionKind, in BeltPipeRunInput) ConnectEntitiesI
 	}
 }
 
-func placeBeltRun(r *Resolver, in BeltPipeRunInput) (*ConnectEntitiesResult, error) {
-	return connectEntities(r, beltPipeRunInput(ConnectionKindBelt, in))
+// placeBeltsRun runs a belt-specific input through the shared connectEntities
+// path; the omitted pipe-only allowFluidAdjacency keeps its zero value.
+func placeBeltsRun(r *Resolver, in BeltRunInput) (*ConnectEntitiesResult, error) {
+	return connectEntities(r, beltPipeRunInput(ConnectionKindBelt, BeltPipeRunInput{
+		Actor: in.Actor, Surface: in.Surface, Force: in.Force, From: in.From, To: in.To,
+		Item: in.Item, Direction: in.Direction, Bend: in.Bend, Routing: in.Routing,
+		AllowUnderground: in.AllowUnderground, UndergroundItem: in.UndergroundItem,
+		MaxUndergroundDistance: in.MaxUndergroundDistance, AvoidAreas: in.AvoidAreas,
+		PreferExisting: in.PreferExisting, MaxExpandedTiles: in.MaxExpandedTiles,
+		SearchMargin: in.SearchMargin, FromEntity: in.FromEntity, ToEntity: in.ToEntity,
+		AllowBeltAdjacency: in.AllowBeltAdjacency, Message: in.Message,
+	}))
 }
 
 func placePipeRun(r *Resolver, in BeltPipeRunInput) (*ConnectEntitiesResult, error) {
@@ -514,7 +524,10 @@ for i,s in ipairs(chosen.steps) do
       local created,e=pcall(function() return surface.create_entity{name=entity_name,position={x=s.x,y=s.y},direction=s.direction,force=c.force,quality="normal",raise_built=true} end)
       if created and e then
         placed=placed+1
-        entities[#entities+1]={name=e.name,type=e.type,position={x=e.position.x,y=e.position.y},unitNumber=e.unit_number}
+        -- direction is the engine heading of the created entity (0 is north and still reported).
+        local record={name=e.name,type=e.type,position={x=e.position.x,y=e.position.y},unitNumber=e.unit_number,direction=e.direction}
+        if e.type=="underground-belt" then record.undergroundType=string.upper(tostring(e.belt_to_ground_type)) end
+        entities[#entities+1]=record
       else
         inv.insert{name=item,quality="normal",count=1}
         -- Entity creation is the success test; can_place_entity only explains a refusal.
@@ -556,7 +569,8 @@ func connectEntitiesAStar(r *Resolver, input ConnectEntitiesInput, item string) 
 	}
 	plan, err := connectionPlanAStar(r, connectionRequest{
 		surface: input.Surface, force: input.Force, from: input.From, to: input.To, kind: input.Kind, item: item,
-		allowAdjacency: input.AllowFluidAdjacency, allowBeltAdjacency: input.AllowBeltAdjacency, options: applyRouteOptions(&input),
+		allowAdjacency: input.AllowFluidAdjacency, allowBeltAdjacency: input.AllowBeltAdjacency,
+		direction: input.Direction, options: applyRouteOptions(&input),
 	})
 	if err != nil {
 		return nil, err
@@ -647,7 +661,7 @@ func connectionEndpointReference(name string, endpoint *ConnectionEndpointInput)
 // use and the orientation that feeds or is fed by the entity. A tile already
 // holding the route entity is used as-is; otherwise the adjacent free tile on the
 // preferred side, else the side facing the other endpoint, is chosen.
-const connectionAnchorLua = `
+const connectionAnchorLua = luaUnitNumberEntityTypes + `
 local surface=game.surfaces[surface_name]
 if not surface then fail("surface not found"); return end
 local force=game.forces[force_name]
@@ -659,7 +673,11 @@ local function find_entity(ref,role)
   if not ref then return nil end
   local target=nil
   if ref.unitNumber then
-    local found=game.get_entity_by_unit_number(tonumber(ref.unitNumber))
+    local unit=tonumber(ref.unitNumber)
+    -- Only a few prototypes (characters, vehicles) resolve through
+    -- get_entity_by_unit_number; machines, belts and chests need the surface scan.
+    local found=game.get_entity_by_unit_number(unit)
+    if not found then found=find_entity_by_unit_number(surface,unit,ref.name or "") end
     if found and found.valid then target=found end
   elseif ref.position then
     for _,candidate in pairs(surface.find_entities_filtered{position={x=ref.position.x,y=ref.position.y},force=force,limit=16}) do
@@ -693,16 +711,7 @@ local function anchor(entity,role,ref,other)
   local cx=math.floor(center.x)+0.5
   local cy=math.floor(center.y)+0.5
   local best,best_score=nil,-1
-  for index,side in ipairs(side_order) do
-    local vector=side_vectors[side]
-    local x,y
-    if side=="north" then x,y=cx,box.left_top.y-0.5
-    elseif side=="south" then x,y=cx,box.right_bottom.y+0.5
-    elseif side=="west" then x,y=box.left_top.x-0.5,cy
-    else x,y=box.right_bottom.x+0.5,cy end
-    local outward=side_directions[side]
-    local direction=outward
-    if role=="to" then direction=(outward+8)%16 end
+  local function tile_state(x,y,direction)
     local occupied,existing=false,false
     for _,candidate in pairs(surface.find_entities_filtered{position={x=x,y=y},limit=8}) do
       if candidate.valid then
@@ -715,6 +724,67 @@ local function anchor(entity,role,ref,other)
     -- build_check_type.manual is the player build rule; build_check_type.script
     -- only reports whether a script may create the box, which overlaps obstacles.
     local usable=existing or (not occupied and surface.can_place_entity{name=entity_name,position={x=x,y=y},direction=direction,force=force,build_check_type=defines.build_check_type.manual})
+    return existing,usable
+  end
+  -- A pipe run must end on a fluidbox port tile of a fluid machine: the tile
+  -- beside the machine centre usually has no port. Candidates are the machine's
+  -- normal (non-underground) pipe connection targets; a side hint, then the side
+  -- facing the other endpoint, then the first usable port decides among them.
+  if item_proto.place_result.type=="pipe" or item_proto.place_result.type=="pipe-to-ground" then
+    local ok_fb,fb=pcall(function() return entity.fluidbox end)
+    local ok_count,count=pcall(function() return ok_fb and fb and #fb or 0 end)
+    if ok_count and type(count)=="number" and count>0 then
+      local seen={}
+      for index=1,count do
+        local ok_c,connections=pcall(function() return fb.get_pipe_connections(index) end)
+        if ok_c and connections then
+          for _,connection in pairs(connections) do
+            local t=connection.target_position
+            local ctype=connection.connection_type
+            if t and (ctype==nil or ctype=="normal") then
+              local x=math.floor(t.x)+0.5
+              local y=math.floor(t.y)+0.5
+              local key=x..":"..y
+              local side
+              if y<box.left_top.y then side="north"
+              elseif y>box.right_bottom.y then side="south"
+              elseif x<box.left_top.x then side="west"
+              elseif x>box.right_bottom.x then side="east" end
+              if side and not seen[key] then
+                seen[key]=true
+                local existing,usable=tile_state(x,y,side_directions[side])
+                local toward=false
+                if other then toward=(x-center.x)*(other.x-center.x)+(y-center.y)*(other.y-center.y)>0 end
+                local score=0
+                if ref.side==side then score=score+8 end
+                if usable then score=score+4 end
+                if toward then score=score+2 end
+                if score>best_score then
+                  best_score=score
+                  best={x=x,y=y,direction=side_directions[side],existing=existing,side=side}
+                end
+              end
+            end
+          end
+        end
+      end
+      if best then
+        if best_score<4 then fail(role.." entity has no free fluidbox port tile for "..entity_name) end
+        return best
+      end
+    end
+  end
+  for index,side in ipairs(side_order) do
+    local vector=side_vectors[side]
+    local x,y
+    if side=="north" then x,y=cx,box.left_top.y-0.5
+    elseif side=="south" then x,y=cx,box.right_bottom.y+0.5
+    elseif side=="west" then x,y=box.left_top.x-0.5,cy
+    else x,y=box.right_bottom.x+0.5,cy end
+    local outward=side_directions[side]
+    local direction=outward
+    if role=="to" then direction=(outward+8)%16 end
+    local existing,usable=tile_state(x,y,direction)
     local toward=false
     if other then
       toward=(x-center.x)*(other.x-center.x)+(y-center.y)*(other.y-center.y)>0

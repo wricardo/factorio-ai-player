@@ -46,8 +46,10 @@ type ActionResult struct {
 	CraftingComplete   *bool                       `json:"craftingComplete,omitempty"`
 	WaitTimedOut       *bool                       `json:"waitTimedOut,omitempty"`
 	WaitedSeconds      *float64                    `json:"waitedSeconds,omitempty"`
-	Instant            *bool                       `json:"instant,omitempty"`
-	Mined              *bool                       `json:"mined,omitempty"`
+	// Set when craft ran with expand true: the plan, what was queued and what remains.
+	Chain   *CraftPlanResult `json:"chain,omitempty"`
+	Instant *bool            `json:"instant,omitempty"`
+	Mined   *bool            `json:"mined,omitempty"`
 	// Why a mutating action moved nothing (BAR_LIMITED, NO_CAPACITY, NO_SOURCE, MARKED_FOR_DECONSTRUCTION, FILTERED); null when moved is nonzero or the reason does not apply.
 	Reason *string `json:"reason,omitempty"`
 	// Destination slot bar index reported by transfer (usable slots are bar-1).
@@ -61,16 +63,18 @@ type ActionResult struct {
 }
 
 type Actor struct {
-	Tick                float64           `json:"tick"`
-	Player              *string           `json:"player,omitempty"`
-	Character           *string           `json:"character,omitempty"`
-	Force               string            `json:"force"`
-	Surface             string            `json:"surface"`
-	Position            *Position         `json:"position,omitempty"`
-	HasCharacter        *bool             `json:"hasCharacter,omitempty"`
-	Health              *float64          `json:"health,omitempty"`
-	Connected           *bool             `json:"connected,omitempty"`
-	ControllerType      *int              `json:"controllerType,omitempty"`
+	Tick           float64   `json:"tick"`
+	Player         *string   `json:"player,omitempty"`
+	Character      *string   `json:"character,omitempty"`
+	Force          string    `json:"force"`
+	Surface        string    `json:"surface"`
+	Position       *Position `json:"position,omitempty"`
+	HasCharacter   *bool     `json:"hasCharacter,omitempty"`
+	Health         *float64  `json:"health,omitempty"`
+	Connected      *bool     `json:"connected,omitempty"`
+	ControllerType *int      `json:"controllerType,omitempty"`
+	// LuaPlayer.cheat_mode of the controlling player; null for a detached character, which has no player to read it from. True means hand crafting is free and instant, so craft/craftPlan stock accounting does not describe what the engine charges.
+	CheatMode           *bool             `json:"cheatMode,omitempty"`
 	Inventory           *ActorInventory   `json:"inventory"`
 	Queue               *CraftQueue       `json:"queue"`
 	Recipe              *Recipe           `json:"recipe"`
@@ -435,7 +439,7 @@ type BeltPage struct {
 	Belts    []*BeltInfo `json:"belts"`
 }
 
-// Shared input for placeBelt and placePipe. kind is fixed by the mutation, so it is not accepted here.
+// Shared input for placePipe. kind is fixed by the mutation, so it is not accepted here.
 type BeltPipeRunInput struct {
 	Actor   *ActorInput    `json:"actor"`
 	Surface string         `json:"surface"`
@@ -503,6 +507,33 @@ type BeltRun struct {
 	Sources       []*LogisticsEndpoint `json:"sources"`
 	Sinks         []*LogisticsEndpoint `json:"sinks"`
 	Inserters     []*ConnectedInserter `json:"inserters"`
+}
+
+// Input for placeBelts: the connectEntities fields that apply to belts. kind is fixed to BELT and the pipe-only allowFluidAdjacency is not accepted.
+type BeltRunInput struct {
+	Actor   *ActorInput    `json:"actor"`
+	Surface string         `json:"surface"`
+	Force   string         `json:"force"`
+	From    *PositionInput `json:"from,omitempty"`
+	To      *PositionInput `json:"to,omitempty"`
+	// Belt item, for example fast-transport-belt; defaults to transport-belt.
+	Item *string `json:"item,omitempty"`
+	// Engine direction of the single-tile run, 0 north, 4 east, 8 south or 12 west. Required when from and to resolve to the same tile; rejected for runs of two or more tiles.
+	Direction        *int              `json:"direction,omitempty"`
+	Bend             ConnectionBend    `json:"bend"`
+	Routing          ConnectionRouting `json:"routing"`
+	AllowUnderground bool              `json:"allowUnderground"`
+	// Underground belt item for tunnel halves; defaults to underground-belt. Requires allowUnderground.
+	UndergroundItem        *string                  `json:"undergroundItem,omitempty"`
+	MaxUndergroundDistance *int                     `json:"maxUndergroundDistance,omitempty"`
+	AvoidAreas             []*FactoryAreaInput      `json:"avoidAreas,omitempty"`
+	PreferExisting         bool                     `json:"preferExisting"`
+	MaxExpandedTiles       *int                     `json:"maxExpandedTiles,omitempty"`
+	SearchMargin           *int                     `json:"searchMargin,omitempty"`
+	FromEntity             *ConnectionEndpointInput `json:"fromEntity,omitempty"`
+	ToEntity               *ConnectionEndpointInput `json:"toEntity,omitempty"`
+	AllowBeltAdjacency     bool                     `json:"allowBeltAdjacency"`
+	Message                *string                  `json:"message,omitempty"`
 }
 
 // One linear belt stretch read in a single snapshot. nodes run in travel direction from the first belt reached to the last; ends explain why the walk stopped at each side. Totals cover the whole stretch and are not per-tile. Contents are in-transit stock, so a stalled stretch can hold a large total with no flow.
@@ -800,7 +831,7 @@ type BlueprintBookSummary struct {
 	UpdatedTick float64 `json:"updatedTick"`
 }
 
-// One blueprint-relative entity. At most 1000 entities; direction is 0 through 15.
+// One blueprint-relative entity. At most 10000 entities; direction is 0 through 15.
 type BlueprintEntityInput struct {
 	Name          string         `json:"name"`
 	Position      *PositionInput `json:"position"`
@@ -911,6 +942,79 @@ type BuildAsPlayerInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// One step of a cell layout. Exactly one of place, connection or recipe must be set.
+type BuildCellEntryInput struct {
+	// Local handle, unique within the call. Later entries reference it by this name.
+	Ref string `json:"ref"`
+	// Place one entity from the actor's main inventory.
+	Place *CellPlaceInput `json:"place,omitempty"`
+	// Route and place one belt, pipe or power-pole run.
+	Connection *CellConnectionInput `json:"connection,omitempty"`
+	// Assign a recipe to a machine, by earlier ref or by explicit target.
+	Recipe *CellRecipeInput `json:"recipe,omitempty"`
+}
+
+// One declarative cell layout and the actor whose inventory pays for it.
+type BuildCellInput struct {
+	Actor   *ActorInput `json:"actor"`
+	Surface string      `json:"surface"`
+	Force   string      `json:"force"`
+	// Entries applied in list order; at most 200.
+	Entries []*BuildCellEntryInput `json:"entries"`
+	// Validate only: report the preflight result and write nothing.
+	DryRun bool `json:"dryRun"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+// Outcome of one buildCell call.
+type BuildCellResult struct {
+	Tick    float64 `json:"tick"`
+	Surface string  `json:"surface"`
+	Force   string  `json:"force"`
+	// True when the call only preflighted and wrote nothing.
+	DryRun bool `json:"dryRun"`
+	// True when every entry was applied. A refused preflight or a failed step makes this false.
+	Completed bool `json:"completed"`
+	Placed    int  `json:"placed"`
+	Failed    int  `json:"failed"`
+	// Entries validated but left unapplied, which a dry run reports for the whole layout.
+	Skipped int              `json:"skipped"`
+	Steps   []*BuildCellStep `json:"steps"`
+}
+
+// Per-entry outcome, in input order.
+type BuildCellStep struct {
+	Index int    `json:"index"`
+	Ref   string `json:"ref"`
+	// PLACE, CONNECTION or RECIPE.
+	Kind string `json:"kind"`
+	Ok   bool   `json:"ok"`
+	// False when the entry was only preflighted (dry run or an earlier failure).
+	Applied    bool                  `json:"applied"`
+	UnitNumber *string               `json:"unitNumber,omitempty"`
+	Name       *string               `json:"name,omitempty"`
+	Position   *Position             `json:"position,omitempty"`
+	Placed     int                   `json:"placed"`
+	Failed     int                   `json:"failed"`
+	Message    *string               `json:"message,omitempty"`
+	Conflicts  []*ConnectionConflict `json:"conflicts"`
+	Errors     []*BatchError         `json:"errors"`
+}
+
+// Plan-then-build result: the read-only plan that was produced, and the placement that followed it.
+type BuildConnectionResult struct {
+	Tick    float64 `json:"tick"`
+	Surface string  `json:"surface"`
+	Force   string  `json:"force"`
+	// True when the call was asked to plan only and placed nothing.
+	DryRun bool `json:"dryRun"`
+	// The connectionPlan this call computed for the same input and surface state.
+	Plan *ConnectionPlan `json:"plan"`
+	// Null on a dry run, and on a plan with conflicts, which places nothing.
+	Result *ConnectEntitiesResult `json:"result,omitempty"`
+}
+
 // Area limits are positive and at most 1024 tiles per side. limit is 1 through 10000.
 type BuildGhostsInput struct {
 	// Character whose main inventory pays for the revival; omitted means only source supplies materials.
@@ -973,7 +1077,7 @@ type CancelUpgradeAreaInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Selected actor must be a connected player controlling a character. count is 1 through 10000.
+// Selected actor must be a connected player controlling a character. count is 1 through 1000.
 type CapsuleInput struct {
 	Actor  *ActorInput    `json:"actor"`
 	Item   string         `json:"item"`
@@ -993,6 +1097,46 @@ type CapsuleResult struct {
 	Position *Position      `json:"position"`
 	// Entities the engine created or damaged by the capsule action.
 	Created []*PlacedEntity `json:"created"`
+}
+
+// One routed run inside a cell layout.
+type CellConnectionInput struct {
+	// Belt, pipe or pole item; defaults to transport-belt, pipe or medium-electric-pole for the kind.
+	Item *string        `json:"item,omitempty"`
+	From *PositionInput `json:"from,omitempty"`
+	To   *PositionInput `json:"to,omitempty"`
+	// Engine direction of a single-tile run, 0 north, 4 east, 8 south or 12 west; rejected for longer runs.
+	Direction              *int                `json:"direction,omitempty"`
+	Kind                   ConnectionKind      `json:"kind"`
+	Bend                   ConnectionBend      `json:"bend"`
+	Routing                ConnectionRouting   `json:"routing"`
+	AllowUnderground       bool                `json:"allowUnderground"`
+	UndergroundItem        *string             `json:"undergroundItem,omitempty"`
+	MaxUndergroundDistance *int                `json:"maxUndergroundDistance,omitempty"`
+	AllowBeltAdjacency     bool                `json:"allowBeltAdjacency"`
+	AllowFluidAdjacency    bool                `json:"allowFluidAdjacency"`
+	PreferExisting         bool                `json:"preferExisting"`
+	AvoidAreas             []*FactoryAreaInput `json:"avoidAreas,omitempty"`
+}
+
+// One entity placement inside a cell layout.
+type CellPlaceInput struct {
+	Item      string         `json:"item"`
+	Position  *PositionInput `json:"position"`
+	Direction int            `json:"direction"`
+	// Item quality prototype name; defaults to normal.
+	Quality *string `json:"quality,omitempty"`
+	// Replace whatever the tile already holds instead of refusing an occupied tile.
+	FastReplace bool `json:"fastReplace"`
+}
+
+// One recipe assignment inside a cell layout.
+type CellRecipeInput struct {
+	// Reference to an earlier place or connection entry; mutually exclusive with target.
+	Ref    *string         `json:"ref,omitempty"`
+	Target *EntityRefInput `json:"target,omitempty"`
+	Recipe string          `json:"recipe"`
+	Drain  RecipeDrainMode `json:"drain"`
 }
 
 // Player must be disconnected and have an empty crafting queue and a main inventory.
@@ -1043,7 +1187,7 @@ type CharacterSpawnInput struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// Surface must exist. Limits are 1 to 1000; offsets are non-negative. Detached-only selects characters without a controlling player.
+// Surface must exist. Limits are 1 to 10000; offsets are non-negative. Detached-only selects characters without a controlling player.
 type CharactersInput struct {
 	Surface      string `json:"surface"`
 	DetachedOnly *bool  `json:"detachedOnly,omitempty"`
@@ -1417,8 +1561,8 @@ type ConnectEntitiesInput struct {
 	Surface string      `json:"surface"`
 	// Force the run belongs to; must match the acting character's force.
 	Force string         `json:"force"`
-	From  *PositionInput `json:"from"`
-	To    *PositionInput `json:"to"`
+	From  *PositionInput `json:"from,omitempty"`
+	To    *PositionInput `json:"to,omitempty"`
 	Kind  ConnectionKind `json:"kind"`
 	Item  *string        `json:"item,omitempty"`
 	// Engine direction of the single-tile run, 0 north, 4 east, 8 south or 12 west. Required when from and to resolve to the same tile, because the route itself cannot imply a heading there; rejected for runs of two or more tiles, whose directions follow the route. Without it a one-tile run used to place a north-facing entity silently.
@@ -1467,8 +1611,9 @@ type ConnectEntitiesResult struct {
 	StopReason ConnectionStopReason `json:"stopReason"`
 	Placed     int                  `json:"placed"`
 	// Existing tiles that already held the requested entity.
-	Skipped   int                   `json:"skipped"`
-	Failed    int                   `json:"failed"`
+	Skipped int `json:"skipped"`
+	Failed  int `json:"failed"`
+	// Each created entity with the engine direction it was built with (0 north is reported as 0) and, for underground halves, undergroundType.
 	Entities  []*PlacedEntity       `json:"entities"`
 	Conflicts []*ConnectionConflict `json:"conflicts"`
 	Errors    []*BatchError         `json:"errors"`
@@ -1502,11 +1647,11 @@ type ConnectionConflict struct {
 	Message string `json:"message"`
 }
 
-// An entity endpoint instead of a tile. The planner resolves the tile to use: the entity's own tile when it already holds the route entity, and otherwise the adjacent free tile on the chosen side, oriented away from the entity for a start and into it for a goal. No manual coordinates or directions are needed.
+// An entity endpoint instead of a tile. The planner resolves the tile to use: the entity's own tile when it already holds the route entity, and otherwise the adjacent free tile on the chosen side, oriented away from the entity for a start and into it for a goal. For a PIPE run a fluid machine resolves to one of its fluidbox pipe-connection target tiles (the same tiles as inspect.fluidPorts target), not a tile beside its centre. No manual coordinates or directions are needed.
 type ConnectionEndpointInput struct {
 	// Entity to connect, by unitNumber or exact center position; surface defaults to the plan surface.
 	Entity *EntityRefInput `json:"entity"`
-	// Preferred side of the entity: auto (default), north, east, south or west. Other sides are tried when the preferred side has no free tile.
+	// Preferred side of the entity: auto (default), north, east, south or west. Other sides are tried when the preferred side has no free tile. For a PIPE run to a machine with several fluid ports this picks the port on that side; otherwise the port facing the other endpoint, then the first free port, wins.
 	Side *string `json:"side,omitempty"`
 	// Preferred belt lane for a side-loading goal: left, right or auto (default). Reported back as ConnectionPlan.lane when the route ends on an existing belt.
 	Lane *string `json:"lane,omitempty"`
@@ -1544,10 +1689,10 @@ type ConnectionPlan struct {
 type ConnectionPlanInput struct {
 	Surface string `json:"surface"`
 	Force   string `json:"force"`
-	// Start position; it snaps to the center of the tile containing it.
-	From *PositionInput `json:"from"`
-	// End position; it snaps to the center of the tile containing it.
-	To   *PositionInput `json:"to"`
+	// Start tile; mutually exclusive with fromEntity. It snaps to the center of the tile containing it.
+	From *PositionInput `json:"from,omitempty"`
+	// End tile; mutually exclusive with toEntity. It snaps to the center of the tile containing it.
+	To   *PositionInput `json:"to,omitempty"`
 	Kind ConnectionKind `json:"kind"`
 	// Entity item to place; defaults to transport-belt, pipe, or medium-electric-pole for the kind. The item must place a matching entity type.
 	Item *string        `json:"item,omitempty"`
@@ -1688,11 +1833,15 @@ type ContainerSettings struct {
 
 // Queue enabled recipe crafts for one actor.
 type CraftInput struct {
-	Actor              *ActorInput `json:"actor"`
-	Recipe             string      `json:"recipe"`
-	Count              *float64    `json:"count,omitempty"`
-	Wait               bool        `json:"wait"`
-	WaitTimeoutSeconds int         `json:"waitTimeoutSeconds"`
+	Actor  *ActorInput `json:"actor"`
+	Recipe string      `json:"recipe"`
+	Count  *float64    `json:"count,omitempty"`
+	// MORE queues count more crafts; UP_TO treats count as the wanted product total.
+	Mode CraftMode `json:"mode"`
+	// Plan and queue the whole hand-craft dependency chain instead of one recipe.
+	Expand             bool `json:"expand"`
+	Wait               bool `json:"wait"`
+	WaitTimeoutSeconds int  `json:"waitTimeoutSeconds"`
 	// Print this text in-game to all connected players instead of the generated notification.
 	Message *string `json:"message,omitempty"`
 }
@@ -1718,6 +1867,8 @@ type CraftPlanInput struct {
 	Actor  *ActorInput `json:"actor"`
 	Recipe string      `json:"recipe"`
 	Count  *float64    `json:"count,omitempty"`
+	// MORE plans count more crafts; UP_TO plans only the crafts still missing to reach count of the recipe's product, counting queued crafts.
+	Mode CraftMode `json:"mode"`
 }
 
 // An ingredient the actor cannot hand-craft from its current inventory; a machine, a fluid source, another actor, or research must supply it.
@@ -1741,22 +1892,12 @@ type CraftPlanResult struct {
 	// True when every planned craft was queued and the crafting queue drained inside the wait budget; missing nonempty leaves it false with nothing queued.
 	Complete bool             `json:"complete"`
 	Queued   []*CraftPlanStep `json:"queued"`
-	// Planned steps not queued yet, so a timed-out call can be finished with craft.
+	// Planned steps not queued yet; a timed-out call is finished by re-issuing the same craft request with mode UP_TO.
 	Remaining     []*CraftPlanStep    `json:"remaining"`
 	Missing       []*CraftPlanMissing `json:"missing"`
 	QueueSize     *float64            `json:"queueSize,omitempty"`
 	WaitTimedOut  bool                `json:"waitTimedOut"`
 	WaitedSeconds float64             `json:"waitedSeconds"`
-}
-
-// Select one actor, an enabled hand-craftable recipe, the number of crafts to perform, and how long the call may wait for linked crafts.
-type CraftPlanRunInput struct {
-	Actor              *ActorInput `json:"actor"`
-	Recipe             string      `json:"recipe"`
-	Count              *float64    `json:"count,omitempty"`
-	WaitTimeoutSeconds int         `json:"waitTimeoutSeconds"`
-	// Print this text in-game to all connected players instead of the generated notification.
-	Message *string `json:"message,omitempty"`
 }
 
 // One hand-craft step in bottom-up dependency order: count crafts of recipe, each producing products from ingredients that are in stock or produced by an earlier step.
@@ -1984,7 +2125,8 @@ type EngineStatus struct {
 type EntitiesInput struct {
 	Surface string            `json:"surface"`
 	Area    *FactoryAreaInput `json:"area,omitempty"`
-	Name    *string           `json:"name,omitempty"`
+	// Exact engine prototype-name filter, so "substation" selects substations only; an unknown name is an error rather than an empty page. It is not the engine type: type filters by engine type and matches every prototype of that type, so type "electric-pole" returns small, medium, big and substation poles alike.
+	Name *string `json:"name,omitempty"`
 	// Entity type filter (engine type, not a prototype name); an unknown type is an error.
 	Type *string `json:"type,omitempty"`
 	// Optional force filter; every row also carries Entity.force.
@@ -2256,6 +2398,8 @@ type ExportMapSnapshotToMemgraphInput struct {
 	LeafMax int `json:"leafMax"`
 	// Parallel area reads, 1 through 6.
 	Concurrency int `json:"concurrency"`
+	// Pause the shared game during all export reads, restoring its prior pause state on success, error or cancellation before disk writes and Memgraph loading. An already paused game stays paused. Set false to leave pause state untouched and allow the export to span game ticks.
+	Pause bool `json:"pause"`
 	// Also export transport-line links as BELT_OUT edges of kind line.
 	IncludeLineLinks bool `json:"includeLineLinks"`
 	// Load a snapshot whose reconciliation found a hole instead of failing.
@@ -2770,7 +2914,7 @@ type FuelManyResult struct {
 	// Targets that already held topUpTo items and were left alone.
 	Skipped int                 `json:"skipped"`
 	Results []*FuelTargetResult `json:"results"`
-	// Typed failures with one-based index and target identity; at most the first 100 are listed.
+	// Typed failures with one-based index and target identity; at most the first 20 are listed.
 	Errors []*BatchError `json:"errors"`
 }
 
@@ -3078,6 +3222,7 @@ type InspectionLogistics struct {
 	BeltRuns []*BeltRun `json:"beltRuns"`
 }
 
+// Every field is one inventory slot list, and each entry is a stack: select subfields, as in `inventories { input { name count quality } output { name count } }`. An empty slot list is an empty list, never null.
 type Inventories struct {
 	Input              []*InventoryStack `json:"input,omitempty"`
 	Output             []*InventoryStack `json:"output,omitempty"`
@@ -3634,9 +3779,9 @@ type MapAreaInput struct {
 	Force   string `json:"force"`
 	// Area bounds match the other world scans: positive dimensions of at most 1024 tiles per side.
 	Area *FactoryAreaInput `json:"area"`
-	// Maximum output rows, 1 through 256.
+	// Maximum output rows, 1 through 1024.
 	MaxRows int `json:"maxRows"`
-	// Maximum output columns, 1 through 256.
+	// Maximum output columns, 1 through 1024.
 	MaxColumns int      `json:"maxColumns"`
 	Layer      MapLayer `json:"layer"`
 }
@@ -3653,9 +3798,309 @@ type MapLegendEntry struct {
 	Count int `json:"count"`
 }
 
+// Read surface of the Memgraph factory graph, populated by exportMapSnapshotToMemgraph or `graph sync`.
+type Memgraph struct {
+	// Returns the Memgraph factory-graph schema as it exists in the loaded graph: every node label with its node count and property keys, every relationship type with its edge count and property keys, and the latest loaded snapshot. Derived from the loaded data, so a label, type or property that no loaded node or edge carries is absent, and declared constraints/indexes are not reported because they live in memgraph/schema.cypherl (use SHOW INDEX INFO / SHOW CONSTRAINT INFO via mgconsole). The Bolt target comes from the server's MEMGRAPH_BOLT, MEMGRAPH_USER and MEMGRAPH_PASSWORD environment, never from the caller. One read transaction; returns empty lists and a null snapshot when no load has completed, and fails when the stack is down.
+	Schema *MemgraphSchema `json:"schema"`
+	// Runs one read-only Cypher statement against the Memgraph factory graph (populated by exportMapSnapshotToMemgraph or `graph sync`) and returns its columns and rows. The Bolt target comes from the server's MEMGRAPH_BOLT, MEMGRAPH_USER and MEMGRAPH_PASSWORD environment (default bolt://127.0.0.1:7687), never from the caller. The statement must start with MATCH, OPTIONAL MATCH, WITH, UNWIND, RETURN, EXPLAIN or PROFILE and must not contain any write, schema, administrative or CALL keyword outside string literals and comments; this is a lexical guard plus a Bolt read transaction, not a Memgraph permission, so connect with a read-only Memgraph user when the endpoint is shared. Rows are arrays aligned with columns; a node is {id, labels, properties}, a relationship {id, type, startId, endId, properties} and a path {nodes, relationships}. At most limit rows are returned (truncated is true when more existed) and the statement is cancelled after timeoutMs. With sync true a fresh snapshot is exported from the live save and loaded first, so the same call answers from current data; the export is not covered by timeoutMs. The graph is a snapshot of the tick recorded on its Snapshot node, not live state.
+	Query *MemgraphQueryResult `json:"query"`
+	// Everything the factory graph holds inside one XY box and how it connects: the entities whose position lies in the area, the edges between them (belt flow, inserter pick and drop, machine drops, fluid links), the connected components those edges form, and the edges that cross the box edge. Use it to understand a region (a smelter column, a mall) without writing Cypher. Entities are matched by their own position, so BeltStretch nodes (which are not entities) are not listed; belts appear as individual tiles. Power-pole and wire edges are left out unless includePower is true, because they connect almost everything and hide the item flow. The area is capped at 1024 tiles per side and maxNodes bounds the result; truncated says the box held more entities than returned, in which case components and edges describe only the returned subset.
+	AreaGraph *MemgraphAreaGraph `json:"areaGraph"`
+	// One ranked defect sweep over the whole loaded graph: every machine with a root cause from rootCause's rules (NO_FEEDING_ARM, ORIGIN_BELT, MACHINE_TROUBLE), plus the NO_CONSUMER stretches of beltStretches, sorted by impact (the number of machines downstream of the defect, from downstreamChain's rules) so the failure that stops the most production comes first. Use it first, then drill into a finding with rootCause, supplyChain or inspectMany. Topology and exported status only: it reports a fault at the snapshot, not a rate. Check snapshot.ageSeconds.
+	FactoryHealth *MemgraphAudit `json:"factoryHealth"`
+	// Power topology audit from POWERED_BY and POWER_WIRE edges and the ElectricNetwork and PowerSource nodes. Findings: UNPOWERED (a machine, inserter or other consumer with no POWERED_BY edge), ISOLATED_POLE (a pole with no wire and no powered entity), SINGLE_POLE_NETWORK, and NO_GENERATOR (an ElectricNetwork with consumers but no PowerSource). Burner entities are not consumers. Overload is not reported: the graph carries no generator output or power draw. Topology only, not a live brownout reading.
+	PowerAudit *MemgraphAudit `json:"powerAudit"`
+	// Fuel audit for burner machines (furnaces, boilers, burner drills and inserters). Findings: NO_FUEL_ARM (an empty fuel inventory and no inserter feeding it), FUEL_NOT_ARRIVING (empty fuel inventory, feeding path exists whose sources carry a known fuel item: coal, wood, solid-fuel, rocket-fuel, nuclear-fuel). The export does not carry the burner's accepted fuel categories, so the fuel list is a fixed heuristic and an empty fuel slot is a sample, not proof of a missing feed; each finding says so.
+	FuelAudit *MemgraphAudit `json:"fuelAudit"`
+	// Per-inserter topology defects. Findings: VOID_PICKUP (picks from an infinity chest that has no filters and removes unfiltered items, so it never holds anything), SELF_LOOP (picks from and drops into the same entity), BELT_TO_BELT (a belt-to-belt inserter, usually a workaround tap), DEAD_SOURCE (picks from a belt nothing feeds and nothing drops onto), and FILTER_MISMATCH (a filtered inserter whose filters match no item its source can provide). Uses the exported filterMode, filters and held properties.
+	InserterAudit *MemgraphAudit `json:"inserterAudit"`
+	// Sink audit. Findings: VOID_SINK (an infinity chest with no filters and removeUnfilteredItems true that is the drop target of an arm, so its output is destroyed), FULL_OUTPUT_NO_CONSUMER (a machine at full_output whose product no inserter picks up and no belt carries away) and BUFFER_FULL (a non-infinity chest that holds items with no outgoing arm). Each finding lists the arm and chest involved in related.
+	SinkAudit *MemgraphAudit `json:"sinkAudit"`
+	// Traces the fluid network around one fluid entity (pipe, tank, pump, boiler, refinery, ...) along FLUID_LINK edges: the connected FluidEntity nodes, the links between them, and the producers (offshore pumps, pumps, machines whose recipe produces a fluid) and consumers it joins. Findings: DEAD_END_PIPE, ISOLATED_FLUID_ENTITY and NO_SOURCE (a network with consumers and no source). Topology only: fluid contents and levels are not in the graph, use fluidSegments for those.
+	FluidChain *MemgraphFluidChain `json:"fluidChain"`
+	// Groups the machines of the whole graph into production cells: connected components over the item-flow edges (PICKS_FROM and DROPS_TO through inserters, DROPS_ON, belt lines), each named by its most downstream recipe, with machine, inserter and belt counts and a status histogram. Answers 'what is in my base' and which cells are stalled. A belt line from which inserters feed three or more distinct machines is a main belt and never joins cells.
+	CellSummary *MemgraphCellSummary `json:"cellSummary"`
+	// The one-call factory report: every deterministic issue the loaded graph can show, merged and ranked. It needs no argument. It runs factoryHealth, powerAudit, fuelAudit, inserterAudit and sinkAudit, plus structural checks (STRETCH_NO_INPUT, MIXED_LANE, INSERTER_NO_SOURCE, INSERTER_NO_DESTINATION, MACHINE_NO_RECIPE, GHOSTS_PENDING), a lab feed check (LAB_PACK_UNREACHABLE: a science pack made in the factory that no feeding path delivers to a lab) and nominal item deficits (NOMINAL_DEFICIT). Findings are de-duplicated by code and node, ordered worst severity first and then by impact, and each carries the audit that raised it. sections lists every audit with its finding count or the error that stopped it, so a failed audit is visible and never silently dropped. Topology and exported status at the snapshot, not a rate: check snapshot.ageSeconds and pair a finding with inspectMany before acting.
+	FactoryReport *MemgraphFactoryReport `json:"factoryReport"`
+	// Explains why one machine is stalled by listing the deepest upstream causes instead of the whole chain. Walks the same exact BELT-resolution supply chain as supplyChain and reports only the nodes that explain the stall: a belt line nothing feeds (ORIGIN_BELT), a recipe ingredient with no feeding inserter (NO_FEEDING_ARM), and a supplier machine or chest whose own status is a fault such as no_power, no_fuel or no_minable_resources (MACHINE_TROUBLE). Pass-through states like waiting_for_source_items and item_ingredient_shortage are symptoms and never causes themselves. The stalled flag follows the root machine's own exported status only; the cause list is supplementary, so a stalled machine with no causes is still stalled true (it may be blocked on its output). Topology and the exported status only, not live stock; read snapshot.ageSeconds.
+	RootCause *MemgraphRootCause `json:"rootCause"`
+	// Planning view of nominal production against consumption per item, from the PRODUCES and CONSUMES edges of the loaded graph: the per-minute rate every machine would reach running flat out on its recipe, summed per item. It answers which items have too few producers for their consumers before anything runs. Not live stock: use the top-level itemBalance for what is short right now. Sources without a rate (infinity chests) are counted in unboundedSources and never summed. Sorted by net ascending so the worst deficits come first.
+	NominalRateBalance *MemgraphNominalRateBalance `json:"nominalRateBalance"`
+	// Pre-teardown check: which downstream machines lose an ingredient if this node (a machine, chest or belt) is removed. A machine is affected for an ingredient when every feeding route that can supply that ingredient passes through the node; machines that keep at least one route that avoids it are not listed. safe is true when nothing is affected. Topology only: it does not know whether a remaining route has enough throughput.
+	RemovalImpact *MemgraphRemovalImpact `json:"removalImpact"`
+	// Nominal output of the chain feeding one machine and the stage that caps it. Combines the supply chain with per-recipe PRODUCES and CONSUMES rates: each stage can supply at most its nominal per-minute output of an item and each consumer demands its nominal per-minute input; the chain output is bounded by the tightest stage. Nominal means the recipe running continuously at the machine's crafting speed: inserter and belt throughput are not modelled, so a real chain can be lower. Notes list every approximation applied.
+	ChainCapacity *MemgraphChainCapacity `json:"chainCapacity"`
+	// Whether, and how, items travel from one machine, chest or belt to another: the downstream routes from the first node that reach the second, through inserters and belts. connected false (and no routes) means nothing of the first reaches the second within maxHops; it is not an error. Both nodes are validated like downstreamChain roots.
+	RouteBetween *MemgraphRouteBetween `json:"routeBetween"`
+	// Where an item is available in the factory, for planning where to tap it: machines whose recipe produces it, chests holding or producing it (infinity chests marked), and belt stretches carrying it. Ordered by distance from near when given, otherwise machines and chests first by unit number. An item the graph has never seen returns an empty list, not an error.
+	ItemSources *MemgraphItemSources `json:"itemSources"`
+	// Lists belt stretches (one sequential belt run; a splitter ends a run and each splitter output starts a new one) with the items they carry. Filters are all optional: with none, every stretch on the surface is returned. Contents are the lane sample taken at export time, not a throughput; use beltStretchMeasure for rates. Findings: MIXED_LANE (two or more items on one lane) and NO_CONSUMER (the stretch carries items, flows into no other stretch and no inserter picks from it, so items only pile up). A stretch that ends in a splitter or side-load flows into the next stretch and is never a NO_CONSUMER finding. summary counts cover every stretch that matched the filters; stretches and outline are cut to limit. Check snapshot.ageSeconds.
+	BeltStretches *MemgraphBeltStretches `json:"beltStretches"`
+	// Draws belt stretches as ASCII for a headless client, with a legend, in the style of mapArea. Rows run from the smallest y (north) to the largest, columns from the smallest x (west); one character per tile. The area is required: there is no downsampling or whole-map mode. Only belt tiles of the stretches that match the filter are drawn; other entities are not. In ITEM mode each distinct carried item gets a letter (most common first), `#` is a stretch with a mixed lane, `.` an empty stretch and a space no belt. In STRETCH mode each stretch gets its own character (A-Z, a-z, 0-9; `*` past 62), and the legend lists the stretch and its items. A cell shared by several stretches shows a stretch with items before an empty one.
+	BeltStretchMap *MemgraphStretchMap `json:"beltStretchMap"`
+	// Traces everything that supplies one machine, chest or belt, upstream, through the factory graph: every inserter that drops into it or onto a belt line feeding it, every belt (or belt stretch) those inserters pick from, and recursively the machines, chests and belts that feed those, down to the origins (infinity chests, furnaces fed by ore chests, belts nothing drops onto). The answer is a list of ordered paths, each running from the root to one origin, plus the distinct nodes involved and the origins reached. The root is any Machine, Chest or Belt node addressed by unit number; no node type is required and the kind is detected, so an assembler, a furnace, a buffer chest or a mid-line belt all work, while any other kind (Inserter, Pole, ...) is rejected naming its kind. A Belt root traces what feeds the line from that tile backwards. Direct insertion (machine to machine) and belt-to-belt inserters are followed as well as belt lines, and a path never revisits a node. Resolution BELT is exact: it walks BELT_OUT belt by belt, so an inserter that drops downstream of a pick point is correctly not a supplier. Resolution STRETCH collapses every straight belt run into one BeltStretch node, which is far smaller to read but coarse: it ignores where along a stretch an inserter drops or picks, so it over-approximates suppliers, and it omits a recirculation loop (an inserter taking from and dropping back into the same line). Use BELT for correctness, STRETCH for layout. The graph is a snapshot read from Memgraph, not the live game: check snapshot { ageSeconds } and run exportMapSnapshotToMemgraph first when freshness matters. Rows multiply with every route to a shared node, so a deep factory can return many paths: maxPaths caps them and truncated reports a cut (the shortest paths are kept). One Bolt read transaction; fails when the stack is down.
+	SupplyChain *MemgraphSupplyChain `json:"supplyChain"`
+	// For a machine, and optionally every machine upstream of it, lists each ingredient its recipe consumes with the inserters that can supply that item. An ingredient is covered by an inserter when its source can provide the item: a machine whose recipe produces it, a chest that holds or produces it, a machine dropping onto the belt line it picks from, or sampled lane contents of that belt. This is topology, not stock or rate: covered means a feed path exists, not that items are arriving now, so pair it with the machine and arm status. An ingredient with no feeding arm is a wiring gap. Only machines with a recipe are listed. The root must be a Machine. The graph is a snapshot, see supplyChain. One Bolt read transaction.
+	IngredientCoverage *MemgraphIngredientCoverage `json:"ingredientCoverage"`
+	// Traces everything downstream of one machine, chest or belt: where its output goes. Mirror of supplyChain: every inserter that picks from the node (or from a belt line it drops onto, only the part of the line after the drop point), the machines, chests and belts those inserters drop into, and recursively what those in turn feed, down to the sinks (final consumers, chests, or belts nothing picks from). Use it to see what a stalled or overproducing machine affects. Upstream supply is supplyChain; this field never walks upstream. Belt resolution is exact (every belt tile); there is no STRETCH variant. The outline reads top-down with `->` meaning feeds. Machines that drop straight onto a belt (DROPS_ON, e.g. drills) are followed here; supplyChain does not walk DROPS_ON, so a drill-fed belt ends there as `origin:belt`. attention also flags `status:full_output` consumers.
+	DownstreamChain *MemgraphDownstreamChain `json:"downstreamChain"`
+}
+
+type MemgraphAffectedMachine struct {
+	Machine *MemgraphTraceNode `json:"machine"`
+	// Ingredient that loses every route.
+	Ingredient string `json:"ingredient"`
+	// Feeding routes for that ingredient before removal.
+	RoutesBefore int `json:"routesBefore"`
+}
+
+type MemgraphAreaBoundaryEdge struct {
+	// Id of the node inside the box.
+	Inside    string                    `json:"inside"`
+	Direction MemgraphBoundaryDirection `json:"direction"`
+	Type      string                    `json:"type"`
+	// The node outside the box.
+	Outside *MemgraphTraceNode `json:"outside"`
+}
+
+type MemgraphAreaComponent struct {
+	// 1-based rank, largest first.
+	Index int              `json:"index"`
+	Size  int              `json:"size"`
+	Kinds []*MemgraphCount `json:"kinds"`
+	// Ids of the member nodes.
+	NodeIds []string `json:"nodeIds"`
+	// One line: kind counts and the machines and chests it contains.
+	Description string `json:"description"`
+}
+
+type MemgraphAreaEdge struct {
+	// Source node id.
+	From string `json:"from"`
+	// Target node id.
+	To string `json:"to"`
+	// Relationship type: BELT_OUT, DROPS_TO, PICKS_FROM, DROPS_ON, FLUID_LINK, ...
+	Type string `json:"type"`
+}
+
+// The graph inside one box, shaped for reading top-down: summary, outline (one line per connected component), then normalized detail.
+type MemgraphAreaGraph struct {
+	Summary *MemgraphAreaSummary `json:"summary"`
+	// One line per component, largest first: its size, kinds and the machines and chests in it, then one line for the boundary. Read this first.
+	Outline string `json:"outline"`
+	// Every entity in the box, each once. Edges and components refer to these by id.
+	Nodes []*MemgraphTraceNode `json:"nodes"`
+	// Edges whose two ends are both in nodes, as ids.
+	Edges []*MemgraphAreaEdge `json:"edges"`
+	// Connected pieces of the returned graph (edges treated as undirected), largest first.
+	Components []*MemgraphAreaComponent `json:"components"`
+	// Edges crossing the box edge; empty when includeBoundary is false.
+	Boundary []*MemgraphAreaBoundaryEdge `json:"boundary"`
+	// True when the box held more than maxNodes entities, or boundary rows were cut.
+	Truncated bool                  `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphAreaGraphInput struct {
+	Surface string `json:"surface"`
+	// Box to read, left/top inclusive and right/bottom exclusive (an entity is inside when its position satisfies left <= x < right and top <= y < bottom, the same convention as beltStretchMap); each side up to 1024 tiles with positive size.
+	Area *FactoryAreaInput `json:"area"`
+	// Also return POWERED_BY and POWER_WIRE edges.
+	IncludePower bool `json:"includePower"`
+	// Also list edges that cross the box edge, with the outside node, so what enters and leaves the region is visible.
+	IncludeBoundary bool `json:"includeBoundary"`
+	// Maximum entities returned, 1 through 10000, lowest unit numbers first.
+	MaxNodes int `json:"maxNodes"`
+}
+
+type MemgraphAreaSummary struct {
+	NodeCount      int `json:"nodeCount"`
+	EdgeCount      int `json:"edgeCount"`
+	ComponentCount int `json:"componentCount"`
+	BoundaryCount  int `json:"boundaryCount"`
+	// Entities per kind (Machine, Chest, Inserter, Belt, ...).
+	KindCounts []*MemgraphCount `json:"kindCounts"`
+	// Machines or chests in the box with a fault status, with the reason.
+	Attention []*MemgraphTraceFinding `json:"attention"`
+}
+
+type MemgraphAudit struct {
+	// One or two sentences: the totals and the worst finding.
+	Summary string `json:"summary"`
+	// Findings per code, most frequent first.
+	Counts []*MemgraphCount `json:"counts"`
+	// Findings, worst severity first, then by impact.
+	Findings []*MemgraphAuditFinding `json:"findings"`
+	// True when limit cut findings.
+	Truncated bool                  `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphAuditFinding struct {
+	// Finding code, e.g. NO_FEEDING_ARM or VOID_SINK.
+	Code     string                `json:"code"`
+	Severity MemgraphAuditSeverity `json:"severity"`
+	// The node the finding is about.
+	Node *MemgraphTraceNode `json:"node"`
+	// What is wrong and why, including any approximation made.
+	Message string `json:"message"`
+	// Other nodes involved (the arm, the chest, the downstream machine).
+	Related []*MemgraphTraceNode `json:"related"`
+	// Machines downstream of the node that are affected, when the audit measures it; null otherwise.
+	Impact *int `json:"impact,omitempty"`
+	// Name of the audit that raised the finding (factoryHealth, sinkAudit, ...). Set by factoryReport only; null elsewhere.
+	Audit *string `json:"audit,omitempty"`
+}
+
+type MemgraphAuditInput struct {
+	Surface string `json:"surface"`
+	// Findings returned, 1 through 1000. counts and summary always cover every finding.
+	Limit int `json:"limit"`
+}
+
+type MemgraphBeltStretchMapInput struct {
+	// Which stretches to draw; same filters as beltStretches (limit and near are ignored).
+	Filter *MemgraphBeltStretchesInput `json:"filter,omitempty"`
+	Mode   MemgraphStretchMapMode      `json:"mode"`
+	// The box to draw, left/top inclusive and right/bottom exclusive (a belt tile is drawn when its centre satisfies left <= x < right and top <= y < bottom, the same convention as areaGraph): positive size, at most 1024 tiles per side and 65536 tiles in total. One character per tile, so the grid spans exactly the box and originX/originY is its top-left corner.
+	Area *FactoryAreaInput `json:"area"`
+}
+
+type MemgraphBeltStretches struct {
+	Summary *MemgraphStretchSummary `json:"summary"`
+	// One line per returned stretch: `HEAD [N belts -> END] L: item count | R: item count`, with MIXED and NO CONSUMER flags. Read this first.
+	Outline   string             `json:"outline"`
+	Stretches []*MemgraphStretch `json:"stretches"`
+	// Stretches among the matched set with a finding.
+	Attention []*MemgraphStretchFinding `json:"attention"`
+	// True when limit cut stretches (summary still covers every match).
+	Truncated bool                  `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphBeltStretchesInput struct {
+	Surface string `json:"surface"`
+	// Only stretches carrying this item on either lane.
+	Item *string `json:"item,omitempty"`
+	// Only stretches with two or more items on one lane.
+	MixedOnly bool `json:"mixedOnly"`
+	// Only stretches ending this way.
+	EndKind *MemgraphStretchEnd `json:"endKind,omitempty"`
+	// Order by distance from this point (the stretch head) when both are given, otherwise by head unit.
+	NearX *float64 `json:"nearX,omitempty"`
+	NearY *float64 `json:"nearY,omitempty"`
+	// Rows returned in stretches, 1 through 1000.
+	Limit int `json:"limit"`
+}
+
+type MemgraphCause struct {
+	Node   *MemgraphTraceNode  `json:"node"`
+	Reason MemgraphCauseReason `json:"reason"`
+	// Short plain-text detail, e.g. the missing ingredient or the fault status.
+	Detail string `json:"detail"`
+	// Ids of the nodes from the root to this cause (look up in MemgraphTraceNode ids from the supply chain); the first is the root.
+	Route []string `json:"route"`
+	// The route rendered as one line, e.g. `370 <- arm 390 <- belt 391`.
+	RouteText string `json:"routeText"`
+}
+
+type MemgraphCell struct {
+	// Stable id: the smallest machine unit number in the cell.
+	ID string `json:"id"`
+	// The most downstream recipe in the cell, or the most common recipe when no machine is downstream of another.
+	Name          string   `json:"name"`
+	Recipes       []string `json:"recipes"`
+	MachineCount  int      `json:"machineCount"`
+	InserterCount int      `json:"inserterCount"`
+	BeltCount     int      `json:"beltCount"`
+	ChestCount    int      `json:"chestCount"`
+	// Machines per engine status (working, item_ingredient_shortage, full_output, ...).
+	StatusCounts []*MemgraphCount `json:"statusCounts"`
+	// Machines whose status is not working.
+	StalledCount int `json:"stalledCount"`
+	// Bounding box of the cell's machines.
+	LeftTopX     float64 `json:"leftTopX"`
+	LeftTopY     float64 `json:"leftTopY"`
+	RightBottomX float64 `json:"rightBottomX"`
+	RightBottomY float64 `json:"rightBottomY"`
+}
+
+type MemgraphCellSummary struct {
+	Summary string          `json:"summary"`
+	Cells   []*MemgraphCell `json:"cells"`
+	// Machines with no link of any kind (no inserter, chest or belt), which form no cell.
+	LoneMachines int                   `json:"loneMachines"`
+	Truncated    bool                  `json:"truncated"`
+	Snapshot     *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphCellSummaryInput struct {
+	Surface string `json:"surface"`
+	// Cells returned, 1 through 500, largest first.
+	Limit int `json:"limit"`
+}
+
+type MemgraphChainCapacity struct {
+	Root *MemgraphTraceNode `json:"root"`
+	// Item the root produces, null when it has no recipe.
+	OutputItem *string `json:"outputItem,omitempty"`
+	// Nominal output of the root per minute under the tightest stage; 0 when a required ingredient has no producer on the chain.
+	OutputPerMinute float64 `json:"outputPerMinute"`
+	// The stages that cap the output, tightest first.
+	Limiting []*MemgraphStageRate `json:"limiting"`
+	// Every stage on the chain, root first.
+	Stages []*MemgraphStageRate `json:"stages"`
+	// Approximations applied, one line each (inserter/belt throughput not modelled, infinity chest treated as unbounded, ...).
+	Notes     []string              `json:"notes"`
+	Truncated bool                  `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphChainCapacityInput struct {
+	// Machine whose output chain is measured (UnitNumber).
+	UnitNumber string `json:"unitNumber"`
+	Surface    string `json:"surface"`
+	MaxHops    int    `json:"maxHops"`
+}
+
 type MemgraphCount struct {
 	Name  string `json:"name"`
 	Count int    `json:"count"`
+}
+
+// The result of tracing a node downstream, shaped like MemgraphSupplyChain: summary, outline, then normalized detail. Paths run from the root outward to a sink.
+type MemgraphDownstreamChain struct {
+	// The node the trace started from.
+	Root *MemgraphTraceNode `json:"root"`
+	// Counts and the problems found along the chain. attention flags consumers in trouble and sinks that are belts (`sink:belt`: a line nothing picks from, so items pile up there).
+	Summary *MemgraphSupplyChainSummary `json:"summary"`
+	// The whole chain as an indented plain-text tree; each deeper line starts with `-> `, meaning "feeds". A line reads: the inserters (`arm N [status]`) and belt runs between the node above and the consumer, then the consumer as `unit name (recipe) [status]`. Example: `143 assembling-machine-1 (electronic-circuit) [working]` then `  -> arm 237 [working] -> 238 infinity-chest`. Conventions mirror supplyChain: `belts A..B (n)` runs, `(+N other routes)`, `-> same consumers as X` for an identical consumer set already expanded, and `-> also feeds (expanded above): a; b` for consumers already expanded elsewhere. A node is expanded only the first time it appears.
+	Outline string `json:"outline"`
+	// Every distinct node on any returned path, each once: the root first, then in order of first appearance.
+	Nodes []*MemgraphTraceNode `json:"nodes"`
+	// One entry per route from the root to a sink, shortest first, as node ids (see nodes).
+	Paths []*MemgraphSupplyPath `json:"paths"`
+	// The distinct last nodes of the returned paths: where items leave the chain (final consumers, chests, or dead-end belts). Empty when nothing takes from the root.
+	Sinks []*MemgraphTraceNode `json:"sinks"`
+	// True when more than maxPaths paths exist and only the shortest were returned.
+	Truncated bool `json:"truncated"`
+	// A Cypher statement that returns the same paths as graph path objects, for Memgraph Lab Graph Results. Not subject to maxPaths.
+	GraphCypher string `json:"graphCypher"`
+	// Duration of the paths read inside Memgraph.
+	DurationMs float64 `json:"durationMs"`
+	// Snapshot the paths were read from; check ageSeconds before trusting it as the live factory.
+	Snapshot *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphDownstreamChainInput struct {
+	// Unit number of the node to trace downstream from: a Machine, a Chest or a Belt. The kind is detected (UnitNumber, decimal string).
+	UnitNumber string `json:"unitNumber"`
+	// Surface the unit lives on.
+	Surface string `json:"surface"`
+	// Consumer hops to follow from the root, 1 through 16. One hop is the inserters (and belt line) between a node and the next machine or chest.
+	MaxHops int `json:"maxHops"`
+	// Maximum paths returned, 1 through 10000. The shortest paths are kept and truncated is set when more exist.
+	MaxPaths int `json:"maxPaths"`
 }
 
 type MemgraphExportResult struct {
@@ -3680,6 +4125,153 @@ type MemgraphExportResult struct {
 	EdgeTypes      []*MemgraphCount         `json:"edgeTypes"`
 }
 
+type MemgraphFactoryReport struct {
+	// The totals per severity and the worst finding.
+	Summary string `json:"summary"`
+	// Findings per code across every audit, most frequent first.
+	Counts []*MemgraphCount `json:"counts"`
+	// Merged findings, worst severity first, then impact.
+	Findings []*MemgraphAuditFinding `json:"findings"`
+	// Every audit that ran, in order, with its finding count or its error.
+	Sections []*MemgraphReportSection `json:"sections"`
+	// True when limit cut findings or any audit hit a read cap.
+	Truncated bool                  `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphFactoryReportInput struct {
+	Surface string `json:"surface"`
+	// Findings returned, 1 through 2000. summary and counts always cover every finding.
+	Limit int `json:"limit"`
+}
+
+type MemgraphFluidChain struct {
+	Root *MemgraphTraceNode `json:"root"`
+	// The fluid entities connected to the root through FLUID_LINK, root first, then by distance.
+	Nodes []*MemgraphTraceNode `json:"nodes"`
+	Links []*MemgraphFluidLink `json:"links"`
+	// Entities in the network that put fluid in: offshore pumps, pumps, and machines whose recipe produces a fluid.
+	Sources []*MemgraphTraceNode `json:"sources"`
+	// Entities in the network that consume fluid: boilers, machines whose recipe consumes a fluid.
+	Sinks     []*MemgraphTraceNode    `json:"sinks"`
+	Findings  []*MemgraphAuditFinding `json:"findings"`
+	Truncated bool                    `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo   `json:"snapshot,omitempty"`
+}
+
+type MemgraphFluidChainInput struct {
+	// Unit number of the fluid entity to start from.
+	UnitNumber string `json:"unitNumber"`
+	Surface    string `json:"surface"`
+	// Fluid entities returned, 1 through 2000.
+	MaxNodes int `json:"maxNodes"`
+}
+
+type MemgraphFluidLink struct {
+	// Graph ids of the two linked fluid entities.
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+type MemgraphIngredientCoverage struct {
+	// One entry per machine checked, root first, then upstream machines ordered by unit. Machines without a recipe are omitted.
+	Machines []*MemgraphMachineCoverage `json:"machines"`
+	// One line per ingredient with no feed path, e.g. `143 electronic-circuit: copper-cable has no feeding arm`. Empty means every checked ingredient has at least one feed path. Read this first.
+	Gaps []string `json:"gaps"`
+	// The snapshot the coverage was read from.
+	Snapshot *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphIngredientCoverageInput struct {
+	// Unit number of the Machine to check (UnitNumber, decimal string).
+	UnitNumber string `json:"unitNumber"`
+	// Surface the unit lives on.
+	Surface string `json:"surface"`
+	// Also check every machine upstream of the root (found with an exact BELT supply chain), so one call audits a whole production tree. False checks only the root.
+	Upstream bool `json:"upstream"`
+	// Supplier hops followed when upstream is true, 1 through 16.
+	MaxHops int `json:"maxHops"`
+}
+
+type MemgraphIngredientFeed struct {
+	// Ingredient item name.
+	Item string `json:"item"`
+	// Amount consumed per craft.
+	Amount float64 `json:"amount"`
+	// Unit numbers (UnitNumber) of inserters into the machine whose source can provide the item. Empty means the ingredient has no feed path.
+	FeedingArms []string `json:"feedingArms"`
+	// True when at least one inserter can supply the item. Topology only, not live stock.
+	Covered bool `json:"covered"`
+}
+
+type MemgraphItemRate struct {
+	Name string `json:"name"`
+	// Sum of nominal per-minute output of every machine producing the item.
+	ProducedPerMinute float64 `json:"producedPerMinute"`
+	// Sum of nominal per-minute input of every machine consuming the item.
+	ConsumedPerMinute float64 `json:"consumedPerMinute"`
+	// producedPerMinute minus consumedPerMinute.
+	Net float64 `json:"net"`
+	// Number of producing machines.
+	Producers int `json:"producers"`
+	// Number of consuming machines.
+	Consumers int `json:"consumers"`
+	// Sources with no rate (infinity chests): not included in the sums.
+	UnboundedSources int `json:"unboundedSources"`
+}
+
+type MemgraphItemSource struct {
+	Kind MemgraphItemSourceKind `json:"kind"`
+	Node *MemgraphTraceNode     `json:"node"`
+	// Nominal per-minute production for PRODUCER; null otherwise.
+	PerMinute *float64 `json:"perMinute,omitempty"`
+	// Items held (CHEST) or carried on both lanes (BELT); null otherwise.
+	Count *int `json:"count,omitempty"`
+	// Euclidean distance from near; null when near is not given or the node has no position.
+	Distance *float64 `json:"distance,omitempty"`
+}
+
+type MemgraphItemSources struct {
+	Item      string                `json:"item"`
+	Sources   []*MemgraphItemSource `json:"sources"`
+	Truncated bool                  `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphItemSourcesInput struct {
+	Item    string `json:"item"`
+	Surface string `json:"surface"`
+	// Order by distance from this point when given.
+	NearX *float64 `json:"nearX,omitempty"`
+	NearY *float64 `json:"nearY,omitempty"`
+	// Rows returned, 1 through 200.
+	Limit int `json:"limit"`
+}
+
+type MemgraphMachineCoverage struct {
+	Machine *MemgraphTraceNode `json:"machine"`
+	// One entry per ingredient of the machine's recipe, ordered by item.
+	Ingredients []*MemgraphIngredientFeed `json:"ingredients"`
+}
+
+type MemgraphNominalRateBalance struct {
+	// Per-item rates, net ascending (worst deficit first).
+	Items []*MemgraphItemRate `json:"items"`
+	// Items consumed by some machine but produced by none, or with net below zero, one line each.
+	Deficits []string `json:"deficits"`
+	// True when limit cut the rows.
+	Truncated bool                  `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphNominalRateBalanceInput struct {
+	// Only this item; empty means every item the graph references.
+	Item    *string `json:"item,omitempty"`
+	Surface string  `json:"surface"`
+	// Rows returned, 1 through 500.
+	Limit int `json:"limit"`
+}
+
 type MemgraphQueryInput struct {
 	// One read-only Cypher statement.
 	Cypher string `json:"cypher"`
@@ -3689,7 +4281,7 @@ type MemgraphQueryInput struct {
 	Limit int `json:"limit"`
 	// Statement deadline in milliseconds, 100 through 60000. Covers only the Bolt read, never the sync export.
 	TimeoutMs int `json:"timeoutMs"`
-	// Exports a fresh snapshot from the live save and loads it into Memgraph before running the statement, so one call returns data current as of that export. Uses the mutation's defaults (force player, every surface it owns entities on, leafMax 2000, concurrency 4); takes seconds and blocks the game thread per leaf read, and fails when another export is already running. The export is not covered by timeoutMs.
+	// Exports a fresh snapshot from the live save and loads it into Memgraph before running the statement, so one call returns data current as of that export. Uses the mutation's defaults (force player, every surface it owns entities on, leafMax 2000, concurrency 4, pause true): the shared save is briefly paused for game reads and its prior pause state is restored before disk writes and loading, including on error or cancellation. Takes seconds and fails when another export is already running. The export is not covered by timeoutMs. To opt out of pausing, call exportMapSnapshotToMemgraph with pause:false separately, then query without sync.
 	Sync bool `json:"sync"`
 }
 
@@ -3699,6 +4291,82 @@ type MemgraphQueryResult struct {
 	Rows       [][]any `json:"rows"`
 	Truncated  bool    `json:"truncated"`
 	DurationMs float64 `json:"durationMs"`
+	// Latest completed snapshot, read in the same transaction as the rows, so a sync:true call reports the export it just loaded; null before the first successful load.
+	Snapshot *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphRemovalImpact struct {
+	Root *MemgraphTraceNode `json:"root"`
+	// True when no downstream machine loses an ingredient.
+	Safe bool `json:"safe"`
+	// One line read-first answer.
+	Summary   string                     `json:"summary"`
+	Affected  []*MemgraphAffectedMachine `json:"affected"`
+	Truncated bool                       `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo      `json:"snapshot,omitempty"`
+}
+
+type MemgraphRemovalImpactInput struct {
+	// Machine, chest or belt to remove (UnitNumber).
+	UnitNumber string `json:"unitNumber"`
+	Surface    string `json:"surface"`
+	MaxHops    int    `json:"maxHops"`
+}
+
+type MemgraphReportSection struct {
+	// Audit name: factoryHealth, powerAudit, fuelAudit, inserterAudit, sinkAudit, structure, labFeed or rateDeficits.
+	Name string `json:"name"`
+	// The audit's own summary line; empty when it failed.
+	Summary string `json:"summary"`
+	// Findings the audit raised before de-duplication.
+	FindingCount int `json:"findingCount"`
+	// Why the audit did not run or finish; null when it succeeded.
+	Error *string `json:"error,omitempty"`
+}
+
+type MemgraphRootCause struct {
+	// The machine that was explained.
+	Root *MemgraphTraceNode `json:"root"`
+	// True when the root's own exported status is a stall (item_ingredient_shortage, waiting_for_source_items, full_output, no_power, ...). Causes found upstream of a working machine are findings, such as a spare dead input, and do not make it stalled.
+	Stalled bool `json:"stalled"`
+	// One-paragraph plain-text answer, written to be read first.
+	Summary string `json:"summary"`
+	// The deepest causes, most upstream first, each once.
+	Causes []*MemgraphCause `json:"causes"`
+	// True when the underlying supply chain was cut by maxPaths, so causes may be incomplete.
+	Truncated bool                  `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphRootCauseInput struct {
+	// Machine to explain (UnitNumber, decimal string).
+	UnitNumber string `json:"unitNumber"`
+	Surface    string `json:"surface"`
+	// Supplier hops to follow, 1 through 16.
+	MaxHops int `json:"maxHops"`
+}
+
+type MemgraphRouteBetween struct {
+	From      *MemgraphTraceNode `json:"from"`
+	To        *MemgraphTraceNode `json:"to"`
+	Connected bool               `json:"connected"`
+	// Routes as node ids, `from` first and `to` last.
+	Routes []*MemgraphSupplyPath `json:"routes"`
+	// Every node on any route, each once.
+	Nodes []*MemgraphTraceNode `json:"nodes"`
+	// Routes rendered as one indented tree using `->` for feeds (same conventions as downstreamChain).
+	Outline   string                `json:"outline"`
+	Truncated bool                  `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphRouteBetweenInput struct {
+	From    string `json:"from"`
+	To      string `json:"to"`
+	Surface string `json:"surface"`
+	MaxHops int    `json:"maxHops"`
+	// Routes returned, 1 through 100, shortest first.
+	MaxRoutes int `json:"maxRoutes"`
 }
 
 type MemgraphSchema struct {
@@ -3745,6 +4413,146 @@ type MemgraphSnapshotInfo struct {
 	Surfaces []string `json:"surfaces"`
 	Nodes    int      `json:"nodes"`
 	Edges    int      `json:"edges"`
+	// Game tick of the export's final read. A paused export reads every surface at one tick; an unpaused export spans ticks, so compare this with status { tick } to size the staleness. Null for snapshots written before the field existed.
+	Tick *float64 `json:"tick,omitempty"`
+	// Seconds elapsed between loadedAt and the time of the read, fractional; null when loadedAt is unset.
+	AgeSeconds *float64 `json:"ageSeconds,omitempty"`
+}
+
+type MemgraphStageRate struct {
+	Node *MemgraphTraceNode `json:"node"`
+	Item string             `json:"item"`
+	// Nominal per-minute output of this stage of the item.
+	SupplyPerMinute float64 `json:"supplyPerMinute"`
+	// Per-minute input of the item the chain above needs from this stage.
+	DemandPerMinute float64 `json:"demandPerMinute"`
+}
+
+type MemgraphStretch struct {
+	// Graph id, surface:stretch:head.
+	ID       string  `json:"id"`
+	HeadUnit string  `json:"headUnit"`
+	TailUnit *string `json:"tailUnit,omitempty"`
+	// Head position.
+	X *float64 `json:"x,omitempty"`
+	Y *float64 `json:"y,omitempty"`
+	// Belt tiles in the run.
+	Tiles   int                `json:"tiles"`
+	EndKind MemgraphStretchEnd `json:"endKind"`
+	// Items on the left lane, most common first.
+	Left []*MemgraphCount `json:"left"`
+	// Items on the right lane, most common first.
+	Right      []*MemgraphCount `json:"right"`
+	LeftCount  int              `json:"leftCount"`
+	RightCount int              `json:"rightCount"`
+	// Two or more items on one lane.
+	Mixed bool `json:"mixed"`
+	// The stretch flows into another stretch (splitter or side-load).
+	FlowsIntoStretch bool `json:"flowsIntoStretch"`
+	// Inserters picking from the stretch.
+	Pickers int `json:"pickers"`
+	// Distance from near to the head when near was given.
+	Distance *float64 `json:"distance,omitempty"`
+}
+
+type MemgraphStretchFinding struct {
+	StretchID string                `json:"stretchId"`
+	Reason    MemgraphStretchReason `json:"reason"`
+	Detail    string                `json:"detail"`
+}
+
+type MemgraphStretchMap struct {
+	// Grid rows, north first. Join with newlines to print.
+	Rows    []string                    `json:"rows"`
+	Legend  []*MemgraphStretchMapLegend `json:"legend"`
+	Columns int                         `json:"columns"`
+	// World coordinate of the top-left cell's corner.
+	OriginX float64 `json:"originX"`
+	OriginY float64 `json:"originY"`
+	// True when a graph read hit its row cap, so belts may be missing.
+	Truncated bool                  `json:"truncated"`
+	Snapshot  *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphStretchMapLegend struct {
+	Char string `json:"char"`
+	// Item name (ITEM mode), stretch id (STRETCH mode), `mixed lane` or `empty stretch`.
+	Label string `json:"label"`
+	// STRETCH mode: the stretch's items and end; ITEM mode: empty.
+	Detail string `json:"detail"`
+	// Cells showing this character.
+	Cells int `json:"cells"`
+}
+
+type MemgraphStretchSummary struct {
+	StretchCount int `json:"stretchCount"`
+	// Belt tiles across the matched stretches.
+	TileCount int `json:"tileCount"`
+	// Stretches with at least one item on a lane.
+	CarryingCount int `json:"carryingCount"`
+	MixedCount    int `json:"mixedCount"`
+	// Stretches with a NO_CONSUMER finding.
+	NoConsumerCount int `json:"noConsumerCount"`
+	// Items on the matched stretches, summed over both lanes, most common first.
+	Items []*MemgraphCount `json:"items"`
+}
+
+// The result of tracing a node upstream, shaped for an LLM or a human to read top-down: summary first, then outline (the whole answer as a compact tree), then the normalized detail (nodes once, paths as references). Reading summary and outline is usually enough; nodes and paths exist for programmatic follow-up.
+type MemgraphSupplyChain struct {
+	// The node the trace started from.
+	Root *MemgraphTraceNode `json:"root"`
+	// Counts and the problems found along the chain.
+	Summary *MemgraphSupplyChainSummary `json:"summary"`
+	// The whole chain as an indented plain-text tree of machines, chests and origins; the root is the first line and each deeper line starts with `<- `, meaning "is fed by". A line reads: the inserters (`arm N [status]`) and belt runs or stretches between a supplier and the node above it, then the supplier as `unit name (recipe) [status]`. Example: `370 assembling-machine-1 (inserter) [working]` then `  <- arm 433 [working] <- belts 430..405 (26) <- arm 237 [working] <- 143 assembling-machine-1 (electronic-circuit) [item_ingredient_shortage]`. Conventions: a belt run is collapsed to `belts FIRST..LAST (count)` (a single belt is `belt N`; a stretch is `stretch ID`); `(+N other routes)` after a supplier means N further inserter or belt routes lead from it to the same node above and only the first is shown; `<- same suppliers as X` means this node is fed by exactly the same set of suppliers as node X, already expanded above, so they are not repeated; `<- also fed by (expanded above): a; b` lists suppliers of this node that were already expanded elsewhere in the tree, so a shared furnace bank is not repeated under every consumer. A node is expanded only the first time it appears. Ask for nodes or paths for each belt. Complete only when truncated is false.
+	Outline string `json:"outline"`
+	// Every distinct node on any returned path, each once: the root first, then in order of first appearance. Paths refer to these by id.
+	Nodes []*MemgraphTraceNode `json:"nodes"`
+	// One entry per route from the root to an origin, shortest first, as node ids (see nodes) so shared nodes are not repeated. A node reached by several routes appears in several paths.
+	Paths []*MemgraphSupplyPath `json:"paths"`
+	// The distinct last nodes of the returned paths: where supply begins. Typically infinity chests, or the isolated belt of a dead input. Empty when nothing feeds the root.
+	Origins []*MemgraphTraceNode `json:"origins"`
+	// True when more than maxPaths paths exist and only the shortest were returned; outline, nodes, paths and summary then describe only that subset.
+	Truncated bool `json:"truncated"`
+	// A Cypher statement that returns the same paths as graph path objects, with this root, surface, resolution and maxHops inlined. Paste it into Memgraph Lab (http://127.0.0.1:3000) and open Graph Results to see the chain drawn. Not subject to maxPaths.
+	GraphCypher string `json:"graphCypher"`
+	// Duration of the paths read inside Memgraph.
+	DurationMs float64 `json:"durationMs"`
+	// Snapshot the paths were read from; check ageSeconds before trusting it as the live factory.
+	Snapshot *MemgraphSnapshotInfo `json:"snapshot,omitempty"`
+}
+
+type MemgraphSupplyChainInput struct {
+	// Unit number of the node to trace upstream from: a Machine, a Chest or a Belt. The kind is detected. Same UnitNumber (decimal string) as every other input and as entity { unitNumber }.
+	UnitNumber string `json:"unitNumber"`
+	// Surface the unit lives on; unit numbers are only unique per surface.
+	Surface string `json:"surface"`
+	// BELT is exact, STRETCH is compact but coarse.
+	Resolution MemgraphSupplyResolution `json:"resolution"`
+	// Supplier hops to follow from the root, 1 through 16. One hop is a machine or chest, its feeding inserters and the belt line between them. Tracing stops sooner when every path reaches an origin; the default covers the observed factories, and raising it only costs time when paths are still growing.
+	MaxHops int `json:"maxHops"`
+	// Maximum paths returned, 1 through 10000. The shortest paths are kept and truncated is set when more exist.
+	MaxPaths int `json:"maxPaths"`
+}
+
+type MemgraphSupplyChainSummary struct {
+	// Number of paths returned.
+	PathCount int `json:"pathCount"`
+	// Number of distinct nodes returned.
+	NodeCount int `json:"nodeCount"`
+	// Longest path, in supplier hops.
+	MaxHops int `json:"maxHops"`
+	// Distinct nodes per kind (Machine, Chest, Inserter, Belt or BeltStretch).
+	KindCounts []*MemgraphCount `json:"kindCounts"`
+	// Nodes that need a look: machines or chests whose status signals trouble (item_ingredient_shortage, no_power, low_power, no_fuel, no_minable_resources), and origins that are belts, which means nothing feeds that line. Each carries the reason. A shortage is a symptom: follow outline upstream to find the cause.
+	Attention []*MemgraphTraceFinding `json:"attention"`
+}
+
+// One route between the traced root and an origin (upstream) or sink (downstream).
+type MemgraphSupplyPath struct {
+	// Supplier hops between the root and the origin: the number of machine, chest or stretch nodes after the root.
+	Hops int `json:"hops"`
+	// Ids of the nodes in order from the root outward (look each up in nodes): node, the inserter that feeds it, the belts or stretch the inserter picks from, the inserter that fills those belts, the next machine or chest, and so on. Consecutive repeats are removed.
+	Steps []string `json:"steps"`
 }
 
 type MemgraphSurfaceReport struct {
@@ -3756,6 +4564,32 @@ type MemgraphSurfaceReport struct {
 	StaticExported int     `json:"staticExported"`
 	MobileExported int     `json:"mobileExported"`
 	Leaves         int     `json:"leaves"`
+}
+
+type MemgraphTraceFinding struct {
+	Node *MemgraphTraceNode `json:"node"`
+	// Short machine-readable cause: status:<engine status> or origin:belt.
+	Reason string `json:"reason"`
+}
+
+// A node of the factory graph, flattened for trace results.
+type MemgraphTraceNode struct {
+	// Stable graph id, surface:unit for entities and surface:stretch:head for belt stretches.
+	ID string `json:"id"`
+	// The node's specific label: Machine, Chest, Inserter, Belt (including splitters and undergrounds) or BeltStretch.
+	Kind string `json:"kind"`
+	// Game unit number, the same UnitNumber an entity query returns; null for a BeltStretch, which is not a game entity.
+	UnitNumber *string `json:"unitNumber,omitempty"`
+	// Prototype name (assembling-machine-1, transport-belt, ...); belt-stretch for a BeltStretch.
+	Name *string `json:"name,omitempty"`
+	// Recipe set on a machine; null otherwise.
+	Recipe *string `json:"recipe,omitempty"`
+	// Engine status as exported (working, item_ingredient_shortage, waiting_for_source_items, ...); null when the entity has none.
+	Status *string `json:"status,omitempty"`
+	// World x position; for a BeltStretch, the head belt.
+	X *float64 `json:"x,omitempty"`
+	// World y position; for a BeltStretch, the head belt.
+	Y *float64 `json:"y,omitempty"`
 }
 
 // Mine one entity as the selected actor.
@@ -3877,7 +4711,7 @@ type NearbyInput struct {
 	Limit  *int         `json:"limit,omitempty"`
 }
 
-// Surface, force and prototype must exist. direction is 0 through 15. maxRadius is greater than 0 and at most 64 tiles, measured from origin to the candidate center. minDistanceFromEntities is 0 through 16 tiles of clear space between the footprint and any built entity or ghost of any force; natural entities (resources, trees, rocks, cliffs), characters, corpses and items never count.
+// Surface, force and prototype must exist. direction is 0 through 15. maxRadius is greater than 0 and at most 512 tiles, measured from origin to the candidate center. minDistanceFromEntities is 0 through 64 tiles of clear space between the footprint and any built entity or ghost of any force; natural entities (resources, trees, rocks, cliffs), characters, corpses and items never count.
 type NearestPlacementInput struct {
 	Surface   string         `json:"surface"`
 	Force     string         `json:"force"`
@@ -3898,6 +4732,54 @@ type NearestPlacementInput struct {
 	RequireResource *string `json:"requireResource,omitempty"`
 	// Minimum number of resource entities that must sit inside the mining area; omitted or 0 means 1, at most 100000, and only valid together with requireResource.
 	MinResourceTiles *int `json:"minResourceTiles,omitempty"`
+}
+
+// One entity occupying tiles, sized by its prototype and direction.
+type OccupancyEntry struct {
+	UnitNumber *string   `json:"unitNumber,omitempty"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"`
+	Force      string    `json:"force"`
+	Position   *Position `json:"position"`
+	// Engine direction code 0 through 15.
+	Direction int `json:"direction"`
+	// Tiles covered, after applying direction; x east and y south.
+	Footprint *WorldArea `json:"footprint"`
+	// Prototype a ghost will become; null for a real entity.
+	GhostName *string `json:"ghostName,omitempty"`
+}
+
+type OccupancyInput struct {
+	Surface string `json:"surface"`
+	Force   string `json:"force"`
+	// Area bounds, positive dimensions of at most 1024 tiles per side.
+	Area *FactoryAreaInput `json:"area"`
+	// Also report terrain tiles that block a build; scans every tile in the area, so the area must cover at most 65536 tiles.
+	IncludeTerrain bool `json:"includeTerrain"`
+	// Maximum terrain tiles reported, 1 through 65536.
+	TerrainLimit int `json:"terrainLimit"`
+	Limit        int `json:"limit"`
+	Offset       int `json:"offset"`
+}
+
+// Entities and terrain blockers inside one area.
+type OccupancyPage struct {
+	Tick     float64             `json:"tick"`
+	Surface  string              `json:"surface"`
+	Force    string              `json:"force"`
+	Area     *WorldArea          `json:"area"`
+	PageInfo *PageInfo           `json:"pageInfo"`
+	Entries  []*OccupancyEntry   `json:"entries"`
+	Terrain  []*OccupancyTerrain `json:"terrain"`
+	// True when more blocking terrain tiles existed than terrainLimit.
+	TerrainTruncated bool `json:"terrainTruncated"`
+}
+
+// One terrain tile that blocks a build.
+type OccupancyTerrain struct {
+	Position *Position `json:"position"`
+	// Tile prototype name, for example water or deepwater.
+	Tile string `json:"tile"`
 }
 
 // Stable pagination metadata. offset is zero-based; hasMore means another item exists after this page.
@@ -4023,7 +4905,7 @@ type PlaceNextToInput struct {
 	Side       RelativeSide    `json:"side"`
 	// Whole tiles between the two bounding boxes; 0 means touching.
 	Gap int `json:"gap"`
-	// Engine direction of the new entity, 0 through 15.
+	// Engine direction of the new entity, 0, 4, 8 or 12 (cardinal only).
 	Direction int `json:"direction"`
 	// Item quality prototype name; defaults to normal.
 	Quality *string `json:"quality,omitempty"`
@@ -4141,7 +5023,7 @@ type PlacementInput struct {
 	UndergroundType *UndergroundBeltType `json:"undergroundType,omitempty"`
 }
 
-// Surface, force and prototype must be non-empty and exist; direction must be between 0 and 15. Area bounds match WorldResourcesInput, but the sampled tile count may not exceed 65536. mode selects which result list is filled (BLOCKED_TILES -> blockedTiles, GRID -> rows, SITES -> sites); siteWidth/siteHeight/maxSites only affect SITES and are tile counts from 1 to the area dimensions, maxSites 1 through 200.
+// Surface, force and prototype must be non-empty and exist; direction must be between 0 and 15. Area bounds match WorldResourcesInput, but the sampled tile count may not exceed 262144. mode selects which result list is filled (BLOCKED_TILES -> blockedTiles, GRID -> rows, SITES -> sites); siteWidth/siteHeight/maxSites only affect SITES and are tile counts from 1 to the area dimensions, maxSites 1 through 1000.
 type PlacementProbeInput struct {
 	Surface    string             `json:"surface"`
 	Force      string             `json:"force"`
@@ -4178,14 +5060,16 @@ type PlacementSite struct {
 }
 
 type PlayerInsight struct {
-	Tick           float64   `json:"tick"`
-	Player         string    `json:"player"`
-	Connected      bool      `json:"connected"`
-	ControllerType int       `json:"controllerType"`
-	Surface        string    `json:"surface"`
-	Force          string    `json:"force"`
-	Position       *Position `json:"position"`
-	HasCharacter   bool      `json:"hasCharacter"`
+	Tick           float64 `json:"tick"`
+	Player         string  `json:"player"`
+	Connected      bool    `json:"connected"`
+	ControllerType int     `json:"controllerType"`
+	// LuaPlayer.cheat_mode; null when the engine does not expose it. True means hand crafting is free and instant, so craftableCount, queue and craft cost evidence do not match normal rules.
+	CheatMode    *bool     `json:"cheatMode,omitempty"`
+	Surface      string    `json:"surface"`
+	Force        string    `json:"force"`
+	Position     *Position `json:"position"`
+	HasCharacter bool      `json:"hasCharacter"`
 	// Null without a character or main inventory.
 	Items         []*InventoryStack    `json:"items,omitempty"`
 	Queue         []*QueueEntry        `json:"queue,omitempty"`
@@ -4517,7 +5401,7 @@ type RemovedEntity struct {
 	Items      []*InventoryStack `json:"items"`
 }
 
-// Repair one entity as the selected actor. count is 1 through 10000.
+// Repair one entity as the selected actor. count is 1 through 1000.
 type RepairInput struct {
 	Actor  *ActorInput     `json:"actor"`
 	Target *EntityRefInput `json:"target"`
@@ -6282,7 +7166,7 @@ func (e BuildGhostsMode) MarshalJSON() ([]byte, error) {
 type ConnectionBend string
 
 const (
-	// Plans both single-bend orientations and keeps the one with fewer conflicts; a tie keeps horizontal-first. A route that is already straight reports the orientation it lies on.
+	// Plans both single-bend orientations and keeps the one with fewer conflicts; a tie keeps horizontal-first. A route that is already straight reports the orientation it lies on. ASTAR accepts only AUTO, because it derives corners from the shortest route.
 	ConnectionBendAuto ConnectionBend = "AUTO"
 	// Walk the horizontal leg first, then the vertical leg.
 	ConnectionBendHorizontalFirst ConnectionBend = "HORIZONTAL_FIRST"
@@ -6489,7 +7373,7 @@ type ConnectionRouting string
 const (
 	// One straight or single-bend run; supports BELT, PIPE and POWER_POLE_CHAIN.
 	ConnectionRoutingDirect ConnectionRouting = "DIRECT"
-	// Bounded A* search for BELT and PIPE. Step costs: 1 per new tile, 0.25 per reused existing tile, 0.25 per bend, 2 per underground half. Underground belts pair at an offset of at most the prototype's max underground distance; spans may pass under any entity except another underground belt, linked belt or pipe-to-ground. A new underground half may not be placed inside an existing same-name span on the same axis, because it would re-pair with that span's other half and break the existing line. With BELT routing a new tile also refuses a neighbouring belt that points into it unless allowBeltAdjacency is true; the goal tile may still be an existing belt the run side-loads into.
+	// Bounded A* search for BELT and PIPE. Step costs: 1 per new tile, 0.25 per reused existing tile, 0.25 per bend, and 1.05 per tile a new underground half covers plus one tile for the exit half, so a tunnel is only chosen where the surface is blocked and an open straight stays a line of belts. Underground belts pair at an offset of at most the prototype's max underground distance; spans may pass under any entity except another underground belt, linked belt or pipe-to-ground. A new underground half may not be placed inside an existing same-name span on the same axis, because it would re-pair with that span's other half and break the existing line. With BELT routing a new tile also refuses a neighbouring belt that points into it unless allowBeltAdjacency is true; the goal tile may still be an existing belt the run side-loads into. ASTAR derives corners from the shortest route, so bend accepts AUTO only and any other value is rejected.
 	ConnectionRoutingAstar ConnectionRouting = "ASTAR"
 )
 
@@ -6659,6 +7543,62 @@ func (e *ConstructionOrderState) UnmarshalJSON(b []byte) error {
 }
 
 func (e ConstructionOrderState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// How craft interprets count: as additional crafts, or as the product total to reach.
+type CraftMode string
+
+const (
+	CraftModeMore CraftMode = "MORE"
+	CraftModeUpTo CraftMode = "UP_TO"
+)
+
+var AllCraftMode = []CraftMode{
+	CraftModeMore,
+	CraftModeUpTo,
+}
+
+func (e CraftMode) IsValid() bool {
+	switch e {
+	case CraftModeMore, CraftModeUpTo:
+		return true
+	}
+	return false
+}
+
+func (e CraftMode) String() string {
+	return string(e)
+}
+
+func (e *CraftMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = CraftMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid CraftMode", str)
+	}
+	return nil
+}
+
+func (e CraftMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *CraftMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e CraftMode) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -7597,6 +8537,476 @@ func (e *MapLayer) UnmarshalJSON(b []byte) error {
 }
 
 func (e MapLayer) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MemgraphAuditSeverity string
+
+const (
+	// Stops production or destroys items.
+	MemgraphAuditSeverityBlocker MemgraphAuditSeverity = "BLOCKER"
+	// Probably wrong or wasteful, needs a look.
+	MemgraphAuditSeverityConcern MemgraphAuditSeverity = "CONCERN"
+	// Informational, worth knowing.
+	MemgraphAuditSeverityInfo MemgraphAuditSeverity = "INFO"
+)
+
+var AllMemgraphAuditSeverity = []MemgraphAuditSeverity{
+	MemgraphAuditSeverityBlocker,
+	MemgraphAuditSeverityConcern,
+	MemgraphAuditSeverityInfo,
+}
+
+func (e MemgraphAuditSeverity) IsValid() bool {
+	switch e {
+	case MemgraphAuditSeverityBlocker, MemgraphAuditSeverityConcern, MemgraphAuditSeverityInfo:
+		return true
+	}
+	return false
+}
+
+func (e MemgraphAuditSeverity) String() string {
+	return string(e)
+}
+
+func (e *MemgraphAuditSeverity) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MemgraphAuditSeverity(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MemgraphAuditSeverity", str)
+	}
+	return nil
+}
+
+func (e MemgraphAuditSeverity) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MemgraphAuditSeverity) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MemgraphAuditSeverity) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MemgraphBoundaryDirection string
+
+const (
+	// The edge points from the outside node into the box.
+	MemgraphBoundaryDirectionIn MemgraphBoundaryDirection = "IN"
+	// The edge points from the box to the outside node.
+	MemgraphBoundaryDirectionOut MemgraphBoundaryDirection = "OUT"
+)
+
+var AllMemgraphBoundaryDirection = []MemgraphBoundaryDirection{
+	MemgraphBoundaryDirectionIn,
+	MemgraphBoundaryDirectionOut,
+}
+
+func (e MemgraphBoundaryDirection) IsValid() bool {
+	switch e {
+	case MemgraphBoundaryDirectionIn, MemgraphBoundaryDirectionOut:
+		return true
+	}
+	return false
+}
+
+func (e MemgraphBoundaryDirection) String() string {
+	return string(e)
+}
+
+func (e *MemgraphBoundaryDirection) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MemgraphBoundaryDirection(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MemgraphBoundaryDirection", str)
+	}
+	return nil
+}
+
+func (e MemgraphBoundaryDirection) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MemgraphBoundaryDirection) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MemgraphBoundaryDirection) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MemgraphCauseReason string
+
+const (
+	// A belt line that nothing feeds: no belt, inserter or machine drops onto it.
+	MemgraphCauseReasonOriginBelt MemgraphCauseReason = "ORIGIN_BELT"
+	// A recipe ingredient of a machine on the chain with no inserter whose source can provide it.
+	MemgraphCauseReasonNoFeedingArm MemgraphCauseReason = "NO_FEEDING_ARM"
+	// A supplier machine or chest on the chain with a fault status (no_power, low_power, no_fuel, no_minable_resources, no_ingredients).
+	MemgraphCauseReasonMachineTrouble MemgraphCauseReason = "MACHINE_TROUBLE"
+)
+
+var AllMemgraphCauseReason = []MemgraphCauseReason{
+	MemgraphCauseReasonOriginBelt,
+	MemgraphCauseReasonNoFeedingArm,
+	MemgraphCauseReasonMachineTrouble,
+}
+
+func (e MemgraphCauseReason) IsValid() bool {
+	switch e {
+	case MemgraphCauseReasonOriginBelt, MemgraphCauseReasonNoFeedingArm, MemgraphCauseReasonMachineTrouble:
+		return true
+	}
+	return false
+}
+
+func (e MemgraphCauseReason) String() string {
+	return string(e)
+}
+
+func (e *MemgraphCauseReason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MemgraphCauseReason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MemgraphCauseReason", str)
+	}
+	return nil
+}
+
+func (e MemgraphCauseReason) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MemgraphCauseReason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MemgraphCauseReason) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MemgraphItemSourceKind string
+
+const (
+	// A machine whose recipe produces the item.
+	MemgraphItemSourceKindProducer MemgraphItemSourceKind = "PRODUCER"
+	// A chest that holds the item.
+	MemgraphItemSourceKindChest MemgraphItemSourceKind = "CHEST"
+	// An infinity chest that supplies the item.
+	MemgraphItemSourceKindInfinityChest MemgraphItemSourceKind = "INFINITY_CHEST"
+	// A belt stretch carrying the item on a lane.
+	MemgraphItemSourceKindBelt MemgraphItemSourceKind = "BELT"
+)
+
+var AllMemgraphItemSourceKind = []MemgraphItemSourceKind{
+	MemgraphItemSourceKindProducer,
+	MemgraphItemSourceKindChest,
+	MemgraphItemSourceKindInfinityChest,
+	MemgraphItemSourceKindBelt,
+}
+
+func (e MemgraphItemSourceKind) IsValid() bool {
+	switch e {
+	case MemgraphItemSourceKindProducer, MemgraphItemSourceKindChest, MemgraphItemSourceKindInfinityChest, MemgraphItemSourceKindBelt:
+		return true
+	}
+	return false
+}
+
+func (e MemgraphItemSourceKind) String() string {
+	return string(e)
+}
+
+func (e *MemgraphItemSourceKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MemgraphItemSourceKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MemgraphItemSourceKind", str)
+	}
+	return nil
+}
+
+func (e MemgraphItemSourceKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MemgraphItemSourceKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MemgraphItemSourceKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MemgraphStretchEnd string
+
+const (
+	// The run ends at a splitter; each splitter output starts a new stretch.
+	MemgraphStretchEndSplitter MemgraphStretchEnd = "SPLITTER"
+	// The run ends by side-loading onto another belt.
+	MemgraphStretchEndSideload MemgraphStretchEnd = "SIDELOAD"
+	// The run ends with nothing after it in the graph.
+	MemgraphStretchEndDeadend MemgraphStretchEnd = "DEADEND"
+)
+
+var AllMemgraphStretchEnd = []MemgraphStretchEnd{
+	MemgraphStretchEndSplitter,
+	MemgraphStretchEndSideload,
+	MemgraphStretchEndDeadend,
+}
+
+func (e MemgraphStretchEnd) IsValid() bool {
+	switch e {
+	case MemgraphStretchEndSplitter, MemgraphStretchEndSideload, MemgraphStretchEndDeadend:
+		return true
+	}
+	return false
+}
+
+func (e MemgraphStretchEnd) String() string {
+	return string(e)
+}
+
+func (e *MemgraphStretchEnd) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MemgraphStretchEnd(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MemgraphStretchEnd", str)
+	}
+	return nil
+}
+
+func (e MemgraphStretchEnd) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MemgraphStretchEnd) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MemgraphStretchEnd) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MemgraphStretchMapMode string
+
+const (
+	// One character per carried item.
+	MemgraphStretchMapModeItem MemgraphStretchMapMode = "ITEM"
+	// One character per stretch.
+	MemgraphStretchMapModeStretch MemgraphStretchMapMode = "STRETCH"
+)
+
+var AllMemgraphStretchMapMode = []MemgraphStretchMapMode{
+	MemgraphStretchMapModeItem,
+	MemgraphStretchMapModeStretch,
+}
+
+func (e MemgraphStretchMapMode) IsValid() bool {
+	switch e {
+	case MemgraphStretchMapModeItem, MemgraphStretchMapModeStretch:
+		return true
+	}
+	return false
+}
+
+func (e MemgraphStretchMapMode) String() string {
+	return string(e)
+}
+
+func (e *MemgraphStretchMapMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MemgraphStretchMapMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MemgraphStretchMapMode", str)
+	}
+	return nil
+}
+
+func (e MemgraphStretchMapMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MemgraphStretchMapMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MemgraphStretchMapMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MemgraphStretchReason string
+
+const (
+	MemgraphStretchReasonMixedLane  MemgraphStretchReason = "MIXED_LANE"
+	MemgraphStretchReasonNoConsumer MemgraphStretchReason = "NO_CONSUMER"
+)
+
+var AllMemgraphStretchReason = []MemgraphStretchReason{
+	MemgraphStretchReasonMixedLane,
+	MemgraphStretchReasonNoConsumer,
+}
+
+func (e MemgraphStretchReason) IsValid() bool {
+	switch e {
+	case MemgraphStretchReasonMixedLane, MemgraphStretchReasonNoConsumer:
+		return true
+	}
+	return false
+}
+
+func (e MemgraphStretchReason) String() string {
+	return string(e)
+}
+
+func (e *MemgraphStretchReason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MemgraphStretchReason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MemgraphStretchReason", str)
+	}
+	return nil
+}
+
+func (e MemgraphStretchReason) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MemgraphStretchReason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MemgraphStretchReason) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// How finely belts are represented in a supply chain.
+type MemgraphSupplyResolution string
+
+const (
+	// Every belt tile is a step. Exact: respects the order of drops and picks along a line.
+	MemgraphSupplyResolutionBelt MemgraphSupplyResolution = "BELT"
+	// Each straight belt run is one BeltStretch step. Compact and good for layout, but it ignores position along the stretch and omits recirculation loops, so it can over-approximate suppliers.
+	MemgraphSupplyResolutionStretch MemgraphSupplyResolution = "STRETCH"
+)
+
+var AllMemgraphSupplyResolution = []MemgraphSupplyResolution{
+	MemgraphSupplyResolutionBelt,
+	MemgraphSupplyResolutionStretch,
+}
+
+func (e MemgraphSupplyResolution) IsValid() bool {
+	switch e {
+	case MemgraphSupplyResolutionBelt, MemgraphSupplyResolutionStretch:
+		return true
+	}
+	return false
+}
+
+func (e MemgraphSupplyResolution) String() string {
+	return string(e)
+}
+
+func (e *MemgraphSupplyResolution) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MemgraphSupplyResolution(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MemgraphSupplyResolution", str)
+	}
+	return nil
+}
+
+func (e MemgraphSupplyResolution) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MemgraphSupplyResolution) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MemgraphSupplyResolution) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

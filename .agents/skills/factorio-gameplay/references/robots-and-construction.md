@@ -6,13 +6,22 @@ Condensed from the project's robot-mall, roboport-expansion, safe-teardown and d
 
 - `createBlueprint(area)` exports blueprintable entities (`includeModules/includeFuel` default on; tiles/trains/station names off). `createBlueprintFromEntities` builds a string from explicit blueprint-relative entities (name, position, direction, quality, recipe, mirror). Strings limited to 2,000,000 chars.
 - `placeBlueprint` places **entity ghosts only**; it consumes no items. Position is the top-left corner of the blueprint; rotate with `direction`, which must be 0, 4, 8 or 12 (a blueprint only turns in 90° steps, anything else is rejected before RCON). The result reports `ghosts`, the blueprint's `entityCount`, and `skipped` when the engine refused entities.
-- `placeGhosts(entities:[{name,position,direction?,quality?,recipe?,recipeQuality?}], tiles:[{name,x,y}])` plans the same ghosts directly at absolute map positions with no blueprint string: up to 1000 entities and 2000 tiles per call, no items consumed, no reach or collision check. It is the primitive for laying out a build plan; `ghosts` then reads the backlog (omit `area` for the whole surface).
+- `placeGhosts(entities:[{name,position,direction?,quality?,recipe?,recipeQuality?}], tiles:[{name,x,y}])` plans the same ghosts directly at absolute map positions with no blueprint string: up to 10000 entities and 20000 tiles per call, no items consumed, no reach or collision check. It is the primitive for laying out a build plan; `ghosts` then reads the backlog (omit `area` for the whole surface).
 - Audit a plan before building: `inspect` on an `entity-ghost` target `{entity:"entity-ghost", unitNumber:"6867"}` reports `ghostName` (prototype it would build), `ghostQuality`, `ghostRecipe` (crafting-machine ghosts) and `direction`. All three ghost fields are null for a real entity, so `ghostName ?? name` compares ghosts and built entities in one list. `inspectMany` returns the same fields per row for a whole plan.
 - Query `ghosts` for backlog; omit `area` to count the whole surface, or supply a box of at most 1024 tiles per side. Entries carry `placementAlternatives { name count available missing }` and `buildable` (observed stock only; it reserves nothing and ignores robot coverage and reach).
 - Real construction needs: roboport coverage, construction robots, materials in the logistic network, power. Poll `ghosts` and `constructionOrders` until backlog is gone and entities inspect correctly.
 - `buildGhosts` revives ghosts without construction robots (modes `REVIVE` default and `SILENT`), so the build lands in one tick, but it charges the build: the ghost cost comes from the actor main inventory first, then an optional `source` entity inventory (`sourceInventory` defaults to `CHEST`), at the ghost quality and all or nothing per ghost. `missing` is the stock that was absent, `MATERIALS` marks those ghosts, a blocked tile reports `COLLISION` and refunds, and `consumed`/`collidedItems` report what was spent and what ground items were displaced. An actor or source is required.
 - Destroyed entities leave **both** a remnant corpse (name contains `remnant`) and an entity ghost; the ghost list is the exact rebuild list.
 - `upgradeArea(area, mappings:[{from,to,quality?}])` marks tier upgrades through `order_upgrade` (up to 1000 mappings; the 2.0 planner item cannot carry mappings), reporting `MARKED`/`ALREADY_MARKED`/`LOOKUP`/`REFUSED` rows; `cancelUpgradeArea` reverses them. `constructionOrders(state:UPGRADE)` lists what is queued.
+
+### Blueprint catalog books
+
+Named designs live in a **script-owned catalog**, not a player inventory: it works with no character, survives save/load, and is read/written only through `blueprintBooks` / `blueprintBook` and the book mutations (full operation list and semantics in `api-map.md` section 3). Use it instead of a player book when the save has no connected character or when a design must persist for later workers.
+
+- Create with `createBlueprintBook({name<=64, label?, description?})` (max 200 books), or store a whole external book with `importBlueprintBook({name, blueprint, overwrite})`; a single blueprint string is rejected there and belongs in `addBlueprintToBook`.
+- `addBlueprintToBook` writes one **single** blueprint, `addAreaToBook` exports a live area (<=1024 tiles per side) straight into an entry; `updateBlueprintInBook` rewrites in place; `moveBlueprintInBook` swaps two slots; `removeBlueprintFromBook` clears a slot without shifting later indices.
+- `placeBlueprintFromBook({name, index?, position, direction})` places ghosts of one entry (default `activeIndex`) and consumes no items, exactly like `placeBlueprint`; `giveBlueprintBook({name, player})` copies the whole book into a connected player's main inventory when a human needs to use it.
+- Verify by re-reading `blueprintBook(name:...){ entryCount slotCount entries { index name label entityCount tileCount } }`: `BlueprintBookEntry` carries counts, not entities, and `blueprint` only appears with `includeBlueprint:true`. The engine migrates older strings to the running version on import, so per-entry `entityCount` plus entity-name diff is the only real proof.
 
 ## 2. Roboport network expansion
 
@@ -42,7 +51,7 @@ Direction rule: inserter direction points to pickup (`12` = pickup west). Use fa
 - A normal inserter feeds ~1 item/s: mall throughput is inserter- and robot-limited.
 - Verify: recipes set, requester/provider counts rise, remove a known quantity and watch refill, robots counts, power `connectedToProducingNetwork:true`, a ghost test completes.
 - `logisticNetworks.contents` can be negative while demand is unmet; do not read it as stock.
-- Crafting may be free in sandbox saves; do not infer ingredient use from craft success.
+- Crafting may be free in sandbox saves; do not infer ingredient use from craft success. Read `cheatMode` on `player` to tell.
 
 ## 4. Safe teardown of a block
 

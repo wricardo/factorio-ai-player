@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 // TestQueryMemgraphSyncAfterValidation pins the order of the sync path: the
@@ -28,6 +31,9 @@ func TestValidateReadOnlyCypher(t *testing.T) {
 		`MATCH (n) WHERE n.name = "it's \" CREATE" RETURN n`,
 		"UNWIND $ids AS id MATCH (n {id: id}) RETURN n",
 		"EXPLAIN MATCH (n) RETURN n",
+		"MATCH (n) RETURN n;",
+		"MATCH (n) RETURN n;  \n",
+		"MATCH (n {name: 'a;b'}) RETURN n;",
 	}
 	for _, q := range allowed {
 		if err := validateReadOnlyCypher(q); err != nil {
@@ -55,6 +61,21 @@ func TestValidateReadOnlyCypher(t *testing.T) {
 	for _, q := range rejected {
 		if err := validateReadOnlyCypher(q); err == nil {
 			t.Errorf("accepted %q", q)
+		}
+	}
+}
+
+func TestMemgraphReadErrorClassification(t *testing.T) {
+	syntax := &neo4j.Neo4jError{Code: "Memgraph.ClientError.MemgraphError.MemgraphError", Msg: "mismatched input RETURN"}
+	if got := memgraphReadError("Memgraph query", syntax).Error(); !strings.HasPrefix(got, "invalid Cypher:") || strings.Contains(got, "graph-up") {
+		t.Fatalf("syntax error = %q, want invalid Cypher without stack hint", got)
+	}
+	for name, err := range map[string]error{
+		"auth":         &neo4j.Neo4jError{Code: "Neo.ClientError.Security.Unauthorized", Msg: "bad"},
+		"connectivity": &neo4j.ConnectivityError{Inner: errors.New("connection refused")},
+	} {
+		if got := memgraphReadError("Memgraph query", err).Error(); !strings.Contains(got, "graph-up") {
+			t.Fatalf("%s error = %q, want stack hint", name, got)
 		}
 	}
 }

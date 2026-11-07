@@ -16,7 +16,7 @@ import (
 // (TestTopologyModPreludeParity) so an old save without the interface still works.
 const (
 	topologyModInterface = "factorio_ai_topology"
-	topologyModProtocol  = 5
+	topologyModProtocol  = 9
 )
 
 // topologyInterfaceState memoizes whether this save has the compiled topology mod.
@@ -147,10 +147,12 @@ func topologyBeltParams(surface string, x, y float64, maxEntities int) error {
 // transportLineLua names function-local transport lines. It must be
 // concatenated before any chunk that reads lanes, because Lua locals are only
 // visible to text that follows them in the same chunk.
-const transportLineLua = `local transport_line_names={}
-if defines.transport_line then
-  for name,index in pairs(defines.transport_line) do transport_line_names[index]=name end
-end
+const transportLineLua = `-- defines.transport_line collides: 3 is both left_underground_line and
+-- secondary_left_line (4 right, 7/8 the secondary splitter lines), so building
+-- this table by iterating it is map-order dependent and can rename a lane
+-- between loads. Each belt family reports a fixed index order; side is always
+-- odd=left, even=right.
+local transport_line_names={[1]="left_line",[2]="right_line",[3]="left_underground_line",[4]="right_underground_line",[5]="left_split_line",[6]="right_split_line",[7]="secondary_left_split_line",[8]="secondary_right_split_line"}
 local function transport_line_name(index)
   return transport_line_names[index] or ("line_"..tostring(index))
 end

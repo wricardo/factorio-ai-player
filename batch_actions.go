@@ -17,7 +17,7 @@ type batchTarget struct {
 	hasPosition bool
 }
 
-// batchTargets validates 1..200 distinct entity references. Duplicates are
+// batchTargets validates 1..1000 distinct entity references. Duplicates are
 // rejected because a repeated target would be fueled or filled twice.
 func batchTargets(targets []*EntityRefInput) ([]batchTarget, error) {
 	if len(targets) < 1 || len(targets) > maxBatchTargets {

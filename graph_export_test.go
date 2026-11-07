@@ -302,8 +302,14 @@ func TestGraphBuilderMergesSplitterPorts(t *testing.T) {
 			if _, ok := belt.Props["toPort"]; ok {
 				t.Fatalf("toPort must stay absent on a splitter output: %v", belt.Props)
 			}
-			if len(edges) != 1 {
-				t.Fatalf("ports must not split the edge: %d edges", len(edges))
+			beltOut := 0
+			for key := range edges {
+				if strings.HasPrefix(key, "BELT_OUT|") {
+					beltOut++
+				}
+			}
+			if beltOut != 1 {
+				t.Fatalf("ports must not split the edge: %d BELT_OUT edges", beltOut)
 			}
 		})
 	}
@@ -332,5 +338,68 @@ func TestGraphBuilderKeepsPortVocabulary(t *testing.T) {
 	}
 	if e.Props["fromPortIndex"] != "2" {
 		t.Fatalf("raw neighbour key=%v, want 2", e.Props["fromPortIndex"])
+	}
+}
+
+// The Snapshot node carries the export's final read tick so readers can size
+// graph staleness; a manifest written before the field existed must not decay
+// into a false tick 0.
+func TestGraphSnapshotPropsCarriesCaptureTick(t *testing.T) {
+	m := &graphManifest{Snapshot: "snap-1", Force: "player", Status: "complete", Tick: 1147897,
+		Surfaces: []graphSurfaceReport{{Surface: "nauvis", Scope: "nauvis|player", Status: "complete"}}}
+	props := graphSnapshotProps(m, "/tmp/snap-1")
+	if tick, ok := props["tick"].(float64); !ok || tick != 1147897 {
+		t.Fatalf("tick prop = %v, want 1147897", props["tick"])
+	}
+	m.Tick = 0
+	props = graphSnapshotProps(m, "/tmp/snap-1")
+	if _, ok := props["tick"]; ok {
+		t.Fatalf("tick prop present for a pre-field manifest: %v", props["tick"])
+	}
+}
+
+// A logistic container's engine mode picks exactly one role label next to the
+// shared :LogisticChest, a container with no mode gets none, and a roboport's
+// coverage link keeps whether the chest is also inside its construction area.
+func TestGraphBuilderLogisticChestRolesAndCoverage(t *testing.T) {
+	yes, no := true, false
+	b := newGraphBuilder("snap", "player")
+	if err := b.add(&graphLeafPayload{
+		Nodes: []graphRawNode{
+			{ID: "nauvis:1", Type: "roboport", Surface: "nauvis", Force: "player"},
+			{ID: "nauvis:2", Type: "logistic-container", Surface: "nauvis", Force: "player", LogisticMode: "active-provider"},
+			{ID: "nauvis:3", Type: "logistic-container", Surface: "nauvis", Force: "player", LogisticMode: "buffer"},
+			{ID: "nauvis:4", Type: "infinity-container", Surface: "nauvis", Force: "player"},
+		},
+		Edges: []graphRawEdge{
+			{Kind: "logistic_cover", From: "nauvis:1", To: "nauvis:2", Construction: &yes},
+			{Kind: "logistic_cover", From: "nauvis:1", To: "nauvis:3", Construction: &no},
+		},
+	}, false); err != nil {
+		t.Fatal(err)
+	}
+	edges := graphTestEdges(t, b)
+	want := map[string]string{"nauvis:2": "ActiveProviderChest", "nauvis:3": "BufferChest"}
+	for id, role := range want {
+		labels := strings.Join(b.owned[id].Labels, ",")
+		if labels != "Entity,Chest,LogisticChest,"+role {
+			t.Errorf("%s labels=%s, want Entity,Chest,LogisticChest,%s", id, labels, role)
+		}
+	}
+	if got := strings.Join(b.owned["nauvis:4"].Labels, ","); got != "Entity,Chest" {
+		t.Errorf("container without a logistic mode labels=%s, want Entity,Chest", got)
+	}
+	if e := edges["LOGISTIC_COVERS|nauvis:1|nauvis:2|"]; e == nil || e.Props["construction"] != true {
+		t.Errorf("coverage inside construction area: %v", e)
+	}
+	if e := edges["LOGISTIC_COVERS|nauvis:1|nauvis:3|"]; e == nil || e.Props["construction"] != false {
+		t.Errorf("coverage outside construction area: %v", e)
+	}
+	// A chest that changes mode in place must drop its old role label on reload.
+	managed := strings.Join(graphManagedLabels(), ",")
+	for _, l := range []string{"LogisticChest", "ActiveProviderChest", "PassiveProviderChest", "StorageChest", "RequesterChest", "BufferChest"} {
+		if !strings.Contains(managed, l) {
+			t.Errorf("%s is not a managed label, a mode change would leave it behind", l)
+		}
 	}
 }

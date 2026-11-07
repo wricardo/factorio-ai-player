@@ -11,8 +11,8 @@ func TestPlaceResolversRejectConveyorsBeforeRCON(t *testing.T) {
 	actor := &ActorInput{Player: strPtr("wricardo")}
 	if _, err := mr.Place(context.Background(), PlaceInput{
 		Actor: actor, Item: "transport-belt", Position: &PositionInput{X: 0.5, Y: 0.5},
-	}); err == nil || !strings.Contains(err.Error(), "placeBelt") {
-		t.Fatalf("place belt error = %v, want placeBelt hint", err)
+	}); err == nil || !strings.Contains(err.Error(), "placeBelts") {
+		t.Fatalf("place belt error = %v, want placeBelts hint", err)
 	}
 	if _, err := mr.PlaceMany(context.Background(), PlaceManyInput{
 		Actor: actor, Item: "pipe", Placements: []*PlacementInput{{Position: &PositionInput{X: 0.5, Y: 0.5}}},
@@ -24,8 +24,8 @@ func TestPlaceResolversRejectConveyorsBeforeRCON(t *testing.T) {
 func TestConveyorPlacementError(t *testing.T) {
 	for _, item := range []string{"transport-belt", "fast-transport-belt", "express-transport-belt"} {
 		err := conveyorPlacementError(item)
-		if err == nil || !strings.Contains(err.Error(), "placeBelt") {
-			t.Fatalf("%s must be rejected with a placeBelt hint, got %v", item, err)
+		if err == nil || !strings.Contains(err.Error(), "placeBelts") {
+			t.Fatalf("%s must be rejected with a placeBelts hint, got %v", item, err)
 		}
 	}
 	if err := conveyorPlacementError("pipe"); err == nil || !strings.Contains(err.Error(), "placePipe") {

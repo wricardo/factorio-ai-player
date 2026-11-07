@@ -13,6 +13,9 @@
 --                 mutation must report the creation and must not refund the item
 --   direction    - asserts create_entity received direction 8, so the mutation
 --                 can be checked to pass a direction through unchanged
+--   footprint    - a 3x3 assembler's centre tile is free while its footprint
+--                 covers a neighbouring inserter, which the post-create overlap
+--                 check must catch (tile_occupants only tests the centre tile)
 local scenario = os.getenv("PLACE_SCENARIO") or "snap"
 local explode = scenario == "engine"
 local commit_then_raise = scenario == "commit_then_raise"
@@ -97,6 +100,11 @@ end
 if scenario == "corpse" then
   world[#world + 1] = entity_at("tree-09-stump", "corpse", {x = 9.5, y = 9.5}, 0.8, "corpse")
 end
+-- A 3x3 assembler placed at 10.5,10.5 spans 9..12 on both axes, so it covers the
+-- inserter at 9.5,9.5 even though the assembler's own centre tile is free.
+if scenario == "footprint" then
+  world[#world + 1] = entity_at("inserter", "inserter", {x = 9.5, y = 9.5}, 1, "building")
+end
 -- Totals the actor received from fast replaces.
 local returned = {}
 
@@ -131,7 +139,7 @@ function surface.find_entities_filtered(spec)
   end
   local selected = {}
   for _, entity in ipairs(found) do
-    local keep = true
+    local keep = entity.valid ~= false
     if spec.type and entity.type ~= spec.type then
       keep = false
     end
@@ -158,7 +166,15 @@ function surface.create_entity(params)
   if explode then
     error("scripted engine failure")
   end
+  local key = tile_key(params.position)
   if params.fast_replace then
+    -- The engine destroys the replaced entity, so it must not survive in the
+    -- world the post-create overlap check scans.
+    for _, candidate in ipairs(world) do
+      if tile_key(candidate.position) == key then
+        candidate.valid = false
+      end
+    end
     -- The engine only returns the replaced entity and its contents to an actor;
     -- without character or player it spills them on the ground instead.
     -- character is declared after this closure, so identify it by shape.
@@ -174,12 +190,16 @@ function surface.create_entity(params)
       returned[name] = (returned[name] or 0) + count
     end
   end
+  if scenario == "footprint" and params.name == "assembling-machine-1" then
+    -- The overlap must be refused before create_entity: creating and destroying
+    -- would raise a build event for an entity that never existed.
+    error("create_entity reached for a footprint that overlaps a built entity")
+  end
   if scenario == "direction" then
     -- A direction-carrying entity is created with the code the caller asked for;
     -- the mutation must report that engine value, not the requested one.
     assert(params.direction == 8, "place must pass the requested direction to create_entity, got " .. tostring(params.direction))
   end
-  local key = tile_key(params.position)
   if occupied[key] then
     if params.fast_replace then
       if not replaceable then
@@ -193,16 +213,26 @@ function surface.create_entity(params)
     end
   end
   local x, y = centre(params.position.x), centre(params.position.y)
+  local half = 0.5
+  if params.name == "assembling-machine-1" then
+    half = 1.5
+  end
   local entity = {
     valid = true,
     name = params.name,
     type = "container",
+    surface = surface,
     position = {x = x, y = y},
     direction = params.direction,
     unit_number = math.floor(x) * 1000 + math.floor(y),
-    bounding_box = {left_top = {x = x - 0.5, y = y - 0.5}, right_bottom = {x = x + 0.5, y = y + 0.5}},
+    bounding_box = {left_top = {x = x - half, y = y - half}, right_bottom = {x = x + half, y = y + half}},
     prototype = {collision_mask = MASKS.building},
   }
+  -- The post-create overlap check destroys a placement that lands on a built
+  -- entity; record it so a scenario can prove the entity did not survive.
+  entity.destroy = function()
+    entity.valid = false
+  end
   if commit_then_raise then
     -- The engine can raise after the entity exists; the mutation must detect it
     -- instead of refunding the item and reporting a failure.
@@ -289,11 +319,12 @@ game = {
 defines = {build_check_type = {manual = 1, script = 2, script_ghost = 3}}
 
 prototypes = {
-  item = {["iron-chest"] = {place_result = {name = "iron-chest"}}, inserter = {place_result = {name = "inserter"}}, ["transport-belt"] = {place_result = {name = "transport-belt"}}},
+  item = {["iron-chest"] = {place_result = {name = "iron-chest"}}, inserter = {place_result = {name = "inserter"}}, ["transport-belt"] = {place_result = {name = "transport-belt"}}, ["assembling-machine-1"] = {place_result = {name = "assembling-machine-1"}}},
   entity = {
-    ["iron-chest"] = {type = "container", collision_mask = MASKS.building},
-    inserter = {type = "inserter", collision_mask = MASKS.building},
-    ["transport-belt"] = {type = "transport-belt", collision_mask = MASKS.belt},
+    ["iron-chest"] = {type = "container", collision_mask = MASKS.building, collision_box = {left_top = {x = -0.5, y = -0.5}, right_bottom = {x = 0.5, y = 0.5}}},
+    inserter = {type = "inserter", collision_mask = MASKS.building, collision_box = {left_top = {x = -0.5, y = -0.5}, right_bottom = {x = 0.5, y = 0.5}}},
+    ["transport-belt"] = {type = "transport-belt", collision_mask = MASKS.belt, collision_box = {left_top = {x = -0.5, y = -0.5}, right_bottom = {x = 0.5, y = 0.5}}},
+    ["assembling-machine-1"] = {type = "assembling-machine", collision_mask = MASKS.building, collision_box = {left_top = {x = -1.5, y = -1.5}, right_bottom = {x = 1.5, y = 1.5}}},
   },
   quality = {normal = {}, rare = {}},
 }

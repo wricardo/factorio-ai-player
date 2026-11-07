@@ -105,6 +105,108 @@ func TestIntegration(t *testing.T) {
 
 	h.createTestSurface(t)
 
+	// tile_occupants tests only the tile under the requested position, so a
+	// multi-tile prototype whose centre tile is free used to be created on top of
+	// a neighbour (create_entity ignores collision boxes). The post-create check
+	// must undo that creation, refund the item and refuse the call.
+	t.Run("PlaceRejectsFootprintOverlap", func(t *testing.T) {
+		character := h.spawnCharacter(t)
+		h.grantItems(t, character.id, map[string]int{"inserter": 1, "assembling-machine-1": 1})
+		h.mutation(t, fmt.Sprintf(`mutation {
+		  place(input:{actor:{character:%q},surface:%q,position:{x:5.5,y:5.5},item:"inserter"}) { unitNumber }
+		}`, character.id, integrationSurface))
+
+		// A 3x3 assembler centred at (6.5,6.5) covers x 5..8, y 5..8, which
+		// includes the inserter's tile, while its own centre tile is free.
+		err := h.graphqlExpectingError(t, "mutation", fmt.Sprintf(`mutation {
+		  place(input:{actor:{character:%q},surface:%q,position:{x:6.5,y:6.5},item:"assembling-machine-1"}) { unitNumber }
+		}`, character.id, integrationSurface))
+		if !strings.Contains(err.Error(), "footprint overlaps inserter") {
+			t.Fatalf("overlapping place error=%v, want a footprint overlap refusal", err)
+		}
+		if got := h.entityCount(t, "assembling-machine-1"); got != 0 {
+			t.Fatalf("assembler count=%v after a refused overlap, want 0", got)
+		}
+		if got := h.entityCount(t, "inserter"); got != 1 {
+			t.Fatalf("inserter count=%v after a refused overlap, want the original 1", got)
+		}
+		// placeMany shares the guard: the overlap is reported as a COLLISION for
+		// that index and no entity is left behind.
+		batched := h.mutation(t, fmt.Sprintf(`mutation {
+		  placeMany(input:{actor:{character:%q},surface:%q,item:"assembling-machine-1",
+		    placements:[{position:{x:6.5,y:6.5}}]}) {
+		    placed failed errors { index code message }
+		  }
+		}`, character.id, integrationSurface))
+		placed := jsonObject(t, jsonObject(t, batched, "data"), "placeMany")
+		if jsonNumber(t, placed, "placed") != 0 || jsonNumber(t, placed, "failed") != 1 {
+			t.Fatalf("placeMany placed=%v failed=%v, want 0/1", jsonNumber(t, placed, "placed"), jsonNumber(t, placed, "failed"))
+		}
+		first := jsonArray(t, placed, "errors")[0].(map[string]any)
+		if jsonString(t, first, "code") != "COLLISION" || !strings.Contains(jsonString(t, first, "message"), "footprint overlaps inserter") {
+			t.Fatalf("placeMany error=%v, want a COLLISION naming the footprint overlap", first)
+		}
+		if got := h.entityCount(t, "assembling-machine-1"); got != 0 {
+			t.Fatalf("assembler count=%v after a refused placeMany overlap, want 0", got)
+		}
+		h.destroyCharacter(t, character.id)
+	})
+
+	// buildCell promises that a refused cell leaves the world unchanged. Its
+	// preflight used to test only each entry's centre tile, so a 3x3 entry whose
+	// footprint covered an earlier entry or a neighbour was accepted, built the
+	// earlier entries, then failed inside placeMany (factorio-ai-player-t2d).
+	t.Run("BuildCellRefusesFootprintOverlapUpFront", func(t *testing.T) {
+		character := h.spawnCharacter(t)
+		h.grantItems(t, character.id, map[string]int{"transport-belt": 2, "assembling-machine-1": 1, "inserter": 1})
+		cell := h.mutation(t, fmt.Sprintf(`mutation {
+		  buildCell(input:{actor:{character:%q},surface:%q,entries:[
+		    {ref:"belt", place:{item:"transport-belt", position:{x:8.5,y:8.5}}},
+		    {ref:"am", place:{item:"assembling-machine-1", position:{x:9.5,y:9.5}}}
+		  ]}) {
+		    completed placed steps { index ok errors { code message } }
+		  }
+		}`, character.id, integrationSurface))
+		built := jsonObject(t, jsonObject(t, cell, "data"), "buildCell")
+		if jsonBool(t, built, "completed") {
+			t.Fatalf("buildCell completed=%v for a cell whose assembler covers the belt", jsonBool(t, built, "completed"))
+		}
+		if got := h.entityCount(t, "assembling-machine-1"); got != 0 {
+			t.Fatalf("assembler count=%v, want 0", got)
+		}
+		if got := h.entityCount(t, "transport-belt"); got != 0 {
+			t.Fatalf("transport-belt count=%v after a refused cell, want 0 (nothing written)", got)
+		}
+		// Two entries of one cell overlapping each other are refused by the
+		// intra-layout check, not by the world scan.
+		if msg := firstCellErrorMessage(t, built); !strings.Contains(msg, "footprint overlaps entry") {
+			t.Fatalf("intra-cell overlap message=%q, want a footprint-overlaps-entry refusal", msg)
+		}
+
+		// Same guarantee against a pre-existing world entity: the assembler's
+		// footprint covers an inserter that is already built, so nothing in the
+		// cell may be written.
+		anchor := h.place(t, character.id, "inserter", 8.5, 8.5)
+		blocked := h.mutation(t, fmt.Sprintf(`mutation {
+		  buildCell(input:{actor:{character:%q},surface:%q,entries:[
+		    {ref:"belt", place:{item:"transport-belt", position:{x:12.5,y:12.5}}},
+		    {ref:"am", place:{item:"assembling-machine-1", position:{x:9.5,y:9.5}}}
+		  ]}) { completed placed steps { index ok errors { code message } } }
+		}`, character.id, integrationSurface))
+		refused := jsonObject(t, jsonObject(t, blocked, "data"), "buildCell")
+		if jsonBool(t, refused, "completed") || jsonNumber(t, refused, "placed") != 0 {
+			t.Fatalf("buildCell on a cell covering a built inserter=%v, want a refusal with nothing placed", refused)
+		}
+		if got := h.entityCount(t, "transport-belt"); got != 0 {
+			t.Fatalf("transport-belt count=%v after a cell refused against a world entity, want 0", got)
+		}
+		if msg := firstCellErrorMessage(t, refused); !strings.Contains(msg, "footprint overlaps inserter") {
+			t.Fatalf("world-overlap message=%q, want a footprint-overlaps-inserter refusal", msg)
+		}
+		h.removeEntity(t, character.id, "inserter", anchor)
+		h.destroyCharacter(t, character.id)
+	})
+
 	t.Run("ChartTagsRoundTrip", func(t *testing.T) {
 		const markerText = "integration marker"
 		t.Cleanup(func() {
@@ -428,11 +530,11 @@ rcon.print("ok")`)
 		}
 
 		refused := h.mutation(t, fmt.Sprintf(`mutation {
-		  craftPlan(input:{actor:{character:%q},recipe:"inserter"}) {
-		    complete queued { recipe } missing { name } queueSize
+		  craft(input:{actor:{character:%q},recipe:"inserter",expand:true}) {
+		    chain { complete queued { recipe } missing { name } queueSize }
 		  }
 		}`, character.id))
-		refusedResult := jsonObject(t, jsonObject(t, refused, "data"), "craftPlan")
+		refusedResult := jsonObject(t, jsonObject(t, jsonObject(t, refused, "data"), "craft"), "chain")
 		if queued := jsonArray(t, refusedResult, "queued"); len(queued) != 0 {
 			t.Fatalf("missing raws must queue nothing, got %v", queued)
 		}
@@ -443,11 +545,11 @@ rcon.print("ok")`)
 		// Supply the raws: the plan becomes complete and performs bottom-up.
 		h.grantItems(t, character.id, map[string]int{"iron-plate": 4, "copper-plate": 2})
 		crafted := h.mutation(t, fmt.Sprintf(`mutation {
-		  craftPlan(input:{actor:{character:%q},recipe:"inserter",waitTimeoutSeconds:10}) {
-		    complete queued { recipe count } remaining { recipe } missing { name } queueSize waitTimedOut
+		  craft(input:{actor:{character:%q},recipe:"inserter",expand:true,wait:true,waitTimeoutSeconds:10}) {
+		    chain { complete queued { recipe count } remaining { recipe } missing { name } queueSize waitTimedOut }
 		  }
 		}`, character.id))
-		result := jsonObject(t, jsonObject(t, crafted, "data"), "craftPlan")
+		result := jsonObject(t, jsonObject(t, jsonObject(t, crafted, "data"), "craft"), "chain")
 		if complete, _ := result["complete"].(bool); !complete {
 			t.Fatalf("craftPlan did not finish: %v", result)
 		}
@@ -466,6 +568,78 @@ rcon.print("ok")`)
 		items := jsonArray(t, jsonObject(t, jsonObject(t, inventory, "data"), "inventory"), "items")
 		if !hasItem(items, "inserter", 1) {
 			t.Fatalf("hand-crafted inserter missing from inventory: %v", items)
+		}
+	})
+
+	// craftPlan must not plan probabilistic recycling recipes as producers
+	// (factorio-ai-player-c6j), must be resumable by repeating the same call
+	// (-il4), craft must say why it refused (-cix), and actors expose
+	// cheatMode (-zb6).
+	t.Run("CraftPlanResumeAndRefusals", func(t *testing.T) {
+		character := h.spawnCharacter(t)
+		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
+		h.lua(t, `for _,recipe in pairs(game.forces.player.recipes) do recipe.enabled=true end
+rcon.print("ok")`)
+
+		planned := h.query(t, fmt.Sprintf(`{
+		  craftPlan(input:{actor:{character:%q},recipe:"assembling-machine-2"}) {
+		    complete steps { recipe } missing { name }
+		  }
+		}`, character.id))
+		plan := jsonObject(t, jsonObject(t, planned, "data"), "craftPlan")
+		missingNames := map[string]bool{}
+		for _, raw := range jsonArray(t, plan, "missing") {
+			missingNames[raw.(map[string]any)["name"].(string)] = true
+		}
+		if !missingNames["steel-plate"] || missingNames["scrap"] {
+			t.Fatalf("missing = %v, want steel-plate reported as missing and no scrap", missingNames)
+		}
+		for _, raw := range jsonArray(t, plan, "steps") {
+			if recipe := raw.(map[string]any)["recipe"].(string); strings.Contains(recipe, "recycling") {
+				t.Fatalf("plan uses recycling recipe %q as a producer", recipe)
+			}
+		}
+
+		err := h.graphqlExpectingError(t, "mutation", fmt.Sprintf(`mutation {
+		  craft(input:{actor:{character:%q},recipe:"inserter",count:1}) { started }
+		}`, character.id))
+		if err == nil || !strings.Contains(err.Error(), "iron-plate") || !strings.Contains(err.Error(), "refused") {
+			t.Fatalf("craft refusal = %v, want it to name the missing iron-plate", err)
+		}
+
+		cheat := h.query(t, fmt.Sprintf(`{ player(input:{character:%q}) { cheatMode } }`, character.id))
+		if got := jsonObject(t, jsonObject(t, cheat, "data"), "player")["cheatMode"]; got != nil {
+			t.Fatalf("detached character cheatMode = %v, want null (no player to read it from)", got)
+		}
+
+		// 20 gear crafts take ~10 s of game time; repeated 1 s UP_TO calls must
+		// finish the batch exactly once instead of queueing 20 more each time.
+		h.grantItems(t, character.id, map[string]int{"iron-plate": 200})
+		for call := 0; ; call++ {
+			if call > 40 {
+				t.Fatal("craft expand UP_TO never completed")
+			}
+			resumed := h.mutation(t, fmt.Sprintf(`mutation {
+			  craft(input:{actor:{character:%q},recipe:"iron-gear-wheel",count:20,mode:UP_TO,expand:true,wait:true,waitTimeoutSeconds:1}) {
+			    chain { complete }
+			  }
+			}`, character.id))
+			chain := jsonObject(t, jsonObject(t, jsonObject(t, resumed, "data"), "craft"), "chain")
+			if done, _ := chain["complete"].(bool); done {
+				break
+			}
+		}
+		// A direct UP_TO against a covered target queues nothing.
+		covered := h.mutation(t, fmt.Sprintf(`mutation {
+		  craft(input:{actor:{character:%q},recipe:"iron-gear-wheel",count:20,mode:UP_TO}) { started }
+		}`, character.id))
+		if started := jsonNumber(t, jsonObject(t, jsonObject(t, covered, "data"), "craft"), "started"); started != 0 {
+			t.Fatalf("UP_TO on a covered target started %v crafts, want 0", started)
+		}
+		inventory := h.query(t, fmt.Sprintf(`{ inventory(input:{character:%q}) { items { name count } } }`, character.id))
+		items := jsonArray(t, jsonObject(t, jsonObject(t, inventory, "data"), "inventory"), "items")
+		if !hasItem(items, "iron-gear-wheel", 20) || !hasItem(items, "iron-plate", 160) {
+			t.Fatalf("items = %v, want exactly 20 gears from 40 plates (no duplicated batch)", items)
 		}
 	})
 
@@ -801,18 +975,18 @@ rcon.print("ok")`)
 		beltErr := h.graphqlExpectingError(t, "mutation", fmt.Sprintf(`mutation {
 		  place(input:{actor:{character:%q},surface:%q,position:{x:20.5,y:20.5},item:"transport-belt"}) { name }
 		}`, character.id, integrationSurface))
-		if beltErr == nil || !strings.Contains(beltErr.Error(), "placeBelt") {
-			t.Fatalf("place belt error = %v, want placeBelt hint", beltErr)
+		if beltErr == nil || !strings.Contains(beltErr.Error(), "placeBelts") {
+			t.Fatalf("place belt error = %v, want placeBelts hint", beltErr)
 		}
 		after := h.query(t, fmt.Sprintf(`{ entities(input:{surface:%q,area:%s,name:"transport-belt",limit:100}) { pageInfo { total } } }`, integrationSurface, area))
 		if count := jsonNumber(t, jsonObject(t, jsonObject(t, jsonObject(t, after, "data"), "entities"), "pageInfo"), "total"); count != 0 {
 			t.Fatalf("refused place belt left %v belts", count)
 		}
 		placedBelt := h.mutation(t, fmt.Sprintf(`mutation {
-		  placeBelt(input:{actor:{character:%q},surface:%q,from:{x:20.5,y:20.5},to:{x:20.5,y:20.5}}) { placed }
+		  connectEntities(input:{actor:{character:%q},surface:%q,kind:BELT,from:{x:20.5,y:20.5},to:{x:20.5,y:20.5},direction:0}) { placed }
 		}`, character.id, integrationSurface))
-		if jsonNumber(t, jsonObject(t, jsonObject(t, placedBelt, "data"), "placeBelt"), "placed") != 1 {
-			t.Fatalf("placeBelt one tile: %v", placedBelt)
+		if jsonNumber(t, jsonObject(t, jsonObject(t, placedBelt, "data"), "connectEntities"), "placed") != 1 {
+			t.Fatalf("connectEntities one belt tile: %v", placedBelt)
 		}
 
 		pipeErr := h.graphqlExpectingError(t, "mutation", fmt.Sprintf(`mutation {
@@ -822,7 +996,7 @@ rcon.print("ok")`)
 			t.Fatalf("placeMany pipe error = %v, want placePipe hint", pipeErr)
 		}
 		placedPipe := h.mutation(t, fmt.Sprintf(`mutation {
-		  placePipe(input:{actor:{character:%q},surface:%q,from:{x:22.5,y:20.5},to:{x:22.5,y:20.5}}) { placed }
+		  placePipe(input:{actor:{character:%q},surface:%q,from:{x:22.5,y:20.5},to:{x:22.5,y:20.5},direction:0}) { placed }
 		}`, character.id, integrationSurface))
 		if jsonNumber(t, jsonObject(t, jsonObject(t, placedPipe, "data"), "placePipe"), "placed") != 1 {
 			t.Fatalf("placePipe one tile: %v", placedPipe)
@@ -835,7 +1009,7 @@ rcon.print("ok")`)
 		h.grantItems(t, character.id, map[string]int{"transport-belt": 3})
 		const beltX, beltY = 6.0, 10.0
 		h.mutation(t, fmt.Sprintf(`mutation {
-		  placeBelt(input:{actor:{character:%q},surface:%q,from:{x:%g,y:%g},to:{x:%g,y:%g},item:"transport-belt"}) { placed }
+		  connectEntities(input:{actor:{character:%q},surface:%q,kind:BELT,from:{x:%g,y:%g},to:{x:%g,y:%g},item:"transport-belt"}) { placed }
 		}`, character.id, integrationSurface, beltX, beltY, beltX+2, beltY))
 		area := fmt.Sprintf(`{leftTopX:%g,leftTopY:%g,rightBottomX:%g,rightBottomY:%g}`, beltX-1, beltY-1, beltX+3, beltY+1)
 		t.Cleanup(func() {
@@ -1081,7 +1255,7 @@ end
 rcon.print("ok")`)
 		})
 		h.mutation(t, fmt.Sprintf(`mutation {
-		  placePipe(input:{actor:{character:%q},surface:%q,from:{x:-3.5,y:-14.5},to:{x:-3.5,y:-14.5}}) { placed }
+		  placePipe(input:{actor:{character:%q},surface:%q,from:{x:-3.5,y:-14.5},to:{x:-3.5,y:-14.5},direction:0}) { placed }
 		}`, character.id, integrationSurface))
 
 		exact := fmt.Sprintf(`{ connectionPlan(input:{surface:%q,force:"player",from:{x:-4.5,y:-15.5},to:{x:-1.5,y:-15.5},kind:PIPE}) {
@@ -1181,6 +1355,134 @@ rcon.print("ok")`)
 		result := jsonObject(t, jsonObject(t, applied, "data"), "connectEntities")
 		if jsonNumber(t, result, "placed") != needed || jsonNumber(t, result, "failed") != 0 {
 			t.Fatalf("pole apply: %v, plan needed=%v", result, needed)
+		}
+	})
+
+	t.Run("BuildCellOccupancyAndBuildConnection", func(t *testing.T) {
+		character := h.spawnCharacter(t)
+		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
+		h.grantItems(t, character.id, map[string]int{"assembling-machine-1": 2, "transport-belt": 12})
+		const area = `{leftTopX:-40,leftTopY:-40,rightBottomX:-20,rightBottomY:-20}`
+		t.Cleanup(func() {
+			if h.isStopped() {
+				return
+			}
+			h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+if surface then
+  for _,e in pairs(surface.find_entities_filtered{area=`+luaBounds(area)+`}) do
+    if e.name=="transport-belt" or e.name=="assembling-machine-1" then e.destroy() end
+  end
+end
+rcon.print("ok")`)
+		})
+		count := func(name string) float64 {
+			result := h.query(t, fmt.Sprintf(`{ entities(input:{surface:%q,area:%s,name:%q,limit:1000}) { pageInfo { total } } }`, integrationSurface, area, name))
+			return jsonNumber(t, jsonObject(t, jsonObject(t, jsonObject(t, result, "data"), "entities"), "pageInfo"), "total")
+		}
+		beltsBefore := count("transport-belt")
+		machinesBefore := count("assembling-machine-1")
+		cell := func(dryRun bool) string {
+			return fmt.Sprintf(`mutation {
+			  buildCell(input:{actor:{character:%q},surface:%q,force:"player",dryRun:%t,entries:[
+			    {ref:"gear",place:{item:"assembling-machine-1",position:{x:-30.5,y:-30.5}}},
+			    {ref:"feed",connection:{from:{x:-26.5,y:-30.5},to:{x:-22.5,y:-30.5},kind:BELT}},
+			    {ref:"recipe",recipe:{ref:"gear",recipe:"iron-gear-wheel"}}
+			  ]}) {
+			    dryRun completed placed failed skipped
+			    steps { index ref kind ok applied unitNumber placed failed message }
+			  }
+			}`, character.id, integrationSurface, dryRun)
+		}
+
+		dry := jsonObject(t, jsonObject(t, h.mutation(t, cell(true)), "data"), "buildCell")
+		if !jsonBool(t, dry, "dryRun") || jsonBool(t, dry, "completed") || jsonNumber(t, dry, "placed") != 0 {
+			t.Fatalf("dry run: %v", dry)
+		}
+		if count("transport-belt") != beltsBefore || count("assembling-machine-1") != machinesBefore {
+			t.Fatalf("dry run changed the world: %v", dry)
+		}
+
+		built := jsonObject(t, jsonObject(t, h.mutation(t, cell(false)), "data"), "buildCell")
+		if !jsonBool(t, built, "completed") || jsonNumber(t, built, "failed") != 0 || len(jsonArray(t, built, "steps")) != 3 {
+			t.Fatalf("cell apply: %v", built)
+		}
+		for _, raw := range jsonArray(t, built, "steps") {
+			step := raw.(map[string]any)
+			if !jsonBool(t, step, "ok") || !jsonBool(t, step, "applied") {
+				t.Fatalf("cell step not applied: %v", step)
+			}
+		}
+		if got := count("transport-belt") - beltsBefore; got != 5 {
+			t.Fatalf("belts placed = %v, want 5", got)
+		}
+		recipe := h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+local m=surface.find_entities_filtered{name="assembling-machine-1",position={-30.5,-30.5},radius=0.5}[1]
+rcon.print(m and m.get_recipe() and m.get_recipe().name or "none")`)
+		if !strings.Contains(recipe, "iron-gear-wheel") {
+			t.Fatalf("machine recipe = %q, want iron-gear-wheel", recipe)
+		}
+
+		occupancy := jsonObject(t, jsonObject(t, h.query(t, fmt.Sprintf(`{
+		  occupancy(input:{surface:%q,force:"player",area:%s,limit:100}) {
+		    pageInfo { total }
+		    entries { name direction footprint { leftTopX leftTopY rightBottomX rightBottomY } }
+		  }
+		}`, integrationSurface, area)), "data"), "occupancy")
+		var machineFound bool
+		belts := 0
+		for _, raw := range jsonArray(t, occupancy, "entries") {
+			entry := raw.(map[string]any)
+			footprint := jsonObject(t, entry, "footprint")
+			switch jsonString(t, entry, "name") {
+			case "assembling-machine-1":
+				machineFound = true
+				if jsonNumber(t, footprint, "leftTopX") != -32 || jsonNumber(t, footprint, "rightBottomX") != -29 ||
+					jsonNumber(t, footprint, "leftTopY") != -32 || jsonNumber(t, footprint, "rightBottomY") != -29 {
+					t.Fatalf("machine footprint = %v, want the 3x3 tiles -32..-29", footprint)
+				}
+			case "transport-belt":
+				belts++
+				if jsonNumber(t, footprint, "rightBottomX")-jsonNumber(t, footprint, "leftTopX") != 1 {
+					t.Fatalf("belt footprint = %v, want one tile", footprint)
+				}
+			}
+		}
+		if !machineFound || belts != 5 {
+			t.Fatalf("occupancy machine=%v belts=%d, want machine and 5 belts: %v", machineFound, belts, occupancy)
+		}
+
+		connection := func(dryRun bool) string {
+			return fmt.Sprintf(`mutation {
+			  buildConnection(dryRun:%t,input:{actor:{character:%q},surface:%q,force:"player",from:{x:-26.5,y:-26.5},to:{x:-22.5,y:-26.5},kind:BELT}) {
+			    dryRun
+			    plan { possible needed stopReason conflicts { kind message } }
+			    result { possible placed failed actor { player character } }
+			  }
+			}`, dryRun, character.id, integrationSurface)
+		}
+		planned := jsonObject(t, jsonObject(t, h.mutation(t, connection(true)), "data"), "buildConnection")
+		if !jsonBool(t, planned, "dryRun") || planned["result"] != nil || jsonNumber(t, jsonObject(t, planned, "plan"), "needed") != 5 {
+			t.Fatalf("buildConnection dry run: %v", planned)
+		}
+		if got := count("transport-belt") - beltsBefore; got != 5 {
+			t.Fatalf("buildConnection dry run changed belts: %v", got)
+		}
+		placed := jsonObject(t, jsonObject(t, h.mutation(t, connection(false)), "data"), "buildConnection")
+		if placed["result"] == nil {
+			t.Fatalf("buildConnection returned no result: %v", placed)
+		}
+		result := jsonObject(t, placed, "result")
+		if !jsonBool(t, result, "possible") || jsonNumber(t, result, "placed") != 5 || jsonNumber(t, result, "failed") != 0 {
+			t.Fatalf("buildConnection apply: %v", placed)
+		}
+		// result.actor is ActorIdentity!: selecting it must not hit the null check,
+		// and it must name the actor the mutation was called with.
+		actor := result["actor"]
+		if actor == nil {
+			t.Fatalf("buildConnection result.actor is null: %v", result)
+		}
+		if got := jsonString(t, actor.(map[string]any), "character"); got != character.id {
+			t.Fatalf("buildConnection result.actor.character = %q, want %q", got, character.id)
 		}
 	})
 
@@ -2912,6 +3214,44 @@ rcon.print("ok")`)
 		}
 	})
 
+	t.Run("GraphSnapshotPause", func(t *testing.T) {
+		h.lua(t, `game.tick_paused=false; game.surfaces["`+integrationSurface+`"].create_entity{name="wooden-chest",position={20.5,300.5},force="player"}; rcon.print("ok")`)
+		t.Cleanup(func() { h.lua(t, `game.tick_paused=false; rcon.print("ok")`) })
+		for _, initiallyPaused := range []bool{false, true} {
+			t.Run(fmt.Sprintf("initiallyPaused=%t", initiallyPaused), func(t *testing.T) {
+				h.lua(t, fmt.Sprintf(`game.tick_paused=%t; rcon.print("ok")`, initiallyPaused))
+				opts := graphExportOptions{Force: "player", Surfaces: []string{integrationSurface},
+					Out: filepath.Join(t.TempDir(), "snapshot"), LeafMax: 1, Concurrency: 4,
+					ChunkPage: 20000, Pause: true}
+				_, m, err := exportGraphContext(context.Background(), opts, io.Discard, h.addr, h.password)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, surface := range m.Surfaces {
+					if surface.TickBefore != surface.TickAfter {
+						t.Fatalf("paused export advanced ticks: %v..%v", surface.TickBefore, surface.TickAfter)
+					}
+					for _, leaf := range surface.Leaves {
+						if leaf.Tick != surface.TickBefore {
+							t.Fatalf("leaf tick %v differs from census %v", leaf.Tick, surface.TickBefore)
+						}
+					}
+				}
+				want := fmt.Sprintf("%t", initiallyPaused)
+				if got := strings.TrimSpace(h.lua(t, `rcon.print(tostring(game.tick_paused))`)); got != want {
+					t.Fatalf("pause state after export = %q, want %q", got, want)
+				}
+				opts.Surfaces = []string{"missing-snapshot-pause-surface"}
+				if _, _, err := exportGraphContext(context.Background(), opts, io.Discard, h.addr, h.password); err == nil {
+					t.Fatal("export on missing surface succeeded")
+				}
+				if got := strings.TrimSpace(h.lua(t, `rcon.print(tostring(game.tick_paused))`)); got != want {
+					t.Fatalf("pause state after failed export = %q, want %q", got, want)
+				}
+			})
+		}
+	})
+
 	t.Run("GraphExportCoverage", func(t *testing.T) {
 		character := h.spawnCharacter(t)
 		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
@@ -3138,6 +3478,215 @@ rcon.print("ok")`)
 		}
 	})
 
+	t.Run("InserterDropLaneRule", func(t *testing.T) {
+		h.createTestSurface(t)
+		// The engine decides the lane of an in-line drop; graph_lane cannot derive
+		// it from geometry (the drop point has no perpendicular offset). This pins
+		// the rule the exporter encodes: short and long-handed arms, belt moving
+		// toward and away, all land on the right transport line (index 2), and a
+		// perpendicular drop lands on the far lane.
+		h.lua(t, `local s=game.surfaces["`+integrationSurface+`"]
+s.request_to_generate_chunks({8,336},2)
+s.force_generate_chunk_requests()
+local function make(spec)
+  spec.force="player"
+  local e=s.create_entity(spec)
+  if not e then error("could not create "..spec.name.." at "..tostring(spec.position.x)..","..tostring(spec.position.y)) end
+  return e
+end
+local D=defines.direction
+local function lane(name,x,insdir,beltdy,beltdir,chestdy,proto)
+  local chest=make{name="wooden-chest",position={x=x+0.5,y=340.5+chestdy}}
+  chest.insert{name="iron-plate",count=60}
+  make{name=proto,position={x=x+0.5,y=340.5},direction=insdir}
+  make{name="transport-belt",position={x=x+0.5,y=340.5+beltdy},direction=beltdir}
+  rcon.print(name.." ok")
+end
+for x=0,48,6 do
+  make{name="electric-energy-interface",position={x=x+3.5,y=340.5}}
+  make{name="medium-electric-pole",position={x=x+3.5,y=342.5}}
+end
+lane("short_away",0,D.north,1,D.south,-1,"inserter")
+lane("short_toward",6,D.north,1,D.north,-1,"inserter")
+lane("short_east",12,D.north,1,D.east,-1,"inserter")
+lane("short_west",18,D.north,1,D.west,-1,"inserter")
+lane("long_away",24,D.north,2,D.south,-2,"long-handed-inserter")
+lane("long_toward",30,D.north,2,D.north,-2,"long-handed-inserter")
+lane("long_east",36,D.north,2,D.east,-2,"long-handed-inserter")
+lane("long_west",42,D.north,2,D.west,-2,"long-handed-inserter")
+rcon.print("lanes ready")`)
+		time.Sleep(3 * time.Second)
+		got := h.lua(t, `local s=game.surfaces["`+integrationSurface+`"]
+local function lines(x,y)
+  local belt=s.find_entity("transport-belt",{x=x,y=y})
+  if not belt then return "missing" end
+  local out={}
+  for i=1,belt.get_max_transport_line_index() do
+    local n=0
+    for _,it in pairs(belt.get_transport_line(i).get_contents()) do n=n+it.count end
+    out[#out+1]=tostring(i).."="..tostring(n)
+  end
+  local shape="?"
+  local ok,sh=pcall(function() return belt.belt_shape end)
+  if ok then shape=tostring(sh) end
+  return shape.." "..table.concat(out," ")
+end
+rcon.print("short_away "..lines(0.5,341.5))
+rcon.print("short_toward "..lines(6.5,341.5))
+rcon.print("short_east "..lines(12.5,341.5))
+rcon.print("short_west "..lines(18.5,341.5))
+rcon.print("long_away "..lines(24.5,342.5))
+rcon.print("long_toward "..lines(30.5,342.5))
+rcon.print("long_east "..lines(36.5,342.5))
+rcon.print("long_west "..lines(42.5,342.5))
+rcon.print("done")`)
+		// In-line drops always land on line 2; perpendicular drops land on the lane
+		// away from the inserter (belt east -> right line 2, belt west -> left 1).
+		// Counts vary with the inserter's hand and belt backlog, so only the line
+		// that receives items is asserted.
+		laneCounts := map[string]map[int]int{}
+		for _, line := range strings.Split(got, "\n") {
+			fields := strings.Fields(line)
+			if len(fields) < 4 || fields[1] != "straight" {
+				continue
+			}
+			counts := map[int]int{}
+			for _, part := range fields[2:] {
+				var index, count int
+				if _, err := fmt.Sscanf(part, "%d=%d", &index, &count); err == nil {
+					counts[index] = count
+				}
+			}
+			laneCounts[fields[0]] = counts
+		}
+		for _, want := range []struct {
+			name  string
+			right bool
+		}{
+			{"short_away", true}, {"short_toward", true}, {"short_east", true}, {"short_west", false},
+			{"long_away", true}, {"long_toward", true}, {"long_east", true}, {"long_west", false},
+		} {
+			counts, ok := laneCounts[want.name]
+			if !ok {
+				t.Errorf("%s: no lane readback in %q", want.name, got)
+				continue
+			}
+			if want.right {
+				if counts[1] != 0 || counts[2] == 0 {
+					t.Errorf("%s: lanes=%v, want items only on line 2", want.name, counts)
+				}
+			} else if counts[1] == 0 || counts[2] != 0 {
+				t.Errorf("%s: lanes=%v, want items only on line 1", want.name, counts)
+			}
+		}
+	})
+
+	t.Run("GraphDetailFields", func(t *testing.T) {
+		h.createTestSurface(t)
+		// One drill over two ore types (the copper-on-iron-bus cause), a furnace
+		// with a product counter, an underground belt carrying different items on
+		// its surface and tunnel lines, and an inserter with lane flags.
+		h.lua(t, `local s=game.surfaces["`+integrationSurface+`"]
+s.request_to_generate_chunks({8,344},2)
+s.force_generate_chunk_requests()
+local function make(spec)
+  spec.force="player"
+  local e=s.create_entity(spec)
+  if not e then error("could not create "..spec.name.." at "..tostring(spec.position.x)..","..tostring(spec.position.y)) end
+  return e
+end
+local D=defines.direction
+for dx=-2,2 do for dy=-2,2 do
+  s.create_entity{name="iron-ore",position={x=10.5+dx,y=348.5+dy},amount=500,force="neutral"}
+end end
+s.create_entity{name="copper-ore",position={x=11.5,y=348.5},amount=500,force="neutral"}
+make{name="electric-mining-drill",position={x=10.5,y=348.5},direction=D.north}
+make{name="electric-furnace",position={x=10.5,y=351.5},direction=D.north}
+local ugIn=make{name="underground-belt",position={x=20.5,y=350.5},direction=D.east,type="input"}
+local ugOut=make{name="underground-belt",position={x=23.5,y=350.5},direction=D.east,type="output"}
+ugIn.get_transport_line(1).insert_at_back({name="iron-plate",count=3})
+ugIn.get_transport_line(2).insert_at_back({name="copper-plate",count=2})
+-- different item on the tunnel side of the same belt half
+ugIn.get_transport_line(3).insert_at_back({name="copper-plate",count=1})
+make{name="inserter",position={x=26.5,y=350.5},direction=D.north}
+make{name="electric-energy-interface",position={x=26.5,y=348.5}}
+rcon.print("detail ready")`)
+
+		out := filepath.Join(t.TempDir(), "snapshot")
+		dir, err := exportGraph(graphExportOptions{Force: "player", Surfaces: []string{integrationSurface}, Out: out,
+			LeafMax: 2000, Concurrency: 4, ChunkPage: 20000}, io.Discard, h.addr, h.password)
+		if err != nil {
+			t.Fatalf("graph export: %v", err)
+		}
+		byType := map[string][]graphNodeOut{}
+		if err := eachGraphLine(filepath.Join(dir, graphSnapshotNodes), func(line []byte) error {
+			var n graphNodeOut
+			if err := json.Unmarshal(line, &n); err != nil {
+				return err
+			}
+			if typ, _ := n.Props["type"].(string); typ != "" {
+				byType[typ] = append(byType[typ], n)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if drill := byType["mining-drill"]; len(drill) != 1 {
+			t.Fatalf("drills=%d, want 1", len(drill))
+		} else {
+			res, _ := drill[0].Props["areaResources"].([]any)
+			if len(res) != 2 {
+				t.Fatalf("areaResources=%v, want iron and copper tiles", drill[0].Props["areaResources"])
+			}
+			// The test surface is generated terrain, so natural ore may sit in the
+			// area too; the drill's own 5x5 is the floor.
+			if tiles, _ := drill[0].Props["areaTiles"].(float64); tiles < 25 {
+				t.Fatalf("areaTiles=%v, want at least the 5x5 mining area (25)", drill[0].Props["areaTiles"])
+			}
+			for _, field := range []string{"miningLeft", "miningTop", "miningRight", "miningBottom"} {
+				if _, ok := drill[0].Props[field]; !ok {
+					t.Errorf("drill has no %s", field)
+				}
+			}
+		}
+		if furnaces := byType["furnace"]; len(furnaces) != 1 {
+			t.Fatalf("furnaces=%d, want 1", len(furnaces))
+		} else {
+			if _, ok := furnaces[0].Props["productsFinished"]; !ok {
+				t.Errorf("furnace has no productsFinished: %v", furnaces[0].Props)
+			}
+			if _, ok := furnaces[0].Props["craftingProgress"]; !ok {
+				t.Errorf("furnace has no craftingProgress: %v", furnaces[0].Props)
+			}
+		}
+		// Every belt-family node samples its engine lines, not just transport belts.
+		// Every belt-family node reports per-side counts (an empty half still has
+		// them); only non-empty lines are listed, so the loaded half carries lanes.
+		sampled := false
+		for _, typ := range []string{"underground-belt"} {
+			for _, belt := range byType[typ] {
+				if _, ok := belt.Props["leftCount"]; !ok {
+					t.Errorf("%s %v has no leftCount: %v", typ, belt.Props["unit"], belt.Props)
+				}
+				if _, ok := belt.Props["lanes"]; ok {
+					sampled = true
+				}
+			}
+		}
+		if !sampled {
+			t.Errorf("no underground belt carried a lanes sample: %v", byType["underground-belt"])
+		}
+		for _, belt := range byType["underground-belt"] {
+			if v, _ := belt.Props["unit"].(float64); v == 0 {
+				continue
+			}
+			if mixed, ok := belt.Props["mixedLeft"].(bool); ok && mixed {
+				return // the tunnel-side sample proved a mixed left side
+			}
+		}
+		t.Errorf("no underground belt reported a mixed left side: %v", byType["underground-belt"])
+	})
+
 	t.Run("SaveShutdown", func(t *testing.T) {
 		h.mutation(t, `mutation { save { response } }`)
 		save := filepath.Join(h.dir, "data", "saves", "sandbox.zip")
@@ -3318,6 +3867,26 @@ func freeUDPPort(t *testing.T) int {
 	return listener.LocalAddr().(*net.UDPAddr).Port
 }
 
+// firstCellErrorMessage returns the first step error message a buildCell result
+// carries, so a test can pin which preflight rule refused the cell.
+func firstCellErrorMessage(t *testing.T, result map[string]any) string {
+	t.Helper()
+	steps := jsonArray(t, result, "steps")
+	if len(steps) == 0 {
+		t.Fatalf("buildCell result has no steps: %v", result)
+	}
+	for _, raw := range steps {
+		step := raw.(map[string]any)
+		for _, rawError := range jsonArray(t, step, "errors") {
+			if message := jsonString(t, rawError.(map[string]any), "message"); message != "" {
+				return message
+			}
+		}
+	}
+	t.Fatalf("buildCell result carries no step errors: %v", result)
+	return ""
+}
+
 func (h *integrationHarness) query(t *testing.T, document string) map[string]any {
 	t.Helper()
 	return h.graphql(t, "query", document)
@@ -3437,6 +4006,15 @@ func (h *integrationHarness) placeLamp(t *testing.T, character string, x, y floa
 	result := h.mutation(t, fmt.Sprintf(`mutation {
 	  place(input:{actor:{character:%q},surface:%q,position:{x:%g,y:%g},item:"small-lamp"}) { unitNumber }
 	}`, character, integrationSurface, x, y))
+	return jsonString(t, jsonObject(t, jsonObject(t, result, "data"), "place"), "unitNumber")
+}
+
+// place puts one entity through the place mutation and returns its unit number.
+func (h *integrationHarness) place(t *testing.T, character, item string, x, y float64) string {
+	t.Helper()
+	result := h.mutation(t, fmt.Sprintf(`mutation {
+	  place(input:{actor:{character:%q},surface:%q,position:{x:%g,y:%g},item:%q}) { unitNumber }
+	}`, character, integrationSurface, x, y, item))
 	return jsonString(t, jsonObject(t, jsonObject(t, result, "data"), "place"), "unitNumber")
 }
 

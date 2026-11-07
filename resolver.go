@@ -515,7 +515,7 @@ func conveyorPlacementError(item string) error {
 	name := strings.ToLower(item)
 	switch {
 	case strings.HasSuffix(name, "transport-belt"):
-		return fmt.Errorf("%q must be placed with placeBelt(...), which routes the run and can tunnel under crossings instead of place/placeMany", item)
+		return fmt.Errorf("%q must be placed with placeBelts(...), which routes the run and can tunnel under crossings instead of place/placeMany", item)
 	case name == "pipe":
 		return fmt.Errorf("%q must be placed with placePipe(...), which routes the run and can tunnel under crossings instead of place/placeMany", item)
 	}
@@ -537,12 +537,12 @@ func isListField(key string) bool {
 		"roboportRobot", "roboportMaterial", "cargoWagon", "carTrunk", "spiderTrunk", "artilleryWagonAmmo", "orders",
 		"beltNeighbours", "fluidboxNeighbours", "produced", "consumed", "production", "seedRequirements", "platforms", "rocket",
 		"shortfall", "surfaces", "tags", "theoreticalBaseProducts", "ends", "targets",
-		"components", "stallEnds", "starveHeads", "ghosts", "blueprintBooks", "entries",
+		"components", "stallEnds", "starveHeads", "ghosts", "blueprintBooks", "entries", "terrain",
 		"starvedConsumers", "byCategory", "additionalCategories", "fuelItems",
 		"compactEdges", "compactBoundaryEdges", "compactInserters", "compactNodes", "groundPositions",
 		"members", "segments", "problems", "trainStops", "carriages", "waitConditions", "collidedItems", "groundItems",
 		"entityCount", "defects", "counts", "mixedTiles", "feeders", "tiles", "fluidFilters", "fluidPorts", "labelCounts", "edgeTypes", "columns",
-		"labels", "relationships", "properties":
+		"labels", "relationships", "properties", "paths", "origins", "kindCounts", "feedingArms", "gaps", "affected", "causes", "deficits", "limiting", "notes", "route", "routes", "stages", "boundary", "nodeIds", "kinds", "stretches", "left", "right", "findings", "related", "cells", "links", "statusCounts":
 		return true
 	}
 	return false

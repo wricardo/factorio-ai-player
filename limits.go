@@ -63,11 +63,11 @@ const (
 
 	// maxProbeSamples bounds a placement probe's sampled tile count and the
 	// number of sites it may report.
-	maxProbeSamples = 65536
+	maxProbeSamples = 262144
 	maxProbeSites   = 1000
 
 	// maxMapDimension bounds mapArea output rows and columns.
-	maxMapDimension = 256
+	maxMapDimension = 1024
 
 	// maxNeighborRadius and maxDrillRadius are tile radii, not entity counts.
 	maxNeighborRadius = 1000

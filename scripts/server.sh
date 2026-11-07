@@ -41,7 +41,14 @@ start|stop)
             fail 'stored PID belongs to an unrecognized process; refusing to start'
         fi
         binary=${FACTORIO_BIN:-/Applications/factorio.app/Contents/MacOS/factorio}
-        save=${FACTORIO_SAVE:-$HOME/Library/Application Support/factorio/saves/ai-player.zip}
+        # Resume the world this workflow last ran, not a built-in path: a plain
+        # `just restart` must not silently switch saves. FACTORIO_SAVE still wins.
+        recorded=$(cat "$state/save" 2>/dev/null || true)
+        if [[ -z "${FACTORIO_SAVE:-}" && -n "$recorded" && -f "$recorded" ]]; then
+            save=$recorded
+        else
+            save=${FACTORIO_SAVE:-$HOME/Library/Application Support/factorio/saves/ai-player.zip}
+        fi
         port=${FACTORIO_RCON_PORT:-27015}
         game_port=${FACTORIO_GAME_PORT:-34197}
         [[ -x "$binary" ]] || fail "Factorio executable not found: $binary"
@@ -55,6 +62,9 @@ start|stop)
         : > "$state/server.log"
         set -- --start-server "$save" --bind "127.0.0.1:$game_port" --rcon-bind "127.0.0.1:$port" --rcon-password "$(cat "$state/password")" --server-settings "$PWD/server-settings.json"
         if [[ -n "${FACTORIO_MOD_DIR:-}" ]]; then set -- --mod-directory "$FACTORIO_MOD_DIR" "$@"; fi
+        # A mod version bump leaves a stale "<name>_<old>" symlink, which
+        # Factorio refuses to load; repair the names before the game starts.
+        "$PWD/scripts/mod-link.sh" "${FACTORIO_MOD_DIR:-$HOME/Library/Application Support/factorio/mods}" >/dev/null
         nohup "$binary" "$@" >> "$state/server.log" 2>&1 < /dev/null &
         pid=$!
         printf '%s\n' "$pid" > "$state/pid"

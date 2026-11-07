@@ -15,7 +15,7 @@ Authority order: live game state and the live schema (`gqlcli describe ...`) > r
 |---|---|
 | End-to-end build order from empty map to verified rocket launch (phases, gates, research sequence, parallel tracks) | [`factorio-scratch-to-rocket`](../factorio-scratch-to-rocket/SKILL.md) |
 | Running gqlcli, scripts, waiting, error handling, `--strict`, CWD trap | [references/gqlcli-workflow.md](references/gqlcli-workflow.md) |
-| Which query/mutation to use; semantics of each; new ops (`factoryBriefing`, `factoryAlerts`, `inspectMany`, `entitySettings`, `itemBalance`, `connectEntities`, `placeNextTo`, `nearestPlacement`, `mapArea`, `prototype`, `waitUntil`, `navigationActive`, `circuitNetworks`, `fluidSegments`, `trainStops`, `upgradeArea`, `setConstantCombinator`, `fuelMany`, `transferMany`) | [references/api-map.md](references/api-map.md) |
+| Which query/mutation to use; semantics of each; new ops (`factoryBriefing`, `factoryAlerts`, `factoryDefects`, `inspectMany`, `entitySettings`, `itemBalance`, `connectEntities`, `buildConnection`, `buildCell`, `buildAsPlayer`, `placeNextTo`, `nearestPlacement`, `mapArea`, `prototype`, `waitUntil`, `navigationActive`, `circuitNetworks`, `fluidSegments`, `trainStops`, `upgradeArea`, `setConstantCombinator`, `fuelMany`, `transferMany`, `transferBetween`, `beltPurge`, `setRecipeEnabled`, `playerState`, `spacePlatforms`, `blueprintBooks`) | [references/api-map.md](references/api-map.md) |
 | Where to put things: coordinates, footprints, **inserter direction rule**, belts/lanes, pole reach, worked cell layouts | [references/spatial-and-geometry.md](references/spatial-and-geometry.md) |
 | Starting a save, stage ladder, tech order, red-science cell, fuel discipline | [references/bootstrap-and-progression.md](references/bootstrap-and-progression.md) |
 | Rates, ratios, machine counts, recipes, power sizing, rocket totals | [references/production-math.md](references/production-math.md) |
@@ -39,7 +39,7 @@ Normative. MUST = required, violating it makes the action wrong. SHOULD = defaul
 
 ### MUST
 
-1. **Read the reference for your task first** (table above) and confirm the live contract (`gqlcli queries|mutations --args`, `gqlcli describe`, `gqlcli validate`) before the first use of an operation.
+1. **Read the reference for your task first** (table above), run `gqlcli op list` once, and confirm the live contract (`gqlcli queries|mutations --args`, `gqlcli describe`, `gqlcli validate`) before the first use of an operation. The saved ops are the gameplay toolbox: look them up for the action you want (read state, inspect, place a belt, build a cell, wait) and play through `--op <name>` instead of composing an equivalent request.
 2. **Observe, plan, act, verify, in that order.** Never run a long mutation chain against assumed state; a live read after the write is the only proof.
 3. **Exact engine names.** Items, recipes, technologies, entities, fluids, inventories come from `prototype`, `itemRecipes`, `researchInsights`, `recipe`. Never translate a display name from memory.
 4. **Address entities with `entity` AND `unitNumber`** (`{entity:"lab", unitNumber:"60"}`), or `entity` + exact center `position`. `{unitNumber}` alone fails (`prototype is not resolvable by unit number alone; pass entity too`). Keep the unit numbers placement returned.
@@ -100,12 +100,14 @@ Normative. MUST = required, violating it makes the action wrong. SHOULD = defaul
 
 ```sh
 cd /Users/wricardo/go/src/github.com/wricardo/factorio-ai-player   # gqlcli needs .gqlcli.json from CWD, else 404
+gqlcli op list                                                     # saved named ops first, hand-written docs second
 gqlcli query '{ status { tick speed paused players { name surface position character } } }'
 gqlcli script --strict=false --file .agents/skills/factorio-gameplay/scripts/briefing.js --arg '{"limit":15}'
 ```
 
 - `.gqlcli.json` env `local` = `http://127.0.0.1:8080/query`. Add or fix it with `gqlcli config add-env --name local --url ...` and `config set-default`; never `config init --force` over an existing file. Load the `gqlcli` skill for the full CLI.
 - gqlcli is the only interface. If the endpoint is down, report it (check `just logs`, `just graphql`); never switch to `go run` or raw RCON.
+- **The saved ops are how you play.** `gqlcli op list` (~48 named ops in `.gqlcli.json`) maps directly onto gameplay moves — look/read: `status`, `entities`, `entity`, `nearby`, `inspect`, `inspect-many`, `stock`, `power`, `production`, `fluids`, `research`, `briefing`, `factory-alerts`, `belt-stretch`, `dead-belts`, `fluid-segments`, `trains`, `ghosts`, `construction`, `occupancy`; act: `connection-plan`, `build-connection`, `place-belt`, `place-item`, `place-many`, `build-cell`, `set-recipe`, `transfer`, `remove-many`, `queue-research`, `spawn-character`, `wait-until`. Playthrough is `gqlcli query --op <name> --variables '{"input":{...}}'` / `gqlcli mutation --op <name> --input '{...}'`; `gqlcli op show --name <name>` prints the op's document so you can see its arguments. Pick the op for the move you want rather than assembling a request from scratch.
 - Discover the live contract before first use of any operation: `gqlcli queries --args --desc`, `gqlcli mutations --args --desc`, `gqlcli describe Mutation.placeMany --args --depth 1`, `gqlcli validate --mutation '...'`.
 - Check `status.paused` and `speed`: a paused game advances nothing.
 
@@ -137,7 +139,7 @@ PageInfo { total limit offset hasMore }
 
 ## Query authoring: validate before acting
 
-Most failed calls in real sessions are invented field names, not engine failures. Compose from `gqlcli describe Type --args`, `gqlcli validate`, or a saved `.gqlcli.json` op; never guess.
+Most failed calls in real sessions are invented field names, not engine failures. Play through the saved ops where one exists (`gqlcli op list`, then `--op <name>`); for anything else compose from `gqlcli describe Type --args` or `gqlcli validate`; never guess.
 
 - `ActorInput { player, character }` has no `actor` field. Use `inventory(input:{player:"x"})`, not `{actor:{...}}`.
 - `RecipeInput { actor, force, recipe }`; there is no `item` or `name` field. `actor` is optional: without it (`force` defaults to `player`) the read still succeeds but `craftableCount` is null.
@@ -150,7 +152,7 @@ Most failed calls in real sessions are invented field names, not engine failures
 - Enums are unquoted: `AVAILABLE`, `CHEST`, `TO_ACTOR`. `TransferDirection` is `TO_ENTITY | TO_ACTOR`.
 - `TransferInput` requires `actor, target, inventory, direction, item, count`; no `from`, `to`, or `announce` fields.
 - `WorldResourcesInput.resourceName`; `WorldResourceEntry` has no `bounds` (patches do).
-- Areas use `leftTopX/Y` and `rightBottomX/Y`, never `min/max`. Areas are at most 1024 tiles per side; `mapArea` maxRows/maxColumns are 1..256; `probePlacement` samples at most 65536 tiles.
+- Areas use `leftTopX/Y` and `rightBottomX/Y`, never `min/max`. Areas are at most 1024 tiles per side; `mapArea` maxRows/maxColumns are 1..1024; `probePlacement` samples at most 262144 tiles.
 - Object fields need sub-selections: `position {x y}`, `status {rawName category terminal rawCode}`, `prerequisites {name researched}`, `effects {type recipe dataJSON}`, `from { ... }`.
 - Run `gqlcli validate` (or `--validate-only`) before executing. Use `gqlcli query -f json` when piping to jq. `gqlcli script` has no `--format`/`--jq`; `-f` there means `--file`.
 
@@ -168,7 +170,7 @@ The working tree accepts `surface` on `remove`, `mine`, and `beltTake` (covered 
 # place + verify identity
 mutation { place(input:{actor:{character:"123"}, surface:"nauvis", position:{x:40.5,y:60.5}, item:"assembling-machine-1", direction:0}) { name unitNumber position { x y } } }
 
-# batch place (<=1000); underground belts MUST carry undergroundType INPUT/OUTPUT
+# batch place (<=10000); underground belts MUST carry undergroundType INPUT/OUTPUT
 mutation { placeMany(input:{actor:{character:"123"}, surface:"nauvis", item:"transport-belt",
   placements:[{position:{x:41.5,y:60.5},direction:4},{position:{x:42.5,y:60.5},direction:4}]}) {
   placed failed errors { index code message target { position { x y } } } entities { name unitNumber position { x y } } } }
@@ -183,6 +185,22 @@ mutation { transfer(input:{actor:{character:"123"}, target:{entity:"assembling-m
 
 # wait, then measure
 mutation { waitUntil(input:{timeoutSeconds:10, condition:{ machineStatus:{ target:{entity:"assembling-machine-1", unitNumber:"456"}, statuses:["working"] } } }) { satisfied timedOut tick last { status } } }
+```
+
+Saved-op variable examples (run `gqlcli op show --name <op>` for the document; set `GQLCLI_SCHEMA_CACHE_TTL=0` or `--refresh-schema` after a schema change):
+
+```sh
+# batch inspection: per-target errors, stable unitNumber ids; read-only
+gqlcli query --op inspect-many --variables '{"input":{"force":"player","targets":[{"unitNumber":"346"},{"unitNumber":"999999"}]}}'
+# plan a belt stretch (read-only), then build it (dryRun:true plans only, result is null)
+gqlcli query --op connection-plan --variables '{"input":{"surface":"nauvis","force":"player","from":{"x":41.5,"y":60.5},"to":{"x":47.5,"y":60.5},"kind":"BELT"}}'
+gqlcli mutation --op build-connection --variables '{"dryRun":true,"input":{"actor":{"character":"123"},"surface":"nauvis","force":"player","from":{"x":41.5,"y":60.5},"to":{"x":47.5,"y":60.5},"kind":"BELT"}}'
+# one belt tile needs an explicit direction (0 N, 4 E, 8 S, 12 W)
+gqlcli mutation --op connect-entities --variables '{"input":{"actor":{"character":"123"},"surface":"nauvis","kind":"BELT","from":{"x":41.5,"y":60.5},"to":{"x":41.5,"y":60.5},"direction":4}}'
+# machine + routed belt + recipe in one call; dryRun:true validates and writes nothing
+gqlcli mutation --op build-cell --variables '{"input":{"actor":{"character":"123"},"dryRun":true,"entries":[{"ref":"gear","place":{"item":"assembling-machine-1","position":{"x":40.5,"y":60.5}}},{"ref":"feed","connection":{"from":{"x":44.5,"y":60.5},"to":{"x":48.5,"y":60.5},"kind":"BELT"}},{"ref":"r","recipe":{"ref":"gear","recipe":"iron-gear-wheel"}}]}}'
+# plan a layout locally: footprints, directions, unit numbers, optional water
+gqlcli query --op occupancy --variables '{"input":{"area":{"leftTopX":30,"leftTopY":50,"rightBottomX":60,"rightBottomY":70},"includeTerrain":true}}'
 ```
 
 `gqlcli describe` any operation before copying an example into a consequential mutation. More recipes (resources, routing, belts measurement, research, diagnose) are in `api-map.md` and the topic references.
@@ -205,7 +223,7 @@ Time is the scarce resource; production advances whether or not the actor is bus
 
 **Survey and choose a site** (`bootstrap-and-progression.md`, `spatial-and-geometry.md`): `scripts/survey.js` for patches; `worldResources(groupPatches:true)`; `mapArea`; `probePlacement(SITES)` / `nearestPlacement`; check pole reach, belt/pipe route and expansion room. Proof: footprint legal, resource present, no conflicts, bounds and endpoints recorded.
 
-**Obtain materials:** `stock` and `inventory`, then `recipe`/`itemRecipes`/`billOfMaterials`; `mine`/`harvestArea` for raw; `craft(wait:true)` only for bootstrap; `transfer` from known containers. Re-read inventory after queued actions. Where is an item: `gqlcli query --op stock --variables '{"input":{"item":"inserter"}}'` (saved `stock` op, rows carry `unitNumber`); `category: STORED` = chests/machines you can take from, `PLAYER`/`WORKER` = carried, `IN_TRANSIT` = belt traffic, not retrievable.
+**Obtain materials:** `stock` and `inventory`, then `recipe`/`itemRecipes`/`billOfMaterials`; `mine`/`harvestArea` for raw; `craft(wait:true)` only for bootstrap (`expand:true` for a whole hand-craft chain, `mode:UP_TO` so a timed-out call is resumed by re-issuing it; dry-run with `craftPlan`; read `cheatMode` on `player` first, since a cheat-mode actor crafts free and instantly); `transfer` from known containers. Re-read inventory after queued actions. Where is an item: `gqlcli query --op stock --variables '{"input":{"item":"inserter"}}'` (saved `stock` op, rows carry `unitNumber`); `category: STORED` = chests/machines you can take from, `PLAYER`/`WORKER` = carried, `IN_TRANSIT` = belt traffic, not retrievable.
 
 **Build a production cell** (`spatial-and-geometry.md` section 6): recipe discovery, bill of materials, probe, obtain all items first, place machine, `setRecipe`, place inserters/belts from endpoint toward machine, power, bounded output, then `inserter-audit.js` and a status/progress proof. Never add a second machine until the first works.
 
@@ -222,7 +240,7 @@ Time is the scarce resource; production advances whether or not the actor is bus
 - `{unitNumber}` alone is rejected; send `entity` too. Underground belt halves need `undergroundType` `INPUT` on the entrance and `OUTPUT` on the exit, but they pair across calls: a facing half placed later completes the tunnel.
 - Inserter direction points at its PICKUP side (`0`:pickup north/drop +y, `4`:east/-x, `8`:south/-y, `12`:west/+x). Belt direction is inverted on y in this save (`8`=+y, `0`=-y; `4`=+x, `12`=-x). Verified live on 2.0.77, ticks 1507030-1513866. **Mining drills differ: `direction` is the DROP side** — `0` drops north (-y), `4` east (+x), `8` south (+y), `12` west (-x), i.e. the belt sense, opposite the inserter (live ticks 2919457, 3672835; `spatial-and-geometry.md` section 5).
 - Underground entrances accept a feed only from directly behind (opposite the facing); a perpendicular belt cannot feed a tunnel mouth, and a tunnel inside a 1-tile-wide corridor cannot exit it.
-- `setDirection`/`rotate` do not work on belts/rails in 2.0.77; place with the final direction. `placeBlueprint` only rotates in 90° steps, so its `direction` must be 0/4/8/12. A **single-tile** `placeBelt`/`connectEntities` run requires an explicit `direction` (0/4/8/12) because the route implies none; a run of two or more tiles rejects it. Lay corners as two-tile runs.
+- `setDirection` **does** work on transport belts in this build: a direct write returned `direction` changed with `turns:0`, both on an empty belt and on one carrying an item (live, tick ~1.22M). Rails are reported to ignore it, so `setDirection` falls back to `rotate` steps there and `turns>0` tells you the fallback ran; place rails with the final direction. `placeBlueprint` only rotates in 90° steps, so its `direction` must be 0/4/8/12. A **single-tile** `connectEntities` run requires an explicit `direction` (0/4/8/12) because the route implies none; a run of two or more tiles rejects it. Lay corners as two-tile runs.
 - `setContainerBar allowedSlots:0` leaves 0 usable slots (`transfer` shows `moved:0`); null removes the limit. `transfer` also reports `bar`, `toBeDeconstructed`, and `reason` (`BAR_LIMITED`, `NO_CAPACITY`, `NO_SOURCE`, `MARKED_FOR_DECONSTRUCTION`, `FILTERED`).
 - Script-set requester slots fill to `min`, not `max`.
 - `gqlcli` needs the repo root as CWD; mutation scripts need `--strict=false`; `script` has no `--jq`.

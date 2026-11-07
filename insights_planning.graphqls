@@ -29,11 +29,11 @@ extend type Query {
   belt and loader lines and all fluidboxes inside the optional area, capped at 50000 entities and 20000 recipes; PLAYER
   stock is the named player's main inventory only, must exist on the requested force and surface, and forbids area.
   Truncated stock, a truncated recipe catalogue or an unresolved recipe cycle makes complete false, belt-line
-  deduplication stops after one million comparisons with stockTruncated set, and mined, gathered or fluid raw materials
+  deduplication stops after 20 million comparisons with stockTruncated set, and mined, gathered or fluid raw materials
   are not consumed by the plan. The catalogue keeps enabled, non-hidden recipes only: recycling and parameter recipes are
   excluded so a plan never satisfies demand with an item's own recycling recipe, and recipes that exist but are not
   researched are reported as RECIPE_NOT_RESEARCHED instead of being planned. Recipes are matched by output item with
-  exact-name recipes preferred over lexicographic order, may be overridden per item (at most 1000, duplicates rejected),
+  exact-name recipes preferred over lexicographic order, may be overridden per item (at most 20000, duplicates rejected),
   and are expanded depth-first with maxDepth 1..512 and maxExpansions 1..100000; an exhausted expansion budget is
   reported as explicit unresolved demand. availableStock/allocatedStock are one shared pool, so materials, steps,
   rawRequirements, seedRequirements (catalysts needing initial stock) and unresolved together are an expected-value

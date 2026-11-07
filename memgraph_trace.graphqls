@@ -1,0 +1,172 @@
+extend type Memgraph {
+  """Traces everything that supplies one machine, chest or belt, upstream, through the factory graph: every inserter that drops into it or onto a belt line feeding it, every belt (or belt stretch) those inserters pick from, and recursively the machines, chests and belts that feed those, down to the origins (infinity chests, furnaces fed by ore chests, belts nothing drops onto). The answer is a list of ordered paths, each running from the root to one origin, plus the distinct nodes involved and the origins reached. The root is any Machine, Chest or Belt node addressed by unit number; no node type is required and the kind is detected, so an assembler, a furnace, a buffer chest or a mid-line belt all work, while any other kind (Inserter, Pole, ...) is rejected naming its kind. A Belt root traces what feeds the line from that tile backwards. Direct insertion (machine to machine) and belt-to-belt inserters are followed as well as belt lines, and a path never revisits a node. Resolution BELT is exact: it walks BELT_OUT belt by belt, so an inserter that drops downstream of a pick point is correctly not a supplier. Resolution STRETCH collapses every straight belt run into one BeltStretch node, which is far smaller to read but coarse: it ignores where along a stretch an inserter drops or picks, so it over-approximates suppliers, and it omits a recirculation loop (an inserter taking from and dropping back into the same line). Use BELT for correctness, STRETCH for layout. The graph is a snapshot read from Memgraph, not the live game: check snapshot { ageSeconds } and run exportMapSnapshotToMemgraph first when freshness matters. Rows multiply with every route to a shared node, so a deep factory can return many paths: maxPaths caps them and truncated reports a cut (the shortest paths are kept). One Bolt read transaction; fails when the stack is down."""
+  supplyChain(input: MemgraphSupplyChainInput!): MemgraphSupplyChain! @goField(forceResolver: true)
+  """For a machine, and optionally every machine upstream of it, lists each ingredient its recipe consumes with the inserters that can supply that item. An ingredient is covered by an inserter when its source can provide the item: a machine whose recipe produces it, a chest that holds or produces it, a machine dropping onto the belt line it picks from, or sampled lane contents of that belt. This is topology, not stock or rate: covered means a feed path exists, not that items are arriving now, so pair it with the machine and arm status. An ingredient with no feeding arm is a wiring gap. Only machines with a recipe are listed. The root must be a Machine. The graph is a snapshot, see supplyChain. One Bolt read transaction."""
+  ingredientCoverage(input: MemgraphIngredientCoverageInput!): MemgraphIngredientCoverage! @goField(forceResolver: true)
+  """Traces everything downstream of one machine, chest or belt: where its output goes. Mirror of supplyChain: every inserter that picks from the node (or from a belt line it drops onto, only the part of the line after the drop point), the machines, chests and belts those inserters drop into, and recursively what those in turn feed, down to the sinks (final consumers, chests, or belts nothing picks from). Use it to see what a stalled or overproducing machine affects. Upstream supply is supplyChain; this field never walks upstream. Belt resolution is exact (every belt tile); there is no STRETCH variant. The outline reads top-down with `->` meaning feeds. Machines that drop straight onto a belt (DROPS_ON, e.g. drills) are followed here; supplyChain does not walk DROPS_ON, so a drill-fed belt ends there as `origin:belt`. attention also flags `status:full_output` consumers."""
+  downstreamChain(input: MemgraphDownstreamChainInput!): MemgraphDownstreamChain! @goField(forceResolver: true)
+}
+
+"""How finely belts are represented in a supply chain."""
+enum MemgraphSupplyResolution {
+  """Every belt tile is a step. Exact: respects the order of drops and picks along a line."""
+  BELT
+  """Each straight belt run is one BeltStretch step. Compact and good for layout, but it ignores position along the stretch and omits recirculation loops, so it can over-approximate suppliers."""
+  STRETCH
+}
+
+input MemgraphSupplyChainInput {
+  """Unit number of the node to trace upstream from: a Machine, a Chest or a Belt. The kind is detected. Same UnitNumber (decimal string) as every other input and as entity { unitNumber }."""
+  unitNumber: UnitNumber!
+  """Surface the unit lives on; unit numbers are only unique per surface."""
+  surface: String! = "nauvis"
+  """BELT is exact, STRETCH is compact but coarse."""
+  resolution: MemgraphSupplyResolution! = BELT
+  """Supplier hops to follow from the root, 1 through 16. One hop is a machine or chest, its feeding inserters and the belt line between them. Tracing stops sooner when every path reaches an origin; the default covers the observed factories, and raising it only costs time when paths are still growing."""
+  maxHops: Int! = 10
+  """Maximum paths returned, 1 through 10000. The shortest paths are kept and truncated is set when more exist."""
+  maxPaths: Int! = 1000
+}
+
+"""The result of tracing a node upstream, shaped for an LLM or a human to read top-down: summary first, then outline (the whole answer as a compact tree), then the normalized detail (nodes once, paths as references). Reading summary and outline is usually enough; nodes and paths exist for programmatic follow-up."""
+type MemgraphSupplyChain {
+  """The node the trace started from."""
+  root: MemgraphTraceNode!
+  """Counts and the problems found along the chain."""
+  summary: MemgraphSupplyChainSummary!
+  """The whole chain as an indented plain-text tree of machines, chests and origins; the root is the first line and each deeper line starts with `<- `, meaning "is fed by". A line reads: the inserters (`arm N [status]`) and belt runs or stretches between a supplier and the node above it, then the supplier as `unit name (recipe) [status]`. Example: `370 assembling-machine-1 (inserter) [working]` then `  <- arm 433 [working] <- belts 430..405 (26) <- arm 237 [working] <- 143 assembling-machine-1 (electronic-circuit) [item_ingredient_shortage]`. Conventions: a belt run is collapsed to `belts FIRST..LAST (count)` (a single belt is `belt N`; a stretch is `stretch ID`); `(+N other routes)` after a supplier means N further inserter or belt routes lead from it to the same node above and only the first is shown; `<- same suppliers as X` means this node is fed by exactly the same set of suppliers as node X, already expanded above, so they are not repeated; `<- also fed by (expanded above): a; b` lists suppliers of this node that were already expanded elsewhere in the tree, so a shared furnace bank is not repeated under every consumer. A node is expanded only the first time it appears. Ask for nodes or paths for each belt. Complete only when truncated is false."""
+  outline: String!
+  """Every distinct node on any returned path, each once: the root first, then in order of first appearance. Paths refer to these by id."""
+  nodes: [MemgraphTraceNode!]!
+  """One entry per route from the root to an origin, shortest first, as node ids (see nodes) so shared nodes are not repeated. A node reached by several routes appears in several paths."""
+  paths: [MemgraphSupplyPath!]!
+  """The distinct last nodes of the returned paths: where supply begins. Typically infinity chests, or the isolated belt of a dead input. Empty when nothing feeds the root."""
+  origins: [MemgraphTraceNode!]!
+  """True when more than maxPaths paths exist and only the shortest were returned; outline, nodes, paths and summary then describe only that subset."""
+  truncated: Boolean!
+  """A Cypher statement that returns the same paths as graph path objects, with this root, surface, resolution and maxHops inlined. Paste it into Memgraph Lab (http://127.0.0.1:3000) and open Graph Results to see the chain drawn. Not subject to maxPaths."""
+  graphCypher: String!
+  """Duration of the paths read inside Memgraph."""
+  durationMs: Float!
+  """Snapshot the paths were read from; check ageSeconds before trusting it as the live factory."""
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphSupplyChainSummary {
+  """Number of paths returned."""
+  pathCount: Int!
+  """Number of distinct nodes returned."""
+  nodeCount: Int!
+  """Longest path, in supplier hops."""
+  maxHops: Int!
+  """Distinct nodes per kind (Machine, Chest, Inserter, Belt or BeltStretch)."""
+  kindCounts: [MemgraphCount!]!
+  """Nodes that need a look: machines or chests whose status signals trouble (item_ingredient_shortage, no_power, low_power, no_fuel, no_minable_resources), and origins that are belts, which means nothing feeds that line. Each carries the reason. A shortage is a symptom: follow outline upstream to find the cause."""
+  attention: [MemgraphTraceFinding!]!
+}
+
+type MemgraphTraceFinding {
+  node: MemgraphTraceNode!
+  """Short machine-readable cause: status:<engine status> or origin:belt."""
+  reason: String!
+}
+
+"""One route between the traced root and an origin (upstream) or sink (downstream)."""
+type MemgraphSupplyPath {
+  """Supplier hops between the root and the origin: the number of machine, chest or stretch nodes after the root."""
+  hops: Int!
+  """Ids of the nodes in order from the root outward (look each up in nodes): node, the inserter that feeds it, the belts or stretch the inserter picks from, the inserter that fills those belts, the next machine or chest, and so on. Consecutive repeats are removed."""
+  steps: [String!]!
+}
+
+"""A node of the factory graph, flattened for trace results."""
+type MemgraphTraceNode {
+  """Stable graph id, surface:unit for entities and surface:stretch:head for belt stretches."""
+  id: String!
+  """The node's specific label: Machine, Chest, Inserter, Belt (including splitters and undergrounds) or BeltStretch."""
+  kind: String!
+  """Game unit number, the same UnitNumber an entity query returns; null for a BeltStretch, which is not a game entity."""
+  unitNumber: UnitNumber
+  """Prototype name (assembling-machine-1, transport-belt, ...); belt-stretch for a BeltStretch."""
+  name: String
+  """Recipe set on a machine; null otherwise."""
+  recipe: String
+  """Engine status as exported (working, item_ingredient_shortage, waiting_for_source_items, ...); null when the entity has none."""
+  status: String
+  """World x position; for a BeltStretch, the head belt."""
+  x: Float
+  """World y position; for a BeltStretch, the head belt."""
+  y: Float
+}
+
+input MemgraphIngredientCoverageInput {
+  """Unit number of the Machine to check (UnitNumber, decimal string)."""
+  unitNumber: UnitNumber!
+  """Surface the unit lives on."""
+  surface: String! = "nauvis"
+  """Also check every machine upstream of the root (found with an exact BELT supply chain), so one call audits a whole production tree. False checks only the root."""
+  upstream: Boolean! = true
+  """Supplier hops followed when upstream is true, 1 through 16."""
+  maxHops: Int! = 10
+}
+
+type MemgraphIngredientCoverage {
+  """One entry per machine checked, root first, then upstream machines ordered by unit. Machines without a recipe are omitted."""
+  machines: [MemgraphMachineCoverage!]!
+  """One line per ingredient with no feed path, e.g. `143 electronic-circuit: copper-cable has no feeding arm`. Empty means every checked ingredient has at least one feed path. Read this first."""
+  gaps: [String!]!
+  """The snapshot the coverage was read from."""
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphMachineCoverage {
+  machine: MemgraphTraceNode!
+  """One entry per ingredient of the machine's recipe, ordered by item."""
+  ingredients: [MemgraphIngredientFeed!]!
+}
+
+type MemgraphIngredientFeed {
+  """Ingredient item name."""
+  item: String!
+  """Amount consumed per craft."""
+  amount: Float!
+  """Unit numbers (UnitNumber) of inserters into the machine whose source can provide the item. Empty means the ingredient has no feed path."""
+  feedingArms: [UnitNumber!]!
+  """True when at least one inserter can supply the item. Topology only, not live stock."""
+  covered: Boolean!
+}
+
+input MemgraphDownstreamChainInput {
+  """Unit number of the node to trace downstream from: a Machine, a Chest or a Belt. The kind is detected (UnitNumber, decimal string)."""
+  unitNumber: UnitNumber!
+  """Surface the unit lives on."""
+  surface: String! = "nauvis"
+  """Consumer hops to follow from the root, 1 through 16. One hop is the inserters (and belt line) between a node and the next machine or chest."""
+  maxHops: Int! = 10
+  """Maximum paths returned, 1 through 10000. The shortest paths are kept and truncated is set when more exist."""
+  maxPaths: Int! = 1000
+}
+
+"""The result of tracing a node downstream, shaped like MemgraphSupplyChain: summary, outline, then normalized detail. Paths run from the root outward to a sink."""
+type MemgraphDownstreamChain {
+  """The node the trace started from."""
+  root: MemgraphTraceNode!
+  """Counts and the problems found along the chain. attention flags consumers in trouble and sinks that are belts (`sink:belt`: a line nothing picks from, so items pile up there)."""
+  summary: MemgraphSupplyChainSummary!
+  """The whole chain as an indented plain-text tree; each deeper line starts with `-> `, meaning "feeds". A line reads: the inserters (`arm N [status]`) and belt runs between the node above and the consumer, then the consumer as `unit name (recipe) [status]`. Example: `143 assembling-machine-1 (electronic-circuit) [working]` then `  -> arm 237 [working] -> 238 infinity-chest`. Conventions mirror supplyChain: `belts A..B (n)` runs, `(+N other routes)`, `-> same consumers as X` for an identical consumer set already expanded, and `-> also feeds (expanded above): a; b` for consumers already expanded elsewhere. A node is expanded only the first time it appears."""
+  outline: String!
+  """Every distinct node on any returned path, each once: the root first, then in order of first appearance."""
+  nodes: [MemgraphTraceNode!]!
+  """One entry per route from the root to a sink, shortest first, as node ids (see nodes)."""
+  paths: [MemgraphSupplyPath!]!
+  """The distinct last nodes of the returned paths: where items leave the chain (final consumers, chests, or dead-end belts). Empty when nothing takes from the root."""
+  sinks: [MemgraphTraceNode!]!
+  """True when more than maxPaths paths exist and only the shortest were returned."""
+  truncated: Boolean!
+  """A Cypher statement that returns the same paths as graph path objects, for Memgraph Lab Graph Results. Not subject to maxPaths."""
+  graphCypher: String!
+  """Duration of the paths read inside Memgraph."""
+  durationMs: Float!
+  """Snapshot the paths were read from; check ageSeconds before trusting it as the live factory."""
+  snapshot: MemgraphSnapshotInfo
+}

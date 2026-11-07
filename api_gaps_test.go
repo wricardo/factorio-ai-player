@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -76,6 +77,15 @@ func TestConfigureInfinityPipeWritesFilter(t *testing.T) {
 	} {
 		if !strings.Contains(lua, want) {
 			t.Fatalf("Lua must contain %q:\n%s", want, lua)
+		}
+	}
+	// Regression for 7u8: a bare `return` mid-block in the container branch made
+	// the whole chunk fail to compile whenever a fluid filter was sent.
+	if luac, err := exec.LookPath("luac"); err == nil {
+		cmd := exec.Command(luac, "-p", "-")
+		cmd.Stdin = strings.NewReader(strings.TrimPrefix(lua, "/silent-command "))
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("infinity pipe Lua does not parse: %v\n%s\n%s", err, output, lua)
 		}
 	}
 	if result.Infinity == nil || len(result.Infinity.FluidFilters) != 1 {

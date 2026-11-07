@@ -1,0 +1,81 @@
+extend type Memgraph {
+  """Everything the factory graph holds inside one XY box and how it connects: the entities whose position lies in the area, the edges between them (belt flow, inserter pick and drop, machine drops, fluid links), the connected components those edges form, and the edges that cross the box edge. Use it to understand a region (a smelter column, a mall) without writing Cypher. Entities are matched by their own position, so BeltStretch nodes (which are not entities) are not listed; belts appear as individual tiles. Power-pole and wire edges are left out unless includePower is true, because they connect almost everything and hide the item flow. The area is capped at 1024 tiles per side and maxNodes bounds the result; truncated says the box held more entities than returned, in which case components and edges describe only the returned subset."""
+  areaGraph(input: MemgraphAreaGraphInput!): MemgraphAreaGraph! @goField(forceResolver: true)
+}
+
+input MemgraphAreaGraphInput {
+  surface: String! = "nauvis"
+  """Box to read, left/top inclusive and right/bottom exclusive (an entity is inside when its position satisfies left <= x < right and top <= y < bottom, the same convention as beltStretchMap); each side up to 1024 tiles with positive size."""
+  area: FactoryAreaInput!
+  """Also return POWERED_BY and POWER_WIRE edges."""
+  includePower: Boolean! = false
+  """Also list edges that cross the box edge, with the outside node, so what enters and leaves the region is visible."""
+  includeBoundary: Boolean! = true
+  """Maximum entities returned, 1 through 10000, lowest unit numbers first."""
+  maxNodes: Int! = 2000
+}
+
+"""The graph inside one box, shaped for reading top-down: summary, outline (one line per connected component), then normalized detail."""
+type MemgraphAreaGraph {
+  summary: MemgraphAreaSummary!
+  """One line per component, largest first: its size, kinds and the machines and chests in it, then one line for the boundary. Read this first."""
+  outline: String!
+  """Every entity in the box, each once. Edges and components refer to these by id."""
+  nodes: [MemgraphTraceNode!]!
+  """Edges whose two ends are both in nodes, as ids."""
+  edges: [MemgraphAreaEdge!]!
+  """Connected pieces of the returned graph (edges treated as undirected), largest first."""
+  components: [MemgraphAreaComponent!]!
+  """Edges crossing the box edge; empty when includeBoundary is false."""
+  boundary: [MemgraphAreaBoundaryEdge!]!
+  """True when the box held more than maxNodes entities, or boundary rows were cut."""
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphAreaSummary {
+  nodeCount: Int!
+  edgeCount: Int!
+  componentCount: Int!
+  boundaryCount: Int!
+  """Entities per kind (Machine, Chest, Inserter, Belt, ...)."""
+  kindCounts: [MemgraphCount!]!
+  """Machines or chests in the box with a fault status, with the reason."""
+  attention: [MemgraphTraceFinding!]!
+}
+
+type MemgraphAreaEdge {
+  """Source node id."""
+  from: String!
+  """Target node id."""
+  to: String!
+  """Relationship type: BELT_OUT, DROPS_TO, PICKS_FROM, DROPS_ON, FLUID_LINK, ..."""
+  type: String!
+}
+
+type MemgraphAreaComponent {
+  """1-based rank, largest first."""
+  index: Int!
+  size: Int!
+  kinds: [MemgraphCount!]!
+  """Ids of the member nodes."""
+  nodeIds: [String!]!
+  """One line: kind counts and the machines and chests it contains."""
+  description: String!
+}
+
+enum MemgraphBoundaryDirection {
+  """The edge points from the outside node into the box."""
+  IN
+  """The edge points from the box to the outside node."""
+  OUT
+}
+
+type MemgraphAreaBoundaryEdge {
+  """Id of the node inside the box."""
+  inside: String!
+  direction: MemgraphBoundaryDirection!
+  type: String!
+  """The node outside the box."""
+  outside: MemgraphTraceNode!
+}

@@ -23,6 +23,7 @@ const (
 // connectEntities.
 type connectionRouteOptions struct {
 	routing          ConnectionRouting
+	bend             ConnectionBend
 	allowUnderground bool
 	undergroundItem  *string
 	maxUnderground   *int
@@ -34,7 +35,7 @@ type connectionRouteOptions struct {
 
 func planRouteOptions(input *ConnectionPlanInput) connectionRouteOptions {
 	return connectionRouteOptions{
-		routing: input.Routing, allowUnderground: input.AllowUnderground, undergroundItem: input.UndergroundItem,
+		routing: input.Routing, bend: input.Bend, allowUnderground: input.AllowUnderground, undergroundItem: input.UndergroundItem,
 		maxUnderground: input.MaxUndergroundDistance, avoidAreas: input.AvoidAreas, preferExisting: input.PreferExisting,
 		maxExpanded: input.MaxExpandedTiles, searchMargin: input.SearchMargin,
 	}
@@ -42,7 +43,7 @@ func planRouteOptions(input *ConnectionPlanInput) connectionRouteOptions {
 
 func applyRouteOptions(input *ConnectEntitiesInput) connectionRouteOptions {
 	return connectionRouteOptions{
-		routing: input.Routing, allowUnderground: input.AllowUnderground, undergroundItem: input.UndergroundItem,
+		routing: input.Routing, bend: input.Bend, allowUnderground: input.AllowUnderground, undergroundItem: input.UndergroundItem,
 		maxUnderground: input.MaxUndergroundDistance, avoidAreas: input.AvoidAreas, preferExisting: input.PreferExisting,
 		maxExpanded: input.MaxExpandedTiles, searchMargin: input.SearchMargin,
 	}
@@ -80,6 +81,12 @@ func validateRouteOptions(kind ConnectionKind, o connectionRouteOptions) (bool, 
 		}
 		return false, nil
 	case ConnectionRoutingAstar:
+		// ASTAR derives every corner from the cheapest route, so a caller-picked
+		// corner order cannot be honoured. Refuse it instead of silently routing
+		// a different shape than asked for.
+		if o.bend != "" && o.bend != ConnectionBendAuto {
+			return false, errors.New("bend applies to DIRECT routing only, because ASTAR derives corners from the shortest route")
+		}
 	default:
 		return false, fmt.Errorf("unsupported connection routing %q", o.routing)
 	}
@@ -335,7 +342,10 @@ type connectionRequest struct {
 	allowAdjacency bool
 	// allowBeltAdjacency accepts a foreign belt feeding a new BELT tile.
 	allowBeltAdjacency bool
-	options            connectionRouteOptions
+	// direction is the explicit heading of a single-tile run; nil for a route
+	// of two or more tiles, which derives every direction itself.
+	direction *int
+	options   connectionRouteOptions
 }
 
 func routeTile(p *PositionInput) (int, int) { return int(math.Floor(p.X)), int(math.Floor(p.Y)) }
@@ -479,6 +489,7 @@ func connectionPlanAStar(r *Resolver, req connectionRequest) (*ConnectionPlan, e
 		allowTunnel: options.allowUnderground, maxTunnel: maxTunnel,
 		preferExisting: options.preferExisting, allowAdjacency: req.allowAdjacency,
 		allowBeltAdjacency: req.allowBeltAdjacency, maxExpanded: maxExpanded,
+		direction: req.direction,
 	}
 	result := routeAStar(grid, params)
 
@@ -530,13 +541,27 @@ func routeFailureConflict(req connectionRequest, grid *routeGrid, params routePa
 		conflict.Position = &Position{X: float64(params.fromX) + 0.5, Y: float64(params.fromY) + 0.5}
 		conflict.Message = fmt.Sprintf("search stopped after %d expanded states; raise maxExpandedTiles or shorten the route", maxExpanded)
 	case ConnectionStopReasonEndpointBlocked:
-		conflict.Kind = ConnectionConflictKindCollision
 		x, y := params.fromX, params.fromY
 		name := "start"
 		if routeEndpointOK(grid, params, x, y) {
 			x, y, name = params.toX, params.toY, "goal"
 		}
 		conflict.Position = &Position{X: float64(x) + 0.5, Y: float64(y) + 0.5}
+		// A tile refused only because a foreign belt feeds it is a merge the
+		// caller can accept, not a collision; name the feeding belt so the fix
+		// is obvious. Without this the refusal surfaced as EXPANSION_LIMIT.
+		if !params.pipe && !params.allowBeltAdjacency && grid.feed != nil {
+			if index := grid.index(x, y); index >= 0 && grid.feed[index] {
+				if _, ok := grid.existing[index]; !ok {
+					if fx, fy, found := (&router{grid: grid, params: params}).feedSource(index); found {
+						conflict.Kind = ConnectionConflictKindBeltAdjacency
+						conflict.Message = fmt.Sprintf("existing belt at %d,%d feeds into this tile; pass allowBeltAdjacency to merge", fx, fy)
+						return conflict
+					}
+				}
+			}
+		}
+		conflict.Kind = ConnectionConflictKindCollision
 		conflict.Message = fmt.Sprintf("the %s tile cannot hold %s", name, req.item)
 	default:
 		conflict.Kind = ConnectionConflictKindNoPath
@@ -644,7 +669,9 @@ for i,s in ipairs(steps) do
       local created,e=pcall(function() return surface.create_entity(params) end)
       if created and e then
         placed=placed+1
-        entities[#entities+1]={name=e.name,type=e.type,position={x=e.position.x,y=e.position.y},unitNumber=e.unit_number}
+        local record={name=e.name,type=e.type,position={x=e.position.x,y=e.position.y},unitNumber=e.unit_number,direction=e.direction}
+        if e.type=="underground-belt" then record.undergroundType=string.upper(tostring(e.belt_to_ground_type)) end
+        entities[#entities+1]=record
       else
         inv.insert{name=use_item,quality="normal",count=1}
         -- Entity creation is the success test; can_place_entity only explains a refusal.

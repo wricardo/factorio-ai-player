@@ -85,7 +85,7 @@ input PlaceNextToInput {
   side: RelativeSide!
   """Whole tiles between the two bounding boxes; 0 means touching."""
   gap: Int! = 0
-  """Engine direction of the new entity, 0 through 15."""
+  """Engine direction of the new entity, 0, 4, 8 or 12 (cardinal only)."""
   direction: Int! = 0
   """Item quality prototype name; defaults to normal."""
   quality: String = "normal"

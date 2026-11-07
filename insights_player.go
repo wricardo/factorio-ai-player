@@ -61,6 +61,8 @@ local s=c and c.surface or p.surface
 local pos=c and c.position or p.position
 local result={tick=game.tick,player=p.name,connected=p.connected,controllerType=p.controller_type,
   surface=s.name,force=p.force.name,position=pos,hasCharacter=c~=nil}
+-- cheat_mode is a LuaPlayer property that can raise (characterless god controllers), so it stays null when unreadable.
+do local ok,value=pcall(function() return p.cheat_mode end); if ok and type(value)=="boolean" then result.cheatMode=value end end
 local inv
 if c then
   inv=c.get_main_inventory()

@@ -19,6 +19,8 @@ Read in this order:
 6. `production[]` rates and `stockouts[]` for named items; `stockCategory` defaults to `STORED`, so pass `ALL` or another category to include player/worker/ground/belt items.
 7. `warnings[]` list skipped sections (stockouts need `watchItems`) and capped scans; ghost counts follow the briefing scope, the area when given and otherwise the whole surface.
 
+Once attention rows point at one block, stop reading status rows and run `factoryDefects(input:{area, surface, force, limit, kinds?})` over that block: it returns the deterministic structural faults (`BELT_DEAD`, `BELT_STARVE_HEAD`, `BELT_MIXED_LANE`, `INSERTER_DANGLING_*`, `MACHINE_NO_INPUT`, `GHOST_NO_ROBOPORT`, ...) with entity ids, so escalation moves straight to the actionable list instead of another scan.
+
 Live example (2026-11-01): `attentionTotal 40`, drills and furnaces `NO_FUEL`, one lab idle, no research. Root cause class = fuel supply + idle research, not "needs more machines".
 
 ## 2. Status meaning and first action
@@ -60,6 +62,7 @@ Engine status names (`statusName` / `status`). **[base]** names come from the en
 | Question | Read |
 |---|---|
 | What is everything doing in this block? | `factoryGraph(area)` (machines, belts, chests, inserters with edges); `factoryAlerts(area)` for every unhealthy status-bearing entity in one scan |
+| Which structural defects exist in this block? | `factoryDefects(input:{area<=1024 tiles, surface, force, limit, kinds?})`: composes graph, belt components, power, ghosts and logistic networks in one call. Rows are deterministic (`BELT_DEAD`, `BELT_STARVE_HEAD`, `BELT_STALL_END`, `BELT_MIXED_LANE`, `INSERTER_DANGLING_PICKUP`, `INSERTER_DANGLING_DROP`, `INSERTER_SHARED_SOURCE`, `MACHINE_NO_INPUT`, `BOILER_NO_FUEL_INSERTER`, `PRODUCER_UNPLUGGED`, `ORPHAN_ENTITY`, `GHOST_NO_ROBOPORT`) with `severity`, `entity`, `unitNumber`, `position`, `detail`; `counts[]` covers the whole scan while `defects[]` is capped by `limit`. Sections come from separate RCON calls, so read the per-section `*Tick` fields |
 | Which entity feeds which? | `inspect{logistics{inserters{pickup drop}}}`, `factoryGraph.edges` |
 | Is this item short, and who starves? | `itemBalance(item)` (observed flow + stock + starved consumers), then `machines{diagnostics{blocked shortfall mining burner}}` |
 | Is the belt flowing? | `beltStretchMeasure(target, durationTicks 600, wait:true)` or `beltThroughputStart` then `beltThroughput(id)` |

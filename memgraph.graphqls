@@ -2,14 +2,20 @@
 scalar Any
 
 extend type Query {
+  """Everything read from the Memgraph factory graph lives under this field: its schema and arbitrary read-only Cypher. The Bolt target comes from the server's MEMGRAPH_BOLT, MEMGRAPH_USER and MEMGRAPH_PASSWORD environment, never from the caller, and every field runs one Bolt read transaction, so a read fails when the stack is down."""
+  memgraph: Memgraph!
+}
+
+"""Read surface of the Memgraph factory graph, populated by exportMapSnapshotToMemgraph or `graph sync`."""
+type Memgraph {
   """Returns the Memgraph factory-graph schema as it exists in the loaded graph: every node label with its node count and property keys, every relationship type with its edge count and property keys, and the latest loaded snapshot. Derived from the loaded data, so a label, type or property that no loaded node or edge carries is absent, and declared constraints/indexes are not reported because they live in memgraph/schema.cypherl (use SHOW INDEX INFO / SHOW CONSTRAINT INFO via mgconsole). The Bolt target comes from the server's MEMGRAPH_BOLT, MEMGRAPH_USER and MEMGRAPH_PASSWORD environment, never from the caller. One read transaction; returns empty lists and a null snapshot when no load has completed, and fails when the stack is down."""
-  memgraphSchema: MemgraphSchema!
+  schema: MemgraphSchema! @goField(forceResolver: true)
   """Runs one read-only Cypher statement against the Memgraph factory graph (populated by exportMapSnapshotToMemgraph or `graph sync`) and returns its columns and rows. The Bolt target comes from the server's MEMGRAPH_BOLT, MEMGRAPH_USER and MEMGRAPH_PASSWORD environment (default bolt://127.0.0.1:7687), never from the caller. The statement must start with MATCH, OPTIONAL MATCH, WITH, UNWIND, RETURN, EXPLAIN or PROFILE and must not contain any write, schema, administrative or CALL keyword outside string literals and comments; this is a lexical guard plus a Bolt read transaction, not a Memgraph permission, so connect with a read-only Memgraph user when the endpoint is shared. Rows are arrays aligned with columns; a node is {id, labels, properties}, a relationship {id, type, startId, endId, properties} and a path {nodes, relationships}. At most limit rows are returned (truncated is true when more existed) and the statement is cancelled after timeoutMs. With sync true a fresh snapshot is exported from the live save and loaded first, so the same call answers from current data; the export is not covered by timeoutMs. The graph is a snapshot of the tick recorded on its Snapshot node, not live state."""
-  queryMemgraph(input: MemgraphQueryInput!): MemgraphQueryResult!
+  query(input: MemgraphQueryInput!): MemgraphQueryResult! @goField(forceResolver: true)
 }
 
 extend type Mutation {
-  """Exports every entity of one force from the live save and loads the result into Memgraph, replacing the graph for the exported surfaces: nodes and relationships are MERGEd by stable id and key, then anything in the same surface/force scope that the new snapshot does not contain is deleted, so deconstructed or rebuilt entities disappear (a full replace per scope, not a delta and not a wipe; other surfaces and forces are untouched). Reads run as one RCON call per disjoint area, so each area is a single-tick view and the whole export spans several ticks; each surface is classified complete, drift (the world changed during the scan) or incomplete (an entity was counted but not exported). An incomplete snapshot is written to disk but not loaded unless allowIncomplete is true, and the call then fails; a failed load leaves the previous Memgraph data in place. Only one export may run at a time. Takes seconds on small saves and about 6 s for 40 000 entities with the navigation mod's graph_leaf loaded; without it each area costs about 1.8 s. Writes only to Memgraph and the .factorio/graph snapshot directory, never to the game save."""
+  """Exports every entity of one force from the live save and loads the result into Memgraph, replacing the graph for the exported surfaces: nodes and relationships are MERGEd by stable id and key, then anything in the same surface/force scope that the new snapshot does not contain is deleted, so deconstructed or rebuilt entities disappear (a full replace per scope, not a delta and not a wipe; other surfaces and forces are untouched). By default the shared save is briefly paused for all game reads, then its prior pause state is restored on success, error or cancellation before snapshot disk writes and Memgraph loading; an already paused game stays paused. Set pause:false to leave pause state untouched: each disjoint-area RCON read is a single-tick view, but the whole export can span ticks. Each surface is classified complete, drift (the world changed during the scan) or incomplete (an entity was counted but not exported). An incomplete snapshot is written to disk but not loaded unless allowIncomplete is true, and the call then fails; a failed load leaves the previous Memgraph data in place. Only one export may run at a time. Takes seconds on small saves and about 6 s for 40 000 entities with the navigation mod's graph_leaf loaded; without it each area costs about 1.8 s. Writes to Memgraph and the .factorio/graph snapshot directory, without changing game entities."""
   exportMapSnapshotToMemgraph(input: ExportMapSnapshotToMemgraphInput! = {}): MemgraphExportResult!
 }
 
@@ -22,7 +28,7 @@ input MemgraphQueryInput {
   limit: Int! = 1000
   """Statement deadline in milliseconds, 100 through 60000. Covers only the Bolt read, never the sync export."""
   timeoutMs: Int! = 10000
-  """Exports a fresh snapshot from the live save and loads it into Memgraph before running the statement, so one call returns data current as of that export. Uses the mutation's defaults (force player, every surface it owns entities on, leafMax 2000, concurrency 4); takes seconds and blocks the game thread per leaf read, and fails when another export is already running. The export is not covered by timeoutMs."""
+  """Exports a fresh snapshot from the live save and loads it into Memgraph before running the statement, so one call returns data current as of that export. Uses the mutation's defaults (force player, every surface it owns entities on, leafMax 2000, concurrency 4, pause true): the shared save is briefly paused for game reads and its prior pause state is restored before disk writes and loading, including on error or cancellation. Takes seconds and fails when another export is already running. The export is not covered by timeoutMs. To opt out of pausing, call exportMapSnapshotToMemgraph with pause:false separately, then query without sync."""
   sync: Boolean! = false
 }
 
@@ -32,6 +38,8 @@ type MemgraphQueryResult {
   rows: [[Any]!]!
   truncated: Boolean!
   durationMs: Float!
+  """Latest completed snapshot, read in the same transaction as the rows, so a sync:true call reports the export it just loaded; null before the first successful load."""
+  snapshot: MemgraphSnapshotInfo
 }
 
 type MemgraphSchema {
@@ -78,6 +86,10 @@ type MemgraphSnapshotInfo {
   surfaces: [String!]!
   nodes: Int!
   edges: Int!
+  """Game tick of the export's final read. A paused export reads every surface at one tick; an unpaused export spans ticks, so compare this with status { tick } to size the staleness. Null for snapshots written before the field existed."""
+  tick: Float
+  """Seconds elapsed between loadedAt and the time of the read, fractional; null when loadedAt is unset."""
+  ageSeconds: Float
 }
 
 input ExportMapSnapshotToMemgraphInput {
@@ -89,6 +101,8 @@ input ExportMapSnapshotToMemgraphInput {
   leafMax: Int! = 2000
   """Parallel area reads, 1 through 6."""
   concurrency: Int! = 4
+  """Pause the shared game during all export reads, restoring its prior pause state on success, error or cancellation before disk writes and Memgraph loading. An already paused game stays paused. Set false to leave pause state untouched and allow the export to span game ticks."""
+  pause: Boolean! = true
   """Also export transport-line links as BELT_OUT edges of kind line."""
   includeLineLinks: Boolean! = false
   """Load a snapshot whose reconciliation found a hole instead of failing."""

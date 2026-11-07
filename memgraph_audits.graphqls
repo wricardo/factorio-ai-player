@@ -1,0 +1,156 @@
+extend type Memgraph {
+  """One ranked defect sweep over the whole loaded graph: every machine with a root cause from rootCause's rules (NO_FEEDING_ARM, ORIGIN_BELT, MACHINE_TROUBLE), plus the NO_CONSUMER stretches of beltStretches, sorted by impact (the number of machines downstream of the defect, from downstreamChain's rules) so the failure that stops the most production comes first. Use it first, then drill into a finding with rootCause, supplyChain or inspectMany. Topology and exported status only: it reports a fault at the snapshot, not a rate. Check snapshot.ageSeconds."""
+  factoryHealth(input: MemgraphAuditInput! = {}): MemgraphAudit! @goField(forceResolver: true)
+  """Power topology audit from POWERED_BY and POWER_WIRE edges and the ElectricNetwork and PowerSource nodes. Findings: UNPOWERED (a machine, inserter or other consumer with no POWERED_BY edge), ISOLATED_POLE (a pole with no wire and no powered entity), SINGLE_POLE_NETWORK, and NO_GENERATOR (an ElectricNetwork with consumers but no PowerSource). Burner entities are not consumers. Overload is not reported: the graph carries no generator output or power draw. Topology only, not a live brownout reading."""
+  powerAudit(input: MemgraphAuditInput! = {}): MemgraphAudit! @goField(forceResolver: true)
+  """Fuel audit for burner machines (furnaces, boilers, burner drills and inserters). Findings: NO_FUEL_ARM (an empty fuel inventory and no inserter feeding it), FUEL_NOT_ARRIVING (empty fuel inventory, feeding path exists whose sources carry a known fuel item: coal, wood, solid-fuel, rocket-fuel, nuclear-fuel). The export does not carry the burner's accepted fuel categories, so the fuel list is a fixed heuristic and an empty fuel slot is a sample, not proof of a missing feed; each finding says so."""
+  fuelAudit(input: MemgraphAuditInput! = {}): MemgraphAudit! @goField(forceResolver: true)
+  """Per-inserter topology defects. Findings: VOID_PICKUP (picks from an infinity chest that has no filters and removes unfiltered items, so it never holds anything), SELF_LOOP (picks from and drops into the same entity), BELT_TO_BELT (a belt-to-belt inserter, usually a workaround tap), DEAD_SOURCE (picks from a belt nothing feeds and nothing drops onto), and FILTER_MISMATCH (a filtered inserter whose filters match no item its source can provide). Uses the exported filterMode, filters and held properties."""
+  inserterAudit(input: MemgraphAuditInput! = {}): MemgraphAudit! @goField(forceResolver: true)
+  """Sink audit. Findings: VOID_SINK (an infinity chest with no filters and removeUnfilteredItems true that is the drop target of an arm, so its output is destroyed), FULL_OUTPUT_NO_CONSUMER (a machine at full_output whose product no inserter picks up and no belt carries away) and BUFFER_FULL (a non-infinity chest that holds items with no outgoing arm). Each finding lists the arm and chest involved in related."""
+  sinkAudit(input: MemgraphAuditInput! = {}): MemgraphAudit! @goField(forceResolver: true)
+  """Traces the fluid network around one fluid entity (pipe, tank, pump, boiler, refinery, ...) along FLUID_LINK edges: the connected FluidEntity nodes, the links between them, and the producers (offshore pumps, pumps, machines whose recipe produces a fluid) and consumers it joins. Findings: DEAD_END_PIPE, ISOLATED_FLUID_ENTITY and NO_SOURCE (a network with consumers and no source). Topology only: fluid contents and levels are not in the graph, use fluidSegments for those."""
+  fluidChain(input: MemgraphFluidChainInput!): MemgraphFluidChain! @goField(forceResolver: true)
+  """Groups the machines of the whole graph into production cells: connected components over the item-flow edges (PICKS_FROM and DROPS_TO through inserters, DROPS_ON, belt lines), each named by its most downstream recipe, with machine, inserter and belt counts and a status histogram. Answers 'what is in my base' and which cells are stalled. A belt line from which inserters feed three or more distinct machines is a main belt and never joins cells."""
+  cellSummary(input: MemgraphCellSummaryInput! = {}): MemgraphCellSummary! @goField(forceResolver: true)
+  """The one-call factory report: every deterministic issue the loaded graph can show, merged and ranked. It needs no argument. It runs factoryHealth, powerAudit, fuelAudit, inserterAudit and sinkAudit, plus structural checks (STRETCH_NO_INPUT, MIXED_LANE, INSERTER_NO_SOURCE, INSERTER_NO_DESTINATION, MACHINE_NO_RECIPE, GHOSTS_PENDING), a lab feed check (LAB_PACK_UNREACHABLE: a science pack made in the factory that no feeding path delivers to a lab) and nominal item deficits (NOMINAL_DEFICIT). Findings are de-duplicated by code and node, ordered worst severity first and then by impact, and each carries the audit that raised it. sections lists every audit with its finding count or the error that stopped it, so a failed audit is visible and never silently dropped. Topology and exported status at the snapshot, not a rate: check snapshot.ageSeconds and pair a finding with inspectMany before acting."""
+  factoryReport(input: MemgraphFactoryReportInput! = {}): MemgraphFactoryReport! @goField(forceResolver: true)
+}
+
+enum MemgraphAuditSeverity {
+  """Stops production or destroys items."""
+  BLOCKER
+  """Probably wrong or wasteful, needs a look."""
+  CONCERN
+  """Informational, worth knowing."""
+  INFO
+}
+
+input MemgraphAuditInput {
+  surface: String! = "nauvis"
+  """Findings returned, 1 through 1000. counts and summary always cover every finding."""
+  limit: Int! = 200
+}
+
+type MemgraphAudit {
+  """One or two sentences: the totals and the worst finding."""
+  summary: String!
+  """Findings per code, most frequent first."""
+  counts: [MemgraphCount!]!
+  """Findings, worst severity first, then by impact."""
+  findings: [MemgraphAuditFinding!]!
+  """True when limit cut findings."""
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphAuditFinding {
+  """Finding code, e.g. NO_FEEDING_ARM or VOID_SINK."""
+  code: String!
+  severity: MemgraphAuditSeverity!
+  """The node the finding is about."""
+  node: MemgraphTraceNode!
+  """What is wrong and why, including any approximation made."""
+  message: String!
+  """Other nodes involved (the arm, the chest, the downstream machine)."""
+  related: [MemgraphTraceNode!]!
+  """Machines downstream of the node that are affected, when the audit measures it; null otherwise."""
+  impact: Int
+  """Name of the audit that raised the finding (factoryHealth, sinkAudit, ...). Set by factoryReport only; null elsewhere."""
+  audit: String
+}
+
+input MemgraphFluidChainInput {
+  """Unit number of the fluid entity to start from."""
+  unitNumber: UnitNumber!
+  surface: String! = "nauvis"
+  """Fluid entities returned, 1 through 2000."""
+  maxNodes: Int! = 500
+}
+
+type MemgraphFluidChain {
+  root: MemgraphTraceNode!
+  """The fluid entities connected to the root through FLUID_LINK, root first, then by distance."""
+  nodes: [MemgraphTraceNode!]!
+  links: [MemgraphFluidLink!]!
+  """Entities in the network that put fluid in: offshore pumps, pumps, and machines whose recipe produces a fluid."""
+  sources: [MemgraphTraceNode!]!
+  """Entities in the network that consume fluid: boilers, machines whose recipe consumes a fluid."""
+  sinks: [MemgraphTraceNode!]!
+  findings: [MemgraphAuditFinding!]!
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphFluidLink {
+  """Graph ids of the two linked fluid entities."""
+  from: String!
+  to: String!
+}
+
+input MemgraphCellSummaryInput {
+  surface: String! = "nauvis"
+  """Cells returned, 1 through 500, largest first."""
+  limit: Int! = 100
+}
+
+type MemgraphCellSummary {
+  summary: String!
+  cells: [MemgraphCell!]!
+  """Machines with no link of any kind (no inserter, chest or belt), which form no cell."""
+  loneMachines: Int!
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphCell {
+  """Stable id: the smallest machine unit number in the cell."""
+  id: String!
+  """The most downstream recipe in the cell, or the most common recipe when no machine is downstream of another."""
+  name: String!
+  recipes: [String!]!
+  machineCount: Int!
+  inserterCount: Int!
+  beltCount: Int!
+  chestCount: Int!
+  """Machines per engine status (working, item_ingredient_shortage, full_output, ...)."""
+  statusCounts: [MemgraphCount!]!
+  """Machines whose status is not working."""
+  stalledCount: Int!
+  """Bounding box of the cell's machines."""
+  leftTopX: Float!
+  leftTopY: Float!
+  rightBottomX: Float!
+  rightBottomY: Float!
+}
+
+input MemgraphFactoryReportInput {
+  surface: String! = "nauvis"
+  """Findings returned, 1 through 2000. summary and counts always cover every finding."""
+  limit: Int! = 500
+}
+
+type MemgraphFactoryReport {
+  """The totals per severity and the worst finding."""
+  summary: String!
+  """Findings per code across every audit, most frequent first."""
+  counts: [MemgraphCount!]!
+  """Merged findings, worst severity first, then impact."""
+  findings: [MemgraphAuditFinding!]!
+  """Every audit that ran, in order, with its finding count or its error."""
+  sections: [MemgraphReportSection!]!
+  """True when limit cut findings or any audit hit a read cap."""
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphReportSection {
+  """Audit name: factoryHealth, powerAudit, fuelAudit, inserterAudit, sinkAudit, structure, labFeed or rateDeficits."""
+  name: String!
+  """The audit's own summary line; empty when it failed."""
+  summary: String!
+  """Findings the audit raised before de-duplication."""
+  findingCount: Int!
+  """Why the audit did not run or finish; null when it succeeded."""
+  error: String
+}

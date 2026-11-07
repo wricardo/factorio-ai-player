@@ -1,0 +1,210 @@
+extend type Memgraph {
+  """Explains why one machine is stalled by listing the deepest upstream causes instead of the whole chain. Walks the same exact BELT-resolution supply chain as supplyChain and reports only the nodes that explain the stall: a belt line nothing feeds (ORIGIN_BELT), a recipe ingredient with no feeding inserter (NO_FEEDING_ARM), and a supplier machine or chest whose own status is a fault such as no_power, no_fuel or no_minable_resources (MACHINE_TROUBLE). Pass-through states like waiting_for_source_items and item_ingredient_shortage are symptoms and never causes themselves. The stalled flag follows the root machine's own exported status only; the cause list is supplementary, so a stalled machine with no causes is still stalled true (it may be blocked on its output). Topology and the exported status only, not live stock; read snapshot.ageSeconds."""
+  rootCause(input: MemgraphRootCauseInput!): MemgraphRootCause! @goField(forceResolver: true)
+  """Planning view of nominal production against consumption per item, from the PRODUCES and CONSUMES edges of the loaded graph: the per-minute rate every machine would reach running flat out on its recipe, summed per item. It answers which items have too few producers for their consumers before anything runs. Not live stock: use the top-level itemBalance for what is short right now. Sources without a rate (infinity chests) are counted in unboundedSources and never summed. Sorted by net ascending so the worst deficits come first."""
+  nominalRateBalance(input: MemgraphNominalRateBalanceInput!): MemgraphNominalRateBalance! @goField(forceResolver: true)
+  """Pre-teardown check: which downstream machines lose an ingredient if this node (a machine, chest or belt) is removed. A machine is affected for an ingredient when every feeding route that can supply that ingredient passes through the node; machines that keep at least one route that avoids it are not listed. safe is true when nothing is affected. Topology only: it does not know whether a remaining route has enough throughput."""
+  removalImpact(input: MemgraphRemovalImpactInput!): MemgraphRemovalImpact! @goField(forceResolver: true)
+  """Nominal output of the chain feeding one machine and the stage that caps it. Combines the supply chain with per-recipe PRODUCES and CONSUMES rates: each stage can supply at most its nominal per-minute output of an item and each consumer demands its nominal per-minute input; the chain output is bounded by the tightest stage. Nominal means the recipe running continuously at the machine's crafting speed: inserter and belt throughput are not modelled, so a real chain can be lower. Notes list every approximation applied."""
+  chainCapacity(input: MemgraphChainCapacityInput!): MemgraphChainCapacity! @goField(forceResolver: true)
+  """Whether, and how, items travel from one machine, chest or belt to another: the downstream routes from the first node that reach the second, through inserters and belts. connected false (and no routes) means nothing of the first reaches the second within maxHops; it is not an error. Both nodes are validated like downstreamChain roots."""
+  routeBetween(input: MemgraphRouteBetweenInput!): MemgraphRouteBetween! @goField(forceResolver: true)
+  """Where an item is available in the factory, for planning where to tap it: machines whose recipe produces it, chests holding or producing it (infinity chests marked), and belt stretches carrying it. Ordered by distance from near when given, otherwise machines and chests first by unit number. An item the graph has never seen returns an empty list, not an error."""
+  itemSources(input: MemgraphItemSourcesInput!): MemgraphItemSources! @goField(forceResolver: true)
+}
+
+input MemgraphRootCauseInput {
+  """Machine to explain (UnitNumber, decimal string)."""
+  unitNumber: UnitNumber!
+  surface: String! = "nauvis"
+  """Supplier hops to follow, 1 through 16."""
+  maxHops: Int! = 10
+}
+
+enum MemgraphCauseReason {
+  """A belt line that nothing feeds: no belt, inserter or machine drops onto it."""
+  ORIGIN_BELT
+  """A recipe ingredient of a machine on the chain with no inserter whose source can provide it."""
+  NO_FEEDING_ARM
+  """A supplier machine or chest on the chain with a fault status (no_power, low_power, no_fuel, no_minable_resources, no_ingredients)."""
+  MACHINE_TROUBLE
+}
+
+type MemgraphRootCause {
+  """The machine that was explained."""
+  root: MemgraphTraceNode!
+  """True when the root's own exported status is a stall (item_ingredient_shortage, waiting_for_source_items, full_output, no_power, ...). Causes found upstream of a working machine are findings, such as a spare dead input, and do not make it stalled."""
+  stalled: Boolean!
+  """One-paragraph plain-text answer, written to be read first."""
+  summary: String!
+  """The deepest causes, most upstream first, each once."""
+  causes: [MemgraphCause!]!
+  """True when the underlying supply chain was cut by maxPaths, so causes may be incomplete."""
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphCause {
+  node: MemgraphTraceNode!
+  reason: MemgraphCauseReason!
+  """Short plain-text detail, e.g. the missing ingredient or the fault status."""
+  detail: String!
+  """Ids of the nodes from the root to this cause (look up in MemgraphTraceNode ids from the supply chain); the first is the root."""
+  route: [String!]!
+  """The route rendered as one line, e.g. `370 <- arm 390 <- belt 391`."""
+  routeText: String!
+}
+
+input MemgraphNominalRateBalanceInput {
+  """Only this item; empty means every item the graph references."""
+  item: String
+  surface: String! = "nauvis"
+  """Rows returned, 1 through 500."""
+  limit: Int! = 50
+}
+
+type MemgraphNominalRateBalance {
+  """Per-item rates, net ascending (worst deficit first)."""
+  items: [MemgraphItemRate!]!
+  """Items consumed by some machine but produced by none, or with net below zero, one line each."""
+  deficits: [String!]!
+  """True when limit cut the rows."""
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphItemRate {
+  name: String!
+  """Sum of nominal per-minute output of every machine producing the item."""
+  producedPerMinute: Float!
+  """Sum of nominal per-minute input of every machine consuming the item."""
+  consumedPerMinute: Float!
+  """producedPerMinute minus consumedPerMinute."""
+  net: Float!
+  """Number of producing machines."""
+  producers: Int!
+  """Number of consuming machines."""
+  consumers: Int!
+  """Sources with no rate (infinity chests): not included in the sums."""
+  unboundedSources: Int!
+}
+
+input MemgraphRemovalImpactInput {
+  """Machine, chest or belt to remove (UnitNumber)."""
+  unitNumber: UnitNumber!
+  surface: String! = "nauvis"
+  maxHops: Int! = 10
+}
+
+type MemgraphRemovalImpact {
+  root: MemgraphTraceNode!
+  """True when no downstream machine loses an ingredient."""
+  safe: Boolean!
+  """One line read-first answer."""
+  summary: String!
+  affected: [MemgraphAffectedMachine!]!
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphAffectedMachine {
+  machine: MemgraphTraceNode!
+  """Ingredient that loses every route."""
+  ingredient: String!
+  """Feeding routes for that ingredient before removal."""
+  routesBefore: Int!
+}
+
+input MemgraphChainCapacityInput {
+  """Machine whose output chain is measured (UnitNumber)."""
+  unitNumber: UnitNumber!
+  surface: String! = "nauvis"
+  maxHops: Int! = 10
+}
+
+type MemgraphChainCapacity {
+  root: MemgraphTraceNode!
+  """Item the root produces, null when it has no recipe."""
+  outputItem: String
+  """Nominal output of the root per minute under the tightest stage; 0 when a required ingredient has no producer on the chain."""
+  outputPerMinute: Float!
+  """The stages that cap the output, tightest first."""
+  limiting: [MemgraphStageRate!]!
+  """Every stage on the chain, root first."""
+  stages: [MemgraphStageRate!]!
+  """Approximations applied, one line each (inserter/belt throughput not modelled, infinity chest treated as unbounded, ...)."""
+  notes: [String!]!
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphStageRate {
+  node: MemgraphTraceNode!
+  item: String!
+  """Nominal per-minute output of this stage of the item."""
+  supplyPerMinute: Float!
+  """Per-minute input of the item the chain above needs from this stage."""
+  demandPerMinute: Float!
+}
+
+input MemgraphRouteBetweenInput {
+  from: UnitNumber!
+  to: UnitNumber!
+  surface: String! = "nauvis"
+  maxHops: Int! = 10
+  """Routes returned, 1 through 100, shortest first."""
+  maxRoutes: Int! = 10
+}
+
+type MemgraphRouteBetween {
+  from: MemgraphTraceNode!
+  to: MemgraphTraceNode!
+  connected: Boolean!
+  """Routes as node ids, `from` first and `to` last."""
+  routes: [MemgraphSupplyPath!]!
+  """Every node on any route, each once."""
+  nodes: [MemgraphTraceNode!]!
+  """Routes rendered as one indented tree using `->` for feeds (same conventions as downstreamChain)."""
+  outline: String!
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+input MemgraphItemSourcesInput {
+  item: String!
+  surface: String! = "nauvis"
+  """Order by distance from this point when given."""
+  nearX: Float
+  nearY: Float
+  """Rows returned, 1 through 200."""
+  limit: Int! = 20
+}
+
+enum MemgraphItemSourceKind {
+  """A machine whose recipe produces the item."""
+  PRODUCER
+  """A chest that holds the item."""
+  CHEST
+  """An infinity chest that supplies the item."""
+  INFINITY_CHEST
+  """A belt stretch carrying the item on a lane."""
+  BELT
+}
+
+type MemgraphItemSources {
+  item: String!
+  sources: [MemgraphItemSource!]!
+  truncated: Boolean!
+  snapshot: MemgraphSnapshotInfo
+}
+
+type MemgraphItemSource {
+  kind: MemgraphItemSourceKind!
+  node: MemgraphTraceNode!
+  """Nominal per-minute production for PRODUCER; null otherwise."""
+  perMinute: Float
+  """Items held (CHEST) or carried on both lanes (BELT); null otherwise."""
+  count: Int
+  """Euclidean distance from near; null when near is not given or the node has no position."""
+  distance: Float
+}

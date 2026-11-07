@@ -148,7 +148,7 @@ func TestPlacementProbeValidation(t *testing.T) {
 		{"nan coordinate", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Area: &FactoryAreaInput{LeftTopX: math.NaN(), RightBottomX: 2, RightBottomY: 2}}, "area coordinates must be finite"},
 		{"inverted area", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Area: &FactoryAreaInput{LeftTopX: 5, RightBottomX: 2, RightBottomY: 2}}, "area must have positive dimensions"},
 		{"too wide", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Area: &FactoryAreaInput{RightBottomX: maxAreaTiles + 1, RightBottomY: 2}}, "no greater than 1024 tiles"},
-		{"too many samples", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Area: &FactoryAreaInput{RightBottomX: 400, RightBottomY: 200}}, "above the 65536 tile limit"},
+		{"too many samples", PlacementProbeInput{Surface: "nauvis", Force: "player", Prototype: "pipe", Area: &FactoryAreaInput{RightBottomX: 1000, RightBottomY: 300}}, "above the 262144 tile limit"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

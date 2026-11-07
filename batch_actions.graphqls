@@ -63,7 +63,7 @@ type FuelManyResult {
   """Targets that already held topUpTo items and were left alone."""
   skipped: Int!
   results: [FuelTargetResult!]!
-  """Typed failures with one-based index and target identity; at most the first 100 are listed."""
+  """Typed failures with one-based index and target identity; at most the first 20 are listed."""
   errors: [BatchError!]!
 }
 

@@ -12,8 +12,17 @@ const (
 	routeCostTile     = 1.0
 	routeCostExisting = 0.25
 	routeCostBend     = 0.25
-	routeCostTunnel   = 2.0
+	// routeCostTunnelPerTile prices an underground span by the tiles it covers,
+	// strictly above routeCostTile. A flat per-half price made a five-tile span
+	// cheaper than the five belts it replaced, so open straights were routed as
+	// tunnel, tunnel, belt; the per-tile price keeps tunnelling for crossings.
+	routeCostTunnelPerTile = 1.05
 )
+
+// routeTunnelCost is the price of one underground jump that covers span tiles.
+func routeTunnelCost(span int) float64 {
+	return routeCostTunnelPerTile * float64(span)
+}
 
 // routeDirs are N, E, S, W as (dx, dy) tile offsets; engine direction is 4*index.
 var routeDirs = [4][2]int{{0, -1}, {1, 0}, {0, 1}, {-1, 0}}
@@ -83,6 +92,10 @@ type routeParams struct {
 	// allowBeltAdjacency accepts a foreign belt feeding a new BELT tile.
 	allowBeltAdjacency bool
 	maxExpanded        int
+	// direction is the explicit heading a single-tile run asked for. The route
+	// implies no heading when from and to are the same tile, so the caller's
+	// direction has to survive into the plan instead of defaulting to north.
+	direction *int
 }
 
 type routeStep struct {
@@ -173,18 +186,20 @@ func routeAStar(grid *routeGrid, params routeParams) routeResult {
 		if !ok {
 			return routeResult{stop: ConnectionStopReasonEndpointBlocked}
 		}
+		// A single tile has no route to derive a heading from, so the direction
+		// validated at the API boundary (0/4/8/12) is the heading. Defaulting to
+		// 0 here silently placed a north-facing belt.
+		direction := 0
+		if params.direction != nil {
+			direction = *params.direction
+		}
 		_, existing := r.grid.existing[r.from]
-		step := routeStep{x: params.fromX, y: params.fromY, existing: existing, cost: cost}
+		step := routeStep{x: params.fromX, y: params.fromY, direction: direction, existing: existing, cost: cost}
 		return routeResult{steps: []routeStep{step}, cost: cost, stop: ConnectionStopReasonFound}
 	}
 	r.hScale = 1
 	if params.preferExisting {
 		r.hScale = routeCostExisting
-	}
-	if params.allowTunnel && params.maxTunnel >= 2 {
-		if scale := routeTunnelScale(params.maxTunnel); scale < r.hScale {
-			r.hScale = scale
-		}
 	}
 
 	start := routeState{index: r.from, arrival: 4}
@@ -228,7 +243,10 @@ func abs(n int) int {
 	return n
 }
 
-// endpointUsable reports whether any role could occupy the endpoint tile.
+// endpointUsable reports whether any role could occupy the endpoint tile. A
+// foreign belt feeding the tile is checked here as well as in normalCost, so a
+// goal blocked only by that rule fails immediately instead of exhausting the
+// whole search budget and reporting EXPANSION_LIMIT.
 func (r *router) endpointUsable(index int) bool {
 	if r.grid.avoid[index] {
 		return false
@@ -236,10 +254,30 @@ func (r *router) endpointUsable(index int) bool {
 	if _, ok := r.grid.existing[index]; ok {
 		return true
 	}
+	if !r.params.pipe && !r.params.allowBeltAdjacency && r.grid.feed != nil && r.grid.feed[index] {
+		return false
+	}
 	if r.grid.open[index] {
 		return true
 	}
 	return r.params.allowTunnel && r.tunnelOpen(index)
+}
+
+// feedSource returns the tile of an existing belt outside the route that points
+// into index, which is the reason the tile refused a new belt.
+func (r *router) feedSource(index int) (int, int, bool) {
+	x, y := r.grid.xy(index)
+	for dir := range 4 {
+		nx, ny := x-routeDirs[dir][0], y-routeDirs[dir][1]
+		ni := r.grid.index(nx, ny)
+		if ni < 0 {
+			continue
+		}
+		if d, ok := r.grid.existing[ni]; ok && d == dir {
+			return nx, ny, true
+		}
+	}
+	return 0, 0, false
 }
 
 func (r *router) tunnelOpen(index int) bool {
@@ -411,7 +449,9 @@ func (r *router) expand(state routeState, g float64, best map[routeState]float64
 		}
 		var cost float64
 		if state.exit {
-			cost = routeCostTunnel
+			// The exit half outputs straight ahead (dir == arrival is enforced
+			// above), so leaving it costs an ordinary tile.
+			cost = routeCostTile
 		} else {
 			c, ok := r.normalCost(state.index, state.arrival, dir, false)
 			if !ok {
@@ -458,10 +498,12 @@ func (r *router) expand(state routeState, g float64, best map[routeState]float64
 				continue
 			}
 			if goal {
-				relax(routeState{index: exit, arrival: dir, exit: true, terminal: true}, routeCostTunnel+routeCostTunnel, routeVia{kind: 2, dir: dir, span: span})
+				// The goal tile holds the exit half, which no foreign belt can
+				// side-load, so it is charged as one tile.
+				relax(routeState{index: exit, arrival: dir, exit: true, terminal: true}, routeTunnelCost(span)+routeCostTile, routeVia{kind: 2, dir: dir, span: span})
 				continue
 			}
-			relax(routeState{index: exit, arrival: dir, exit: true}, routeCostTunnel, routeVia{kind: 2, dir: dir, span: span})
+			relax(routeState{index: exit, arrival: dir, exit: true}, routeTunnelCost(span), routeVia{kind: 2, dir: dir, span: span})
 		}
 	}
 }
@@ -499,21 +541,22 @@ func (r *router) reconstruct(goal routeState, via map[routeState]routeVia) []rou
 		step := routeStep{x: x, y: y}
 		last := i == len(chain)-1
 		out := state.arrival
-		jump := false
+		jump, span := false, 0
 		if !last {
 			v := via[chain[i+1]]
 			out = v.dir
 			jump = v.kind == 2
+			span = v.span
 		}
 		switch {
 		case state.exit:
 			step.tunnel = "output"
 			step.direction = r.tunnelDirection(true, out)
-			step.cost = routeCostTunnel
+			step.cost = routeCostTile
 		case jump:
 			step.tunnel = "input"
 			step.direction = r.tunnelDirection(false, out)
-			step.cost = routeCostTunnel
+			step.cost = routeTunnelCost(span)
 		default:
 			cost, _ := r.normalCost(state.index, state.arrival, out, last)
 			step.cost = cost
@@ -560,16 +603,4 @@ func routeEndpointOK(grid *routeGrid, params routeParams, x, y int) bool {
 	}
 	r := &router{grid: grid, params: params, from: grid.index(params.fromX, params.fromY), to: grid.index(params.toX, params.toY)}
 	return r.endpointUsable(index)
-}
-
-// routeTunnelScale is the admissible per-tile heuristic scale for a route that may
-// tunnel. A chain charges 2 for an entrance and 2 for the exit on the following
-// move while covering maxTunnel tiles, so one maxTunnel+1 hop costs 4; dividing by
-// maxTunnel alone would overestimate the remaining cost and let A* settle a
-// costlier route first.
-func routeTunnelScale(maxTunnel int) float64 {
-	if maxTunnel < 2 {
-		return 0
-	}
-	return 2 * routeCostTunnel / float64(maxTunnel+1)
 }

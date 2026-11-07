@@ -15,7 +15,7 @@ import (
 )
 
 // GraphQL surface for the Memgraph factory graph: exportMapSnapshotToMemgraph
-// runs the same export + load as `graph sync`, queryMemgraph runs one
+// runs the same export + load as `graph sync`, memgraph.query runs one
 // read-only Cypher statement. The Bolt target is configuration
 // (MEMGRAPH_BOLT/USER/PASSWORD), never caller input.
 
@@ -45,6 +45,7 @@ func exportMapSnapshotToMemgraph(ctx context.Context, r *Resolver, in ExportMapS
 		Surfaces:         in.Surfaces,
 		LeafMax:          in.LeafMax,
 		Concurrency:      in.Concurrency,
+		Pause:            in.Pause,
 		ChunkPage:        20000,
 		IncludeLineLinks: in.IncludeLineLinks,
 		AllowIncomplete:  in.AllowIncomplete,
@@ -113,7 +114,7 @@ func memgraphCounts(counts map[string]int) []*MemgraphCount {
 // ExportMapSnapshotToMemgraphInput. gqlgen applies those defaults only on the
 // GraphQL path, so the sync option builds the same input explicitly.
 func memgraphSyncInput() ExportMapSnapshotToMemgraphInput {
-	return ExportMapSnapshotToMemgraphInput{Force: "player", LeafMax: 2000, Concurrency: 4}
+	return ExportMapSnapshotToMemgraphInput{Force: "player", LeafMax: 2000, Concurrency: 4, Pause: true}
 }
 
 func queryMemgraph(ctx context.Context, r *Resolver, in MemgraphQueryInput) (*MemgraphQueryResult, error) {
@@ -135,7 +136,7 @@ func queryMemgraph(ctx context.Context, r *Resolver, in MemgraphQueryInput) (*Me
 	// only the Bolt read.
 	if in.Sync {
 		if _, err := exportMapSnapshotToMemgraph(ctx, r, memgraphSyncInput()); err != nil {
-			return nil, fmt.Errorf("sync before queryMemgraph: %w", err)
+			return nil, fmt.Errorf("sync before memgraph.query: %w", err)
 		}
 	}
 
@@ -179,13 +180,18 @@ func queryMemgraph(ctx context.Context, r *Resolver, in MemgraphQueryInput) (*Me
 		if _, err := cursor.Consume(ctx); err != nil {
 			return nil, err
 		}
+		snapshot, err := readMemgraphSnapshot(ctx, tx)
+		if err != nil {
+			return nil, err
+		}
+		result.Snapshot = snapshot
 		return result, nil
 	})
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, fmt.Errorf("Memgraph query exceeded timeoutMs=%d", in.TimeoutMs)
 		}
-		return nil, fmt.Errorf("Memgraph query failed (is the stack up? `just graph-up`): %w", err)
+		return nil, memgraphReadError("Memgraph query", err)
 	}
 	result := value.(*MemgraphQueryResult)
 	result.DurationMs = float64(time.Since(started)) / float64(time.Millisecond)
@@ -362,6 +368,10 @@ func isCypherWordByte(c byte) bool {
 // read transaction and, for shared endpoints, a read-only Memgraph user are
 // the real boundary.
 func validateReadOnlyCypher(q string) error {
+	// A single trailing semicolon is how a statement is written in a shell or
+	// in a docs example; it terminates nothing, so accept it and keep rejecting
+	// a semicolon that separates two statements.
+	q = strings.TrimRight(q, " \t\r\n;")
 	if strings.TrimSpace(q) == "" {
 		return errors.New("cypher must not be empty")
 	}
@@ -377,11 +387,11 @@ func validateReadOnlyCypher(q string) error {
 	}
 	for _, w := range words {
 		if !w.member && memgraphForbiddenKeywords[w.text] {
-			return fmt.Errorf("queryMemgraph is read-only: %s is not allowed", w.text)
+			return fmt.Errorf("memgraph.query is read-only: %s is not allowed", w.text)
 		}
 	}
 	if strings.Contains(stripCypherLiterals(q), ";") {
-		return errors.New("queryMemgraph runs exactly one statement; remove the semicolon")
+		return errors.New("memgraph.query runs exactly one statement; remove the semicolon")
 	}
 	return nil
 }
@@ -418,4 +428,16 @@ func stripCypherLiterals(q string) string {
 		}
 	}
 	return b.String()
+}
+
+// memgraphReadError labels a failed Bolt read. Statement-level rejections
+// (Memgraph.ClientError.*: syntax errors, type mismatches, unknown functions)
+// are the caller's Cypher, not an outage, so they carry no stack hint; the
+// hint is kept for connectivity, auth and any other non-statement failure.
+func memgraphReadError(what string, err error) error {
+	var dbErr *neo4j.Neo4jError
+	if errors.As(err, &dbErr) && dbErr.Classification() == "ClientError" && !dbErr.HasSecurityCode() {
+		return fmt.Errorf("invalid Cypher: %w", err)
+	}
+	return fmt.Errorf("%s failed (is the stack up? `just graph-up`): %w", what, err)
 }

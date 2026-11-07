@@ -1,0 +1,54 @@
+extend type Query {
+  """
+  Machine-readable occupancy of one area, for planning a layout locally instead of guessing tiles. Each entity reports its footprint (prototype tile size, width and height swapped for east and west), its engine direction and its unit number, so a caller can rebuild the occupied grid and route belts around known obstacles. Ghosts are reported with the prototype they will become. Incidental content that never blocks a build (dropped items, corpses, particles, projectiles, stickers, tile ghosts) is omitted, and the report is limited to entities; placement legality for a specific prototype still comes from worldPlacement or probePlacement because collision masks differ per prototype. With includeTerrain, water and other terrain tiles that block a build are reported too, capped at terrainLimit with terrainTruncated set when the cap was hit. Read-only: no game state changes.
+  """
+  occupancy(input: OccupancyInput!): OccupancyPage!
+}
+
+input OccupancyInput {
+  surface: String! = "nauvis"
+  force: String! = "player"
+  """Area bounds, positive dimensions of at most 1024 tiles per side."""
+  area: FactoryAreaInput!
+  """Also report terrain tiles that block a build; scans every tile in the area, so the area must cover at most 65536 tiles."""
+  includeTerrain: Boolean! = false
+  """Maximum terrain tiles reported, 1 through 65536."""
+  terrainLimit: Int! = 4096
+  limit: Int! = 1000
+  offset: Int! = 0
+}
+
+"""Entities and terrain blockers inside one area."""
+type OccupancyPage {
+  tick: Float!
+  surface: String!
+  force: String!
+  area: WorldArea!
+  pageInfo: PageInfo!
+  entries: [OccupancyEntry!]!
+  terrain: [OccupancyTerrain!]!
+  """True when more blocking terrain tiles existed than terrainLimit."""
+  terrainTruncated: Boolean!
+}
+
+"""One entity occupying tiles, sized by its prototype and direction."""
+type OccupancyEntry {
+  unitNumber: UnitNumber
+  name: String!
+  type: String!
+  force: String!
+  position: Position!
+  """Engine direction code 0 through 15."""
+  direction: Int!
+  """Tiles covered, after applying direction; x east and y south."""
+  footprint: WorldArea!
+  """Prototype a ghost will become; null for a real entity."""
+  ghostName: String
+}
+
+"""One terrain tile that blocks a build."""
+type OccupancyTerrain {
+  position: Position!
+  """Tile prototype name, for example water or deepwater."""
+  tile: String!
+}

@@ -63,6 +63,8 @@ type PlayerInsight {
   player: String!
   connected: Boolean!
   controllerType: Int!
+  "LuaPlayer.cheat_mode; null when the engine does not expose it. True means hand crafting is free and instant, so craftableCount, queue and craft cost evidence do not match normal rules."
+  cheatMode: Boolean
   surface: String!
   force: String!
   position: Position!

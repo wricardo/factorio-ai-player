@@ -1,0 +1,106 @@
+extend type Mutation {
+  """
+  Builds one production cell from a declarative layout in a single call: place machines and chests, route belt or pipe connections, and assign recipes, with local `ref` handles linking later entries to earlier ones. Every entry is validated and preflighted before anything is written: unknown items, items that do not place an entity, unknown recipes, occupied tiles inside an entry's owner footprint, duplicate refs, a recipe targeting a ref that no earlier entry created, and a shortfall of any placement item in the actor's main inventory are all refused up front, so a refused cell leaves the world unchanged. `dryRun` runs the same preflight and returns the planned steps without writing. Once preflight passes, entries are applied in list order, one backend call each, and a per-entry failure is reported in that step and stops the remaining entries. Nothing is transactional: a failure after some entries were applied leaves those entities in place, so re-read the world instead of assuming a rollback. A connection entry's ref resolves to the last entity the run placed.
+  """
+  buildCell(input: BuildCellInput!): BuildCellResult!
+}
+
+"""One declarative cell layout and the actor whose inventory pays for it."""
+input BuildCellInput {
+  actor: ActorInput!
+  surface: String! = "nauvis"
+  force: String! = "player"
+  """Entries applied in list order; at most 200."""
+  entries: [BuildCellEntryInput!]!
+  """Validate only: report the preflight result and write nothing."""
+  dryRun: Boolean! = false
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+"""One step of a cell layout. Exactly one of place, connection or recipe must be set."""
+input BuildCellEntryInput {
+  """Local handle, unique within the call. Later entries reference it by this name."""
+  ref: String!
+  """Place one entity from the actor's main inventory."""
+  place: CellPlaceInput
+  """Route and place one belt, pipe or power-pole run."""
+  connection: CellConnectionInput
+  """Assign a recipe to a machine, by earlier ref or by explicit target."""
+  recipe: CellRecipeInput
+}
+
+"""One entity placement inside a cell layout."""
+input CellPlaceInput {
+  item: String!
+  position: PositionInput!
+  direction: Int! = 0
+  """Item quality prototype name; defaults to normal."""
+  quality: String
+  """Replace whatever the tile already holds instead of refusing an occupied tile."""
+  fastReplace: Boolean! = false
+}
+
+"""One routed run inside a cell layout."""
+input CellConnectionInput {
+  """Belt, pipe or pole item; defaults to transport-belt, pipe or medium-electric-pole for the kind."""
+  item: String
+  from: PositionInput
+  to: PositionInput
+  """Engine direction of a single-tile run, 0 north, 4 east, 8 south or 12 west; rejected for longer runs."""
+  direction: Int
+  kind: ConnectionKind! = BELT
+  bend: ConnectionBend! = AUTO
+  routing: ConnectionRouting! = DIRECT
+  allowUnderground: Boolean! = false
+  undergroundItem: String
+  maxUndergroundDistance: Int
+  allowBeltAdjacency: Boolean! = false
+  allowFluidAdjacency: Boolean! = false
+  preferExisting: Boolean! = false
+  avoidAreas: [FactoryAreaInput!] = []
+}
+
+"""One recipe assignment inside a cell layout."""
+input CellRecipeInput {
+  """Reference to an earlier place or connection entry; mutually exclusive with target."""
+  ref: String
+  target: EntityRefInput
+  recipe: String!
+  drain: RecipeDrainMode! = ABORT
+}
+
+"""Outcome of one buildCell call."""
+type BuildCellResult {
+  tick: Float!
+  surface: String!
+  force: String!
+  """True when the call only preflighted and wrote nothing."""
+  dryRun: Boolean!
+  """True when every entry was applied. A refused preflight or a failed step makes this false."""
+  completed: Boolean!
+  placed: Int!
+  failed: Int!
+  """Entries validated but left unapplied, which a dry run reports for the whole layout."""
+  skipped: Int!
+  steps: [BuildCellStep!]!
+}
+
+"""Per-entry outcome, in input order."""
+type BuildCellStep {
+  index: Int!
+  ref: String!
+  """PLACE, CONNECTION or RECIPE."""
+  kind: String!
+  ok: Boolean!
+  """False when the entry was only preflighted (dry run or an earlier failure)."""
+  applied: Boolean!
+  unitNumber: UnitNumber
+  name: String
+  position: Position
+  placed: Int!
+  failed: Int!
+  message: String
+  conflicts: [ConnectionConflict!]!
+  errors: [BatchError!]!
+}

@@ -30,8 +30,12 @@ RETURN 'relationshipProperty' AS kind, name, property, count(*) AS total`
 const memgraphSnapshotQuery = `MATCH (s:Snapshot {loaded: true})
 RETURN s.id AS id, s.createdAt AS createdAt, s.loadedAt AS loadedAt,
        s.status AS status, s.force AS force, s.surfaces AS surfaces,
-       s.nodes AS nodes, s.edges AS edges
-ORDER BY id DESC LIMIT 1`
+       s.nodes AS nodes, s.edges AS edges, s.tick AS tick
+ORDER BY s.loadedAt DESC, s.id DESC LIMIT 1`
+
+// graphLoadedAtLayout is fixed-width UTC with nanoseconds, so loadedAt strings
+// sort in time order. RFC3339Nano trims trailing zeros and would misorder.
+const graphLoadedAtLayout = "2006-01-02T15:04:05.000000000Z"
 
 // memgraphSchemaRow is one flattened row of the schema query: a label, a
 // relationship type, or one of their property keys.
@@ -64,7 +68,7 @@ func memgraphSchema(ctx context.Context) (*MemgraphSchema, error) {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, fmt.Errorf("Memgraph schema query exceeded %s", memgraphSchemaTimeout)
 		}
-		return nil, fmt.Errorf("Memgraph schema query failed (is the stack up? `just graph-up`): %w", err)
+		return nil, memgraphReadError("Memgraph schema query", err)
 	}
 	return value.(*MemgraphSchema), nil
 }
@@ -94,6 +98,16 @@ func readMemgraphSchema(ctx context.Context, tx neo4j.ManagedTransaction) (*Memg
 		return nil, err
 	}
 
+	snapshot, err := readMemgraphSnapshot(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	return buildMemgraphSchema(rows, snapshot), nil
+}
+
+// readMemgraphSnapshot returns the latest completed snapshot, or nil before the
+// first successful load. AgeSeconds is measured from loadedAt to the read.
+func readMemgraphSnapshot(ctx context.Context, tx neo4j.ManagedTransaction) (*MemgraphSnapshotInfo, error) {
 	var snapshot *MemgraphSnapshotInfo
 	if err := memgraphSchemaRows(ctx, tx, memgraphSnapshotQuery, func(record *neo4j.Record) error {
 		snapshot = &MemgraphSnapshotInfo{}
@@ -124,12 +138,22 @@ func readMemgraphSchema(ctx context.Context, tx neo4j.ManagedTransaction) (*Memg
 		if snapshot.Edges, err = memgraphInt(record, "edges"); err != nil {
 			return err
 		}
+		if snapshot.Tick, err = memgraphOptionalFloatPtr(record, "tick"); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return nil, err
 	}
-
-	return buildMemgraphSchema(rows, snapshot), nil
+	if snapshot != nil && snapshot.LoadedAt != nil {
+		loaded, err := time.Parse(time.RFC3339Nano, *snapshot.LoadedAt)
+		if err != nil {
+			return nil, fmt.Errorf("snapshot %s loadedAt %q: %w", snapshot.ID, *snapshot.LoadedAt, err)
+		}
+		age := time.Since(loaded).Seconds()
+		snapshot.AgeSeconds = &age
+	}
+	return snapshot, nil
 }
 
 // buildMemgraphSchema folds the flattened rows into the nested GraphQL shape.
@@ -248,6 +272,27 @@ func memgraphInt(record *neo4j.Record, key string) (int, error) {
 		return number, nil
 	default:
 		return 0, fmt.Errorf("Memgraph schema field %q is %T, want integer", key, value)
+	}
+}
+
+// memgraphOptionalFloatPtr reads a numeric property that may be stored as a
+// float or, for values written by older loaders, an integer.
+func memgraphOptionalFloatPtr(record *neo4j.Record, key string) (*float64, error) {
+	value, ok := record.Get(key)
+	if !ok || value == nil {
+		return nil, nil
+	}
+	switch number := value.(type) {
+	case float64:
+		return &number, nil
+	case int64:
+		f := float64(number)
+		return &f, nil
+	case int:
+		f := float64(number)
+		return &f, nil
+	default:
+		return nil, fmt.Errorf("Memgraph schema field %q is %T, want number", key, value)
 	}
 }
 

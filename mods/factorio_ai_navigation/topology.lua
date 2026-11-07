@@ -6,8 +6,8 @@
 -- text (insights_topology.go copies the marked regions below, and a Go test fails
 -- when they drift), so an old save without this mod interface still works.
 --
--- Remote interface: factorio_ai_topology, protocol version 4.
---   version() -> 4
+-- Remote interface: factorio_ai_topology, protocol version 9.
+--   version() -> 9
 --   belt_run(surface, x, y, limit, include_line_links) -> BeltRun payload
 --   belt_stretch(surface, x, y, limit) -> BeltStretch payload
 --   belt_runs(requests, limit, include_line_links) -> {beltRuns = {BeltRun}}
@@ -31,10 +31,12 @@ local function fail(message)
 end
 
 -- BEGIN factorio_ai_topology.prelude
-local transport_line_names={}
-if defines.transport_line then
-  for name,index in pairs(defines.transport_line) do transport_line_names[index]=name end
-end
+-- defines.transport_line collides: 3 is both left_underground_line and
+-- secondary_left_line (4 right, 7/8 the secondary splitter lines), so building
+-- this table by iterating it is map-order dependent and can rename a lane
+-- between loads. Each belt family reports a fixed index order; side is always
+-- odd=left, even=right.
+local transport_line_names={[1]="left_line",[2]="right_line",[3]="left_underground_line",[4]="right_underground_line",[5]="left_split_line",[6]="right_split_line",[7]="secondary_left_split_line",[8]="secondary_right_split_line"}
 local function transport_line_name(index)
   return transport_line_names[index] or ("line_"..tostring(index))
 end
@@ -680,20 +682,36 @@ local function graph_get(e,field)
   if ok then return v end
   return nil
 end
+local function recipe_name(value)
+  if type(value)=="string" then return value end
+  return value and value.name or nil
+end
 local function graph_recipe(e,n)
-  if not crafting[e.type] then return end
-  local ok,r,q=pcall(function() return e.get_recipe() end)
-  if ok and r then
-    n.recipe=r.name
-    if q then n.recipeQuality=q.name end
-    return
+  if crafting[e.type] then
+    local ok,r,q=pcall(function() return e.get_recipe() end)
+    if ok and r then
+      n.recipe=r.name
+      if q then n.recipeQuality=q.name end
+    else
+      local prev=recipe_name(graph_get(e,"previous_recipe"))
+      if prev then
+        n.recipe=prev
+        n.recipeSource="previous"
+      end
+    end
+    -- products_finished and crafting_progress are cumulative/in-flight counters on
+    -- every crafting machine in 2.0; a furnace that switched recipe reports the
+    -- old one separately, which is how a recipe-flipping furnace becomes visible.
+    local done=graph_get(e,"products_finished")
+    if type(done)=="number" then n.productsFinished=done end
+    local progress=graph_get(e,"crafting_progress")
+    if type(progress)=="number" then n.craftingProgress=progress end
+    local speed=graph_get(e,"crafting_speed")
+    if type(speed)=="number" then n.craftingSpeed=speed end
   end
   if e.type=="furnace" then
-    local prev=graph_get(e,"previous_recipe")
-    if prev and prev.name then
-      n.recipe=type(prev.name)=="string" and prev.name or prev.name.name
-      n.recipeSource="previous"
-    end
+    local prev=recipe_name(graph_get(e,"previous_recipe"))
+    if prev then n.previousRecipe=prev end
   end
 end
 local function graph_modules(e,n)
@@ -783,10 +801,137 @@ local function graph_inv(e,names)
   end
   return nil
 end
-local fuel_types={furnace=true,boiler=true,["mining-drill"]=true,inserter=true,["assembling-machine"]=true}
+local fuel_types={furnace=true,boiler=true,["mining-drill"]=true,inserter=true,["assembling-machine"]=true,locomotive=true}
+local graph_belt_family={["transport-belt"]=true,["underground-belt"]=true,splitter=true,loader=true,["loader-1x1"]=true,["linked-belt"]=true,["lane-splitter"]=true}
+-- Every transport line of a belt-family entity, named and sided the way
+-- beltTiles/beltStretch name lanes, so a graph sample joins live lane reads.
+-- left/right stay lines 1 and 2 for existing queries; lanes carries every
+-- non-empty line (undergrounds expose surface and tunnel lines, splitters four);
+-- mixedLeft/mixedRight mark a side holding more than one item or quality.
+local function graph_belt_lanes(e,n)
+  local ok_max,max=pcall(function() return e.get_max_transport_line_index() end)
+  if not ok_max or type(max)~="number" or max<1 then return end
+  local lanes,side_names={},{}
+  local side_counts={left=0,right=0,unknown=0}
+  for index=1,max do
+    local ok,line=pcall(function() return e.get_transport_line(index) end)
+    if ok and line then
+      local items,total=graph_items(line)
+      if items then
+        local name=transport_line_name(index)
+        local side=transport_line_side(name)
+        side_counts[side]=(side_counts[side] or 0)+total
+        local names=side_names[side]
+        if not names then names={}; side_names[side]=names end
+        for _,entry in ipairs(items) do
+          local sep=string.find(entry,":",1,true)
+          names[sep and string.sub(entry,1,sep-1) or entry]=true
+        end
+        if index<=2 then
+          local field=index==1 and "left" or "right"
+          if #items>0 then n[field]=items end
+        end
+        if #items>0 then lanes[#lanes+1]=tostring(index).."|"..name.."|"..side.."|"..table.concat(items,"+") end
+      end
+    end
+  end
+  if #lanes>0 then n.lanes=lanes end
+  -- Counts cover every line of that side: a splitter keeps items on lines 5-8
+  -- and an underground on 3-4, so lines 1-2 alone would report zero.
+  n.leftCount=side_counts.left or 0
+  n.rightCount=side_counts.right or 0
+  if side_counts.unknown>0 then n.unknownCount=side_counts.unknown end
+  for _,side in ipairs({"left","right"}) do
+    local distinct=0
+    for _ in pairs(side_names[side] or {}) do distinct=distinct+1 end
+    if distinct>1 then
+      if side=="left" then n.mixedLeft=true else n.mixedRight=true end
+    end
+  end
+end
 -- Contents are a point-in-time sample at the leaf tick: machine fuel, input and
--- output, chest items, and per-lane belt items (engine transport lines 1 and 2,
--- exported as left and right; the side mapping is the engine's, not re-derived).
+-- output, chest items, and the engine transport lines of every belt-family
+-- entity (named, sided and per-side mixed, see graph_belt_lanes).
+-- Fluidbox contents are a point-in-time sample: pipe adjacency is FLUID_LINK, but
+-- a tank's stock, a refinery's input and a machine's output only exist as amounts
+-- inside the boxes. Temperature is what makes steam distinct from water, so each
+-- box records it. fluidTotal and fluidCapacity keep an empty box (0) distinct
+-- from an entity with no fluidbox (absent).
+local function graph_fluid_contents(e,n)
+  local ok,fb=pcall(function() return e.fluidbox end)
+  if not ok or not fb or #fb==0 then return end
+  local list={}
+  local total,capacity=0,0
+  for i=1,#fb do
+    local ok_cap,cap=pcall(function() return fb.get_capacity(i) end)
+    if ok_cap and type(cap)=="number" then capacity=capacity+cap end
+    local ok_f,fluid=pcall(function() return fb[i] end)
+    if ok_f and fluid and fluid.name and type(fluid.amount)=="number" then
+      total=total+fluid.amount
+      if fluid.amount>0 then
+        list[#list+1]=tostring(i).."|"..fluid.name.."|"..tostring(fluid.amount).."|"..tostring(fluid.temperature or 0)
+      end
+    end
+  end
+  if #list>0 then n.fluids=list end
+  n.fluidTotal=total
+  n.fluidCapacity=capacity
+end
+-- Logistic requests live on the entity's logistic point, not on any inventory:
+-- a requester chest can be empty and still demand items, so an empty chest would
+-- otherwise be indistinguishable from an unconfigured one.
+local function graph_logistic_requests(e,n)
+  if e.type~="logistic-container" then return end
+  local ok,point=pcall(function() return e.get_logistic_point(0) end)
+  if not ok or not point or not point.valid then return end
+  local ok_filters,filters=pcall(function() return point.filters end)
+  if not ok_filters or not filters then return end
+  local list={}
+  for _,f in ipairs(filters) do
+    if f.name then
+      local count=f.max_count or f.count or 0
+      list[#list+1]=f.name..((f.quality and f.quality~="normal") and ("@"..f.quality) or "")..":"..tostring(count)
+    end
+  end
+  table.sort(list)
+  if #list>0 then n.requests=list end
+end
+-- A logistic or infinity container's role is the engine's logistic mode (the
+-- prototype value, so a chest outside any network still has one). "none" means
+-- the container is not a logistic chest at all.
+local logistic_chest_types={["logistic-container"]=true,["infinity-container"]=true}
+local function graph_chest_mode(e)
+  if not logistic_chest_types[e.type] then return nil end
+  local ok,mode=pcall(function() return e.prototype.logistic_mode end)
+  if ok and type(mode)=="string" and mode~="none" then return mode end
+  return nil
+end
+-- A roboport covers every logistic chest inside its logistic area; construction
+-- is true when the chest is also inside its construction area. This is the
+-- structural roboport -> chest relation: both also share the network node, but
+-- only the cell geometry says which roboport actually reaches a chest.
+local function graph_logistic_coverage(e)
+  if e.type~="roboport" then return end
+  local ok,cell=pcall(function() return e.logistic_cell end)
+  if not ok or not cell or not cell.valid then return end
+  local ok_r,radius=pcall(function() return cell.logistic_radius end)
+  if not ok_r or type(radius)~="number" or radius<=0 then return end
+  local p=e.position
+  local pad=radius+1
+  local ok_f,found=pcall(function()
+    return e.surface.find_entities_filtered{area={{p.x-pad,p.y-pad},{p.x+pad,p.y+pad}},force=e.force,type={"logistic-container","infinity-container"}}
+  end)
+  if not ok_f or not found then return end
+  for _,c in ipairs(found) do
+    if valid(c) and graph_chest_mode(c) then
+      local ok_in,inside=pcall(function() return cell.is_in_logistic_range(c.position) end)
+      if ok_in and inside then
+        local ok_c,construction=pcall(function() return cell.is_in_construction_range(c.position) end)
+        graph_link("logistic_cover",e,c,{construction=ok_c and construction==true})
+      end
+    end
+  end
+end
 local function graph_contents(e,n)
   if fuel_types[e.type] then
     local ok,inv=pcall(function() return e.get_fuel_inventory() end)
@@ -797,15 +942,23 @@ local function graph_contents(e,n)
     graph_set_items(n,"output",graph_inv(e,{"furnace_result","assembling_machine_output"}))
   elseif e.type=="container" or e.type=="logistic-container" then
     graph_set_items(n,"items",graph_inv(e,{"chest"}))
-  elseif e.type=="transport-belt" then
-    for key,index in pairs({left=1,right=2}) do
-      local ok,line=pcall(function() return e.get_transport_line(index) end)
-      if ok and line then graph_set_items(n,key,line) end
-    end
+  elseif e.type=="cargo-wagon" or e.type=="car" or e.type=="spider-vehicle" then
+    graph_set_items(n,"items",graph_inv(e,{"cargo_wagon","car_trunk","spider_trunk"}))
+  elseif e.type=="turret" or e.type=="ammo-turret" or e.type=="electric-turret" or e.type=="fluid-turret" or e.type=="artillery-turret" then
+    graph_set_items(n,"ammo",graph_inv(e,{"turret_ammo","artillery_turret_ammo"}))
+  elseif e.type=="lab" then
+    graph_set_items(n,"input",graph_inv(e,{"lab_input"}))
+  elseif e.type=="roboport" then
+    graph_set_items(n,"robots",graph_inv(e,{"roboport_robot"}))
+  elseif graph_belt_family[e.type] then
+    graph_belt_lanes(e,n)
   end
 end
 -- Lane of a belt a drop point lands on, relative to the belt's direction of
--- travel.
+-- travel. A drop in line with travel has no perpendicular offset; the engine
+-- puts those items on the right transport line, for short and long-handed arms
+-- and both toward and away from the belt's motion (engine-verified in
+-- integration_test.go TestIntegration/InserterDropLaneRule).
 local function graph_lane(belt,pos)
   if not belt or not pos then return nil end
   if belt.type~="transport-belt" and belt.type~="underground-belt" then return nil end
@@ -814,32 +967,115 @@ local function graph_lane(belt,pos)
   local dot=(pos.x-belt.position.x)*dir[2]-(pos.y-belt.position.y)*dir[1]
   if dot>0.001 then return "left" end
   if dot<-0.001 then return "right" end
-  return nil
+  return "right"
 end
 -- Side of a belt an inserter stands on, relative to the belt's direction of
 -- travel. The engine pickup point is always the tile centre, so the standing
 -- side is the only per-inserter geometry; it is not a claim about which lane
--- the arm can reach.
+-- the arm can reach. An arm standing in line with the belt reports ahead (past
+-- the belt along its travel) or behind instead of a null side.
 local function graph_stand(belt,inserter)
   if not belt then return nil end
   if belt.type~="transport-belt" and belt.type~="underground-belt" then return nil end
-  return graph_side(belt,inserter)
+  local side=graph_side(belt,inserter)
+  if side then return side end
+  local dir=travel[belt.direction]
+  if not dir then return nil end
+  -- The perpendicular dot was already zero to get here, so project along travel.
+  local along=(inserter.position.x-belt.position.x)*dir[1]+(inserter.position.y-belt.position.y)*dir[2]
+  if along>0.001 then return "ahead" end
+  if along<-0.001 then return "behind" end
+  return nil
+end
+-- Inserter settings a mixed belt or a stalled arm is blamed on: which lanes it
+-- may pick from, its filter, stack override, the item it currently holds, and
+-- whether its drop target resolved at all.
+local function graph_inserter_settings(e,n,drop)
+  local pos=graph_get(e,"pickup_position")
+  if pos then n.pickupX=pos.x; n.pickupY=pos.y end
+  pos=graph_get(e,"drop_position")
+  if pos then n.dropX=pos.x; n.dropY=pos.y end
+  local left=graph_get(e,"pickup_from_left_lane")
+  local right=graph_get(e,"pickup_from_right_lane")
+  if type(left)=="boolean" then n.pickupLeftLane=left end
+  if type(right)=="boolean" then n.pickupRightLane=right end
+  local override=graph_get(e,"inserter_stack_size_override")
+  if type(override)=="number" then n.stackSizeOverride=override end
+  local use=graph_get(e,"use_filters")
+  if type(use)=="boolean" then
+    n.useFilters=use
+    local mode=graph_get(e,"inserter_filter_mode")
+    if type(mode)=="string" then n.filterMode=mode end
+    local filters={}
+    local ok_slots,slots=pcall(function() return e.filter_slot_count end)
+    if ok_slots and type(slots)=="number" then
+      for i=1,slots do
+        local ok,f=pcall(function() return e.get_filter(i) end)
+        if ok and f then filters[#filters+1]={index=i,name=f.name,quality=f.quality and f.quality.name or nil} end
+      end
+    end
+    if #filters>0 then n.filters=filters end
+  end
+  local ok_stack,stack=pcall(function() return e.held_stack end)
+  if ok_stack and stack and stack.valid_for_read then n.held=stack.name..":"..tostring(stack.count) end
+  if not valid(drop) then n.dropResolved=false end
+end
+-- A drill's mining_target is one tile and moves as tiles deplete, so the graph
+-- also carries the ore composition of the whole mining_area (2.0.77 LuaEntity
+-- member) and its bounding box: a drill over two ores is what puts a foreign
+-- plate into a furnace that feeds a single-product bus.
+local function graph_mining_area(e,n)
+  local ok,area=pcall(function() return e.mining_area end)
+  if not ok or type(area)~="table" or not area.left_top then return end
+  n.miningLeft=area.left_top.x; n.miningTop=area.left_top.y
+  n.miningRight=area.right_bottom.x; n.miningBottom=area.right_bottom.y
+  local ok_f,found=pcall(function() return e.surface.find_entities_filtered{area=area,type="resource"} end)
+  if not ok_f or not found then return end
+  local tiles,amounts={},{}
+  local total=0
+  for _,r in ipairs(found) do
+    tiles[r.name]=(tiles[r.name] or 0)+1
+    amounts[r.name]=(amounts[r.name] or 0)+(r.amount or 0)
+    total=total+1
+  end
+  n.areaTiles=total
+  local list,sums={},{}
+  for name,count in pairs(tiles) do list[#list+1]=name..":"..tostring(count) end
+  for name,count in pairs(amounts) do sums[#sums+1]=name..":"..tostring(count) end
+  table.sort(list)
+  table.sort(sums)
+  if #list>0 then n.areaResources=list end
+  if #sums>0 then n.areaAmounts=sums end
 end
 local function graph_node(e,belt_index,line_links)
   local n={id=graph_id(e),unit=e.unit_number,name=e.name,type=e.type,surface=e.surface.name,force=e.force.name,x=e.position.x,y=e.position.y}
   local dir=graph_get(e,"direction"); if dir then n.direction=dir end
   local q=graph_get(e,"quality"); if q then n.quality=q.name end
   local st=graph_get(e,"status"); if st then n.status=statuses[st] end
-  if e.type=="entity-ghost" or e.type=="tile-ghost" then n.ghostName=graph_get(e,"ghost_name"); n.ghostType=graph_get(e,"ghost_type") end
+  if e.type=="entity-ghost" or e.type=="tile-ghost" then
+    n.ghostName=graph_get(e,"ghost_name"); n.ghostType=graph_get(e,"ghost_type")
+    if e.type=="entity-ghost" then
+      local ok_recipe,recipe=pcall(function() return e.get_recipe() end)
+      if ok_recipe and recipe then
+        local ok_name,name=pcall(function() return recipe.name end)
+        if ok_name and type(name)=="string" then n.ghostRecipe=name end
+      end
+    end
+  end
   graph_recipe(e,n)
   local en=graph_get(e,"electric_network_id"); if type(en)=="number" then n.electricNetwork=en end
   local ln=graph_get(e,"logistic_network"); if ln and ln.valid then n.logisticNetwork=ln.network_id end
   local train=graph_get(e,"train"); if train and train.valid then n.train=train.id end
   graph_modules(e,n)
   graph_contents(e,n)
+  graph_fluid_contents(e,n)
+  graph_logistic_requests(e,n)
+  local chest_mode=graph_chest_mode(e)
+  if chest_mode then n.logisticMode=chest_mode end
+  graph_logistic_coverage(e)
   graph_wires(e,n)
   if is_belt(e) then
-    if e.type=="splitter" then
+    if e.type=="splitter" or e.type=="lane-splitter" then
       -- A splitter's two outputs are structural ports: which side of the
       -- splitter each outgoing belt leaves on is the routing fact a graph can
       -- hold, unlike lane balancing between them.
@@ -856,6 +1092,10 @@ local function graph_node(e,belt_index,line_links)
       for _,l in ipairs(belt_connections(e)) do graph_link(l.kind,l.a,l.b) end
     end
     if line_links then for _,l in ipairs(belt_line_connections(e)) do graph_link("line",l.a,l.b) end end
+    -- BeltStretch building needs the engine's own straight/left/right shape: a
+    -- curved belt's input is a continuation, not a side-load.
+    local shape=graph_get(e,"belt_shape")
+    if type(shape)=="string" then n.beltShape=shape end
     if e.type=="loader" or e.type=="loader-1x1" then
       local container=graph_get(e,"loader_container")
       if valid(container) then
@@ -863,22 +1103,23 @@ local function graph_node(e,belt_index,line_links)
       end
     end
   end
-  if e.type=="splitter" then
+  if e.type=="splitter" or e.type=="lane-splitter" then
     n.inputPriority=graph_get(e,"splitter_input_priority")
     n.outputPriority=graph_get(e,"splitter_output_priority")
-    -- Splitter filters are not available in every 2.0 build: get_filter returns
-    -- nil there even after set_filter, so report only what the engine returns.
-    local filters={}
-    for i=1,2 do
-      local ok,f=pcall(function() return e.get_filter(i) end)
-      if ok and f then filters[#filters+1]={index=i,name=f.name,quality=f.quality and f.quality.name or nil} end
+    -- 2.0.77 exposes the splitter filter as one ItemFilter property
+    -- (LuaEntity.splitter_filter, shared with LaneSplitter), not through
+    -- get_filter(slot): that path is inserters, loaders, drills, asteroid
+    -- collectors and logistic containers only, so it silently returned nil here.
+    local ok_f,f=pcall(function() return e.splitter_filter end)
+    if ok_f and f and f.name then
+      n.filters={{index=1,name=f.name,quality=f.quality and f.quality.name or nil}}
     end
-    if #filters>0 then n.filters=filters end
   end
   if e.type=="inserter" then
     local p,d=inserter_targets(e,belt_index)
     graph_link("pickup",p,e,{side=graph_stand(p,e)})
     graph_link("drop",e,d,{side=graph_lane(d,graph_get(e,"drop_position"))})
+    graph_inserter_settings(e,n,d)
   elseif dropping[e.type] then
     local t=machine_drop_target(e,belt_index)
     if valid(t) then graph_link("drop",e,t) end
@@ -886,6 +1127,7 @@ local function graph_node(e,belt_index,line_links)
   if e.type=="mining-drill" then
     local t=graph_get(e,"mining_target")
     if valid(t) then graph_link("mines",e,t) end
+    graph_mining_area(e,n)
   end
   if e.type=="beacon" then
     local ok,receivers=pcall(function() return e.get_beacon_effect_receivers() end)
@@ -1534,7 +1776,7 @@ local function guarded(fn)
 end
 
 remote.add_interface("factorio_ai_topology", {
-  version = function() return 5 end,
+  version = function() return 9 end,
   belt_run = guarded(belt_run_op),
   belt_stretch = guarded(belt_stretch_op),
   belt_runs = guarded(belt_runs_op),
