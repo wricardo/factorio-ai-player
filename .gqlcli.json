@@ -156,7 +156,7 @@
     },
     "power": {
       "type": "query",
-      "query": "query Power($networks: PowerInsightsInput = {}, $consumers: PowerInsightsInput = {onlyIssues: true}) { electricNetworks(input: $networks) { tick surface force pageInfo { total limit offset hasMore } networks { id consumptionWatts productionWatts satisfaction polesInArea } } powerConsumers(input: $consumers) { tick surface force pageInfo { total limit offset hasMore } powerEntities { ...PowerConsumerFields } } }"
+      "query": "query Power($networks: PowerInsightsInput = {}, $consumers: PowerInsightsInput = {onlyIssues: true}) { electricNetworks(input: $networks) { tick surface force pageInfo { total limit offset hasMore } networks { id consumptionWatts productionWatts loadRatio polesInArea } } powerConsumers(input: $consumers) { tick surface force pageInfo { total limit offset hasMore } powerEntities { ...PowerConsumerFields } } }"
     },
     "probe-placement": {
       "type": "query",

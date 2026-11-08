@@ -311,7 +311,7 @@ if not e then inv.insert{name=item,quality=quality,count=1}; if not ok then fail
 -- tile_occupants tests one tile, so a multi-tile prototype can still land on a
 -- neighbour; undo that creation instead of leaving a buried entity.
 do local overlap=undo_overlap(e,inv,item,quality,layers); if overlap then fail(overlap); return end end
-local underground_type,paired_unit_number=underground_info(e); rcon.print(helpers.table_to_json({tick=game.tick,name=e.name,position=e.position,surface=s.name,force=c.force.name,direction=e.direction,unit_number=e.unit_number,item=item,underground_type=underground_type,paired_unit_number=paired_unit_number}))`, luaString(forcedType), occupied, dir, replace, classify), nil
+local underground_type,paired_unit_number=underground_info(e); rcon.print(helpers.table_to_json({tick=game.tick,name=e.name,entity=e.name,position=e.position,surface=s.name,force=c.force.name,direction=e.direction,unit_number=e.unit_number,item=item,underground_type=underground_type,paired_unit_number=paired_unit_number}))`, luaString(forcedType), occupied, dir, replace, classify), nil
 	}
 	if *count < 1 {
 		return "", errors.New("positive count is required")

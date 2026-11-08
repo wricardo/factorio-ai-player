@@ -304,7 +304,7 @@ silo (30 s): 1000 steel + 1000 concrete + 200 PU + 200 EEU + 100 pipe
   scienceBudget(force:"player", surface:"nauvis") {
     technology progress remainingResearchUnits labCount missingPackLabCount }
   machines(input:{surface:"nauvis"}) { summaries { type total working idle } }
-  electricNetworks(input:{surface:"nauvis"}) { productionWatts consumptionWatts satisfaction } }
+  electricNetworks(input:{surface:"nauvis"}) { productionWatts consumptionWatts loadRatio } }
 ```
 
 Start at the earliest phase whose gate fails; treat later phases as already satisfied only when the gate read proves it.

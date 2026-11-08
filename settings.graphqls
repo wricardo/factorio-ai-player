@@ -451,6 +451,10 @@ input InserterSettingsInput {
   filterMode: String
   """Stack size override; 0 restores automatic."""
   stackSizeOverride: Int
+  """Pickup point offset from the inserter centre in map axes (x east, y south), for the current direction: setDirection rotates the stored point with the entity, so write it after the direction. Only prototypes with allow_custom_vectors accept it (none in vanilla or Space Age); otherwise the call fails. The engine does not limit the point to the inserter's reach; the call fails only if the read-back differs."""
+  pickupVector: PositionInput
+  """Drop point offset from the inserter centre in map axes; same rules as pickupVector."""
+  dropVector: PositionInput
   """Allow or forbid taking from the left lane of a belt source. Disabling both lane flags makes a full belt unusable for the inserter."""
   pickupFromLeftLane: Boolean
   """Allow or forbid taking from the right lane of a belt source."""

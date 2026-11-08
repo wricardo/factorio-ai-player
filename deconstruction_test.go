@@ -13,7 +13,7 @@ func TestDeconstructionAreaRejectsInvalidBoundsBeforeRCON(t *testing.T) {
 	}
 	for _, mutation := range tests {
 		var out bytes.Buffer
-		err := runWithCredentials([]string{"mutation", mutation}, &out, "")
+		err := runGraphQLInProcess([]string{"mutation", mutation}, &out, "")
 		if err == nil || !strings.Contains(err.Error(), "area") {
 			t.Errorf("expected invalid-area error for %s, got %v", mutation, err)
 		}
@@ -33,7 +33,7 @@ func TestDeconstructionEntitiesValidateTargetsBeforeRCON(t *testing.T) {
 	}
 	for _, test := range tests {
 		var out bytes.Buffer
-		err := runWithCredentials([]string{"mutation", test.mutation}, &out, "")
+		err := runGraphQLInProcess([]string{"mutation", test.mutation}, &out, "")
 		if err == nil || !strings.Contains(err.Error(), test.want) {
 			t.Errorf("expected %q error for %s, got %v", test.want, test.mutation, err)
 		}

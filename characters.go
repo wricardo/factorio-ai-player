@@ -57,7 +57,7 @@ func characterSpawnLua(args []string, out io.Writer) (string, error) {
 local f=game.forces[%s]; if not f then fail("force not found"); return end
 local pos=s.find_non_colliding_position("character",{x=%s,y=%s},10,0.5); if not pos then fail("no space for character near that position"); return end
 local c=s.create_entity{name="character",position=pos,force=f}; if not c then fail("could not create character"); return end
-rcon.print(helpers.table_to_json({tick=game.tick,character=c.unit_number,surface=s.name,force=f.name,position=c.position}))`,
+rcon.print(helpers.table_to_json({tick=game.tick,character=c.unit_number,unit_number=c.unit_number,surface=s.name,force=f.name,position=c.position}))`,
 		luaString(*surface), luaString(*force),
 		strconv.FormatFloat(*x, 'g', -1, 64), strconv.FormatFloat(*y, 'g', -1, 64)), nil
 }

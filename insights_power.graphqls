@@ -7,10 +7,10 @@ extend type Query {
   selected window, converted from joules per tick to watts at 60 ticks per second. Generator flow statistics record
   production equal to demand, so maxProductionWatts is the summed get_max_energy_production of generators, burner
   generators, solar panels, fusion generators and electric energy interfaces of the force inside the area and is the
-  capacity measure; satisfaction
-  is consumptionWatts divided by maxProductionWatts when that capacity is positive, an observed-load ratio rather than
+  capacity measure; loadRatio
+  is consumptionWatts divided by maxProductionWatts when that capacity is positive, an observed-load ratio, not
   engine power satisfaction, and is null when no producer is in the area. Creative and sandbox energy interfaces are
-  rated in the hundreds of gigawatts, so a network they power reports a near-zero satisfaction ratio. Accumulators
+  rated in the hundreds of gigawatts, so a network they power reports a near-zero load ratio. Accumulators
   report stored charge and buffer capacity from the same area scan, and lowPowerConsumers counts entities on each
   network reporting low_power inside the area. Only networkId and window are accepted as filters here: status,
   connectedToProducingNetwork and onlyIssues describe individual entities and are rejected rather than silently ignored.
@@ -83,7 +83,7 @@ type ElectricNetworkInsight {
   "Entities on this network inside the area whose engine status is low_power."
   lowPowerConsumers: Int!
   "consumptionWatts divided by maxProductionWatts when capacity is positive; null when no producer is in the area. An observed-load ratio, not engine power satisfaction."
-  satisfaction: Float
+  loadRatio: Float
 }
 
 type PowerEntityPage {

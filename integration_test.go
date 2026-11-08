@@ -25,6 +25,11 @@ import (
 
 const integrationSurface = "factorio-ai-player-integration"
 
+// integrationExtraMods maps a mod directory name (<name>_<version>) to a mod
+// directory linked into the next harness, for fixtures that change prototypes.
+// Tests set it before startIntegrationHarness and clear it afterwards.
+var integrationExtraMods map[string]string
+
 type integrationHarness struct {
 	binary   string
 	version  string
@@ -2143,7 +2148,7 @@ rcon.print("ok")`)
 
 	// Sandbox and creative saves are powered by energy interfaces, so their
 	// rated output must count as capacity; otherwise maxProductionWatts is 0 and
-	// satisfaction is null even though the network is fully supplied.
+	// loadRatio is null even though the network is fully supplied.
 	t.Run("ElectricNetworksEnergyInterfaceCapacity", func(t *testing.T) {
 		const area = `{leftTopX:34,leftTopY:-16,rightBottomX:46,rightBottomY:-8}`
 		t.Cleanup(func() {
@@ -2167,7 +2172,7 @@ rcon.print("ok")`)
 
 		result := h.query(t, fmt.Sprintf(`{
 		  electricNetworks(input:{surface:%q,force:"player",area:%s,limit:100}) {
-		    networks { id maxProductionWatts consumptionWatts satisfaction lowPowerConsumers }
+		    networks { id maxProductionWatts consumptionWatts loadRatio lowPowerConsumers }
 		  }
 		}`, integrationSurface, area))
 		list := jsonArray(t, jsonObject(t, jsonObject(t, result, "data"), "electricNetworks"), "networks")
@@ -2178,12 +2183,12 @@ rcon.print("ok")`)
 		if capacity := jsonNumber(t, network, "maxProductionWatts"); capacity < 4e11 {
 			t.Fatalf("energy interface capacity missing from maxProductionWatts: %v", network)
 		}
-		satisfaction, present := network["satisfaction"]
-		if !present || satisfaction == nil {
-			t.Fatalf("satisfaction must be a ratio, not null, when an energy interface supplies the network: %v", network)
+		loadRatio, present := network["loadRatio"]
+		if !present || loadRatio == nil {
+			t.Fatalf("loadRatio must be a ratio, not null, when an energy interface supplies the network: %v", network)
 		}
-		if satisfaction.(float64) != 0 {
-			t.Fatalf("idle energy interface network satisfaction=%v, want 0", satisfaction)
+		if loadRatio.(float64) != 0 {
+			t.Fatalf("idle energy interface network loadRatio=%v, want 0", loadRatio)
 		}
 		if low := jsonNumber(t, network, "lowPowerConsumers"); low != 0 {
 			t.Fatalf("lowPowerConsumers=%v, want 0", low)
@@ -3131,6 +3136,61 @@ rcon.print("ok")`)
 		}
 	})
 
+	t.Run("FactorioformStateRoundTrip", func(t *testing.T) {
+		const manifest = "integration-ftf"
+		h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+local a=surface.create_entity{name="wooden-chest",position={x=40.5,y=40.5},force="player"}
+local b=surface.create_entity{name="wooden-chest",position={x=41.5,y=40.5},force="player"}
+assert(a and a.valid and b and b.valid,"factorioform fixture failed")
+rcon.print("ok")`)
+		t.Cleanup(func() {
+			if h.isStopped() {
+				return
+			}
+			h.lua(t, `storage.factorio_ai_player_factorioform=nil
+local surface=game.surfaces["`+integrationSurface+`"]
+if surface then for _,e in pairs(surface.find_entities_filtered{area={{40,40},{43,41}}}) do if e.valid then e.destroy() end end end
+rcon.print("ok")`)
+		})
+		importDoc := func(address string, x float64, overwrite bool) string {
+			return fmt.Sprintf(`mutation { factorioformImport(input:{name:%q,surface:%q,address:%q,overwrite:%t,target:{entity:"wooden-chest",position:{x:%v,y:40.5}}}) {
+			  replacedUnitNumber resource { address unitNumber entity direction quality position { x y } } manifest { name resourceCount } } }`,
+				manifest, integrationSurface, address, overwrite, x)
+		}
+		imported := jsonObject(t, h.mutation(t, importDoc("chest.one", 40.5, false)), "data", "factorioformImport")
+		resource := jsonObject(t, imported, "resource")
+		unitOne := jsonString(t, resource, "unitNumber")
+		if jsonString(t, resource, "entity") != "wooden-chest" || jsonString(t, resource, "quality") != "normal" || unitOne == "" {
+			t.Fatalf("imported resource = %v", resource)
+		}
+		if err := h.graphqlExpectingError(t, "mutation", importDoc("chest.one", 41.5, false)); err == nil || !strings.Contains(err.Error(), "overwrite") {
+			t.Fatalf("remap without overwrite err = %v", err)
+		}
+		if err := h.graphqlExpectingError(t, "mutation", importDoc("chest.two", 40.5, false)); err == nil || !strings.Contains(err.Error(), "already mapped") {
+			t.Fatalf("duplicate unit err = %v", err)
+		}
+		remapped := jsonObject(t, h.mutation(t, importDoc("chest.one", 41.5, true)), "data", "factorioformImport")
+		if jsonString(t, remapped, "replacedUnitNumber") != unitOne {
+			t.Fatalf("remap result = %v, want replaced %s", remapped, unitOne)
+		}
+		state := jsonArray(t, h.query(t, fmt.Sprintf(`{ factorioformState(name:%q) { name surface force resourceCount resources { address unitNumber entity } } }`, manifest)), "data", "factorioformState")
+		if len(state) != 1 || len(jsonArray(t, state[0].(map[string]any), "resources")) != 1 {
+			t.Fatalf("state = %v", state)
+		}
+		summaries := jsonArray(t, h.query(t, `{ factorioformState { name resourceCount resources { address } } }`), "data", "factorioformState")
+		if len(summaries) != 1 || len(jsonArray(t, summaries[0].(map[string]any), "resources")) != 0 {
+			t.Fatalf("summaries = %v", summaries)
+		}
+		forgotten := jsonObject(t, h.mutation(t, fmt.Sprintf(`mutation { factorioformForget(input:{name:%q,addresses:["chest.one","nope"]}) { forgotten missing manifestDeleted remaining } }`, manifest)), "data", "factorioformForget")
+		if len(jsonArray(t, forgotten, "forgotten")) != 1 || len(jsonArray(t, forgotten, "missing")) != 1 || jsonNumber(t, forgotten, "remaining") != 0 {
+			t.Fatalf("forget = %v", forgotten)
+		}
+		jsonObject(t, h.mutation(t, fmt.Sprintf(`mutation { factorioformForget(input:{name:%q}) { manifestDeleted } }`, manifest)), "data", "factorioformForget")
+		if err := h.graphqlExpectingError(t, "query", fmt.Sprintf(`{ factorioformState(name:%q) { name } }`, manifest)); err == nil {
+			t.Fatal("state of a forgotten manifest must error")
+		}
+	})
+
 	t.Run("BuildGhostsConsumesItems", func(t *testing.T) {
 		character := h.spawnCharacter(t)
 		t.Cleanup(func() {
@@ -3762,6 +3822,12 @@ func startIntegrationHarness(t *testing.T) *integrationHarness {
 		t.Fatalf("link navigation mod: %v", err)
 	}
 
+	for name, extra := range integrationExtraMods {
+		if err := os.Symlink(extra, filepath.Join(mods, name)); err != nil {
+			t.Fatalf("link extra mod %s: %v", name, err)
+		}
+	}
+
 	config := filepath.Join(dir, "config.ini")
 	configBody := fmt.Sprintf("[path]\nread-data=__PATH__system-read-data__\nwrite-data=%s\n", filepath.Join(dir, "data"))
 	if err := os.WriteFile(config, []byte(configBody), 0o600); err != nil {
@@ -3903,13 +3969,13 @@ func (h *integrationHarness) mutation(t *testing.T, document string) map[string]
 func (h *integrationHarness) graphqlExpectingError(t *testing.T, operation, document string) error {
 	t.Helper()
 	var out bytes.Buffer
-	return runWithCredentials([]string{"--addr", h.addr, operation, "--format", "json", document}, &out, h.password)
+	return runGraphQLInProcess([]string{"--addr", h.addr, operation, "--format", "json", document}, &out, h.password)
 }
 
 func (h *integrationHarness) graphql(t *testing.T, operation, document string) map[string]any {
 	t.Helper()
 	var out bytes.Buffer
-	err := runWithCredentials([]string{"--addr", h.addr, operation, "--format", "json", document}, &out, h.password)
+	err := runGraphQLInProcess([]string{"--addr", h.addr, operation, "--format", "json", document}, &out, h.password)
 	if err != nil {
 		t.Fatalf("real Factorio GraphQL failed\noperation: %s\ndocument:\n%s\nendpoint: %s\ntick: %v\noutput: %s\nerror: %v", operation, document, h.addr, h.bestEffortTick(), out.String(), err)
 	}
@@ -3925,7 +3991,7 @@ func (h *integrationHarness) bestEffortTick() any {
 		return "server-stopped"
 	}
 	var out bytes.Buffer
-	if err := runWithCredentials([]string{"--addr", h.addr, "query", "--format", "json", `{ status { tick } }`}, &out, h.password); err != nil {
+	if err := runGraphQLInProcess([]string{"--addr", h.addr, "query", "--format", "json", `{ status { tick } }`}, &out, h.password); err != nil {
 		return "unavailable: " + err.Error()
 	}
 	var result map[string]any

@@ -83,7 +83,7 @@ func briefingRules() []scriptRule {
 			{"kind":"FLUID_SHORTAGE","severity":"WARNING","status":"fluid_ingredient_shortage","name":"assembling-machine-1","type":"assembling-machine","position":{"x":8.5,"y":1.5},"unitNumber":14,"direction":0,"suggestedAction":"supply the missing fluid"}],
 			"attentionCounts":[{"kind":"NO_POWER","count":1},{"kind":"NO_FUEL","count":1},{"kind":"NO_RESOURCES","count":1},{"kind":"FLUID_SHORTAGE","count":1}],
 			"machines":[{"type":"furnace","total":1,"working":0,"idle":0,"noFuel":1,"noPower":0,"noIngredients":0,"outputFull":0,"other":0}]}`},
-		{"by_id, networks", `{"tick":102,"surface":"nauvis","force":"player","pageInfo":{"total":2,"limit":1000,"offset":0,"hasMore":false},"networks":[{"id":"1","polesInArea":3,"productionWatts":900000,"consumptionWatts":400000,"maxProductionWatts":1800000,"accumulatorChargeJoules":2500000,"accumulatorCapacityJoules":5000000,"lowPowerConsumers":2,"satisfaction":0.222},{"id":"2","polesInArea":1,"productionWatts":0,"consumptionWatts":60,"maxProductionWatts":0,"accumulatorChargeJoules":0,"accumulatorCapacityJoules":0,"lowPowerConsumers":0}]}`},
+		{"by_id, networks", `{"tick":102,"surface":"nauvis","force":"player","pageInfo":{"total":2,"limit":1000,"offset":0,"hasMore":false},"networks":[{"id":"1","polesInArea":3,"productionWatts":900000,"consumptionWatts":400000,"maxProductionWatts":1800000,"accumulatorChargeJoules":2500000,"accumulatorCapacityJoules":5000000,"lowPowerConsumers":2,"loadRatio":0.222},{"id":"2","polesInArea":1,"productionWatts":0,"consumptionWatts":60,"maxProductionWatts":0,"accumulatorChargeJoules":0,"accumulatorCapacityJoules":0,"lowPowerConsumers":0}]}`},
 		{"researchEnabled=force.research_enabled", `{"tick":103,"force":"player","researchEnabled":true,"researchQueue":{},"pageInfo":{"total":0,"limit":1,"offset":0,"hasMore":false},"technologies":{}}`},
 		{"enemy_limit", `{"tick":104,"surface":"nauvis","force":"player","enemies":{"pageInfo":{"total":1,"limit":20,"offset":0,"hasMore":false},"entities":[{"name":"small-biter","type":"unit","force":"enemy","position":{"x":-40.5,"y":3.5},"pollution":{"position":{"x":0,"y":0},"amount":0}}]},"damaged":{"pageInfo":{"total":1,"limit":20,"offset":0,"hasMore":false},"entities":[{"name":"stone-wall","type":"wall","force":"player","position":{"x":-4.5,"y":0.5},"health":50,"maxHealth":350,"pollution":{"position":{"x":0,"y":0},"amount":0}}]},"playerAlerts":{"available":false,"pageInfo":{"total":0,"limit":1,"offset":0,"hasMore":false},"alerts":{}},"evolutionFactor":0,"evolutionByTime":0,"evolutionByPollution":0,"evolutionByKills":0,"totalPollution":0,"killCounts":{}}`},
 		{"storage_stock(area,false)", `{"tick":105,"surface":"nauvis","force":"player","area":{"leftTopX":0,"leftTopY":0,"rightBottomX":10,"rightBottomY":10},"pageInfo":{"total":2,"limit":1000,"offset":0,"hasMore":false},"ghostEntries":[{"id":"a","kind":"entity-ghost","name":"transport-belt","quality":"normal","position":{"x":1.5,"y":1.5},"placementAlternatives":{},"requestedMaterials":{},"buildable":true},{"id":"b","kind":"entity-ghost","name":"inserter","quality":"normal","position":{"x":2.5,"y":1.5},"placementAlternatives":{},"requestedMaterials":{},"buildable":false}]}`},
@@ -123,13 +123,13 @@ func TestFactoryBriefingAttentionMappingAndOrder(t *testing.T) {
 		t.Fatalf("power: %+v", result.Power)
 	}
 	// Headroom must be visible: capacity is the sum of per-network maximum
-	// production, satisfaction is the observed load ratio (0 with no capacity),
+	// production, loadRatio is the observed load ratio (0 with no capacity),
 	// and accumulator/low-power facts survive aggregation.
 	if result.Power.CapacityWatts != 1800000 {
 		t.Fatalf("capacityWatts: %+v", result.Power)
 	}
-	if want := 400060.0 / 1800000.0; result.Power.Satisfaction != want {
-		t.Fatalf("satisfaction=%v, want %v", result.Power.Satisfaction, want)
+	if want := 400060.0 / 1800000.0; result.Power.LoadRatio != want {
+		t.Fatalf("loadRatio=%v, want %v", result.Power.LoadRatio, want)
 	}
 	if result.Power.AccumulatorChargeJoules != 2500000 || result.Power.AccumulatorCapacityJoules != 5000000 {
 		t.Fatalf("accumulator sums: %+v", result.Power)
@@ -539,7 +539,7 @@ func TestFactoryBriefingValidation(t *testing.T) {
 	}
 }
 
-// A scope with no generating capacity must report satisfaction 0 instead of
+// A scope with no generating capacity must report loadRatio 0 instead of
 // dividing by zero, while still exposing accumulator and low-power facts; the
 // power read itself has to ask for the headroom fields.
 func TestFactoryBriefingPowerWithoutCapacity(t *testing.T) {
@@ -550,8 +550,8 @@ func TestFactoryBriefingPowerWithoutCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Power.Satisfaction != 0 || result.Power.CapacityWatts != 0 {
-		t.Fatalf("no capacity must report satisfaction 0: %+v", result.Power)
+	if result.Power.LoadRatio != 0 || result.Power.CapacityWatts != 0 {
+		t.Fatalf("no capacity must report loadRatio 0: %+v", result.Power)
 	}
 	if result.Power.ConsumptionWatts != 600 || result.Power.LowPowerConsumers != 3 {
 		t.Fatalf("observed load and faults must survive aggregation: %+v", result.Power)

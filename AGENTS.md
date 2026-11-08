@@ -42,10 +42,10 @@ just test-integration           # real-engine sandbox suite
 Example GraphQL call (server must be running; password comes from managed state):
 
 ```sh
-FACTORIO_RCON_PASSWORD="$(cat .factorio/password)" go run . query '{ status { tick players { name } } }'
+gqlcli query '{ status { tick players { name } } }'   # needs: FACTORIO_RCON_PASSWORD="$(cat .factorio/password)" go run . serve
 ```
 
-Global `--addr HOST:PORT` goes before the CLI command. Use `go run . queries --args --desc` and `go run . describe TypeName --desc` to discover the GraphQL contract. There is no separate linter: `just check` runs `scripts/check.sh`, which rejects `gofmt` drift, regenerates gqlgen in a temp copy to detect schema drift, then runs `go vet`, `go build`, and `go test`. `justfile` has `test` and `test-integration` but no build recipe.
+Global `--addr HOST:PORT` goes before `serve`. Use `gqlcli queries --args --desc` and `gqlcli describe TypeName --args` to discover the GraphQL contract. There is no separate linter: `just check` runs `scripts/check.sh`, which rejects `gofmt` drift, regenerates gqlgen in a temp copy to detect schema drift, then runs `go vet`, `go build`, and `go test`. `justfile` has `test` and `test-integration` but no build recipe.
 
 ## Starting a new sandbox game (fresh map)
 

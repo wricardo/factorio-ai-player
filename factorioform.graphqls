@@ -1,0 +1,219 @@
+extend type Query {
+  """Builds a Factorioform execution plan without writing anything: parses and evaluates the HCL manifest files (the files of one directory are merged like Terraform into a module; the root module is the files in rootDir, and module blocks instantiate other directories as reusable modules with their own variables, outputs and module-prefixed addresses; unknown attributes, blocks, variables and references are errors), validates entities against engine prototypes, reads the live manifest area and the manifest's recorded state, diffs desired against state against live, and serialises the result. A manifest problem is returned as a GraphQL error whose message lists every diagnostic as file:line:column and whose extensions.diagnostics carries them structured. variables supplies root module variable values as a JSON object and defaults apply to the rest. actor is optional: when given it is injected into every step's variables.input.actor and requiresActor is false; when absent each step sets requiresActor true and the caller must add input.actor before running it. Each step carries a complete GraphQL mutation document plus variables ({input: ...}) that gqlcli can run as written, in step order: disconnect wires, deletes, replace removals, creates, per-entity config, connect wires. Steps address entities that do not exist yet by prototype name plus center position and everything else by unit number. After executing the steps call factorioformRefresh (when available) and plan again; a converged manifest reports status CONVERGED with no steps. planId is a sha256 over the normalised desired state, recorded state and live snapshot, so it changes whenever the world or the manifest changes. materials lists the items the actor must hold; refunds from removals are not subtracted."""
+  factorioformPlan(input: FactorioformPlanInput!): FactorioformPlan!
+  """Reads Factorioform desired-state bookkeeping from the save's script storage (storage.factorio_ai_player_factorioform): the manifest address -> live unit number mapping that factorioformPlan diffs against. With name it returns a one-element list holding that manifest's full state including every resource, which is the exportable equivalent of a Terraform state file; an unknown name is an error. Without name it returns a summary of every manifest sorted by name, with resourceCount set and resources empty. State lives in the save and is per save: it is not copied by blueprint export, and unit numbers are meaningless in another save."""
+  factorioformState(name: String): [FactorioformManifestState!]!
+}
+
+extend type Mutation {
+  """Adopts an existing live entity into Factorioform state under a manifest address (terraform import), recording its unit number, prototype, center position, direction and quality; nothing in the world changes. name must be 1-64 characters of [a-z0-9_-]. surface defaults to nauvis and force to player; the manifest is created on first import and later imports must use the same surface and force. target is an EntityRefInput resolved by unit number or by prototype name plus exact center position, and must be on the manifest surface and force. Refuses when the address is already mapped to a different unit unless overwrite is true, and always refuses when the target unit is already mapped to another address in the same manifest. State holds at most 200 manifests and 20000 resources per manifest. Returns the stored resource, the replaced unit number if overwrite displaced one, and the manifest summary. Emits an in-game notification unless message overrides it."""
+  factorioformImport(input: FactorioformImportInput!): FactorioformImportResult!
+  """Drops addresses from a manifest's Factorioform state without touching any entity. An empty or omitted addresses list forgets the whole manifest including its surface and force binding; otherwise only the listed addresses are removed and addresses with no state entry are reported in missing instead of failing. An unknown manifest name is an error. Emits an in-game notification unless message overrides it."""
+  factorioformForget(input: FactorioformForgetInput!): FactorioformForgetResult!
+}
+
+input FactorioformImportInput {
+  name: String!
+  """Defaults to nauvis."""
+  surface: String
+  """Defaults to player."""
+  force: String
+  """Manifest address, for example assembler.green[0] or belt.coal_bus.path[2]."""
+  address: String!
+  target: EntityRefInput!
+  """Replace an existing mapping of this address to a different unit."""
+  overwrite: Boolean! = false
+  message: String
+}
+
+input FactorioformForgetInput {
+  name: String!
+  """Addresses to drop; empty or omitted drops the whole manifest."""
+  addresses: [String!]! = []
+  message: String
+}
+
+"""One manifest address mapped to the live entity it controls, as last recorded."""
+type FactorioformStateResource {
+  address: String!
+  unitNumber: UnitNumber!
+  entity: String!
+  """Entity center."""
+  position: Position!
+  direction: Int!
+  quality: String!
+}
+
+type FactorioformManifestState {
+  name: String!
+  surface: String!
+  force: String!
+  """Game tick of the last state write."""
+  updatedTick: Float!
+  resourceCount: Int!
+  """Empty in summaries (factorioformState without name)."""
+  resources: [FactorioformStateResource!]!
+}
+
+type FactorioformImportResult {
+  tick: Float!
+  resource: FactorioformStateResource!
+  """Unit previously mapped to the address when overwrite replaced it."""
+  replacedUnitNumber: UnitNumber
+  manifest: FactorioformManifestState!
+}
+
+type FactorioformForgetResult {
+  tick: Float!
+  name: String!
+  forgotten: [String!]!
+  """Requested addresses that had no state entry."""
+  missing: [String!]!
+  manifestDeleted: Boolean!
+  """Resources left in the manifest; 0 after a whole-manifest forget."""
+  remaining: Int!
+}
+
+"""One manifest file. Files in the same directory are merged like Terraform configuration into one module. name is a path used in diagnostics and to resolve module blocks: a module's source ("./modules/belt") is resolved relative to the directory of the file holding the module block, and the module is every supplied file in the resulting directory, so supply those files with matching directory names (for example modules/belt/main.ftf)."""
+input FactorioformFileInput {
+  name: String!
+  content: String!
+}
+
+input FactorioformPlanInput {
+  files: [FactorioformFileInput!]!
+  """Directory holding the root module's files, as written in the file names (default: files whose name has no directory). Every file elsewhere must be reached through a module block's source; an unreferenced file is an error."""
+  rootDir: String
+  """JSON object of manifest variable values keyed by variable name. Applies to the root module; modules take their inputs from their module block."""
+  variables: Any
+  """Injected into every step when given."""
+  actor: ActorInput
+}
+
+type FactorioformPlanSummary {
+  create: Int!
+  update: Int!
+  replace: Int!
+  delete: Int!
+  drift: Int!
+  adopt: Int!
+  conflict: Int!
+  pending: Int!
+  noop: Int!
+}
+
+type FactorioformPlanChange {
+  """Config field path (snake_case, for example inserter.stack_size_override) or a structural attribute for REPLACE rows."""
+  path: String!
+  before: Any
+  after: Any
+}
+
+type FactorioformPlanBlocker {
+  unitNumber: UnitNumber!
+  entity: String!
+  position: Position!
+}
+
+"""Endpoints of a wire row. Units are null when the endpoint does not exist yet."""
+type FactorioformPlanWire {
+  color: String!
+  fromAddress: String!
+  fromUnit: UnitNumber
+  fromConnector: String!
+  toAddress: String!
+  toUnit: UnitNumber
+  toConnector: String!
+}
+
+type FactorioformPlanDiff {
+  """NOOP, CREATE, UPDATE, REPLACE, DELETE, DRIFT, ADOPT, CONFLICT or PENDING."""
+  action: String!
+  address: String!
+  entity: String
+  position: Position!
+  direction: Int!
+  quality: String
+  unitNumber: UnitNumber
+  changes: [FactorioformPlanChange!]!
+  reason: String
+  blockers: [FactorioformPlanBlocker!]!
+  wire: FactorioformPlanWire
+}
+
+type FactorioformPlanStep {
+  """One-based execution order."""
+  order: Int!
+  """disconnect-wire, delete, replace-remove, create, create-belts, create-underground, config or connect-wire."""
+  kind: String!
+  """Manifest addresses the step touches."""
+  addresses: [String!]!
+  """Mutation name."""
+  operation: String!
+  """Complete GraphQL document; run it with variables."""
+  document: String!
+  """Variables object ({input: ...}) for document."""
+  variables: Any!
+  """True when no actor was given to the plan: add input.actor before running."""
+  requiresActor: Boolean!
+}
+
+type FactorioformPlanMaterial {
+  name: String!
+  quality: String!
+  count: Int!
+}
+
+type FactorioformPlan {
+  formatVersion: Int!
+  manifest: String!
+  planId: String!
+  tick: Float!
+  surface: String!
+  force: String!
+  """CONVERGED, CHANGES, DRIFT_DETECTED or CONFLICT."""
+  status: String!
+  summary: FactorioformPlanSummary!
+  diffs: [FactorioformPlanDiff!]!
+  steps: [FactorioformPlanStep!]!
+  materials: [FactorioformPlanMaterial!]!
+}
+
+extend type Mutation {
+  """Records the outcome of executing a Factorioform plan into the manifest's state so the next plan converges. Takes the same files and variables as factorioformPlan (the same variables must be passed or addresses may differ), runs parse, evaluate, validate, live read, state read and diff, then in ONE state write: ADOPT rows and NOOP/UPDATE rows whose live entity is found record that unit number with its live entity, center, direction and quality (rows whose state already matches are not re-reported); DELETE-removed addresses whose entity is already gone are pruned; DRIFT rows (state unit missing live) have their state entry removed and are reported unmatched; CREATE, REPLACE, CONFLICT and PENDING rows are left untouched and CREATE, CONFLICT and PENDING are reported unmatched with the diff reason. status is the plan status recomputed with the refreshed state. dryRun reports the same without writing. Never creates, changes or removes entities."""
+  factorioformRefresh(input: FactorioformRefreshInput!): FactorioformRefreshResult!
+}
+
+input FactorioformRefreshInput {
+  files: [FactorioformFileInput!]!
+  """Directory holding the root module's files; must match the value given to factorioformPlan."""
+  rootDir: String
+  """JSON object of manifest variable values; must match the values given to factorioformPlan."""
+  variables: Any
+  """Report what would be recorded without writing state."""
+  dryRun: Boolean! = false
+  message: String
+}
+
+type FactorioformRefreshRecorded {
+  address: String!
+  unitNumber: UnitNumber!
+}
+
+type FactorioformRefreshUnmatched {
+  address: String!
+  reason: String!
+}
+
+type FactorioformRefreshResult {
+  """Latest game tick observed by the live read."""
+  tick: Float!
+  manifest: String!
+  dryRun: Boolean!
+  recorded: [FactorioformRefreshRecorded!]!
+  """Addresses of removed resources whose entity is gone, dropped from state."""
+  pruned: [String!]!
+  unmatched: [FactorioformRefreshUnmatched!]!
+  """CONVERGED, CHANGES, DRIFT_DETECTED or CONFLICT after applying the refresh."""
+  status: String!
+}

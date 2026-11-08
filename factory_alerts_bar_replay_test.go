@@ -83,3 +83,24 @@ func TestFactoryAlertsSkipCauseForUnbarredDropTarget(t *testing.T) {
 		t.Fatalf("destination = %+v, want bar 0 with 32 usable slots", alert.Destination)
 	}
 }
+
+// Steady states a healthy plant sits in are not blocked output: a boiler with
+// no steam demand and the inserter whose boiler fuel slot is topped up must not
+// raise OUTPUT_FULL rows that bury real faults.
+func TestFactoryAlertsIgnoreDemandSaturatedBoilerAndItsFuelInserter(t *testing.T) {
+	for _, scenario := range []string{"boiler", "feed"} {
+		t.Run(scenario, func(t *testing.T) {
+			alerts, err := factoryAlertsQuery(serveFactoryAlertsBarReplay(t, scenario), &FactoryAlertsInput{
+				Surface: "nauvis",
+				Force:   "player",
+				Limit:   10,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(alerts.Alerts) != 0 {
+				t.Fatalf("saturated-by-design state raised alerts: %+v", alerts.Alerts)
+			}
+		})
+	}
+}

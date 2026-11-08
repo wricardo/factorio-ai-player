@@ -756,3 +756,18 @@ func TestSettingsLuaDefinesSignalTypeNameFirst(t *testing.T) {
 		t.Fatalf("signal_type_name must be defined before its callers (helper=%d body=%d sections=%d)", helper, body, sections)
 	}
 }
+
+func TestSetInserterSettingsVectorValidation(t *testing.T) {
+	r := &Resolver{}
+	actor := ActorInput{Player: strPtr("wricardo")}
+	target := EntityRefInput{Surface: strPtr("nauvis"), UnitNumber: strPtr("1")}
+	clear := true
+	vec := &PositionInput{X: 2, Y: 0}
+	if _, err := setInserterSettings(r, InserterSettingsInput{Actor: &actor, Target: &target, Clear: &clear, PickupVector: vec}); err == nil {
+		t.Fatal("clear must not combine with pickupVector")
+	}
+	// A vector-only request passes validation and reaches RCON.
+	if _, err := setInserterSettings(r, InserterSettingsInput{Actor: &actor, Target: &target, DropVector: vec}); err == nil || strings.Contains(err.Error(), "set at least one") {
+		t.Fatalf("expected a transport error after validation, got %v", err)
+	}
+}

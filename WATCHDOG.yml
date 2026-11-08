@@ -1,0 +1,4 @@
+advisors:
+  - name: default
+  - name: Advisor 2
+    model: opencode-go/crouton-alpha-free:high

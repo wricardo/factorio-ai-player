@@ -150,7 +150,7 @@ func relationshipMutation(t *testing.T, addr, mutation string) (map[string]any, 
 func relationshipRun(t *testing.T, addr, command, document string) (map[string]any, error) {
 	t.Helper()
 	var out bytes.Buffer
-	err := runWithCredentials([]string{"--addr", addr, command, "--format", "compact", document}, &out, "password")
+	err := runGraphQLInProcess([]string{"--addr", addr, command, "--format", "compact", document}, &out, "password")
 	if err != nil {
 		return nil, err
 	}

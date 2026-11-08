@@ -32,6 +32,7 @@ type PlacementCandidate {
   force: String!
   prototype: String!
   direction: Int!
+  """False means every candidate center within maxRadius was rejected (expanded counts them); it does NOT mean the origin is blocked. blockers, terrain and tile below always describe the snapped origin only, so a not-found result with blockers is still just 'nothing legal within the radius'. Raise maxRadius (at most 512) to search further."""
   found: Boolean!
   """Center of the nearest legal placement; null when none was found."""
   position: Position

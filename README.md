@@ -152,6 +152,8 @@ Use `target: BELT` for belt tiles; a rejected drop leaves the inventory intact.
 
 `placePipe` accepts the same fields as `connectEntities` except `kind`, which it fixes to `PIPE`, and delegates to the same planner/applier. `connectEntities`, `placeBelts` and `placePipe` accept `direction` (0 north, 4 east, 8 south, 12 west) for a run whose `from` and `to` resolve to the same tile: the route implies no heading there, so the mutation requires it and otherwise fails before any Lua runs; a run of two or more tiles rejects `direction` because every tile follows the route. `connectionPlan` refuses single-tile routes for the same reason. Each created entity in the result's `entities` reports the engine `direction` it was built with (north is reported as `0`, not null) and, for underground halves, `undergroundType`, so the placed heading needs no second `entity()` read. Prefer them over `place`/`placeMany` for continuous belts and pipes: they route the run, can use underground pairs against crossings, and reject foreign side-loads/fluid adjacency by default. `place` and `placeMany` reject `transport-belt`-type items and `pipe` with an error naming `placeBelts`/`placePipe`; single underground halves, splitters, loaders, and `pipe-to-ground` remain directly placeable.
 
+At a machine's filtered fluid port, Factorio can reject pipe placement with `COLLISION` and an empty `blockers` list when the new pipe would join an incompatible fluid (for example, a water-filled pipe beside a refinery's petroleum-gas outlet). `allowFluidAdjacency: true` permits the planner's network merge check; it does not override the engine's fluid compatibility rule. Inspect and clear the incompatible fluid before retrying. A longer run through the same tile does not bypass this refusal.
+
 Three belt workflows, by intent: `connectionPlan` is read-only planning; `connectEntities` with `kind: BELT` places one tile (`from` equals `to` plus `direction`) or a routed stretch; `buildConnection` plans and places in one call. `buildConnection(input, dryRun)` takes the `connectEntities` input and returns `{ plan, result }` from one call: it runs the same `connectionPlan` and `connectEntities` code (no second router), so inventory use, underground spans, adjacency opt-ins, existing tiles and conflicts behave identically. `dryRun: true`, or a plan with conflicts, returns the plan with `result: null` and places nothing; a possible plan is applied and per-tile failures are reported in `result.errors`, so re-read the world after a failure. Neither mutation is transactional. Saved operations: `connection-plan`, `connect-entities`, `build-connection`.
 
 `buildCell(input)` builds a declarative cell: `entries` (at most 200) are applied in order, each exactly one of `place` (one entity), `connection` (a routed run) or `recipe` (a recipe on a machine named by an earlier entry's `ref` or by an explicit `target`). Every entry is validated, and refs checked, before any write. `dryRun: true` stops after preflight and writes nothing. Application stops at the first failed step and later entries are reported `applied: false`; earlier steps are not rolled back. Saved operation: `build-cell`.
@@ -207,70 +209,13 @@ The mod requests a Factorio path and follows waypoints on game ticks, without an
 
 ## GraphQL
 
-GraphQL runs in-process through gqlcli; no GraphQL HTTP server is required. Game operations use RCON: set `FACTORIO_RCON_PASSWORD` to the server's password. Actor reachability checks are off by default; `FACTORIO_ENFORCE_REACH=1` enables them. The default address is `127.0.0.1:27015`; use `--addr HOST:PORT` **before** the GraphQL command to override it. Schema discovery runs locally and does not need a running server.
+GraphQL is served over HTTP by `go run . serve [--listen HOST:PORT]` (default `127.0.0.1:8080`, endpoint `/query`) and driven with the external `gqlcli` tool (`.gqlcli.json` points it at that endpoint). The inline `query`, `mutation` and `script` commands were removed from this binary. Game operations use RCON: set `FACTORIO_RCON_PASSWORD` to the server's password; the global `--addr HOST:PORT` (before `serve`) overrides the default RCON address `127.0.0.1:27015`. Actor reachability checks are off by default; `FACTORIO_ENFORCE_REACH=1` enables them.
 
-Every GraphQL operation is appended to a JSON Lines file, one record per operation, from the `query`, `mutation`, and `script` commands and from the `serve` endpoint. A record carries `time`, `source` (`cli` or `serve`), `command` (`query`, `mutation`, `script`, or the introspection command), `document`, optional `variables` and `operationName`, `durationMs`, and the full GraphQL `response` envelope, so operations that fail parse or schema validation are logged with their `errors` exactly as the caller saw them. `FACTORIO_GRAPHQL_LOG` sets the path; the default is `.factorio/graphql-log.jsonl`, and an empty value disables logging. Log writes never fail an operation; the first write failure prints one warning to stderr.
+Every request the `serve` endpoint accepts is appended to a JSON Lines file, one record per operation. A record carries `time`, `source` (`serve`), `command` (`query` or `mutation`), `document`, optional `variables` and `operationName`, `durationMs`, and the full GraphQL `response` envelope, so operations that fail parse or schema validation are logged with their `errors` exactly as the caller saw them. `FACTORIO_GRAPHQL_LOG` sets the path; the default is `.factorio/graphql-log.jsonl`, and an empty value disables logging. Log writes never fail an operation; the first write failure prints one warning to stderr.
 
-### Schema discovery
+### Schema discovery and execution
 
-Use these commands to discover operations, input types, fields, and the inline schema documentation:
-
-| Command | Use |
-| --- | --- |
-| `go run . types` | List schema types grouped by kind. `--filter NAME` (`-f`) matches a case-insensitive substring; `--builtin` includes built-in `__` types. |
-| `go run . queries` | List available query fields. |
-| `go run . mutations` | List available mutation fields. |
-| `go run . describe TYPE_NAME` | Show a type's SDL definition. `TYPE_NAME.FIELD_NAME` selects a field; `d` is an alias for `describe`. |
-
-`queries`, `mutations`, and `describe` accept `--args` (`-a`) to include field arguments, `--desc` (`--descriptions`) to show inline schema descriptions, and `--depth N` to recursively include referenced non-scalar types. Depth defaults to 0 (only the requested type) and must be nonnegative. `queries` and `mutations` also accept `--filter NAME` (`-f`) to narrow the field list. For example, `go run . queries --args --desc` shows query signatures and descriptions; `go run . describe ActorInput --desc` explains actor selection.
-
-### Executing operations
-
-Use `go run . query` (`q`) for reads and `go run . mutation` (`m`) for actions. Supply the GraphQL operation as one positional argument, with `--query DOCUMENT` (`-q`), or from a file with `--file PATH` (`-f`). If multiple sources are supplied, the file takes precedence over `--query`, which takes precedence over the positional argument. Quote inline documents to prevent shell expansion. The operation must match the selected command.
-
-Both commands accept:
-
-| Option | Use |
-| --- | --- |
-| `--variables JSON` (`-v`) | Supply variables as a JSON object. |
-| `--var-file PATH` | Read variables from a JSON file; takes precedence over `--variables`. |
-| `--format FORMAT` | Output as `toon` (default), `json`, or `table`. |
-| `--output PATH` (`-o`) | Write formatted output to a file instead of standard output. |
-| `--help` (`-h`) | Show command usage and options. |
-
-A response that carries both data and errors prints the partial data first, then fails with one message per error prefixed by its response path, so one bad row does not lose the page; the process still exits non-zero. A response with null data prints only the errors. Use `go run . help` for the command list, or add `--help` to any GraphQL command for its options.
-
-### Scripts
-
-Use `go run . script` (`js`) for loops, conditionals, dependent operations, or controlled concurrency. Scripts run in-process against the same schema as `query` and `mutation`; no GraphQL HTTP server is required.
-
-```js
-async function run(gql, input) {
-  const status = await gql.query("{ status { players { name } } }")
-  return await gql.each(
-    status.data.status.players,
-    async (player) => gql.query(
-      "query($name: String!) { player(input: {player: $name}) { tick character } }",
-      { name: player.name }
-    ),
-    { concurrency: 4, stopOnError: false }
-  )
-}
-```
-
-| Option | Use |
-| --- | --- |
-| `--file PATH` (`-f`) | Read the JavaScript source from a file. |
-| `--source JS` | Run inline JavaScript. |
-| `--op NAME` | Run a script saved under `scripts` in `.gqlcli.json`. |
-| `--function NAME` | Function to call; defaults to `run` or the saved script's function. |
-| `--arg JSON` | Pass a JSON object as the second script argument. |
-| `--arg-file PATH` | Read that object from a file; takes precedence over `--arg`. |
-| `--output PATH` (`-o`) | Write the returned JSON to a file instead of standard output. |
-
-Exactly one of `--file`, `--source`, or `--op` is required. The script function receives `gql` and `input`. The `gql` helpers accept an optional operation name and expose `query`, `mutation`, `request`, and `each`. `console.log` and `console.error` write to the command output.
-
-Scripts can run mutations, so they are as powerful and as risky as `go run . mutation`; a script does not make a multi-operation workflow transactional. Check game state before retrying after an error or lost response.
+With `serve` running, use `gqlcli`: `gqlcli queries --args --desc` and `gqlcli mutations --args --desc` list fields, `gqlcli describe TYPE_NAME [--args]` shows a type's SDL, `gqlcli query '{ ... }'` and `gqlcli mutation 'mutation { ... }'` execute operations (variables via `--input`), and `gqlcli script --file PATH --arg '{...}'` runs a JavaScript workflow (`async function run(gql, input)`) over the schema. Scripts can run mutations, so they are as powerful and as risky as `gqlcli mutation`.
 
 ### GraphQL server
 
@@ -446,7 +391,7 @@ watts over `window` (default `ONE_MINUTE`), plus `maxProductionWatts` (summed
 generator capacity of the force inside the area), `polesInArea`,
 `lowPowerConsumers` and accumulator charge, so capacity and headroom are visible
 in one call; the area restricts poles, not the network's statistics.
-`satisfaction` is `consumptionWatts / maxProductionWatts` for the observed load,
+`loadRatio` is `consumptionWatts / maxProductionWatts` for the observed load,
 not the engine's power-satisfaction ratio, and is null when no producer is in the
 area. `powerConsumers` rows are instantaneous: stored energy, buffer, drain,
 temperature, remaining burning fuel, the burner fuel inventory with estimated
@@ -660,6 +605,19 @@ from those actual targets and errors if a target changed between snapshots.
 `logistics.circuit` is null when an inserter has no control behavior.
 `LogisticsEndpoint.inserterSettings` returns filter slots, filter mode, stack
 override, engine active state and circuit settings; it is null for non-inserters.
+
+Inserter pickup/drop vectors: `inspect { settings { inserter { pickupVector { x y }
+dropVector { x y } customVectorsAllowed } } }` reads the pickup and drop points as
+offsets from the inserter centre in map axes (x east, y south) for its current
+direction; `setInserterSettings(input: {..., pickupVector: {x, y}, dropVector:
+{x, y}})` writes them in the same frame. Verified on Factorio 2.0.77: the engine
+silently ignores the write unless the prototype sets `allow_custom_vectors`,
+which no vanilla or Space Age inserter does (a default east inserter reads pickup
+`(1, 0)`), so the mutation fails with an `allow_custom_vectors=false` error instead
+of reporting success; it also fails if the read-back differs from the request.
+The engine does not limit the point to the inserter's reach (a `(9, 9)` offset is
+accepted). Vectors rotate with the entity: turning an east inserter with pickup
+`(1, 0.25)` south makes it `(-0.25, 1)`, so write vectors after `setDirection`.
 
 `machines { machines { diagnostics } }` bundles one snapshot of per-machine
 diagnosis: `shortfall` (demand for one next craft from input inventories and
@@ -1165,6 +1123,187 @@ selects a different recipe. Example: `setRecipe(input: {actor: {player:
 steel smelting.
 `clearRecipe(input: {actor, target})` drains machine into actor and clears recipe;
 it accepts assembling machines only, since the engine clears no furnace recipe.
+
+## Factorioform (desired-state plans)
+
+Factorioform tracks which manifest address controls which live entity. That
+mapping ("state") lives in the save's script storage
+(`storage.factorio_ai_player_factorioform`), one entry per manifest name, so it
+travels with the world whose unit numbers it records. It is per save: blueprint
+export does not copy it, and a state read from another save is meaningless.
+
+- `factorioformState(name:)` returns that manifest's surface, force, update tick
+  and every `{address, unitNumber, entity, position, direction, quality}`; this
+  is the exportable equivalent of a Terraform state file. Without `name` it
+  returns one summary per manifest (`resourceCount`, empty `resources`).
+- `factorioformImport(input: {name, surface, force, address, target, overwrite})`
+  adopts an existing entity under an address without changing the world. It
+  refuses an address already mapped to a different unit unless `overwrite: true`,
+  and always refuses a unit already mapped to another address in the manifest.
+  Limits: 200 manifests, 20000 resources per manifest.
+- `factorioformForget(input: {name, addresses})` drops addresses (empty list =
+  whole manifest) and never touches entities.
+
+Example: `mutation { factorioformImport(input: {name: "demo", address:
+"chest.one", target: {entity: "wooden-chest", position: {x: 40.5, y: 40.5}}})
+{ resource { address unitNumber } } }`.
+
+Inserter manifests accept `inserter { pickup_offset = { x, y }  drop_offset = { x, y } }`
+(GraphQL `pickupVector`/`dropVector`, offsets from the entity centre in map axes).
+Validation rejects them on prototypes without `allow_custom_vectors`; a direction
+change re-emits both offsets after `setDirection` because rotation rotates them.
+
+### Manifest evaluation context
+
+Manifests are HCL native syntax (`*.ftf`). HCL supplies only expression syntax;
+everything below is defined by Factorioform (`EvalFactorioform`, in
+`factorioform_eval.go`) and is fully evaluated at plan time, so the same inputs
+always give byte-identical output.
+
+- `variable "x" { type, default, description, validation { condition, error_message } }`:
+  `type` uses HCL type constraints (`object({x = number})`, `list(string)`, ...).
+  Values come from the caller (GraphQL variables, CLI `--var k=v`,
+  `--var-file x.ftfvars.hcl`) else `default`; no value and no default is an
+  error, as are undeclared names and type mismatches. A false `validation`
+  condition fails with its `error_message`.
+- `locals { name = expr }` may use `var.*`, other locals and static attributes
+  of resources. Locals and resources are evaluated in dependency order; a
+  reference cycle is an error naming both ends.
+- `count` (whole number >= 0, `count.index`) or `for_each` (map, object or set
+  of strings, `each.key`/`each.value`) on `resource` and `wire` blocks, never
+  both. Addresses are `kind.name[i]` / `kind.name["key"]`; `for_each` instances
+  are ordered by key. Each block is limited to 100000 instances.
+- `dynamic "<block>" { for_each, content }` for repeated nested config blocks
+  (for example `section`, `slot`).
+- `direction.north|east|south|west` (0/4/8/12) plus the 16-direction names such
+  as `direction.northeast` (2).
+- Resource references `resource.<kind>.<name>[key]` expose only the static
+  attributes `entity`, `position`, `direction`, `quality` and `address` (belts:
+  `entity`, `address` and `path` tiles with `x`, `y`, `position`, `direction`,
+  `address`). Wire `from`/`to` take any expression that yields a resource
+  reference or belt tile (see Modules) and must name a declared instance.
+- Functions: `range length concat flatten merge keys values lookup min max
+  floor ceil abs format join coalesce contains distinct reverse slice element
+  zipmap setproduct tostring tonumber tobool tolist toset tomap`, plus
+  `offset(pos, dx, dy)` and `grid(origin, cols, rows, dx, dy)` (row-major list
+  of positions).
+
+Deliberately absent: providers, data sources, `terraform {}` blocks, remote
+module sources, live data or unit numbers in references, and every file,
+environment, time, uuid or random function (`file`, `env`, `timestamp`, `uuid`,
+...), because plans must be deterministic.
+
+### Modules
+
+A module is a directory of `*.ftf` files, instantiated like a Terraform local
+module:
+
+```hcl
+module "iron" {
+  source = "./modules/mining_line"   # literal "./dir" or "../dir", relative to this file
+  origin = { x = -30, y = -10 }      # every other attribute is a child variable
+  lines  = var.lines
+}
+resource "inserter" "tap" {
+  position = offset(module.iron.furnaces[0].position, 2, 0)   # module.<name>.<output>
+  ...
+}
+```
+
+- The module's `variable` blocks are its inputs (typed, defaults and
+  `validation` apply; a missing required input is an error at the module
+  block). `output "name" { value = expr }` hands values back as
+  `module.<name>.<output>`; `count` modules give a tuple
+  (`module.row[0].out`), `for_each` modules an object (`module.col["a"].out`).
+  `count`/`for_each` follow the resource rules. `--var`, `--var-file` and GraphQL
+  `variables` set the root module's variables only.
+- Scope is isolated: a module sees only its own variables, locals, resources
+  and wires, and the `factorioform` header belongs to the root module (a module
+  inherits manifest name, surface and force).
+- Resource addresses inside a module carry the instance path:
+  `module.iron.furnace.smelter[0]`, `module.ore["copper"].belt.line`,
+  `module.a.module.b.chest.c`. Root-level addresses are unchanged. Addresses
+  are at most 256 characters; modules nest at most 8 levels; the whole tree is
+  limited to 100000 resource and module instances.
+- Moving existing resources into a module changes their address, so the plan
+  shows DELETE for the old address and CREATE for the new one. To keep the live
+  entities, `factorioformForget` the old addresses first: the next plan then
+  shows ADOPT for the unmanaged entities, and `factorioformRefresh` records
+  them under the module addresses.
+- Resource references also carry `address`, the absolute instance address (belt
+  path tiles: `<belt>.path[i]`). A wire endpoint is any expression that yields
+  such a value, so a resource can cross a module boundary: expose it with
+  `output "feed" { value = resource.inserter.feed }` and wire
+  `from = module.iron.feed`, or pass it into a module as an input
+  (`anchor = resource.chest.pole`, `variable "anchor" { type = any }`) and wire
+  `to = var.anchor`. A module cannot reach another module's internals.
+- `source` must be a relative directory. Through GraphQL the files are supplied
+  by name, so give module files directory-qualified names
+  (`modules/mining_line/main.ftf`); a module is every supplied file whose
+  directory the resolved source names, the root module is the files in
+  `rootDir` (default: names without a directory), and a file nothing refers to
+  is an error.
+
+### Plans (`factorioformPlan`, `factorioform plan`)
+
+`factorioformPlan(input: {files: [{name, content}], rootDir, variables, actor})` is
+read-only: it evaluates the manifest files (merged by directory), validates entities
+against engine prototypes, reads the live area the manifest covers plus the
+entities recorded in state, diffs desired against state against live and
+returns `{formatVersion, manifest, planId, tick, surface, force, status,
+summary, diffs, steps, materials}`. A manifest error comes back as one GraphQL
+error listing every `file:line:col: summary: detail` (also in
+`extensions.diagnostics`). `diffs` actions: NOOP, CREATE, UPDATE, REPLACE,
+DELETE, DRIFT (in state, gone live), ADOPT (unmanaged live entity matches),
+CONFLICT (footprint blocked), PENDING (ghost or marked for deconstruction);
+wires are their own rows. `status` is CONVERGED, CHANGES, DRIFT_DETECTED or
+CONFLICT (steps are still emitted for the non-conflicting rows).
+
+Each step is a complete mutation document plus `variables` (`{input: ...}`) that
+gqlcli runs as written, in order: disconnect wires, deletes, replace removals,
+creates (`placeMany` per item+quality, `placeBelts` per straight same-direction
+run with DIRECT routing, `place` with `undergroundType` for undergrounds),
+per-entity config (`setRecipe`, `transfer` MODULES `TO_ACTOR` then `TO_ENTITY`,
+`setInserterSettings`, `setSplitterSettings`, `setContainerBar`,
+`setLogisticRequests`, `setCircuitBehavior`, `setConstantCombinator`,
+`setCombinatorParameters`, `setDirection`), then connect wires. Entities that
+do not exist yet are addressed by prototype name plus center position, others
+by unit number. With `actor` the plan injects it into every `variables.input`;
+without it each step sets `requiresActor: true` and the caller adds
+`input.actor`. `materials` lists the items the actor must hold (placements and
+module additions); refunds from removals are not subtracted.
+
+`planId` is a sha256 over the normalized desired state, the recorded state and
+the diff rows. It excludes the tick, so an unchanged world gives an unchanged id
+and any change to the manifest, state or live entities gives a new one.
+
+Workflow: `factorioformPlan` -> run each step's document+variables ->
+`factorioformRefresh` -> `factorioformPlan` again must report `CONVERGED` with
+no steps. ADOPT rows need no step; refresh records them in state. After a DRIFT
+(or REPLACE) the first refresh only drops the dead state entry (`unmatched`) and
+reports status `CHANGES`; the recreated entity then shows as ADOPT, so refresh a
+second time to record it before the final plan.
+
+`testdata/factorioform/example.ftf` is a complete manifest (variable, `count`
+assembler row with modules, filtered inserter, filtering splitter, for-expression
+belt path with a corner, underground pair, constant combinator wired red to the
+inserter). It is the fixture of `TestFFExampleManifest` and of the real-engine
+`TestIntegrationFactorioformE2E`, which runs plan -> execute -> refresh ->
+CONVERGED and then provokes UPDATE, DRIFT, ADOPT, NOOP (after import), REPLACE,
+CONFLICT, PENDING and DELETE (`just test-integration`).
+
+CLI (same document as the GraphQL result, printed as JSON, read-only; needs
+`FACTORIO_RCON_PASSWORD`): options before the directory —
+`factorio-ai-player factorioform plan [--var k=v ...] [--var-file f]
+[--actor-player NAME] [--format json|text] DIR`. `DIR` holds the factory's
+root module: its `*.ftf` files, merged like Terraform — variables, locals and
+resources are shared across every file in the directory (one `factorioform`
+header per directory). The CLI also reads every directory the `module` blocks
+point at, transitively. `--file PATH` (repeatable) and `--dir DIR` remain as
+compatibility aliases; all `--file` paths must share one directory. Example:
+`factorioform plan --format text demo/` plans `demo/main.ftf`, which
+instantiates `demo/modules/mining_line` for the iron, copper and coal patches.
+Operations are logged with source `cli`.
 
 ## Factory graph (Memgraph)
 

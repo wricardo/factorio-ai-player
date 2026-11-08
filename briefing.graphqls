@@ -132,7 +132,7 @@ type BriefingResearch {
   queue: [String!]!
 }
 
-"""Sums over every electric network represented by a pole in the scope. productionWatts and consumptionWatts are the engine's one-minute averages. capacityWatts is the summed theoretical maximum production of the networks' generators (a lower bound for the whole networks, not observed output), so headroom is visible; satisfaction is consumptionWatts divided by capacityWatts and is 0 when the area exposes no generating capacity, so a value near 1 means the observed load is at the observed capacity and a value above 1 means demand outruns it. accumulatorChargeJoules and accumulatorCapacityJoules sum the stored energy and buffer capacity of accumulators on those networks, and lowPowerConsumers counts entities on them whose engine status is low_power."""
+"""Sums over every electric network represented by a pole in the scope. productionWatts and consumptionWatts are the engine's one-minute averages. capacityWatts is the summed theoretical maximum production of the networks' generators (a lower bound for the whole networks, not observed output), so headroom is visible; loadRatio is consumptionWatts divided by capacityWatts and is 0 when the area exposes no generating capacity, so a value near 1 means the observed load is at the observed capacity and a value above 1 means demand outruns it. accumulatorChargeJoules and accumulatorCapacityJoules sum the stored energy and buffer capacity of accumulators on those networks, and lowPowerConsumers counts entities on them whose engine status is low_power."""
 type BriefingPower {
   networks: Int!
   productionWatts: Float!
@@ -140,7 +140,7 @@ type BriefingPower {
   """Summed theoretical maximum production of the networks' generators in watts; 0 when the area exposes no producers."""
   capacityWatts: Float!
   """consumptionWatts / capacityWatts; 0 when capacityWatts is 0, above 1 when observed load exceeds observed capacity."""
-  satisfaction: Float!
+  loadRatio: Float!
   """Summed accumulator stored energy in joules."""
   accumulatorChargeJoules: Float!
   """Summed accumulator buffer capacity in joules."""

@@ -156,7 +156,7 @@ for _, pole in pairs(surface.find_entities_filtered{type="electric-pole", force=
       network = {numericId=id, id=tostring(id), polesInArea=0, productionWatts=production, consumptionWatts=consumption,
         maxProductionWatts=capacity.capacity, accumulatorChargeJoules=capacity.charge,
         accumulatorCapacityJoules=capacity.buffer, lowPowerConsumers=capacity.lowPower}
-      if capacity.capacity > 0 then network.satisfaction = consumption / capacity.capacity end
+      if capacity.capacity > 0 then network.loadRatio = consumption / capacity.capacity end
       by_id[id] = network
       networks[#networks+1] = network
     end

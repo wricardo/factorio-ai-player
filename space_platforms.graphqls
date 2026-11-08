@@ -17,8 +17,6 @@ extend type Mutation {
   applyStarterPack(input: SpacePlatformRefInput!): SpacePlatformInfo!
   """Schedules a space platform for deletion. Platform deletion is asynchronous in the engine: the platform stays listed until its deletion completes, so a later spacePlatforms read is the only proof that it is gone."""
   deleteSpacePlatform(input: SpacePlatformRefInput!): SpacePlatformInfo!
-  """Places one entity through the player's own build action (LuaPlayer.build_from_cursor) instead of create_entity, so the engine raises the same build events a manual placement does (on_built_entity, and on_space_platform_built_entity on a platform). That is required by anything that listens for a real build: technology triggers such as build-entity asteroid-collector, achievements, tutorials and mods. The item is taken from the acting character's main inventory and returned when the engine refuses the placement; the cursor stack is preserved. Manual placement rules apply, so a surface that refuses manual checks (some space platform surfaces do) fails with the engine's own reason rather than building anyway. Use place for the script-authoritative create_entity path."""
-  buildAsPlayer(input: BuildAsPlayerInput!): ActionResult!
 }
 
 """Force scope for a platform read; force must name an existing force, because platforms belong to one force."""
@@ -70,22 +68,6 @@ input CreateSpacePlatformInput {
 input SpacePlatformRefInput {
   force: String! = "player"
   platform: String!
-  """Print this text in-game to all connected players instead of the generated notification."""
-  message: String
-}
-
-"""One entity placed through the player's build action rather than create_entity."""
-input BuildAsPlayerInput {
-  actor: ActorInput!
-  """Surface to build on; defaults to the actor's current surface."""
-  surface: String
-  position: PositionInput!
-  """Item to build; it must place an entity."""
-  item: String!
-  """Canonical engine direction 0 through 15."""
-  direction: Int! = 0
-  """Item quality prototype name; defaults to normal."""
-  quality: String = "normal"
   """Print this text in-game to all connected players instead of the generated notification."""
   message: String
 }

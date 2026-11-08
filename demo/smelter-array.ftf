@@ -1,0 +1,167 @@
+# Half-belt smelting array: ore + coal -> iron plates (prototype).
+#
+# Takes iron ore from the patch at var.array_ore_origin and coal from the
+# coal field, smelts them in stone furnaces, and outputs plates.
+#
+# Sizing is a HALF-belt prototype, not a full yellow belt: with the live
+# harness rates (stone-furnace crafting_speed=1, iron-plate energy 3.2s
+# => ~0.31 plates/s/furnace) 24 furnaces give ~7.5 plates/s, and 6 burner
+# drills at mining_speed=0.25 give ~1.5 ore/s, which is also short of the
+# ~48 furnaces a true full belt would need. Numbers are prototype-scale;
+# size up once a per-minute read confirms the realized rate.
+#
+# Layout:
+# - Ore drills (count = array_lines=6) sit over the fresh iron patch at
+#   (-47, 3). Belts at origin-0.5 (drill drop row), west burner inserters
+#   feed furnace row A.
+# - Coal drills (4) sit at (70, -77) over the southern coal fringe; coal
+#   belts at origin-0.5. The coal inserter row B tricks are removed: fuel
+#   for row A furnaces comes from the coal belt via a SPLITTER at the spine
+#   (see below), NOT by inserters dropping at the coal field, which are
+#   100+ tiles from row B and cannot reach it.
+# - Furnace bank: 24 furnaces in 3 rows of 8 (eat from the ore origin).
+#   Row A takes ore; row B takes coal FUEL from a splitter-fed belt that
+#   runs past the rows; row C is the return, plates exit south.
+# - Output: 8 south burner inserters drop plates onto one east-west spine
+#   (16 tiles, contiguous). Burner arms burn fuel, so the array also needs
+#   a one-time coal load before the drills/furnaces/arms can cycle — the
+#   plan does not fuel anything.
+#
+# burner-inserter has filter_count=0, so no `inserter { filters = [...] }`
+# blocks: every belt here is single-item (ore belt = iron-ore only, coal
+# belt = coal only, plate spine = iron-plate only), so unfiltered arms
+# move the right item. A shared/mixed lane would contaminate the furnaces.
+
+variable "array_ore_origin" {
+  type    = object({ x = number, y = number })
+  default = { x = -47, y = 3 }
+}
+
+variable "array_coal_origin" {
+  type    = object({ x = number, y = number })
+  default = { x = 70, y = -77 }
+}
+
+variable "array_lines" {
+  type    = number
+  default = 6
+}
+
+# --- Ore feed: 6 burner drills, 3-tile belts at origin-0.5 row ---
+resource "burner_drill" "array_ore" {
+  count     = var.array_lines
+  entity    = "burner-mining-drill"
+  position  = { x = var.array_ore_origin.x, y = var.array_ore_origin.y + 4 * count.index }
+  direction = direction.east
+}
+
+resource "belt" "array_ore_feed" {
+  count = var.array_lines
+  belt {
+    entity = "transport-belt"
+    path   = [for i in range(3) : {
+      x         = var.array_ore_origin.x + 1.5 + i
+      y         = var.array_ore_origin.y + 4 * count.index - 0.5
+      direction = direction.east
+    }]
+  }
+}
+
+# burner-inserter: no filter slots, single-item lane (ore belt carries
+# iron-ore only). West pickup heading, east drop into the furnace.
+resource "inserter" "array_ore_feed_furnace" {
+  count     = var.array_lines
+  entity    = "burner-inserter"
+  position  = { x = var.array_ore_origin.x + 4.5, y = var.array_ore_origin.y + 4 * count.index - 0.5 }
+  direction = direction.west
+}
+
+# --- Coal feed: 4 burner drills, 3-tile belts at origin-0.5 row ---
+resource "burner_drill" "array_coal" {
+  count     = 4
+  entity    = "burner-mining-drill"
+  position  = { x = var.array_coal_origin.x, y = var.array_coal_origin.y + 4 * count.index }
+  direction = direction.east
+}
+
+resource "belt" "array_coal_feed" {
+  count = 4
+  belt {
+    entity = "transport-belt"
+    path   = [for i in range(3) : {
+      x         = var.array_coal_origin.x + 1.5 + i
+      y         = var.array_coal_origin.y + 4 * count.index - 0.5
+      direction = direction.east
+    }]
+  }
+}
+
+# Furnace fuel distribution: a sideload splitter on the coal feed lane at
+# the east end of the row-A furnace line feeds a fuel spur past row B.
+# It is a plain splitter (no filter needed — lane is coal-only).
+# Positioned 1 tile south of the first row-A furnace slot.
+resource "splitter" "array_coal_fuel_split" {
+  entity    = "splitter"
+  position  = { x = var.array_ore_origin.x + 6.5, y = var.array_ore_origin.y + 2 }
+  direction = direction.east
+  splitter {
+    input_priority  = "left"
+    output_priority = "right"
+  }
+}
+
+resource "belt" "array_coal_fuel_spur" {
+  belt {
+    entity = "transport-belt"
+    # Spur runs east past row B (y = origin + 12) to the row-B furnace
+    # line's fuel pickup points. Tiles step by 1, contiguous.
+    path   = [for i in range(8) : {
+      x         = var.array_ore_origin.x + 6.5 + i
+      y         = var.array_ore_origin.y + 13.5
+      direction = direction.east
+    }]
+  }
+}
+
+# --- Furnace bank: 24 furnaces in 3 rows of 8 (half-belt prototype) ---
+# Row A (y = ore_origin.y) takes ore from the west burner inserters above.
+# Row B (y = ore_origin.y + 12) takes coal fuel from the fuel spur above.
+# Row C (y = ore_origin.y + 24) is the return row; plates exit south.
+resource "furnace" "array_row_a" {
+  count     = 8
+  entity    = "stone-furnace"
+  position  = { x = var.array_ore_origin.x + 6 + 2 * count.index, y = var.array_ore_origin.y }
+}
+
+resource "furnace" "array_row_b" {
+  count     = 8
+  entity    = "stone-furnace"
+  position  = { x = var.array_ore_origin.x + 6 + 2 * count.index, y = var.array_ore_origin.y + 12 }
+}
+
+resource "furnace" "array_row_c" {
+  count     = 8
+  entity    = "stone-furnace"
+  position  = { x = var.array_ore_origin.x + 6 + 2 * count.index, y = var.array_ore_origin.y + 24 }
+}
+
+# --- Output spine: plates from row C exit south onto one yellow belt ---
+# burner-inserter: no filter slots, single-item lane (plate spine carries
+# iron-plate only).
+resource "inserter" "array_plate_out" {
+  count     = 8
+  entity    = "burner-inserter"
+  position  = { x = var.array_ore_origin.x + 5.5 + 2 * count.index, y = var.array_ore_origin.y + 25.5 }
+  direction = direction.south
+}
+
+resource "belt" "array_plate_spine" {
+  belt {
+    entity = "transport-belt"
+    path   = [for i in range(16) : {
+      x         = var.array_ore_origin.x + 6.5 + i
+      y         = var.array_ore_origin.y + 27.5
+      direction = direction.east
+    }]
+  }
+}

@@ -391,6 +391,10 @@ local function inserter_settings(e)
     useFilters=e.use_filters, filterMode=e.inserter_filter_mode,
     stackSizeOverride=e.inserter_stack_size_override, active=e.active,
     pickupFromLeftLane=e.pickup_from_left_lane, pickupFromRightLane=e.pickup_from_right_lane}
+  result.customVectorsAllowed=e.prototype.allow_custom_vectors==true
+  local pickup,drop=e.pickup_position,e.drop_position
+  if pickup then result.pickupVector={x=pickup.x-e.position.x,y=pickup.y-e.position.y} end
+  if drop then result.dropVector={x=drop.x-e.position.x,y=drop.y-e.position.y} end
   for index=1,e.filter_slot_count do
     local filter = e.get_filter(index)
     local slot = {index=index}

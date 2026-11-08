@@ -45,6 +45,8 @@ end
 if e.type=="mining-drill" then
   result.mining_progress=e.mining_progress
   local target=e.mining_target
+  local ok_drop,drop=pcall(function() return e.drop_position end)
+  if ok_drop and drop then result.drop_position=drop end
   if target then result.mining_target={name=target.name,position=target.position,amount=target.amount} end
   local resources={}
   for _,resource in pairs(s.find_entities_filtered{area=e.mining_area,type="resource"}) do

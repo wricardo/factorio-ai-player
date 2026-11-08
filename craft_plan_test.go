@@ -26,7 +26,7 @@ func TestCraftPlanRejectsInvalidInputBeforeRCON(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var out bytes.Buffer
-			err := runWithCredentials([]string{tc.op, tc.document}, &out, "")
+			err := runGraphQLInProcess([]string{tc.op, tc.document}, &out, "")
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want %q", err, tc.want)
 			}
@@ -37,7 +37,7 @@ func TestCraftPlanRejectsInvalidInputBeforeRCON(t *testing.T) {
 // Valid input must reach the RCON credential check, not be rejected earlier.
 func TestCraftPlanValidInputProceedsToRCON(t *testing.T) {
 	var out bytes.Buffer
-	err := runWithCredentials([]string{"query", `{ craftPlan(input:{actor:{player:"Alice"},recipe:"inserter"}) { complete } }`}, &out, "")
+	err := runGraphQLInProcess([]string{"query", `{ craftPlan(input:{actor:{player:"Alice"},recipe:"inserter"}) { complete } }`}, &out, "")
 	if err == nil || !strings.Contains(err.Error(), "RCON") {
 		t.Fatalf("valid craftPlan should proceed to RCON, got %v", err)
 	}

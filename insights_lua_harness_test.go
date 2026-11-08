@@ -182,8 +182,8 @@ assert(string.find(captured.error, "unknown entity status", 1, true), "error "..
 }
 
 // Electric networks must sum generator capacity in watts, keep accumulator state
-// and derive the load ratio instead of reporting a null satisfaction.
-func TestElectricNetworksLuaReportsCapacityAndSatisfaction(t *testing.T) {
+// and derive the load ratio instead of reporting a null loadRatio.
+func TestElectricNetworksLuaReportsCapacityAndLoadRatio(t *testing.T) {
 	r, commands := serveLuaOnce(t, `{}`)
 	if _, err := electricNetworksQuery(r, &PowerInsightsInput{Surface: "nauvis", Force: "player", Limit: 10}); err != nil {
 		t.Fatal(err)
@@ -217,7 +217,7 @@ assert(network.maxProductionWatts==900000, "capacity "..tostring(network.maxProd
 assert(network.accumulatorChargeJoules==2500000, "charge")
 assert(network.accumulatorCapacityJoules==5000000, "buffer")
 assert(network.lowPowerConsumers==1, "low power consumers "..tostring(network.lowPowerConsumers))
-assert(math.abs(network.satisfaction-6000/900000)<1e-9, "satisfaction "..tostring(network.satisfaction))
+assert(math.abs(network.loadRatio-6000/900000)<1e-9, "loadRatio "..tostring(network.loadRatio))
 `
 	runLuaFixture(t, source, stubs, assertions)
 }

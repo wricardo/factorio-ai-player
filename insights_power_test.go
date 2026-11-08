@@ -118,7 +118,7 @@ func TestElectricNetworksCapacityWindowAndAccumulators(t *testing.T) {
 	response := `{"tick":9,"surface":"nauvis","force":"player","pageInfo":{"total":1,"limit":10,"offset":0,"hasMore":false},
 	  "networks":[{"id":"3","polesInArea":4,"productionWatts":238555.26,"consumptionWatts":238555.26,
 	    "maxProductionWatts":900000,"accumulatorChargeJoules":2500000,"accumulatorCapacityJoules":5000000,
-	    "lowPowerConsumers":2,"satisfaction":0.265}]}`
+	    "lowPowerConsumers":2,"loadRatio":0.265}]}`
 	r, commands := serveLuaOnce(t, response)
 	page, err := electricNetworksQuery(r, &PowerInsightsInput{Surface: "nauvis", Force: "player", Limit: 10,
 		Window: new(ProductionWindowTenMinutes)})
@@ -128,7 +128,7 @@ func TestElectricNetworksCapacityWindowAndAccumulators(t *testing.T) {
 	network := page.Networks[0]
 	if network.MaxProductionWatts != 900000 || network.AccumulatorChargeJoules != 2500000 ||
 		network.AccumulatorCapacityJoules != 5000000 || network.LowPowerConsumers != 2 ||
-		network.Satisfaction == nil || *network.Satisfaction != 0.265 {
+		network.LoadRatio == nil || *network.LoadRatio != 0.265 {
 		t.Fatalf("network: %+v", network)
 	}
 	lua := <-commands
@@ -137,7 +137,7 @@ func TestElectricNetworksCapacityWindowAndAccumulators(t *testing.T) {
 		`get_max_energy_production`,
 		`["electric-energy-interface"]=true`,
 		`electric_energy_source_prototype.buffer_capacity`,
-		`if capacity.capacity > 0 then network.satisfaction = consumption / capacity.capacity end`,
+		`if capacity.capacity > 0 then network.loadRatio = consumption / capacity.capacity end`,
 		`if status_names[entity.status] == "low_power" then entry.lowPower = entry.lowPower + 1 end`,
 	} {
 		if !strings.Contains(lua, want) {

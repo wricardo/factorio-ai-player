@@ -120,7 +120,7 @@ Confirm exhausted mining with more than a nil target when possible: inspect near
 
 ### Electricity and fuel
 
-Query all `electricNetworks` and `powerConsumers`. Report network production and consumption, satisfaction when available, pole count, and disconnected or unserved consumers.
+Query all `electricNetworks` and `powerConsumers`. Report network production and consumption, loadRatio (observed consumption/capacity, not engine satisfaction) when available, pole count, and disconnected or unserved consumers.
 
 Create tickets for:
 
@@ -129,7 +129,7 @@ Create tickets for:
 - a network whose observed production cannot support consumption or whose consumers show low/no-power states;
 - fuel-burning infrastructure with missing fuel or a broken restart path.
 
-Group network-wide faults by network ID. List representative and critical affected entities plus total count. Do not infer instantaneous satisfaction when runtime returns null; use production, consumption, connection state, and machine status.
+Group network-wide faults by network ID. List representative and critical affected entities plus total count. Do not infer instantaneous power satisfaction when runtime returns null; use production, consumption, connection state, and machine status.
 
 ### Deconstruction and upgrade orders
 

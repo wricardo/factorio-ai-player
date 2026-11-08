@@ -70,6 +70,7 @@ if entity then
     maxUndergroundDistance=finite(get(entity,"max_underground_distance")),
     inserterPickup=get(entity,"inserter_pickup_position"),
     inserterDrop=get(entity,"inserter_drop_position"),
+    drillOutput=get(entity,"vector_to_place_result"),
     craftingCategories=categories,
     resourceCategories=resource_categories,
     fluidBoxCount=(boxes and #boxes) or 0,

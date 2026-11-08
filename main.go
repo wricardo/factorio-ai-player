@@ -21,12 +21,10 @@ import (
 const usage = `Usage: factorio-ai-player [--addr HOST:PORT] <command> [options]
 
 Commands:
-  query, mutation  Execute an inline GraphQL operation
-  script, js       Run a JavaScript workflow over the GraphQL schema
-  serve            Serve the GraphQL schema over HTTP
-  graph            Export the factory into Memgraph (export, load, schema, sync)
-  queries, mutations, types, describe  Discover the GraphQL schema
-  help      Show this help
+  serve         Serve the GraphQL schema over HTTP (use gqlcli against it)
+  graph         Export the factory into Memgraph (export, load, schema, sync)
+  factorioform  Print Factorioform desired-state execution plans (plan)
+  help          Show this help
 
 Set FACTORIO_RCON_PASSWORD to the server's RCON password.
 Use '<command> --help' for command options.
@@ -40,7 +38,13 @@ func main() {
 }
 
 func run(args []string, out io.Writer) error {
-	return runWithCredentials(args, out, os.Getenv("FACTORIO_RCON_PASSWORD"))
+	pwd := os.Getenv("FACTORIO_RCON_PASSWORD")
+	if pwd == "" {
+		if b, err := os.ReadFile(".factorio/password"); err == nil {
+			pwd = strings.TrimSpace(string(b))
+		}
+	}
+	return runWithCredentials(args, out, pwd)
 }
 
 func runWithCredentials(args []string, out io.Writer, password string) error {
@@ -64,6 +68,9 @@ func runWithCredentials(args []string, out io.Writer, password string) error {
 	}
 	if args[0] == "graph" {
 		return runGraph(args[1:], out, *addr, password)
+	}
+	if args[0] == "factorioform" {
+		return runFactorioform(args[1:], out, *addr, password)
 	}
 	if !isGraphQLCommand(args[0]) {
 		return fmt.Errorf("unknown command %q; use help", args[0])

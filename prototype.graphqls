@@ -48,6 +48,8 @@ type EntityPrototype {
   inserterPickup: Position
   """Inserter drop offset relative to its position and rotation."""
   inserterDrop: Position
+  """Mining drill output offset relative to the drill center when it faces north (direction 0); rotate it with the drill's direction. Null for entities that are not mining drills. Burner drill (2x2): (-0.5,-1.3); electric drill (3x3): (0,-1.85)."""
+  drillOutput: Position
   """Maximum electric wire distance for poles; 0 or null when the entity has no wires."""
   wireReach: Float
   """Supply area distance for electric poles."""

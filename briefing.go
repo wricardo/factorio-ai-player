@@ -368,6 +368,18 @@ local function inserter_drop_destination(e)
   end
   return nil
 end
+-- A boiler or generator whose output is full simply has no demand, and an
+-- inserter whose drop target is a boiler or generator only waits because the
+-- fuel slot is already topped up. Both are steady states, not blocked output.
+local saturated_by_design={boiler=true,generator=true,["burner-generator"]=true,reactor=true,["fusion-reactor"]=true,["fusion-generator"]=true}
+local function saturated_by_demand(entity,status_name)
+  if status_name=="full_output" and saturated_by_design[entity.type] then return true end
+  if status_name=="waiting_for_space_in_destination" and (entity.type=="inserter" or entity.type=="loader" or entity.type=="loader-1x1") then
+    local ok_target,target=pcall(function() return entity.drop_target end)
+    if ok_target and target and target.valid and saturated_by_design[target.type] then return true end
+  end
+  return false
+end
 local summaries,summary_by_type={},{}
 local alerts,counts={},{}
 local total,scanned=0,0
@@ -388,7 +400,7 @@ for _,entity in pairs(surface.find_entities_filtered{area=area,force=force}) do
       summary[key]=summary[key]+1
     end
     local kind=status_name and status_kind[status_name] or nil
-    if kind and (#kind_list==0 or wanted[kind]) then
+    if kind and (#kind_list==0 or wanted[kind]) and not saturated_by_demand(entity,status_name) then
       total=total+1
       counts[kind]=(counts[kind] or 0)+1
       local okd,direction=pcall(function() return entity.direction end)
@@ -536,7 +548,7 @@ func factoryBriefingQuery(r *Resolver, input *FactoryBriefingInput) (*FactoryBri
 	// An observed-load ratio across the summed networks; 0 means the area exposes
 	// no generating capacity, not that demand is zero.
 	if out.Power.CapacityWatts > 0 {
-		out.Power.Satisfaction = out.Power.ConsumptionWatts / out.Power.CapacityWatts
+		out.Power.LoadRatio = out.Power.ConsumptionWatts / out.Power.CapacityWatts
 	}
 	if power.PageInfo != nil && power.PageInfo.HasMore {
 		out.Power.Networks = power.PageInfo.Total

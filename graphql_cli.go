@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,80 +14,11 @@ import (
 )
 
 func isGraphQLCommand(name string) bool {
-	switch name {
-	case "query", "q", "mutation", "m", "script", "js", "describe", "d", "types", "queries", "mutations":
-		return true
-	}
 	return false
 }
 
 func runGraphQL(args []string, out io.Writer, addr, password string) error {
-	exec := gqlcli.NewInlineExecutor(newGraphQLSchema(addr, password))
-	describerFor := func(command string) *gqlcli.Describer {
-		return gqlcli.NewDescriberFromExecFunc(logGraphQLOperations(exec, "cli", command).Execute)
-	}
-	set := gqlcli.NewInlineCommandSet(exec)
-	var commands []*cli.Command
-	for _, cmd := range set.Commands() {
-		switch cmd.Name {
-		case "query", "mutation":
-			kind := cmd.Name
-			cmd.Action = func(c *cli.Context) error {
-				return runGraphQLOperation(c, logGraphQLOperations(exec, "cli", kind), out, kind)
-			}
-			commands = append(commands, cmd)
-		case "describe":
-			cmd.Action = func(c *cli.Context) error {
-				if c.NArg() != 1 {
-					return fmt.Errorf("TYPE_NAME argument is required")
-				}
-				if c.Int("depth") < 0 {
-					return fmt.Errorf("--depth must be >= 0")
-				}
-				text, err := describerFor("describe").DescribeWithDepth(c.Context, c.Args().First(), c.Bool("args"), c.Bool("desc"), c.Int("depth"))
-				if err != nil {
-					return err
-				}
-				_, err = io.WriteString(out, text)
-				return err
-			}
-			commands = append(commands, cmd)
-		case "types":
-			cmd.Action = func(c *cli.Context) error {
-				return listGraphQLTypes(c, logGraphQLOperations(exec, "cli", "types"), out)
-			}
-			commands = append(commands, cmd)
-		}
-	}
-	for _, root := range []struct{ name, typeName string }{{"queries", "Query"}, {"mutations", "Mutation"}} {
-		root := root
-		commands = append(commands, &cli.Command{Name: root.name, Usage: "List GraphQL " + root.name, Flags: []cli.Flag{
-			&cli.StringFlag{Name: "filter", Aliases: []string{"f"}},
-			&cli.BoolFlag{Name: "args", Aliases: []string{"a"}},
-			&cli.BoolFlag{Name: "desc", Aliases: []string{"descriptions"}},
-			&cli.IntFlag{Name: "depth"},
-		}, Action: func(c *cli.Context) error {
-			if c.Int("depth") < 0 {
-				return fmt.Errorf("--depth must be >= 0")
-			}
-			text, err := describerFor(root.name).DescribeWithOptions(c.Context, root.typeName, gqlcli.DescribeOptions{FieldFilter: c.String("filter"), ShowArgs: c.Bool("args"), ShowDescriptions: c.Bool("desc"), Depth: c.Int("depth")})
-			if err != nil {
-				return err
-			}
-			_, err = io.WriteString(out, text)
-			return err
-		}})
-	}
-	commands = append(commands, scriptCommand(logGraphQLOperations(exec, "cli", "script"), out))
-	app := &cli.App{Name: "factorio-ai-player", Writer: out, ErrWriter: out, Commands: commands}
-	// urfave/cli stops parsing flags at the first positional argument. Move a
-	// leading document/type behind flags so the usual gqlcli ordering works.
-	argv := append([]string{"factorio-ai-player"}, args...)
-	if len(argv) > 3 && !strings.HasPrefix(argv[2], "-") {
-		first := argv[2]
-		argv = append(append(argv[:2:2], argv[3:]...), first)
-	}
-	return app.RunContext(context.Background(), argv)
+	return fmt.Errorf("inline GraphQL CLI removed; use `serve` with gqlcli")
 }
 
 func runGraphQLOperation(c *cli.Context, exec graphQLExecutor, out io.Writer, kind string) error {

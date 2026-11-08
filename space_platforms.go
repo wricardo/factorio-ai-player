@@ -2,12 +2,11 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 )
 
-// This file implements the space platform lifecycle, the platform read, the
-// player controller read, and a player-authoritative build.
+// This file implements the space platform lifecycle, the platform read, and the
+// player controller read.
 //
 // The engine exposes platform creation only through Lua
 // (LuaForce.create_space_platform) and starter-pack application only through
@@ -151,71 +150,6 @@ rcon.print(helpers.table_to_json(before))
 `, nil
 }
 
-// buildAsPlayerLua builds the player-authoritative placement Lua. The engine
-// raises on_built_entity only for player builds, so create_entity cannot
-// satisfy technology triggers, achievements, tutorials or mods that watch
-// builds. The cursor stack must be empty because the engine offers no way to
-// preserve an arbitrary item there.
-func buildAsPlayerLua(in BuildAsPlayerInput) (string, error) {
-	if in.Actor.Player == nil || strings.TrimSpace(*in.Actor.Player) == "" {
-		return "", errors.New("actor.player is required")
-	}
-	if in.Actor.Character != nil {
-		return "", errors.New("actor must name a player, not a character")
-	}
-	if strings.TrimSpace(in.Item) == "" {
-		return "", errors.New("item must not be empty")
-	}
-	surface := "nauvis"
-	if in.Surface != nil && strings.TrimSpace(*in.Surface) != "" {
-		surface = *in.Surface
-	}
-	quality := "normal"
-	if in.Quality != nil && strings.TrimSpace(*in.Quality) != "" {
-		quality = *in.Quality
-	}
-	if in.Direction < 0 || in.Direction > 15 {
-		return "", errors.New("direction must be between 0 and 15")
-	}
-	lua := luaFail + luaTileOccupants + fmt.Sprintf(`local p=game.get_player(%s)
-if not p then fail("player not found"); return end
-local c=p.character
-if not c then fail("player has no character"); return end
-local inv=c.get_main_inventory()
-if not inv then fail("player has no main inventory"); return end
-local item=%s
-local quality=%s
-if not prototypes.quality[quality] then fail("quality not found"); return end
-local proto=prototypes.item[item]
-if not proto or not proto.place_result then fail("item does not place an entity"); return end
-local s=game.surfaces[%s]
-if not s then fail("surface not found"); return end
-if c.surface~=s then fail("actor is on another surface"); return end
-local position={x=%s,y=%s}
-local cursor=p.cursor_stack
-if cursor.valid_for_read then fail("cursor stack is not empty; clear it before building as a player"); return end
-if inv.get_item_count{name=item,quality=quality}<1 then fail("player lacks item"); return end
-if inv.remove{name=item,quality=quality,count=1}~=1 then fail("could not remove item"); return end
-if not cursor.set_stack{name=item,quality=quality,count=1} then inv.insert{name=item,quality=quality,count=1}; fail("could not fill the cursor"); return end
--- The engine can commit the entity and still return nil, so the tile is diffed
--- before and after the build instead of trusting the return value alone.
-local before=tile_unit_set(s,position)
-local built_ok,built_or_error=pcall(function() return p.build_from_cursor{position=position,direction=%d} end)
-local built=nil
-if built_ok and built_or_error and built_or_error.valid then built=built_or_error end
-if not built then built=new_tile_entity(s,position,before) end
-if not built then
-  if cursor.valid_for_read then local remaining=cursor.count; cursor.clear(); inv.insert{name=item,quality=quality,count=remaining} end
-  fail(built_ok and "the engine refused the build at that position" or tostring(built_or_error))
-  return
-end
-if cursor.valid_for_read then cursor.clear() end
-rcon.print(helpers.table_to_json({tick=game.tick,name=built.name,position=built.position,surface=s.name,force=c.force.name,direction=built.direction,unit_number=built.unit_number and tostring(built.unit_number) or nil,item=item}))
-`, luaString(*in.Actor.Player), luaString(in.Item), luaString(quality), luaString(surface),
-		luaCoordinate(in.Position.X), luaCoordinate(in.Position.Y), in.Direction)
-	return lua, nil
-}
-
 // spacePlatformsQuery reads every platform of one force.
 func spacePlatformsQuery(r *Resolver, in *SpacePlatformsInput) (*SpacePlatformPage, error) {
 	input := SpacePlatformsInput{}
@@ -289,29 +223,6 @@ func deleteSpacePlatform(r *Resolver, in SpacePlatformRefInput) (*SpacePlatformI
 	}
 	announceMutation(r, in.Message, "scheduled space platform "+info.Name+" for deletion")
 	return info, nil
-}
-
-// buildAsPlayerResult runs a player-authoritative build and returns it as an
-// ActionResult so the caller gets the standard entity fields.
-func buildAsPlayer(r *Resolver, in BuildAsPlayerInput) (*ActionResult, error) {
-	lua, err := buildAsPlayerLua(in)
-	if err != nil {
-		return nil, err
-	}
-	response, _, err := executeLua(r.addr, r.password, lua)
-	if err != nil {
-		return nil, err
-	}
-	result, err := factoryDecode[ActionResult](response)
-	if err != nil {
-		return nil, err
-	}
-	name := ""
-	if result.Name != nil {
-		name = *result.Name
-	}
-	announceMutation(r, in.Message, "built "+name+positionText(result.Position))
-	return result, nil
 }
 
 // playerStateLua reads one connected player's controller and surface state. The

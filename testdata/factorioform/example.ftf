@@ -1,0 +1,97 @@
+# Factorioform example manifest, used by the unit test (TestFFExampleManifest)
+# and the real-engine end-to-end test (TestIntegrationFactorioformE2E).
+#
+# A row of assemblers fed by a filtered fast inserter, a filtering splitter, a
+# six-tile belt with a corner, an underground pair and a constant combinator
+# wired red to the inserter. Everything is placed relative to var.origin.
+
+factorioform {
+  version = 1
+  name    = "example"
+}
+
+variable "origin" {
+  type    = object({ x = number, y = number })
+  default = { x = 10.5, y = 10.5 }
+}
+
+locals {
+  assemblers = 3
+}
+
+resource "assembler" "circuit" {
+  count     = local.assemblers
+  entity    = "assembling-machine-2"
+  position  = { x = var.origin.x + 4 * count.index, y = var.origin.y }
+  recipe    = "electronic-circuit"
+  modules   = ["speed-module", "speed-module"]
+}
+
+resource "inserter" "feed" {
+  entity    = "fast-inserter"
+  position  = { x = var.origin.x - 2, y = var.origin.y }
+  direction = direction.east
+  inserter {
+    filter_mode = "whitelist"
+    filters     = ["copper-cable"]
+  }
+  circuit { read_hand_contents = true }
+}
+
+resource "splitter" "sort" {
+  entity    = "splitter"
+  position  = { x = var.origin.x, y = var.origin.y - 5.5 }
+  direction = direction.east
+  splitter {
+    input_priority  = "left"
+    output_priority = "right"
+    filter          = "iron-ore"
+  }
+}
+
+# Three tiles east, then a corner turning north for three more tiles.
+resource "belt" "bus" {
+  belt {
+    entity = "transport-belt"
+    path = concat(
+      [for i in range(3) : { x = var.origin.x - 5 + i, y = var.origin.y - 9, direction = direction.east }],
+      [for i in range(3) : { x = var.origin.x - 2, y = var.origin.y - 9 - i, direction = direction.north }],
+    )
+  }
+}
+
+resource "tunnel_in" "bus" {
+  entity           = "underground-belt"
+  position         = { x = var.origin.x, y = var.origin.y + 6 }
+  direction        = direction.east
+  underground_type = "input"
+}
+
+resource "tunnel_out" "bus" {
+  entity           = "underground-belt"
+  position         = { x = var.origin.x + 3, y = var.origin.y + 6 }
+  direction        = direction.east
+  underground_type = "output"
+}
+
+resource "const" "signal" {
+  entity   = "constant-combinator"
+  position = { x = var.origin.x - 2, y = var.origin.y + 3 }
+  constant_combinator {
+    section {
+      slot {
+        index  = 1
+        signal = { name = "iron-plate" }
+        count  = 5
+      }
+    }
+  }
+}
+
+wire {
+  color          = "red"
+  from           = resource.inserter.feed
+  to             = resource.const.signal
+  from_connector = "circuit_red"
+  to_connector   = "circuit_red"
+}

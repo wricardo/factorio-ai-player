@@ -1,0 +1,44 @@
+factorioform {
+  version = 1
+  name    = "iron-smelter"
+}
+
+# One mining line module (modules/mining_line) per ore patch; the patch origin
+# is per-module, the line count is shared.
+variable "origin" {
+  type    = object({ x = number, y = number })
+  default = { x = -30, y = -10 }
+}
+
+variable "copper_origin" {
+  type    = object({ x = number, y = number })
+  default = { x = 44, y = -31 }
+}
+
+variable "coal_origin" {
+  type    = object({ x = number, y = number })
+  default = { x = 70, y = -61 }
+}
+
+variable "lines" {
+  type    = number
+  default = 2
+}
+
+module "iron" {
+  source = "./modules/mining_line"
+  origin = var.origin
+  lines  = var.lines
+}
+
+module "copper" {
+  source = "./modules/mining_line"
+  origin = var.copper_origin
+  lines  = var.lines
+}
+
+module "coal" {
+  source = "./modules/mining_line"
+  origin = var.coal_origin
+  lines  = var.lines
+}

@@ -10,7 +10,7 @@ import (
 
 func TestQueryRejectsMutation(t *testing.T) {
 	var out bytes.Buffer
-	err := runWithCredentials([]string{"query", `mutation { shutdown { response } }`}, &out, "")
+	err := runGraphQLInProcess([]string{"query", `mutation { shutdown { response } }`}, &out, "")
 	if err == nil || !strings.Contains(err.Error(), "mutation") {
 		t.Fatalf("query must reject mutation, got %v", err)
 	}
@@ -18,7 +18,7 @@ func TestQueryRejectsMutation(t *testing.T) {
 
 func TestGraphQLRejectsInvalidCraftCount(t *testing.T) {
 	var out bytes.Buffer
-	err := runWithCredentials([]string{"mutation", `mutation($id: UnitNumber!) { craft(input: {actor:{character: $id}, recipe: "stone-furnace", count: 0}) { started } }`, "--variables", `{"id":"4294967295"}`}, &out, "")
+	err := runGraphQLInProcess([]string{"mutation", `mutation($id: UnitNumber!) { craft(input: {actor:{character: $id}, recipe: "stone-furnace", count: 0}) { started } }`, "--variables", `{"id":"4294967295"}`}, &out, "")
 	if err == nil || !strings.Contains(err.Error(), "count") {
 		t.Fatalf("invalid count should be rejected before RCON, got %v", err)
 	}
@@ -43,7 +43,7 @@ func TestDomainScalarsRejectInvalidLiteralsAndVariablesBeforeRCON(t *testing.T) 
 				args = append(args, "--variables", tc.variables)
 			}
 			var out bytes.Buffer
-			err := runWithCredentials(args, &out, "")
+			err := runGraphQLInProcess(args, &out, "")
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want %q coercion failure", err, tc.want)
 			}
@@ -54,7 +54,7 @@ func TestDomainScalarsRejectInvalidLiteralsAndVariablesBeforeRCON(t *testing.T) 
 func TestCraftWaitTimeoutBoundsBeforeRCON(t *testing.T) {
 	var out bytes.Buffer
 	mutation := `mutation { craft(input:{actor:{character:"7"},recipe:"iron-plate",waitTimeoutSeconds:0}) { started } }`
-	err := runWithCredentials([]string{"mutation", mutation}, &out, "")
+	err := runGraphQLInProcess([]string{"mutation", mutation}, &out, "")
 	if err == nil || !strings.Contains(err.Error(), "waitTimeoutSeconds") {
 		t.Errorf("expected timeout validation for 0, got %v", err)
 	}
@@ -62,7 +62,7 @@ func TestCraftWaitTimeoutBoundsBeforeRCON(t *testing.T) {
 	// Values above the 10 second cap are clamped, not rejected.
 	out.Reset()
 	mutation = `mutation { craft(input:{actor:{character:"7"},recipe:"iron-plate",waitTimeoutSeconds:3601}) { started } }`
-	err = runWithCredentials([]string{"mutation", mutation}, &out, "")
+	err = runGraphQLInProcess([]string{"mutation", mutation}, &out, "")
 	if err != nil && strings.Contains(err.Error(), "waitTimeoutSeconds") {
 		t.Errorf("3601 should be clamped rather than rejected, got %v", err)
 	}
@@ -70,7 +70,7 @@ func TestCraftWaitTimeoutBoundsBeforeRCON(t *testing.T) {
 
 func TestCraftWaitOptionsDefaultToImmediate(t *testing.T) {
 	var out bytes.Buffer
-	err := runWithCredentials([]string{"mutation", `mutation { craft(input:{actor:{character:"7"},recipe:"iron-plate"}) { started } }`}, &out, "")
+	err := runGraphQLInProcess([]string{"mutation", `mutation { craft(input:{actor:{character:"7"},recipe:"iron-plate"}) { started } }`}, &out, "")
 	if err == nil || !strings.Contains(err.Error(), "FACTORIO_RCON_PASSWORD is required") {
 		t.Fatalf("default craft options should proceed without waiting, got %v", err)
 	}
@@ -78,7 +78,7 @@ func TestCraftWaitOptionsDefaultToImmediate(t *testing.T) {
 
 func TestGraphQLRejectsEmptyResearchTechnology(t *testing.T) {
 	var out bytes.Buffer
-	err := runWithCredentials([]string{"mutation", `mutation { startResearch(input: {technology: ""}) { started } }`}, &out, "")
+	err := runGraphQLInProcess([]string{"mutation", `mutation { startResearch(input: {technology: ""}) { started } }`}, &out, "")
 	if err == nil || !strings.Contains(err.Error(), "technology") {
 		t.Fatalf("empty technology should be rejected before RCON, got %v", err)
 	}
@@ -92,7 +92,7 @@ func TestClearAreaRejectsInvalidBoundsBeforeRCON(t *testing.T) {
 	}
 	for _, mutation := range tests {
 		var out bytes.Buffer
-		err := runWithCredentials([]string{"mutation", mutation}, &out, "")
+		err := runGraphQLInProcess([]string{"mutation", mutation}, &out, "")
 		if err == nil || !strings.Contains(err.Error(), "area") {
 			t.Errorf("expected invalid-area error for %s, got %v", mutation, err)
 		}
@@ -106,7 +106,7 @@ func TestBatchAreaMutationsValidateBoundsBeforeRCON(t *testing.T) {
 	}
 	for _, mutation := range invalid {
 		var out bytes.Buffer
-		err := runWithCredentials([]string{"mutation", mutation}, &out, "")
+		err := runGraphQLInProcess([]string{"mutation", mutation}, &out, "")
 		if err == nil || !strings.Contains(err.Error(), "area") {
 			t.Errorf("expected invalid-area error for %s, got %v", mutation, err)
 		}
@@ -118,7 +118,7 @@ func TestBatchAreaMutationsValidateBoundsBeforeRCON(t *testing.T) {
 	}
 	for _, mutation := range valid {
 		var out bytes.Buffer
-		err := runWithCredentials([]string{"mutation", mutation}, &out, "")
+		err := runGraphQLInProcess([]string{"mutation", mutation}, &out, "")
 		if err == nil || !strings.Contains(err.Error(), "FACTORIO_RCON_PASSWORD is required") {
 			t.Errorf("expected valid bounds to reach RCON credentials check for %s, got %v", mutation, err)
 		}
@@ -136,7 +136,7 @@ func TestMachineQueryRejectsInvalidBounds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		var out bytes.Buffer
-		err := runWithCredentials([]string{"query", tt.query}, &out, "")
+		err := runGraphQLInProcess([]string{"query", tt.query}, &out, "")
 		if err == nil || !strings.Contains(err.Error(), tt.want) {
 			t.Errorf("%s: expected %s error, got %v", tt.query, tt.want, err)
 		}
@@ -181,42 +181,13 @@ func TestHelpShowsOnlyGraphQLCommands(t *testing.T) {
 					t.Errorf("help exposes obsolete command %q", command)
 				}
 			}
-			for _, command := range []string{"query", "mutation", "script", "queries", "mutations", "types", "describe", "help"} {
+			for _, command := range []string{"serve", "graph", "factorioform", "help"} {
 				if !regexp.MustCompile(`\b` + regexp.QuoteMeta(command) + `\b`).MatchString(text) {
 					t.Errorf("help omits command %q", command)
 				}
 			}
 			if !strings.Contains(text, "--addr") {
 				t.Error("help omits global --addr")
-			}
-		})
-	}
-}
-
-func TestGraphQLCommandsRouteWithoutGame(t *testing.T) {
-	tests := []struct {
-		args []string
-		want string
-	}{
-		{[]string{"query", `{ __typename }`}, "Query"},
-		{[]string{"q", `{ __typename }`}, "Query"},
-		{[]string{"mutation", `mutation { __typename }`}, "Mutation"},
-		{[]string{"m", `mutation { __typename }`}, "Mutation"},
-		{[]string{"types"}, "Query"},
-		{[]string{"describe", "Mutation"}, "shutdown"},
-		{[]string{"d", "Mutation"}, "save"},
-		{[]string{"queries"}, "status"},
-		{[]string{"mutations"}, "shutdown"},
-		{[]string{"mutations"}, "save"},
-	}
-	for _, tt := range tests {
-		t.Run(strings.Join(tt.args, " ")+"/"+tt.want, func(t *testing.T) {
-			var out bytes.Buffer
-			if err := runWithCredentials(tt.args, &out, ""); err != nil {
-				t.Fatalf("command failed: %v", err)
-			}
-			if !strings.Contains(out.String(), tt.want) {
-				t.Fatalf("output missing %q: %s", tt.want, out.String())
 			}
 		})
 	}
@@ -235,7 +206,7 @@ func TestObservationQueriesRejectInvalidBounds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		var out bytes.Buffer
-		err := runWithCredentials([]string{"query", tt.query}, &out, "")
+		err := runGraphQLInProcess([]string{"query", tt.query}, &out, "")
 		if err == nil || !strings.Contains(err.Error(), tt.want) {
 			t.Errorf("%s: expected %s error, got %v", tt.query, tt.want, err)
 		}
@@ -249,7 +220,7 @@ func TestMutationNotificationOptionsAreAccepted(t *testing.T) {
 	}
 	for _, mutation := range mutations {
 		var out bytes.Buffer
-		err := runWithCredentials([]string{"mutation", mutation}, &out, "")
+		err := runGraphQLInProcess([]string{"mutation", mutation}, &out, "")
 		if err == nil || !strings.Contains(err.Error(), "FACTORIO_RCON_PASSWORD is required") {
 			t.Errorf("notification options must be resolved before the game backend: %s, got %v", mutation, err)
 		}
@@ -258,10 +229,10 @@ func TestMutationNotificationOptionsAreAccepted(t *testing.T) {
 
 func TestAnnounceMutationIsExposed(t *testing.T) {
 	var out bytes.Buffer
-	if err := runWithCredentials([]string{"mutations", "--args"}, &out, ""); err != nil {
+	if err := runGraphQLInProcess([]string{"query", `{ __type(name:"Mutation") { fields { name } } }`}, &out, ""); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "announce(message: String!)") {
-		t.Errorf("mutations help must list announce, got %q", out.String())
+	if !strings.Contains(out.String(), `"announce"`) {
+		t.Errorf("Mutation type must list announce, got %q", out.String())
 	}
 }

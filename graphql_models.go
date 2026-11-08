@@ -895,7 +895,7 @@ type BriefingConstruction struct {
 	UpgradeOrders        int  `json:"upgradeOrders"`
 }
 
-// Sums over every electric network represented by a pole in the scope. productionWatts and consumptionWatts are the engine's one-minute averages. capacityWatts is the summed theoretical maximum production of the networks' generators (a lower bound for the whole networks, not observed output), so headroom is visible; satisfaction is consumptionWatts divided by capacityWatts and is 0 when the area exposes no generating capacity, so a value near 1 means the observed load is at the observed capacity and a value above 1 means demand outruns it. accumulatorChargeJoules and accumulatorCapacityJoules sum the stored energy and buffer capacity of accumulators on those networks, and lowPowerConsumers counts entities on them whose engine status is low_power.
+// Sums over every electric network represented by a pole in the scope. productionWatts and consumptionWatts are the engine's one-minute averages. capacityWatts is the summed theoretical maximum production of the networks' generators (a lower bound for the whole networks, not observed output), so headroom is visible; loadRatio is consumptionWatts divided by capacityWatts and is 0 when the area exposes no generating capacity, so a value near 1 means the observed load is at the observed capacity and a value above 1 means demand outruns it. accumulatorChargeJoules and accumulatorCapacityJoules sum the stored energy and buffer capacity of accumulators on those networks, and lowPowerConsumers counts entities on them whose engine status is low_power.
 type BriefingPower struct {
 	Networks         int     `json:"networks"`
 	ProductionWatts  float64 `json:"productionWatts"`
@@ -903,7 +903,7 @@ type BriefingPower struct {
 	// Summed theoretical maximum production of the networks' generators in watts; 0 when the area exposes no producers.
 	CapacityWatts float64 `json:"capacityWatts"`
 	// consumptionWatts / capacityWatts; 0 when capacityWatts is 0, above 1 when observed load exceeds observed capacity.
-	Satisfaction float64 `json:"satisfaction"`
+	LoadRatio float64 `json:"loadRatio"`
 	// Summed accumulator stored energy in joules.
 	AccumulatorChargeJoules float64 `json:"accumulatorChargeJoules"`
 	// Summed accumulator buffer capacity in joules.
@@ -924,22 +924,6 @@ type BriefingWatchItemInput struct {
 	Item string `json:"item"`
 	// Stock below this count is a stockout. Defaults to 1, so a missing item is flagged.
 	Minimum float64 `json:"minimum"`
-}
-
-// One entity placed through the player's build action rather than create_entity.
-type BuildAsPlayerInput struct {
-	Actor *ActorInput `json:"actor"`
-	// Surface to build on; defaults to the actor's current surface.
-	Surface  *string        `json:"surface,omitempty"`
-	Position *PositionInput `json:"position"`
-	// Item to build; it must place an entity.
-	Item string `json:"item"`
-	// Canonical engine direction 0 through 15.
-	Direction int `json:"direction"`
-	// Item quality prototype name; defaults to normal.
-	Quality *string `json:"quality,omitempty"`
-	// Print this text in-game to all connected players instead of the generated notification.
-	Message *string `json:"message,omitempty"`
 }
 
 // One step of a cell layout. Exactly one of place, connection or recipe must be set.
@@ -2102,7 +2086,7 @@ type ElectricNetworkInsight struct {
 	// Entities on this network inside the area whose engine status is low_power.
 	LowPowerConsumers int `json:"lowPowerConsumers"`
 	// consumptionWatts divided by maxProductionWatts when capacity is positive; null when no producer is in the area. An observed-load ratio, not engine power satisfaction.
-	Satisfaction *float64 `json:"satisfaction,omitempty"`
+	LoadRatio *float64 `json:"loadRatio,omitempty"`
 }
 
 type ElectricNetworkPage struct {
@@ -2284,6 +2268,8 @@ type EntityPrototype struct {
 	InserterPickup *Position `json:"inserterPickup,omitempty"`
 	// Inserter drop offset relative to its position and rotation.
 	InserterDrop *Position `json:"inserterDrop,omitempty"`
+	// Mining drill output offset relative to the drill center when it faces north (direction 0); rotate it with the drill's direction. Null for entities that are not mining drills. Burner drill (2x2): (-0.5,-1.3); electric drill (3x3): (0,-1.85).
+	DrillOutput *Position `json:"drillOutput,omitempty"`
 	// Maximum electric wire distance for poles; 0 or null when the entity has no wires.
 	WireReach *float64 `json:"wireReach,omitempty"`
 	// Supply area distance for electric poles.
@@ -2404,6 +2390,207 @@ type ExportMapSnapshotToMemgraphInput struct {
 	IncludeLineLinks bool `json:"includeLineLinks"`
 	// Load a snapshot whose reconciliation found a hole instead of failing.
 	AllowIncomplete bool `json:"allowIncomplete"`
+}
+
+// One manifest file. Files in the same directory are merged like Terraform configuration into one module. name is a path used in diagnostics and to resolve module blocks: a module's source ("./modules/belt") is resolved relative to the directory of the file holding the module block, and the module is every supplied file in the resulting directory, so supply those files with matching directory names (for example modules/belt/main.ftf).
+type FactorioformFileInput struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
+}
+
+type FactorioformForgetInput struct {
+	Name string `json:"name"`
+	// Addresses to drop; empty or omitted drops the whole manifest.
+	Addresses []string `json:"addresses"`
+	Message   *string  `json:"message,omitempty"`
+}
+
+type FactorioformForgetResult struct {
+	Tick      float64  `json:"tick"`
+	Name      string   `json:"name"`
+	Forgotten []string `json:"forgotten"`
+	// Requested addresses that had no state entry.
+	Missing         []string `json:"missing"`
+	ManifestDeleted bool     `json:"manifestDeleted"`
+	// Resources left in the manifest; 0 after a whole-manifest forget.
+	Remaining int `json:"remaining"`
+}
+
+type FactorioformImportInput struct {
+	Name string `json:"name"`
+	// Defaults to nauvis.
+	Surface *string `json:"surface,omitempty"`
+	// Defaults to player.
+	Force *string `json:"force,omitempty"`
+	// Manifest address, for example assembler.green[0] or belt.coal_bus.path[2].
+	Address string          `json:"address"`
+	Target  *EntityRefInput `json:"target"`
+	// Replace an existing mapping of this address to a different unit.
+	Overwrite bool    `json:"overwrite"`
+	Message   *string `json:"message,omitempty"`
+}
+
+type FactorioformImportResult struct {
+	Tick     float64                    `json:"tick"`
+	Resource *FactorioformStateResource `json:"resource"`
+	// Unit previously mapped to the address when overwrite replaced it.
+	ReplacedUnitNumber *string                    `json:"replacedUnitNumber,omitempty"`
+	Manifest           *FactorioformManifestState `json:"manifest"`
+}
+
+type FactorioformManifestState struct {
+	Name    string `json:"name"`
+	Surface string `json:"surface"`
+	Force   string `json:"force"`
+	// Game tick of the last state write.
+	UpdatedTick   float64 `json:"updatedTick"`
+	ResourceCount int     `json:"resourceCount"`
+	// Empty in summaries (factorioformState without name).
+	Resources []*FactorioformStateResource `json:"resources"`
+}
+
+type FactorioformPlan struct {
+	FormatVersion int     `json:"formatVersion"`
+	Manifest      string  `json:"manifest"`
+	PlanID        string  `json:"planId"`
+	Tick          float64 `json:"tick"`
+	Surface       string  `json:"surface"`
+	Force         string  `json:"force"`
+	// CONVERGED, CHANGES, DRIFT_DETECTED or CONFLICT.
+	Status    string                      `json:"status"`
+	Summary   *FactorioformPlanSummary    `json:"summary"`
+	Diffs     []*FactorioformPlanDiff     `json:"diffs"`
+	Steps     []*FactorioformPlanStep     `json:"steps"`
+	Materials []*FactorioformPlanMaterial `json:"materials"`
+}
+
+type FactorioformPlanBlocker struct {
+	UnitNumber string    `json:"unitNumber"`
+	Entity     string    `json:"entity"`
+	Position   *Position `json:"position"`
+}
+
+type FactorioformPlanChange struct {
+	// Config field path (snake_case, for example inserter.stack_size_override) or a structural attribute for REPLACE rows.
+	Path   string `json:"path"`
+	Before any    `json:"before,omitempty"`
+	After  any    `json:"after,omitempty"`
+}
+
+type FactorioformPlanDiff struct {
+	// NOOP, CREATE, UPDATE, REPLACE, DELETE, DRIFT, ADOPT, CONFLICT or PENDING.
+	Action     string                     `json:"action"`
+	Address    string                     `json:"address"`
+	Entity     *string                    `json:"entity,omitempty"`
+	Position   *Position                  `json:"position"`
+	Direction  int                        `json:"direction"`
+	Quality    *string                    `json:"quality,omitempty"`
+	UnitNumber *string                    `json:"unitNumber,omitempty"`
+	Changes    []*FactorioformPlanChange  `json:"changes"`
+	Reason     *string                    `json:"reason,omitempty"`
+	Blockers   []*FactorioformPlanBlocker `json:"blockers"`
+	Wire       *FactorioformPlanWire      `json:"wire,omitempty"`
+}
+
+type FactorioformPlanInput struct {
+	Files []*FactorioformFileInput `json:"files"`
+	// Directory holding the root module's files, as written in the file names (default: files whose name has no directory). Every file elsewhere must be reached through a module block's source; an unreferenced file is an error.
+	RootDir *string `json:"rootDir,omitempty"`
+	// JSON object of manifest variable values keyed by variable name. Applies to the root module; modules take their inputs from their module block.
+	Variables any `json:"variables,omitempty"`
+	// Injected into every step when given.
+	Actor *ActorInput `json:"actor,omitempty"`
+}
+
+type FactorioformPlanMaterial struct {
+	Name    string `json:"name"`
+	Quality string `json:"quality"`
+	Count   int    `json:"count"`
+}
+
+type FactorioformPlanStep struct {
+	// One-based execution order.
+	Order int `json:"order"`
+	// disconnect-wire, delete, replace-remove, create, create-belts, create-underground, config or connect-wire.
+	Kind string `json:"kind"`
+	// Manifest addresses the step touches.
+	Addresses []string `json:"addresses"`
+	// Mutation name.
+	Operation string `json:"operation"`
+	// Complete GraphQL document; run it with variables.
+	Document string `json:"document"`
+	// Variables object ({input: ...}) for document.
+	Variables any `json:"variables"`
+	// True when no actor was given to the plan: add input.actor before running.
+	RequiresActor bool `json:"requiresActor"`
+}
+
+type FactorioformPlanSummary struct {
+	Create   int `json:"create"`
+	Update   int `json:"update"`
+	Replace  int `json:"replace"`
+	Delete   int `json:"delete"`
+	Drift    int `json:"drift"`
+	Adopt    int `json:"adopt"`
+	Conflict int `json:"conflict"`
+	Pending  int `json:"pending"`
+	Noop     int `json:"noop"`
+}
+
+// Endpoints of a wire row. Units are null when the endpoint does not exist yet.
+type FactorioformPlanWire struct {
+	Color         string  `json:"color"`
+	FromAddress   string  `json:"fromAddress"`
+	FromUnit      *string `json:"fromUnit,omitempty"`
+	FromConnector string  `json:"fromConnector"`
+	ToAddress     string  `json:"toAddress"`
+	ToUnit        *string `json:"toUnit,omitempty"`
+	ToConnector   string  `json:"toConnector"`
+}
+
+type FactorioformRefreshInput struct {
+	Files []*FactorioformFileInput `json:"files"`
+	// Directory holding the root module's files; must match the value given to factorioformPlan.
+	RootDir *string `json:"rootDir,omitempty"`
+	// JSON object of manifest variable values; must match the values given to factorioformPlan.
+	Variables any `json:"variables,omitempty"`
+	// Report what would be recorded without writing state.
+	DryRun  bool    `json:"dryRun"`
+	Message *string `json:"message,omitempty"`
+}
+
+type FactorioformRefreshRecorded struct {
+	Address    string `json:"address"`
+	UnitNumber string `json:"unitNumber"`
+}
+
+type FactorioformRefreshResult struct {
+	// Latest game tick observed by the live read.
+	Tick     float64                        `json:"tick"`
+	Manifest string                         `json:"manifest"`
+	DryRun   bool                           `json:"dryRun"`
+	Recorded []*FactorioformRefreshRecorded `json:"recorded"`
+	// Addresses of removed resources whose entity is gone, dropped from state.
+	Pruned    []string                        `json:"pruned"`
+	Unmatched []*FactorioformRefreshUnmatched `json:"unmatched"`
+	// CONVERGED, CHANGES, DRIFT_DETECTED or CONFLICT after applying the refresh.
+	Status string `json:"status"`
+}
+
+type FactorioformRefreshUnmatched struct {
+	Address string `json:"address"`
+	Reason  string `json:"reason"`
+}
+
+// One manifest address mapped to the live entity it controls, as last recorded.
+type FactorioformStateResource struct {
+	Address    string `json:"address"`
+	UnitNumber string `json:"unitNumber"`
+	Entity     string `json:"entity"`
+	// Entity center.
+	Position  *Position `json:"position"`
+	Direction int       `json:"direction"`
+	Quality   string    `json:"quality"`
 }
 
 // One unhealthy entity. status is the raw engine defines.entity_status name, direction is the engine direction code when the entity exposes one, and suggestedAction is a short next step for its kind. kind and severity match the briefing classification.
@@ -3166,6 +3353,12 @@ type InserterSettings struct {
 	StackSizeOverride int `json:"stackSizeOverride"`
 	// Engine active state, including script, circuit, recipe, freezing and deconstruction disabling.
 	Active bool `json:"active"`
+	// Pickup point relative to the inserter centre, in map axes (x east, y south), for the current direction. Always set for a real inserter.
+	PickupVector *Position `json:"pickupVector,omitempty"`
+	// Drop point relative to the inserter centre, in map axes, for the current direction.
+	DropVector *Position `json:"dropVector,omitempty"`
+	// Prototype allow_custom_vectors. False for every vanilla and Space Age inserter: pickupVector/dropVector writes are then refused.
+	CustomVectorsAllowed bool `json:"customVectorsAllowed"`
 	// Whether the inserter may take from the left lane of a belt source. Both flags false is a common reason a full belt still reports waiting_for_source_items.
 	PickupFromLeftLane bool `json:"pickupFromLeftLane"`
 	// Whether the inserter may take from the right lane of a belt source.
@@ -3183,6 +3376,10 @@ type InserterSettingsInput struct {
 	FilterMode *string `json:"filterMode,omitempty"`
 	// Stack size override; 0 restores automatic.
 	StackSizeOverride *int `json:"stackSizeOverride,omitempty"`
+	// Pickup point offset from the inserter centre in map axes (x east, y south), for the current direction: setDirection rotates the stored point with the entity, so write it after the direction. Only prototypes with allow_custom_vectors accept it (none in vanilla or Space Age); otherwise the call fails. The engine does not limit the point to the inserter's reach; the call fails only if the read-back differs.
+	PickupVector *PositionInput `json:"pickupVector,omitempty"`
+	// Drop point offset from the inserter centre in map axes; same rules as pickupVector.
+	DropVector *PositionInput `json:"dropVector,omitempty"`
 	// Allow or forbid taking from the left lane of a belt source. Disabling both lane flags makes a full belt unusable for the inserter.
 	PickupFromLeftLane *bool `json:"pickupFromLeftLane,omitempty"`
 	// Allow or forbid taking from the right lane of a belt source.
@@ -4995,7 +5192,8 @@ type PlacementCandidate struct {
 	Force     string  `json:"force"`
 	Prototype string  `json:"prototype"`
 	Direction int     `json:"direction"`
-	Found     bool    `json:"found"`
+	// False means every candidate center within maxRadius was rejected (expanded counts them); it does NOT mean the origin is blocked. blockers, terrain and tile below always describe the snapped origin only, so a not-found result with blockers is still just 'nothing legal within the radius'. Raise maxRadius (at most 512) to search further.
+	Found bool `json:"found"`
 	// Center of the nearest legal placement; null when none was found.
 	Position *Position `json:"position,omitempty"`
 	// Euclidean distance from origin to position; null when none was found.

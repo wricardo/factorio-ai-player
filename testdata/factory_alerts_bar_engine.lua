@@ -5,6 +5,8 @@
 --   bar      - chest bar 1, resolved through the inserter's drop_target
 --   ok       - chest bar 0 with free slots
 --   fallback - drop_target is absent, so the drop position must find the chest
+--   boiler   - a boiler reads full_output: demand-saturated, no alert expected
+--   feed     - an inserter waits because its boiler fuel slot is full: no alert expected
 local scenario = os.getenv("ALERT_SCENARIO") or "bar"
 
 local bar = (scenario == "bar" or scenario == "fallback") and 1 or 0
@@ -38,9 +40,20 @@ local inserter = {
 }
 if scenario ~= "fallback" then inserter.drop_target = chest end
 
+local boiler = {
+  valid = true,
+  name = "boiler",
+  type = "boiler",
+  unit_number = 904,
+  position = {x = 20.5, y = 5.5},
+  status = 7,
+}
+if scenario == "feed" then inserter.drop_target = boiler end
+
 local surface = {name = "nauvis"}
 function surface.find_entities_filtered(filter)
   if filter and filter.position then return {chest} end
+  if scenario == "boiler" then return {boiler} end
   return {inserter}
 end
 function surface.get_tile(_x, _y)
@@ -59,7 +72,7 @@ game = {
 }
 
 defines = {
-  entity_status = {working = 1, normal = 2, waiting_for_space_in_destination = 6},
+  entity_status = {working = 1, normal = 2, waiting_for_space_in_destination = 6, full_output = 7},
   inventory = {chest = 1},
 }
 

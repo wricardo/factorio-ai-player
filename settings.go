@@ -546,8 +546,11 @@ func setInserterSettings(r *Resolver, in InserterSettingsInput) (*SettingsResult
 	}
 	// An empty but non-nil list means "remove every filter", so it counts as a
 	// request even though it writes no slot.
-	if in.Filters == nil && in.FilterMode == nil && in.StackSizeOverride == nil && in.PickupFromLeftLane == nil && in.PickupFromRightLane == nil && !clear {
-		return nil, errors.New("set at least one of filters, filterMode, stackSizeOverride, pickupFromLeftLane, pickupFromRightLane, or clear")
+	if clear && (in.PickupVector != nil || in.DropVector != nil) {
+		return nil, errors.New("clear cannot be combined with pickupVector or dropVector")
+	}
+	if in.Filters == nil && in.FilterMode == nil && in.StackSizeOverride == nil && in.PickupFromLeftLane == nil && in.PickupFromRightLane == nil && in.PickupVector == nil && in.DropVector == nil && !clear {
+		return nil, errors.New("set at least one of filters, filterMode, stackSizeOverride, pickupFromLeftLane, pickupFromRightLane, pickupVector, dropVector, or clear")
 	}
 	prefix, err := target.lua()
 	if err != nil {
@@ -558,6 +561,20 @@ func setInserterSettings(r *Resolver, in InserterSettingsInput) (*SettingsResult
 	body.WriteString(`if e.type~="inserter" then fail("entity is not an inserter"); return end
 local function check_index(index)
   if index<1 or index>e.filter_slot_count then fail("filter index "..index.." is outside 1..."..e.filter_slot_count); return false end
+  return true
+end
+local function set_vector(property,name,vx,vy)
+  if not e.prototype.allow_custom_vectors then
+    fail(name.." cannot be written: prototype "..e.name.." has allow_custom_vectors=false (the engine would silently ignore the write)")
+    return false
+  end
+  local want={x=e.position.x+vx,y=e.position.y+vy}
+  e[property]=want
+  local got=e[property]
+  if math.abs(got.x-want.x)>0.01 or math.abs(got.y-want.y)>0.01 then
+    fail(name.." refused by the engine: requested offset ("..vx..","..vy.."), applied offset ("..(got.x-e.position.x)..","..(got.y-e.position.y)..")")
+    return false
+  end
   return true
 end
 `)
@@ -609,6 +626,12 @@ e.inserter_stack_size_override=0
 	}
 	if in.PickupFromRightLane != nil {
 		fmt.Fprintf(&body, "e.pickup_from_right_lane=%t\n", *in.PickupFromRightLane)
+	}
+	if in.PickupVector != nil {
+		fmt.Fprintf(&body, "if not set_vector(\"pickup_position\",\"pickupVector\",%s,%s) then return end\n", formatFloat(in.PickupVector.X), formatFloat(in.PickupVector.Y))
+	}
+	if in.DropVector != nil {
+		fmt.Fprintf(&body, "if not set_vector(\"drop_position\",\"dropVector\",%s,%s) then return end\n", formatFloat(in.DropVector.X), formatFloat(in.DropVector.Y))
 	}
 	result, err := executeSettings(r, settingsMutationLua(body.String(), "chest"))
 	if err != nil {

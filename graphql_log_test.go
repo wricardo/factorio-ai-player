@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -41,44 +40,6 @@ func responseErrors(t *testing.T, entry graphQLOperationLog) []interface{} {
 		t.Fatalf("decode logged response %q: %v", entry.Response, err)
 	}
 	return envelope.Errors
-}
-
-func TestCLILogsGraphQLOperationsIncludingValidationFailures(t *testing.T) {
-	logPath := filepath.Join(t.TempDir(), "graphql-log.jsonl")
-	t.Setenv(graphqlLogEnv, logPath)
-
-	var out bytes.Buffer
-	if err := runWithCredentials([]string{"query", "{ __typename }"}, &out, ""); err != nil {
-		t.Fatalf("successful query: %v", err)
-	}
-	if err := runWithCredentials([]string{"mutation", "mutation { __typename }"}, &out, ""); err != nil {
-		t.Fatalf("successful mutation: %v", err)
-	}
-	err := runWithCredentials([]string{"query", "{ unknownField }"}, &out, "")
-	if err == nil || !strings.Contains(err.Error(), "unknownField") {
-		t.Fatalf("invalid query error = %v, want unknownField validation failure", err)
-	}
-
-	entries := readGraphQLOperationLog(t, logPath)
-	if len(entries) != 3 {
-		t.Fatalf("log entries = %d, want 3: %+v", len(entries), entries)
-	}
-	for i, want := range []struct{ command, document string }{
-		{"query", "{ __typename }"},
-		{"mutation", "mutation { __typename }"},
-		{"query", "{ unknownField }"},
-	} {
-		entry := entries[i]
-		if entry.Source != "cli" || entry.Command != want.command || entry.Document != want.document {
-			t.Fatalf("entry %d = source %q command %q document %q, want cli/%s/%q", i, entry.Source, entry.Command, entry.Document, want.command, want.document)
-		}
-		if entry.Time.IsZero() || entry.Response == nil {
-			t.Fatalf("entry %d lacks time or response: %+v", i, entry)
-		}
-	}
-	if errs := responseErrors(t, entries[2]); len(errs) == 0 {
-		t.Fatalf("validation failure recorded without errors: %s", entries[2].Response)
-	}
 }
 
 func TestServeLogsGraphQLRequestsIncludingValidationFailures(t *testing.T) {
@@ -118,31 +79,6 @@ func TestServeLogsGraphQLRequestsIncludingValidationFailures(t *testing.T) {
 	}
 	if errs := responseErrors(t, second); len(errs) == 0 {
 		t.Fatalf("validation failure recorded without errors: %s", second.Response)
-	}
-}
-
-func TestScriptLogsEveryGraphQLCall(t *testing.T) {
-	logPath := filepath.Join(t.TempDir(), "graphql-log.jsonl")
-	t.Setenv(graphqlLogEnv, logPath)
-
-	var out bytes.Buffer
-	source := `async function run(gql) {
-		await gql.query("{ __typename }")
-		return gql.mutation("mutation { __typename }")
-	}`
-	if err := runWithCredentials([]string{"script", "--source", source}, &out, ""); err != nil {
-		t.Fatalf("script: %v", err)
-	}
-
-	entries := readGraphQLOperationLog(t, logPath)
-	if len(entries) != 2 {
-		t.Fatalf("log entries = %d, want 2: %+v", len(entries), entries)
-	}
-	if entries[0].Command != "script" || entries[0].Document != "{ __typename }" {
-		t.Fatalf("query entry = %+v", entries[0])
-	}
-	if entries[1].Command != "script" || !strings.HasPrefix(entries[1].Document, "mutation") {
-		t.Fatalf("mutation entry = %+v", entries[1])
 	}
 }
 

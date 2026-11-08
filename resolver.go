@@ -457,8 +457,8 @@ func normalizeGraphQL(value any, key, command string) any {
 		return v
 	case []any:
 		// Factorio Vector is a two-element array; the schema exposes
-		// inserterPickup/inserterDrop as Position objects.
-		if (key == "inserterPickup" || key == "inserterDrop") && len(v) == 2 {
+		// inserterPickup/inserterDrop/drillOutput as Position objects.
+		if (key == "inserterPickup" || key == "inserterDrop" || key == "drillOutput") && len(v) == 2 {
 			return map[string]any{"x": v[0], "y": v[1]}
 		}
 		if key == "inventories" && len(v) == 0 {
@@ -542,7 +542,8 @@ func isListField(key string) bool {
 		"compactEdges", "compactBoundaryEdges", "compactInserters", "compactNodes", "groundPositions",
 		"members", "segments", "problems", "trainStops", "carriages", "waitConditions", "collidedItems", "groundItems",
 		"entityCount", "defects", "counts", "mixedTiles", "feeders", "tiles", "fluidFilters", "fluidPorts", "labelCounts", "edgeTypes", "columns",
-		"labels", "relationships", "properties", "paths", "origins", "kindCounts", "feedingArms", "gaps", "affected", "causes", "deficits", "limiting", "notes", "route", "routes", "stages", "boundary", "nodeIds", "kinds", "stretches", "left", "right", "findings", "related", "cells", "links", "statusCounts":
+		"labels", "relationships", "properties", "paths", "origins", "kindCounts", "feedingArms", "gaps", "affected", "causes", "deficits", "limiting", "notes", "route", "routes", "stages", "boundary", "nodeIds", "kinds", "stretches", "left", "right", "findings", "related", "cells", "links", "statusCounts",
+		"addresses", "changes", "diffs", "factorioformState", "forgotten", "resources", "recorded", "pruned", "unmatched":
 		return true
 	}
 	return false

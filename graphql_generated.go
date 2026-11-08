@@ -585,10 +585,10 @@ type ComplexityRoot struct {
 		AccumulatorChargeJoules   func(childComplexity int) int
 		CapacityWatts             func(childComplexity int) int
 		ConsumptionWatts          func(childComplexity int) int
+		LoadRatio                 func(childComplexity int) int
 		LowPowerConsumers         func(childComplexity int) int
 		Networks                  func(childComplexity int) int
 		ProductionWatts           func(childComplexity int) int
-		Satisfaction              func(childComplexity int) int
 	}
 
 	BriefingResearch struct {
@@ -1078,11 +1078,11 @@ type ComplexityRoot struct {
 		AccumulatorChargeJoules   func(childComplexity int) int
 		ConsumptionWatts          func(childComplexity int) int
 		ID                        func(childComplexity int) int
+		LoadRatio                 func(childComplexity int) int
 		LowPowerConsumers         func(childComplexity int) int
 		MaxProductionWatts        func(childComplexity int) int
 		PolesInArea               func(childComplexity int) int
 		ProductionWatts           func(childComplexity int) int
-		Satisfaction              func(childComplexity int) int
 	}
 
 	ElectricNetworkPage struct {
@@ -1196,6 +1196,7 @@ type ComplexityRoot struct {
 		CollisionBox           func(childComplexity int) int
 		CraftingCategories     func(childComplexity int) int
 		CraftingSpeed          func(childComplexity int) int
+		DrillOutput            func(childComplexity int) int
 		EnergyUsageWatts       func(childComplexity int) int
 		FluidBoxCount          func(childComplexity int) int
 		InserterDrop           func(childComplexity int) int
@@ -1240,6 +1241,138 @@ type ComplexityRoot struct {
 		Player    func(childComplexity int) int
 		Surface   func(childComplexity int) int
 		Tick      func(childComplexity int) int
+	}
+
+	FactorioformForgetResult struct {
+		Forgotten       func(childComplexity int) int
+		ManifestDeleted func(childComplexity int) int
+		Missing         func(childComplexity int) int
+		Name            func(childComplexity int) int
+		Remaining       func(childComplexity int) int
+		Tick            func(childComplexity int) int
+	}
+
+	FactorioformImportResult struct {
+		Manifest           func(childComplexity int) int
+		ReplacedUnitNumber func(childComplexity int) int
+		Resource           func(childComplexity int) int
+		Tick               func(childComplexity int) int
+	}
+
+	FactorioformManifestState struct {
+		Force         func(childComplexity int) int
+		Name          func(childComplexity int) int
+		ResourceCount func(childComplexity int) int
+		Resources     func(childComplexity int) int
+		Surface       func(childComplexity int) int
+		UpdatedTick   func(childComplexity int) int
+	}
+
+	FactorioformPlan struct {
+		Diffs         func(childComplexity int) int
+		Force         func(childComplexity int) int
+		FormatVersion func(childComplexity int) int
+		Manifest      func(childComplexity int) int
+		Materials     func(childComplexity int) int
+		PlanID        func(childComplexity int) int
+		Status        func(childComplexity int) int
+		Steps         func(childComplexity int) int
+		Summary       func(childComplexity int) int
+		Surface       func(childComplexity int) int
+		Tick          func(childComplexity int) int
+	}
+
+	FactorioformPlanBlocker struct {
+		Entity     func(childComplexity int) int
+		Position   func(childComplexity int) int
+		UnitNumber func(childComplexity int) int
+	}
+
+	FactorioformPlanChange struct {
+		After  func(childComplexity int) int
+		Before func(childComplexity int) int
+		Path   func(childComplexity int) int
+	}
+
+	FactorioformPlanDiff struct {
+		Action     func(childComplexity int) int
+		Address    func(childComplexity int) int
+		Blockers   func(childComplexity int) int
+		Changes    func(childComplexity int) int
+		Direction  func(childComplexity int) int
+		Entity     func(childComplexity int) int
+		Position   func(childComplexity int) int
+		Quality    func(childComplexity int) int
+		Reason     func(childComplexity int) int
+		UnitNumber func(childComplexity int) int
+		Wire       func(childComplexity int) int
+	}
+
+	FactorioformPlanMaterial struct {
+		Count   func(childComplexity int) int
+		Name    func(childComplexity int) int
+		Quality func(childComplexity int) int
+	}
+
+	FactorioformPlanStep struct {
+		Addresses     func(childComplexity int) int
+		Document      func(childComplexity int) int
+		Kind          func(childComplexity int) int
+		Operation     func(childComplexity int) int
+		Order         func(childComplexity int) int
+		RequiresActor func(childComplexity int) int
+		Variables     func(childComplexity int) int
+	}
+
+	FactorioformPlanSummary struct {
+		Adopt    func(childComplexity int) int
+		Conflict func(childComplexity int) int
+		Create   func(childComplexity int) int
+		Delete   func(childComplexity int) int
+		Drift    func(childComplexity int) int
+		Noop     func(childComplexity int) int
+		Pending  func(childComplexity int) int
+		Replace  func(childComplexity int) int
+		Update   func(childComplexity int) int
+	}
+
+	FactorioformPlanWire struct {
+		Color         func(childComplexity int) int
+		FromAddress   func(childComplexity int) int
+		FromConnector func(childComplexity int) int
+		FromUnit      func(childComplexity int) int
+		ToAddress     func(childComplexity int) int
+		ToConnector   func(childComplexity int) int
+		ToUnit        func(childComplexity int) int
+	}
+
+	FactorioformRefreshRecorded struct {
+		Address    func(childComplexity int) int
+		UnitNumber func(childComplexity int) int
+	}
+
+	FactorioformRefreshResult struct {
+		DryRun    func(childComplexity int) int
+		Manifest  func(childComplexity int) int
+		Pruned    func(childComplexity int) int
+		Recorded  func(childComplexity int) int
+		Status    func(childComplexity int) int
+		Tick      func(childComplexity int) int
+		Unmatched func(childComplexity int) int
+	}
+
+	FactorioformRefreshUnmatched struct {
+		Address func(childComplexity int) int
+		Reason  func(childComplexity int) int
+	}
+
+	FactorioformStateResource struct {
+		Address    func(childComplexity int) int
+		Direction  func(childComplexity int) int
+		Entity     func(childComplexity int) int
+		Position   func(childComplexity int) int
+		Quality    func(childComplexity int) int
+		UnitNumber func(childComplexity int) int
 	}
 
 	FactoryAlert struct {
@@ -1683,16 +1816,19 @@ type ComplexityRoot struct {
 	}
 
 	InserterSettings struct {
-		Active              func(childComplexity int) int
-		Circuit             func(childComplexity int) int
-		FilterMode          func(childComplexity int) int
-		FilterSlotCount     func(childComplexity int) int
-		FilterSlots         func(childComplexity int) int
-		PickupFromLeftLane  func(childComplexity int) int
-		PickupFromRightLane func(childComplexity int) int
-		StackSizeOverride   func(childComplexity int) int
-		Tick                func(childComplexity int) int
-		UseFilters          func(childComplexity int) int
+		Active               func(childComplexity int) int
+		Circuit              func(childComplexity int) int
+		CustomVectorsAllowed func(childComplexity int) int
+		DropVector           func(childComplexity int) int
+		FilterMode           func(childComplexity int) int
+		FilterSlotCount      func(childComplexity int) int
+		FilterSlots          func(childComplexity int) int
+		PickupFromLeftLane   func(childComplexity int) int
+		PickupFromRightLane  func(childComplexity int) int
+		PickupVector         func(childComplexity int) int
+		StackSizeOverride    func(childComplexity int) int
+		Tick                 func(childComplexity int) int
+		UseFilters           func(childComplexity int) int
 	}
 
 	InspectionLogistics struct {
@@ -2531,7 +2667,6 @@ type ComplexityRoot struct {
 		BeltStretchMeasure          func(childComplexity int, input BeltStretchMeasureInput) int
 		BeltTake                    func(childComplexity int, input BeltTakeInput) int
 		BeltThroughputStart         func(childComplexity int, input BeltThroughputStartInput) int
-		BuildAsPlayer               func(childComplexity int, input BuildAsPlayerInput) int
 		BuildCell                   func(childComplexity int, input BuildCellInput) int
 		BuildConnection             func(childComplexity int, input ConnectEntitiesInput, dryRun bool) int
 		BuildGhosts                 func(childComplexity int, input BuildGhostsInput) int
@@ -2564,6 +2699,9 @@ type ComplexityRoot struct {
 		Equip                       func(childComplexity int, input EquipInput) int
 		EquipGrid                   func(childComplexity int, input EquipGridInput) int
 		ExportMapSnapshotToMemgraph func(childComplexity int, input ExportMapSnapshotToMemgraphInput) int
+		FactorioformForget          func(childComplexity int, input FactorioformForgetInput) int
+		FactorioformImport          func(childComplexity int, input FactorioformImportInput) int
+		FactorioformRefresh         func(childComplexity int, input FactorioformRefreshInput) int
 		Fuel                        func(childComplexity int, input FuelInput) int
 		FuelMany                    func(childComplexity int, input FuelManyInput) int
 		GiveBlueprintBook           func(childComplexity int, input GiveBlueprintBookInput) int
@@ -2956,6 +3094,8 @@ type ComplexityRoot struct {
 		Entity             func(childComplexity int, input EntityRefInput) int
 		EntityCount        func(childComplexity int, input EntityCountInput) int
 		EntitySettings     func(childComplexity int, input EntitySettingsInput) int
+		FactorioformPlan   func(childComplexity int, input FactorioformPlanInput) int
+		FactorioformState  func(childComplexity int, name *string) int
 		FactoryAlerts      func(childComplexity int, input FactoryAlertsInput) int
 		FactoryBriefing    func(childComplexity int, input FactoryBriefingInput) int
 		FactoryDefects     func(childComplexity int, input FactoryDefectsInput) int
@@ -3841,6 +3981,9 @@ type MutationResolver interface {
 	SetEntityTags(ctx context.Context, input EntityTagsInput) (*EntityMetaResult, error)
 	SetNameTag(ctx context.Context, input EntityNameTagInput) (*EntityMetaResult, error)
 	SetCombinatorParameters(ctx context.Context, input SetCombinatorParametersInput) (*EntityMetaResult, error)
+	FactorioformImport(ctx context.Context, input FactorioformImportInput) (*FactorioformImportResult, error)
+	FactorioformForget(ctx context.Context, input FactorioformForgetInput) (*FactorioformForgetResult, error)
+	FactorioformRefresh(ctx context.Context, input FactorioformRefreshInput) (*FactorioformRefreshResult, error)
 	SetFluid(ctx context.Context, input SetFluidInput) (*FluidWriteResult, error)
 	BeltThroughputStart(ctx context.Context, input BeltThroughputStartInput) (*BeltThroughputMeasurement, error)
 	BeltStretchMeasure(ctx context.Context, input BeltStretchMeasureInput) (*BeltStretchMeasurement, error)
@@ -3871,7 +4014,6 @@ type MutationResolver interface {
 	CreateSpacePlatform(ctx context.Context, input CreateSpacePlatformInput) (*SpacePlatformInfo, error)
 	ApplyStarterPack(ctx context.Context, input SpacePlatformRefInput) (*SpacePlatformInfo, error)
 	DeleteSpacePlatform(ctx context.Context, input SpacePlatformRefInput) (*SpacePlatformInfo, error)
-	BuildAsPlayer(ctx context.Context, input BuildAsPlayerInput) (*ActionResult, error)
 	SetTrainSchedule(ctx context.Context, input SetTrainScheduleInput) (*TrainInfo, error)
 	TrainControl(ctx context.Context, input TrainControlInput) (*TrainInfo, error)
 	SetDirection(ctx context.Context, input SetDirectionInput) (*ActionResult, error)
@@ -3908,6 +4050,8 @@ type QueryResolver interface {
 	ConnectionPlan(ctx context.Context, input ConnectionPlanInput) (*ConnectionPlan, error)
 	LogisticNetworks(ctx context.Context, input *LogisticNetworksInput) (*LogisticNetworkPage, error)
 	ConstructionOrders(ctx context.Context, input *ConstructionOrdersInput) (*ConstructionOrderPage, error)
+	FactorioformPlan(ctx context.Context, input FactorioformPlanInput) (*FactorioformPlan, error)
+	FactorioformState(ctx context.Context, name *string) ([]*FactorioformManifestState, error)
 	FactoryDefects(ctx context.Context, input FactoryDefectsInput) (*FactoryDefects, error)
 	FluidStock(ctx context.Context, input *FluidStockInput) (*FluidStockPage, error)
 	FluidSegments(ctx context.Context, input FluidSegmentsInput) (*FluidSegmentsReport, error)
@@ -6322,6 +6466,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BriefingPower.ConsumptionWatts(childComplexity), true
+	case "BriefingPower.loadRatio":
+		if e.ComplexityRoot.BriefingPower.LoadRatio == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BriefingPower.LoadRatio(childComplexity), true
 	case "BriefingPower.lowPowerConsumers":
 		if e.ComplexityRoot.BriefingPower.LowPowerConsumers == nil {
 			break
@@ -6340,12 +6490,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BriefingPower.ProductionWatts(childComplexity), true
-	case "BriefingPower.satisfaction":
-		if e.ComplexityRoot.BriefingPower.Satisfaction == nil {
-			break
-		}
-
-		return e.ComplexityRoot.BriefingPower.Satisfaction(childComplexity), true
 
 	case "BriefingResearch.currentTechnology":
 		if e.ComplexityRoot.BriefingResearch.CurrentTechnology == nil {
@@ -8481,6 +8625,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ElectricNetworkInsight.ID(childComplexity), true
+	case "ElectricNetworkInsight.loadRatio":
+		if e.ComplexityRoot.ElectricNetworkInsight.LoadRatio == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ElectricNetworkInsight.LoadRatio(childComplexity), true
 	case "ElectricNetworkInsight.lowPowerConsumers":
 		if e.ComplexityRoot.ElectricNetworkInsight.LowPowerConsumers == nil {
 			break
@@ -8505,12 +8655,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ElectricNetworkInsight.ProductionWatts(childComplexity), true
-	case "ElectricNetworkInsight.satisfaction":
-		if e.ComplexityRoot.ElectricNetworkInsight.Satisfaction == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ElectricNetworkInsight.Satisfaction(childComplexity), true
 
 	case "ElectricNetworkPage.force":
 		if e.ComplexityRoot.ElectricNetworkPage.Force == nil {
@@ -9073,6 +9217,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.EntityPrototype.CraftingSpeed(childComplexity), true
+	case "EntityPrototype.drillOutput":
+		if e.ComplexityRoot.EntityPrototype.DrillOutput == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EntityPrototype.DrillOutput(childComplexity), true
 	case "EntityPrototype.energyUsageWatts":
 		if e.ComplexityRoot.EntityPrototype.EnergyUsageWatts == nil {
 			break
@@ -9286,6 +9436,543 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.EquipmentGridResult.Tick(childComplexity), true
+
+	case "FactorioformForgetResult.forgotten":
+		if e.ComplexityRoot.FactorioformForgetResult.Forgotten == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformForgetResult.Forgotten(childComplexity), true
+	case "FactorioformForgetResult.manifestDeleted":
+		if e.ComplexityRoot.FactorioformForgetResult.ManifestDeleted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformForgetResult.ManifestDeleted(childComplexity), true
+	case "FactorioformForgetResult.missing":
+		if e.ComplexityRoot.FactorioformForgetResult.Missing == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformForgetResult.Missing(childComplexity), true
+	case "FactorioformForgetResult.name":
+		if e.ComplexityRoot.FactorioformForgetResult.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformForgetResult.Name(childComplexity), true
+	case "FactorioformForgetResult.remaining":
+		if e.ComplexityRoot.FactorioformForgetResult.Remaining == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformForgetResult.Remaining(childComplexity), true
+	case "FactorioformForgetResult.tick":
+		if e.ComplexityRoot.FactorioformForgetResult.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformForgetResult.Tick(childComplexity), true
+
+	case "FactorioformImportResult.manifest":
+		if e.ComplexityRoot.FactorioformImportResult.Manifest == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformImportResult.Manifest(childComplexity), true
+	case "FactorioformImportResult.replacedUnitNumber":
+		if e.ComplexityRoot.FactorioformImportResult.ReplacedUnitNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformImportResult.ReplacedUnitNumber(childComplexity), true
+	case "FactorioformImportResult.resource":
+		if e.ComplexityRoot.FactorioformImportResult.Resource == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformImportResult.Resource(childComplexity), true
+	case "FactorioformImportResult.tick":
+		if e.ComplexityRoot.FactorioformImportResult.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformImportResult.Tick(childComplexity), true
+
+	case "FactorioformManifestState.force":
+		if e.ComplexityRoot.FactorioformManifestState.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformManifestState.Force(childComplexity), true
+	case "FactorioformManifestState.name":
+		if e.ComplexityRoot.FactorioformManifestState.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformManifestState.Name(childComplexity), true
+	case "FactorioformManifestState.resourceCount":
+		if e.ComplexityRoot.FactorioformManifestState.ResourceCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformManifestState.ResourceCount(childComplexity), true
+	case "FactorioformManifestState.resources":
+		if e.ComplexityRoot.FactorioformManifestState.Resources == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformManifestState.Resources(childComplexity), true
+	case "FactorioformManifestState.surface":
+		if e.ComplexityRoot.FactorioformManifestState.Surface == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformManifestState.Surface(childComplexity), true
+	case "FactorioformManifestState.updatedTick":
+		if e.ComplexityRoot.FactorioformManifestState.UpdatedTick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformManifestState.UpdatedTick(childComplexity), true
+
+	case "FactorioformPlan.diffs":
+		if e.ComplexityRoot.FactorioformPlan.Diffs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlan.Diffs(childComplexity), true
+	case "FactorioformPlan.force":
+		if e.ComplexityRoot.FactorioformPlan.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlan.Force(childComplexity), true
+	case "FactorioformPlan.formatVersion":
+		if e.ComplexityRoot.FactorioformPlan.FormatVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlan.FormatVersion(childComplexity), true
+	case "FactorioformPlan.manifest":
+		if e.ComplexityRoot.FactorioformPlan.Manifest == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlan.Manifest(childComplexity), true
+	case "FactorioformPlan.materials":
+		if e.ComplexityRoot.FactorioformPlan.Materials == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlan.Materials(childComplexity), true
+	case "FactorioformPlan.planId":
+		if e.ComplexityRoot.FactorioformPlan.PlanID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlan.PlanID(childComplexity), true
+	case "FactorioformPlan.status":
+		if e.ComplexityRoot.FactorioformPlan.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlan.Status(childComplexity), true
+	case "FactorioformPlan.steps":
+		if e.ComplexityRoot.FactorioformPlan.Steps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlan.Steps(childComplexity), true
+	case "FactorioformPlan.summary":
+		if e.ComplexityRoot.FactorioformPlan.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlan.Summary(childComplexity), true
+	case "FactorioformPlan.surface":
+		if e.ComplexityRoot.FactorioformPlan.Surface == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlan.Surface(childComplexity), true
+	case "FactorioformPlan.tick":
+		if e.ComplexityRoot.FactorioformPlan.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlan.Tick(childComplexity), true
+
+	case "FactorioformPlanBlocker.entity":
+		if e.ComplexityRoot.FactorioformPlanBlocker.Entity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanBlocker.Entity(childComplexity), true
+	case "FactorioformPlanBlocker.position":
+		if e.ComplexityRoot.FactorioformPlanBlocker.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanBlocker.Position(childComplexity), true
+	case "FactorioformPlanBlocker.unitNumber":
+		if e.ComplexityRoot.FactorioformPlanBlocker.UnitNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanBlocker.UnitNumber(childComplexity), true
+
+	case "FactorioformPlanChange.after":
+		if e.ComplexityRoot.FactorioformPlanChange.After == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanChange.After(childComplexity), true
+	case "FactorioformPlanChange.before":
+		if e.ComplexityRoot.FactorioformPlanChange.Before == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanChange.Before(childComplexity), true
+	case "FactorioformPlanChange.path":
+		if e.ComplexityRoot.FactorioformPlanChange.Path == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanChange.Path(childComplexity), true
+
+	case "FactorioformPlanDiff.action":
+		if e.ComplexityRoot.FactorioformPlanDiff.Action == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanDiff.Action(childComplexity), true
+	case "FactorioformPlanDiff.address":
+		if e.ComplexityRoot.FactorioformPlanDiff.Address == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanDiff.Address(childComplexity), true
+	case "FactorioformPlanDiff.blockers":
+		if e.ComplexityRoot.FactorioformPlanDiff.Blockers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanDiff.Blockers(childComplexity), true
+	case "FactorioformPlanDiff.changes":
+		if e.ComplexityRoot.FactorioformPlanDiff.Changes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanDiff.Changes(childComplexity), true
+	case "FactorioformPlanDiff.direction":
+		if e.ComplexityRoot.FactorioformPlanDiff.Direction == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanDiff.Direction(childComplexity), true
+	case "FactorioformPlanDiff.entity":
+		if e.ComplexityRoot.FactorioformPlanDiff.Entity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanDiff.Entity(childComplexity), true
+	case "FactorioformPlanDiff.position":
+		if e.ComplexityRoot.FactorioformPlanDiff.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanDiff.Position(childComplexity), true
+	case "FactorioformPlanDiff.quality":
+		if e.ComplexityRoot.FactorioformPlanDiff.Quality == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanDiff.Quality(childComplexity), true
+	case "FactorioformPlanDiff.reason":
+		if e.ComplexityRoot.FactorioformPlanDiff.Reason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanDiff.Reason(childComplexity), true
+	case "FactorioformPlanDiff.unitNumber":
+		if e.ComplexityRoot.FactorioformPlanDiff.UnitNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanDiff.UnitNumber(childComplexity), true
+	case "FactorioformPlanDiff.wire":
+		if e.ComplexityRoot.FactorioformPlanDiff.Wire == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanDiff.Wire(childComplexity), true
+
+	case "FactorioformPlanMaterial.count":
+		if e.ComplexityRoot.FactorioformPlanMaterial.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanMaterial.Count(childComplexity), true
+	case "FactorioformPlanMaterial.name":
+		if e.ComplexityRoot.FactorioformPlanMaterial.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanMaterial.Name(childComplexity), true
+	case "FactorioformPlanMaterial.quality":
+		if e.ComplexityRoot.FactorioformPlanMaterial.Quality == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanMaterial.Quality(childComplexity), true
+
+	case "FactorioformPlanStep.addresses":
+		if e.ComplexityRoot.FactorioformPlanStep.Addresses == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanStep.Addresses(childComplexity), true
+	case "FactorioformPlanStep.document":
+		if e.ComplexityRoot.FactorioformPlanStep.Document == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanStep.Document(childComplexity), true
+	case "FactorioformPlanStep.kind":
+		if e.ComplexityRoot.FactorioformPlanStep.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanStep.Kind(childComplexity), true
+	case "FactorioformPlanStep.operation":
+		if e.ComplexityRoot.FactorioformPlanStep.Operation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanStep.Operation(childComplexity), true
+	case "FactorioformPlanStep.order":
+		if e.ComplexityRoot.FactorioformPlanStep.Order == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanStep.Order(childComplexity), true
+	case "FactorioformPlanStep.requiresActor":
+		if e.ComplexityRoot.FactorioformPlanStep.RequiresActor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanStep.RequiresActor(childComplexity), true
+	case "FactorioformPlanStep.variables":
+		if e.ComplexityRoot.FactorioformPlanStep.Variables == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanStep.Variables(childComplexity), true
+
+	case "FactorioformPlanSummary.adopt":
+		if e.ComplexityRoot.FactorioformPlanSummary.Adopt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanSummary.Adopt(childComplexity), true
+	case "FactorioformPlanSummary.conflict":
+		if e.ComplexityRoot.FactorioformPlanSummary.Conflict == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanSummary.Conflict(childComplexity), true
+	case "FactorioformPlanSummary.create":
+		if e.ComplexityRoot.FactorioformPlanSummary.Create == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanSummary.Create(childComplexity), true
+	case "FactorioformPlanSummary.delete":
+		if e.ComplexityRoot.FactorioformPlanSummary.Delete == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanSummary.Delete(childComplexity), true
+	case "FactorioformPlanSummary.drift":
+		if e.ComplexityRoot.FactorioformPlanSummary.Drift == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanSummary.Drift(childComplexity), true
+	case "FactorioformPlanSummary.noop":
+		if e.ComplexityRoot.FactorioformPlanSummary.Noop == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanSummary.Noop(childComplexity), true
+	case "FactorioformPlanSummary.pending":
+		if e.ComplexityRoot.FactorioformPlanSummary.Pending == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanSummary.Pending(childComplexity), true
+	case "FactorioformPlanSummary.replace":
+		if e.ComplexityRoot.FactorioformPlanSummary.Replace == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanSummary.Replace(childComplexity), true
+	case "FactorioformPlanSummary.update":
+		if e.ComplexityRoot.FactorioformPlanSummary.Update == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanSummary.Update(childComplexity), true
+
+	case "FactorioformPlanWire.color":
+		if e.ComplexityRoot.FactorioformPlanWire.Color == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanWire.Color(childComplexity), true
+	case "FactorioformPlanWire.fromAddress":
+		if e.ComplexityRoot.FactorioformPlanWire.FromAddress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanWire.FromAddress(childComplexity), true
+	case "FactorioformPlanWire.fromConnector":
+		if e.ComplexityRoot.FactorioformPlanWire.FromConnector == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanWire.FromConnector(childComplexity), true
+	case "FactorioformPlanWire.fromUnit":
+		if e.ComplexityRoot.FactorioformPlanWire.FromUnit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanWire.FromUnit(childComplexity), true
+	case "FactorioformPlanWire.toAddress":
+		if e.ComplexityRoot.FactorioformPlanWire.ToAddress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanWire.ToAddress(childComplexity), true
+	case "FactorioformPlanWire.toConnector":
+		if e.ComplexityRoot.FactorioformPlanWire.ToConnector == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanWire.ToConnector(childComplexity), true
+	case "FactorioformPlanWire.toUnit":
+		if e.ComplexityRoot.FactorioformPlanWire.ToUnit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformPlanWire.ToUnit(childComplexity), true
+
+	case "FactorioformRefreshRecorded.address":
+		if e.ComplexityRoot.FactorioformRefreshRecorded.Address == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformRefreshRecorded.Address(childComplexity), true
+	case "FactorioformRefreshRecorded.unitNumber":
+		if e.ComplexityRoot.FactorioformRefreshRecorded.UnitNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformRefreshRecorded.UnitNumber(childComplexity), true
+
+	case "FactorioformRefreshResult.dryRun":
+		if e.ComplexityRoot.FactorioformRefreshResult.DryRun == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformRefreshResult.DryRun(childComplexity), true
+	case "FactorioformRefreshResult.manifest":
+		if e.ComplexityRoot.FactorioformRefreshResult.Manifest == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformRefreshResult.Manifest(childComplexity), true
+	case "FactorioformRefreshResult.pruned":
+		if e.ComplexityRoot.FactorioformRefreshResult.Pruned == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformRefreshResult.Pruned(childComplexity), true
+	case "FactorioformRefreshResult.recorded":
+		if e.ComplexityRoot.FactorioformRefreshResult.Recorded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformRefreshResult.Recorded(childComplexity), true
+	case "FactorioformRefreshResult.status":
+		if e.ComplexityRoot.FactorioformRefreshResult.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformRefreshResult.Status(childComplexity), true
+	case "FactorioformRefreshResult.tick":
+		if e.ComplexityRoot.FactorioformRefreshResult.Tick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformRefreshResult.Tick(childComplexity), true
+	case "FactorioformRefreshResult.unmatched":
+		if e.ComplexityRoot.FactorioformRefreshResult.Unmatched == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformRefreshResult.Unmatched(childComplexity), true
+
+	case "FactorioformRefreshUnmatched.address":
+		if e.ComplexityRoot.FactorioformRefreshUnmatched.Address == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformRefreshUnmatched.Address(childComplexity), true
+	case "FactorioformRefreshUnmatched.reason":
+		if e.ComplexityRoot.FactorioformRefreshUnmatched.Reason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformRefreshUnmatched.Reason(childComplexity), true
+
+	case "FactorioformStateResource.address":
+		if e.ComplexityRoot.FactorioformStateResource.Address == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformStateResource.Address(childComplexity), true
+	case "FactorioformStateResource.direction":
+		if e.ComplexityRoot.FactorioformStateResource.Direction == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformStateResource.Direction(childComplexity), true
+	case "FactorioformStateResource.entity":
+		if e.ComplexityRoot.FactorioformStateResource.Entity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformStateResource.Entity(childComplexity), true
+	case "FactorioformStateResource.position":
+		if e.ComplexityRoot.FactorioformStateResource.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformStateResource.Position(childComplexity), true
+	case "FactorioformStateResource.quality":
+		if e.ComplexityRoot.FactorioformStateResource.Quality == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformStateResource.Quality(childComplexity), true
+	case "FactorioformStateResource.unitNumber":
+		if e.ComplexityRoot.FactorioformStateResource.UnitNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FactorioformStateResource.UnitNumber(childComplexity), true
 
 	case "FactoryAlert.cause":
 		if e.ComplexityRoot.FactoryAlert.Cause == nil {
@@ -11259,6 +11946,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.InserterSettings.Circuit(childComplexity), true
+	case "InserterSettings.customVectorsAllowed":
+		if e.ComplexityRoot.InserterSettings.CustomVectorsAllowed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InserterSettings.CustomVectorsAllowed(childComplexity), true
+	case "InserterSettings.dropVector":
+		if e.ComplexityRoot.InserterSettings.DropVector == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InserterSettings.DropVector(childComplexity), true
 	case "InserterSettings.filterMode":
 		if e.ComplexityRoot.InserterSettings.FilterMode == nil {
 			break
@@ -11289,6 +11988,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.InserterSettings.PickupFromRightLane(childComplexity), true
+	case "InserterSettings.pickupVector":
+		if e.ComplexityRoot.InserterSettings.PickupVector == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InserterSettings.PickupVector(childComplexity), true
 	case "InserterSettings.stackSizeOverride":
 		if e.ComplexityRoot.InserterSettings.StackSizeOverride == nil {
 			break
@@ -14994,17 +15699,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.BeltThroughputStart(childComplexity, args["input"].(BeltThroughputStartInput)), true
-	case "Mutation.buildAsPlayer":
-		if e.ComplexityRoot.Mutation.BuildAsPlayer == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_buildAsPlayer_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.BuildAsPlayer(childComplexity, args["input"].(BuildAsPlayerInput)), true
 	case "Mutation.buildCell":
 		if e.ComplexityRoot.Mutation.BuildCell == nil {
 			break
@@ -15357,6 +16051,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ExportMapSnapshotToMemgraph(childComplexity, args["input"].(ExportMapSnapshotToMemgraphInput)), true
+	case "Mutation.factorioformForget":
+		if e.ComplexityRoot.Mutation.FactorioformForget == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_factorioformForget_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.FactorioformForget(childComplexity, args["input"].(FactorioformForgetInput)), true
+	case "Mutation.factorioformImport":
+		if e.ComplexityRoot.Mutation.FactorioformImport == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_factorioformImport_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.FactorioformImport(childComplexity, args["input"].(FactorioformImportInput)), true
+	case "Mutation.factorioformRefresh":
+		if e.ComplexityRoot.Mutation.FactorioformRefresh == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_factorioformRefresh_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.FactorioformRefresh(childComplexity, args["input"].(FactorioformRefreshInput)), true
 	case "Mutation.fuel":
 		if e.ComplexityRoot.Mutation.Fuel == nil {
 			break
@@ -17597,6 +18324,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.EntitySettings(childComplexity, args["input"].(EntitySettingsInput)), true
+	case "Query.factorioformPlan":
+		if e.ComplexityRoot.Query.FactorioformPlan == nil {
+			break
+		}
+
+		args, err := ec.field_Query_factorioformPlan_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.FactorioformPlan(childComplexity, args["input"].(FactorioformPlanInput)), true
+	case "Query.factorioformState":
+		if e.ComplexityRoot.Query.FactorioformState == nil {
+			break
+		}
+
+		args, err := ec.field_Query_factorioformState_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.FactorioformState(childComplexity, args["name"].(*string)), true
 	case "Query.factoryAlerts":
 		if e.ComplexityRoot.Query.FactoryAlerts == nil {
 			break
@@ -21089,7 +21838,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputBlueprintEntityInput,
 		ec.unmarshalInputBlueprintTileInput,
 		ec.unmarshalInputBriefingWatchItemInput,
-		ec.unmarshalInputBuildAsPlayerInput,
 		ec.unmarshalInputBuildCellEntryInput,
 		ec.unmarshalInputBuildCellInput,
 		ec.unmarshalInputBuildGhostsInput,
@@ -21144,6 +21892,11 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputEquipGridInput,
 		ec.unmarshalInputEquipInput,
 		ec.unmarshalInputExportMapSnapshotToMemgraphInput,
+		ec.unmarshalInputFactorioformFileInput,
+		ec.unmarshalInputFactorioformForgetInput,
+		ec.unmarshalInputFactorioformImportInput,
+		ec.unmarshalInputFactorioformPlanInput,
+		ec.unmarshalInputFactorioformRefreshInput,
 		ec.unmarshalInputFactoryAlertsInput,
 		ec.unmarshalInputFactoryAreaInput,
 		ec.unmarshalInputFactoryBriefingInput,
@@ -21345,7 +22098,7 @@ func newExecutionContext(
 	}
 }
 
-//go:embed "agent_actions.graphqls" "api_design.graphqls" "batch_actions.graphqls" "blueprint_catalog.graphqls" "briefing.graphqls" "build_cell.graphqls" "connection.graphqls" "construction.graphqls" "entity_meta.graphqls" "factory_defects.graphqls" "fluids.graphqls" "insights_belt_flow.graphqls" "insights_diagnostics.graphqls" "insights_operations.graphqls" "insights_planning.graphqls" "insights_player.graphqls" "insights_power.graphqls" "insights_recipes.graphqls" "insights_research.graphqls" "insights_safety.graphqls" "insights_stock.graphqls" "insights_topology.graphqls" "insights_world.graphqls" "map_area.graphqls" "memgraph.graphqls" "memgraph_area.graphqls" "memgraph_audits.graphqls" "memgraph_insights.graphqls" "memgraph_stretches.graphqls" "memgraph_trace.graphqls" "navigation.graphqls" "nearest_placement.graphqls" "occupancy.graphqls" "player_gear.graphqls" "prototype.graphqls" "research_extra.graphqls" "schema.graphqls" "screenshot.graphqls" "settings.graphqls" "space_platforms.graphqls" "trains.graphqls" "wait.graphqls" "world_extra.graphqls" "writes_extra.graphqls"
+//go:embed "agent_actions.graphqls" "api_design.graphqls" "batch_actions.graphqls" "blueprint_catalog.graphqls" "briefing.graphqls" "build_cell.graphqls" "connection.graphqls" "construction.graphqls" "entity_meta.graphqls" "factorioform.graphqls" "factory_defects.graphqls" "fluids.graphqls" "insights_belt_flow.graphqls" "insights_diagnostics.graphqls" "insights_operations.graphqls" "insights_planning.graphqls" "insights_player.graphqls" "insights_power.graphqls" "insights_recipes.graphqls" "insights_research.graphqls" "insights_safety.graphqls" "insights_stock.graphqls" "insights_topology.graphqls" "insights_world.graphqls" "map_area.graphqls" "memgraph.graphqls" "memgraph_area.graphqls" "memgraph_audits.graphqls" "memgraph_insights.graphqls" "memgraph_stretches.graphqls" "memgraph_trace.graphqls" "navigation.graphqls" "nearest_placement.graphqls" "occupancy.graphqls" "player_gear.graphqls" "prototype.graphqls" "research_extra.graphqls" "schema.graphqls" "screenshot.graphqls" "settings.graphqls" "space_platforms.graphqls" "trains.graphqls" "wait.graphqls" "world_extra.graphqls" "writes_extra.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -21366,6 +22119,7 @@ var sources = []*ast.Source{
 	{Name: "connection.graphqls", Input: sourceData("connection.graphqls"), BuiltIn: false},
 	{Name: "construction.graphqls", Input: sourceData("construction.graphqls"), BuiltIn: false},
 	{Name: "entity_meta.graphqls", Input: sourceData("entity_meta.graphqls"), BuiltIn: false},
+	{Name: "factorioform.graphqls", Input: sourceData("factorioform.graphqls"), BuiltIn: false},
 	{Name: "factory_defects.graphqls", Input: sourceData("factory_defects.graphqls"), BuiltIn: false},
 	{Name: "fluids.graphqls", Input: sourceData("fluids.graphqls"), BuiltIn: false},
 	{Name: "insights_belt_flow.graphqls", Input: sourceData("insights_belt_flow.graphqls"), BuiltIn: false},
@@ -21850,17 +22604,6 @@ func (ec *executionContext) field_Mutation_beltThroughputStart_args(ctx context.
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_buildAsPlayer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNBuildAsPlayerInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildAsPlayerInput)
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_buildCell_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -22211,6 +22954,39 @@ func (ec *executionContext) field_Mutation_exportMapSnapshotToMemgraph_args(ctx 
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNExportMapSnapshotToMemgraphInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐExportMapSnapshotToMemgraphInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_factorioformForget_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNFactorioformForgetInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformForgetInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_factorioformImport_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNFactorioformImportInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformImportInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_factorioformRefresh_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNFactorioformRefreshInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshInput)
 	if err != nil {
 		return nil, err
 	}
@@ -23194,6 +23970,28 @@ func (ec *executionContext) field_Query_entity_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_factorioformPlan_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNFactorioformPlanInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_factorioformState_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
 	return args, nil
 }
 
@@ -36551,14 +37349,14 @@ func (ec *executionContext) fieldContext_BriefingPower_capacityWatts(_ context.C
 	return fc, nil
 }
 
-func (ec *executionContext) _BriefingPower_satisfaction(ctx context.Context, field graphql.CollectedField, obj *BriefingPower) (ret graphql.Marshaler) {
+func (ec *executionContext) _BriefingPower_loadRatio(ctx context.Context, field graphql.CollectedField, obj *BriefingPower) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_BriefingPower_satisfaction,
+		ec.fieldContext_BriefingPower_loadRatio,
 		func(ctx context.Context) (any, error) {
-			return obj.Satisfaction, nil
+			return obj.LoadRatio, nil
 		},
 		nil,
 		ec.marshalNFloat2float64,
@@ -36567,7 +37365,7 @@ func (ec *executionContext) _BriefingPower_satisfaction(ctx context.Context, fie
 	)
 }
 
-func (ec *executionContext) fieldContext_BriefingPower_satisfaction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_BriefingPower_loadRatio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "BriefingPower",
 		Field:      field,
@@ -48059,14 +48857,14 @@ func (ec *executionContext) fieldContext_ElectricNetworkInsight_lowPowerConsumer
 	return fc, nil
 }
 
-func (ec *executionContext) _ElectricNetworkInsight_satisfaction(ctx context.Context, field graphql.CollectedField, obj *ElectricNetworkInsight) (ret graphql.Marshaler) {
+func (ec *executionContext) _ElectricNetworkInsight_loadRatio(ctx context.Context, field graphql.CollectedField, obj *ElectricNetworkInsight) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_ElectricNetworkInsight_satisfaction,
+		ec.fieldContext_ElectricNetworkInsight_loadRatio,
 		func(ctx context.Context) (any, error) {
-			return obj.Satisfaction, nil
+			return obj.LoadRatio, nil
 		},
 		nil,
 		ec.marshalOFloat2ᚖfloat64,
@@ -48075,7 +48873,7 @@ func (ec *executionContext) _ElectricNetworkInsight_satisfaction(ctx context.Con
 	)
 }
 
-func (ec *executionContext) fieldContext_ElectricNetworkInsight_satisfaction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_ElectricNetworkInsight_loadRatio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ElectricNetworkInsight",
 		Field:      field,
@@ -48254,8 +49052,8 @@ func (ec *executionContext) fieldContext_ElectricNetworkPage_networks(_ context.
 				return ec.fieldContext_ElectricNetworkInsight_accumulatorCapacityJoules(ctx, field)
 			case "lowPowerConsumers":
 				return ec.fieldContext_ElectricNetworkInsight_lowPowerConsumers(ctx, field)
-			case "satisfaction":
-				return ec.fieldContext_ElectricNetworkInsight_satisfaction(ctx, field)
+			case "loadRatio":
+				return ec.fieldContext_ElectricNetworkInsight_loadRatio(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ElectricNetworkInsight", field.Name)
 		},
@@ -51478,6 +52276,41 @@ func (ec *executionContext) fieldContext_EntityPrototype_inserterDrop(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _EntityPrototype_drillOutput(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EntityPrototype_drillOutput,
+		func(ctx context.Context) (any, error) {
+			return obj.DrillOutput, nil
+		},
+		nil,
+		ec.marshalOPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EntityPrototype_drillOutput(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EntityPrototype",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _EntityPrototype_wireReach(ctx context.Context, field graphql.CollectedField, obj *EntityPrototype) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -52367,6 +53200,2701 @@ func (ec *executionContext) fieldContext_EquipmentGridResult_moved(_ context.Con
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformForgetResult_tick(ctx context.Context, field graphql.CollectedField, obj *FactorioformForgetResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformForgetResult_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformForgetResult_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformForgetResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformForgetResult_name(ctx context.Context, field graphql.CollectedField, obj *FactorioformForgetResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformForgetResult_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformForgetResult_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformForgetResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformForgetResult_forgotten(ctx context.Context, field graphql.CollectedField, obj *FactorioformForgetResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformForgetResult_forgotten,
+		func(ctx context.Context) (any, error) {
+			return obj.Forgotten, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformForgetResult_forgotten(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformForgetResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformForgetResult_missing(ctx context.Context, field graphql.CollectedField, obj *FactorioformForgetResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformForgetResult_missing,
+		func(ctx context.Context) (any, error) {
+			return obj.Missing, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformForgetResult_missing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformForgetResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformForgetResult_manifestDeleted(ctx context.Context, field graphql.CollectedField, obj *FactorioformForgetResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformForgetResult_manifestDeleted,
+		func(ctx context.Context) (any, error) {
+			return obj.ManifestDeleted, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformForgetResult_manifestDeleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformForgetResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformForgetResult_remaining(ctx context.Context, field graphql.CollectedField, obj *FactorioformForgetResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformForgetResult_remaining,
+		func(ctx context.Context) (any, error) {
+			return obj.Remaining, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformForgetResult_remaining(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformForgetResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformImportResult_tick(ctx context.Context, field graphql.CollectedField, obj *FactorioformImportResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformImportResult_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformImportResult_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformImportResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformImportResult_resource(ctx context.Context, field graphql.CollectedField, obj *FactorioformImportResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformImportResult_resource,
+		func(ctx context.Context) (any, error) {
+			return obj.Resource, nil
+		},
+		nil,
+		ec.marshalNFactorioformStateResource2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformStateResource,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformImportResult_resource(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformImportResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "address":
+				return ec.fieldContext_FactorioformStateResource_address(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_FactorioformStateResource_unitNumber(ctx, field)
+			case "entity":
+				return ec.fieldContext_FactorioformStateResource_entity(ctx, field)
+			case "position":
+				return ec.fieldContext_FactorioformStateResource_position(ctx, field)
+			case "direction":
+				return ec.fieldContext_FactorioformStateResource_direction(ctx, field)
+			case "quality":
+				return ec.fieldContext_FactorioformStateResource_quality(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformStateResource", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformImportResult_replacedUnitNumber(ctx context.Context, field graphql.CollectedField, obj *FactorioformImportResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformImportResult_replacedUnitNumber,
+		func(ctx context.Context) (any, error) {
+			return obj.ReplacedUnitNumber, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformImportResult_replacedUnitNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformImportResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformImportResult_manifest(ctx context.Context, field graphql.CollectedField, obj *FactorioformImportResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformImportResult_manifest,
+		func(ctx context.Context) (any, error) {
+			return obj.Manifest, nil
+		},
+		nil,
+		ec.marshalNFactorioformManifestState2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformManifestState,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformImportResult_manifest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformImportResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_FactorioformManifestState_name(ctx, field)
+			case "surface":
+				return ec.fieldContext_FactorioformManifestState_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_FactorioformManifestState_force(ctx, field)
+			case "updatedTick":
+				return ec.fieldContext_FactorioformManifestState_updatedTick(ctx, field)
+			case "resourceCount":
+				return ec.fieldContext_FactorioformManifestState_resourceCount(ctx, field)
+			case "resources":
+				return ec.fieldContext_FactorioformManifestState_resources(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformManifestState", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformManifestState_name(ctx context.Context, field graphql.CollectedField, obj *FactorioformManifestState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformManifestState_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformManifestState_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformManifestState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformManifestState_surface(ctx context.Context, field graphql.CollectedField, obj *FactorioformManifestState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformManifestState_surface,
+		func(ctx context.Context) (any, error) {
+			return obj.Surface, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformManifestState_surface(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformManifestState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformManifestState_force(ctx context.Context, field graphql.CollectedField, obj *FactorioformManifestState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformManifestState_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformManifestState_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformManifestState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformManifestState_updatedTick(ctx context.Context, field graphql.CollectedField, obj *FactorioformManifestState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformManifestState_updatedTick,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedTick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformManifestState_updatedTick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformManifestState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformManifestState_resourceCount(ctx context.Context, field graphql.CollectedField, obj *FactorioformManifestState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformManifestState_resourceCount,
+		func(ctx context.Context) (any, error) {
+			return obj.ResourceCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformManifestState_resourceCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformManifestState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformManifestState_resources(ctx context.Context, field graphql.CollectedField, obj *FactorioformManifestState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformManifestState_resources,
+		func(ctx context.Context) (any, error) {
+			return obj.Resources, nil
+		},
+		nil,
+		ec.marshalNFactorioformStateResource2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformStateResourceᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformManifestState_resources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformManifestState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "address":
+				return ec.fieldContext_FactorioformStateResource_address(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_FactorioformStateResource_unitNumber(ctx, field)
+			case "entity":
+				return ec.fieldContext_FactorioformStateResource_entity(ctx, field)
+			case "position":
+				return ec.fieldContext_FactorioformStateResource_position(ctx, field)
+			case "direction":
+				return ec.fieldContext_FactorioformStateResource_direction(ctx, field)
+			case "quality":
+				return ec.fieldContext_FactorioformStateResource_quality(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformStateResource", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlan_formatVersion(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlan_formatVersion,
+		func(ctx context.Context) (any, error) {
+			return obj.FormatVersion, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlan_formatVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlan_manifest(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlan_manifest,
+		func(ctx context.Context) (any, error) {
+			return obj.Manifest, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlan_manifest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlan_planId(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlan_planId,
+		func(ctx context.Context) (any, error) {
+			return obj.PlanID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlan_planId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlan_tick(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlan_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlan_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlan_surface(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlan_surface,
+		func(ctx context.Context) (any, error) {
+			return obj.Surface, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlan_surface(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlan_force(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlan_force,
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlan_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlan_status(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlan_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlan_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlan_summary(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlan_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNFactorioformPlanSummary2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanSummary,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlan_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "create":
+				return ec.fieldContext_FactorioformPlanSummary_create(ctx, field)
+			case "update":
+				return ec.fieldContext_FactorioformPlanSummary_update(ctx, field)
+			case "replace":
+				return ec.fieldContext_FactorioformPlanSummary_replace(ctx, field)
+			case "delete":
+				return ec.fieldContext_FactorioformPlanSummary_delete(ctx, field)
+			case "drift":
+				return ec.fieldContext_FactorioformPlanSummary_drift(ctx, field)
+			case "adopt":
+				return ec.fieldContext_FactorioformPlanSummary_adopt(ctx, field)
+			case "conflict":
+				return ec.fieldContext_FactorioformPlanSummary_conflict(ctx, field)
+			case "pending":
+				return ec.fieldContext_FactorioformPlanSummary_pending(ctx, field)
+			case "noop":
+				return ec.fieldContext_FactorioformPlanSummary_noop(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformPlanSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlan_diffs(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlan_diffs,
+		func(ctx context.Context) (any, error) {
+			return obj.Diffs, nil
+		},
+		nil,
+		ec.marshalNFactorioformPlanDiff2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanDiffᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlan_diffs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "action":
+				return ec.fieldContext_FactorioformPlanDiff_action(ctx, field)
+			case "address":
+				return ec.fieldContext_FactorioformPlanDiff_address(ctx, field)
+			case "entity":
+				return ec.fieldContext_FactorioformPlanDiff_entity(ctx, field)
+			case "position":
+				return ec.fieldContext_FactorioformPlanDiff_position(ctx, field)
+			case "direction":
+				return ec.fieldContext_FactorioformPlanDiff_direction(ctx, field)
+			case "quality":
+				return ec.fieldContext_FactorioformPlanDiff_quality(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_FactorioformPlanDiff_unitNumber(ctx, field)
+			case "changes":
+				return ec.fieldContext_FactorioformPlanDiff_changes(ctx, field)
+			case "reason":
+				return ec.fieldContext_FactorioformPlanDiff_reason(ctx, field)
+			case "blockers":
+				return ec.fieldContext_FactorioformPlanDiff_blockers(ctx, field)
+			case "wire":
+				return ec.fieldContext_FactorioformPlanDiff_wire(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformPlanDiff", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlan_steps(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlan_steps,
+		func(ctx context.Context) (any, error) {
+			return obj.Steps, nil
+		},
+		nil,
+		ec.marshalNFactorioformPlanStep2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanStepᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlan_steps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "order":
+				return ec.fieldContext_FactorioformPlanStep_order(ctx, field)
+			case "kind":
+				return ec.fieldContext_FactorioformPlanStep_kind(ctx, field)
+			case "addresses":
+				return ec.fieldContext_FactorioformPlanStep_addresses(ctx, field)
+			case "operation":
+				return ec.fieldContext_FactorioformPlanStep_operation(ctx, field)
+			case "document":
+				return ec.fieldContext_FactorioformPlanStep_document(ctx, field)
+			case "variables":
+				return ec.fieldContext_FactorioformPlanStep_variables(ctx, field)
+			case "requiresActor":
+				return ec.fieldContext_FactorioformPlanStep_requiresActor(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformPlanStep", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlan_materials(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlan_materials,
+		func(ctx context.Context) (any, error) {
+			return obj.Materials, nil
+		},
+		nil,
+		ec.marshalNFactorioformPlanMaterial2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanMaterialᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlan_materials(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_FactorioformPlanMaterial_name(ctx, field)
+			case "quality":
+				return ec.fieldContext_FactorioformPlanMaterial_quality(ctx, field)
+			case "count":
+				return ec.fieldContext_FactorioformPlanMaterial_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformPlanMaterial", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanBlocker_unitNumber(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanBlocker) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanBlocker_unitNumber,
+		func(ctx context.Context) (any, error) {
+			return obj.UnitNumber, nil
+		},
+		nil,
+		ec.marshalNUnitNumber2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanBlocker_unitNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanBlocker",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanBlocker_entity(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanBlocker) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanBlocker_entity,
+		func(ctx context.Context) (any, error) {
+			return obj.Entity, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanBlocker_entity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanBlocker",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanBlocker_position(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanBlocker) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanBlocker_position,
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanBlocker_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanBlocker",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanChange_path(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanChange) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanChange_path,
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanChange_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanChange",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanChange_before(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanChange) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanChange_before,
+		func(ctx context.Context) (any, error) {
+			return obj.Before, nil
+		},
+		nil,
+		ec.marshalOAny2interface,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanChange_before(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanChange",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Any does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanChange_after(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanChange) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanChange_after,
+		func(ctx context.Context) (any, error) {
+			return obj.After, nil
+		},
+		nil,
+		ec.marshalOAny2interface,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanChange_after(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanChange",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Any does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanDiff_action(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanDiff) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanDiff_action,
+		func(ctx context.Context) (any, error) {
+			return obj.Action, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanDiff_action(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanDiff",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanDiff_address(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanDiff) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanDiff_address,
+		func(ctx context.Context) (any, error) {
+			return obj.Address, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanDiff_address(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanDiff",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanDiff_entity(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanDiff) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanDiff_entity,
+		func(ctx context.Context) (any, error) {
+			return obj.Entity, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanDiff_entity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanDiff",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanDiff_position(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanDiff) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanDiff_position,
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanDiff_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanDiff",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanDiff_direction(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanDiff) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanDiff_direction,
+		func(ctx context.Context) (any, error) {
+			return obj.Direction, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanDiff_direction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanDiff",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanDiff_quality(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanDiff) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanDiff_quality,
+		func(ctx context.Context) (any, error) {
+			return obj.Quality, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanDiff_quality(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanDiff",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanDiff_unitNumber(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanDiff) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanDiff_unitNumber,
+		func(ctx context.Context) (any, error) {
+			return obj.UnitNumber, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanDiff_unitNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanDiff",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanDiff_changes(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanDiff) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanDiff_changes,
+		func(ctx context.Context) (any, error) {
+			return obj.Changes, nil
+		},
+		nil,
+		ec.marshalNFactorioformPlanChange2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanChangeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanDiff_changes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanDiff",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "path":
+				return ec.fieldContext_FactorioformPlanChange_path(ctx, field)
+			case "before":
+				return ec.fieldContext_FactorioformPlanChange_before(ctx, field)
+			case "after":
+				return ec.fieldContext_FactorioformPlanChange_after(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformPlanChange", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanDiff_reason(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanDiff) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanDiff_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanDiff_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanDiff",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanDiff_blockers(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanDiff) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanDiff_blockers,
+		func(ctx context.Context) (any, error) {
+			return obj.Blockers, nil
+		},
+		nil,
+		ec.marshalNFactorioformPlanBlocker2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanBlockerᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanDiff_blockers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanDiff",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "unitNumber":
+				return ec.fieldContext_FactorioformPlanBlocker_unitNumber(ctx, field)
+			case "entity":
+				return ec.fieldContext_FactorioformPlanBlocker_entity(ctx, field)
+			case "position":
+				return ec.fieldContext_FactorioformPlanBlocker_position(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformPlanBlocker", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanDiff_wire(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanDiff) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanDiff_wire,
+		func(ctx context.Context) (any, error) {
+			return obj.Wire, nil
+		},
+		nil,
+		ec.marshalOFactorioformPlanWire2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanWire,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanDiff_wire(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanDiff",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "color":
+				return ec.fieldContext_FactorioformPlanWire_color(ctx, field)
+			case "fromAddress":
+				return ec.fieldContext_FactorioformPlanWire_fromAddress(ctx, field)
+			case "fromUnit":
+				return ec.fieldContext_FactorioformPlanWire_fromUnit(ctx, field)
+			case "fromConnector":
+				return ec.fieldContext_FactorioformPlanWire_fromConnector(ctx, field)
+			case "toAddress":
+				return ec.fieldContext_FactorioformPlanWire_toAddress(ctx, field)
+			case "toUnit":
+				return ec.fieldContext_FactorioformPlanWire_toUnit(ctx, field)
+			case "toConnector":
+				return ec.fieldContext_FactorioformPlanWire_toConnector(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformPlanWire", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanMaterial_name(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanMaterial) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanMaterial_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanMaterial_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanMaterial",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanMaterial_quality(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanMaterial) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanMaterial_quality,
+		func(ctx context.Context) (any, error) {
+			return obj.Quality, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanMaterial_quality(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanMaterial",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanMaterial_count(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanMaterial) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanMaterial_count,
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanMaterial_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanMaterial",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanStep_order(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanStep_order,
+		func(ctx context.Context) (any, error) {
+			return obj.Order, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanStep_order(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanStep_kind(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanStep_kind,
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanStep_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanStep_addresses(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanStep_addresses,
+		func(ctx context.Context) (any, error) {
+			return obj.Addresses, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanStep_addresses(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanStep_operation(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanStep_operation,
+		func(ctx context.Context) (any, error) {
+			return obj.Operation, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanStep_operation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanStep_document(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanStep_document,
+		func(ctx context.Context) (any, error) {
+			return obj.Document, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanStep_document(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanStep_variables(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanStep_variables,
+		func(ctx context.Context) (any, error) {
+			return obj.Variables, nil
+		},
+		nil,
+		ec.marshalNAny2interface,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanStep_variables(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Any does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanStep_requiresActor(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanStep_requiresActor,
+		func(ctx context.Context) (any, error) {
+			return obj.RequiresActor, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanStep_requiresActor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanSummary_create(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanSummary_create,
+		func(ctx context.Context) (any, error) {
+			return obj.Create, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanSummary_create(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanSummary_update(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanSummary_update,
+		func(ctx context.Context) (any, error) {
+			return obj.Update, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanSummary_update(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanSummary_replace(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanSummary_replace,
+		func(ctx context.Context) (any, error) {
+			return obj.Replace, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanSummary_replace(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanSummary_delete(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanSummary_delete,
+		func(ctx context.Context) (any, error) {
+			return obj.Delete, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanSummary_delete(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanSummary_drift(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanSummary_drift,
+		func(ctx context.Context) (any, error) {
+			return obj.Drift, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanSummary_drift(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanSummary_adopt(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanSummary_adopt,
+		func(ctx context.Context) (any, error) {
+			return obj.Adopt, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanSummary_adopt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanSummary_conflict(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanSummary_conflict,
+		func(ctx context.Context) (any, error) {
+			return obj.Conflict, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanSummary_conflict(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanSummary_pending(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanSummary_pending,
+		func(ctx context.Context) (any, error) {
+			return obj.Pending, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanSummary_pending(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanSummary_noop(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanSummary_noop,
+		func(ctx context.Context) (any, error) {
+			return obj.Noop, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanSummary_noop(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanWire_color(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanWire) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanWire_color,
+		func(ctx context.Context) (any, error) {
+			return obj.Color, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanWire_color(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanWire",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanWire_fromAddress(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanWire) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanWire_fromAddress,
+		func(ctx context.Context) (any, error) {
+			return obj.FromAddress, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanWire_fromAddress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanWire",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanWire_fromUnit(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanWire) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanWire_fromUnit,
+		func(ctx context.Context) (any, error) {
+			return obj.FromUnit, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanWire_fromUnit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanWire",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanWire_fromConnector(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanWire) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanWire_fromConnector,
+		func(ctx context.Context) (any, error) {
+			return obj.FromConnector, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanWire_fromConnector(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanWire",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanWire_toAddress(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanWire) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanWire_toAddress,
+		func(ctx context.Context) (any, error) {
+			return obj.ToAddress, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanWire_toAddress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanWire",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanWire_toUnit(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanWire) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanWire_toUnit,
+		func(ctx context.Context) (any, error) {
+			return obj.ToUnit, nil
+		},
+		nil,
+		ec.marshalOUnitNumber2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanWire_toUnit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanWire",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformPlanWire_toConnector(ctx context.Context, field graphql.CollectedField, obj *FactorioformPlanWire) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformPlanWire_toConnector,
+		func(ctx context.Context) (any, error) {
+			return obj.ToConnector, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformPlanWire_toConnector(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformPlanWire",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformRefreshRecorded_address(ctx context.Context, field graphql.CollectedField, obj *FactorioformRefreshRecorded) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformRefreshRecorded_address,
+		func(ctx context.Context) (any, error) {
+			return obj.Address, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformRefreshRecorded_address(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformRefreshRecorded",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformRefreshRecorded_unitNumber(ctx context.Context, field graphql.CollectedField, obj *FactorioformRefreshRecorded) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformRefreshRecorded_unitNumber,
+		func(ctx context.Context) (any, error) {
+			return obj.UnitNumber, nil
+		},
+		nil,
+		ec.marshalNUnitNumber2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformRefreshRecorded_unitNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformRefreshRecorded",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformRefreshResult_tick(ctx context.Context, field graphql.CollectedField, obj *FactorioformRefreshResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformRefreshResult_tick,
+		func(ctx context.Context) (any, error) {
+			return obj.Tick, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformRefreshResult_tick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformRefreshResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformRefreshResult_manifest(ctx context.Context, field graphql.CollectedField, obj *FactorioformRefreshResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformRefreshResult_manifest,
+		func(ctx context.Context) (any, error) {
+			return obj.Manifest, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformRefreshResult_manifest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformRefreshResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformRefreshResult_dryRun(ctx context.Context, field graphql.CollectedField, obj *FactorioformRefreshResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformRefreshResult_dryRun,
+		func(ctx context.Context) (any, error) {
+			return obj.DryRun, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformRefreshResult_dryRun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformRefreshResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformRefreshResult_recorded(ctx context.Context, field graphql.CollectedField, obj *FactorioformRefreshResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformRefreshResult_recorded,
+		func(ctx context.Context) (any, error) {
+			return obj.Recorded, nil
+		},
+		nil,
+		ec.marshalNFactorioformRefreshRecorded2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshRecordedᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformRefreshResult_recorded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformRefreshResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "address":
+				return ec.fieldContext_FactorioformRefreshRecorded_address(ctx, field)
+			case "unitNumber":
+				return ec.fieldContext_FactorioformRefreshRecorded_unitNumber(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformRefreshRecorded", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformRefreshResult_pruned(ctx context.Context, field graphql.CollectedField, obj *FactorioformRefreshResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformRefreshResult_pruned,
+		func(ctx context.Context) (any, error) {
+			return obj.Pruned, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformRefreshResult_pruned(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformRefreshResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformRefreshResult_unmatched(ctx context.Context, field graphql.CollectedField, obj *FactorioformRefreshResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformRefreshResult_unmatched,
+		func(ctx context.Context) (any, error) {
+			return obj.Unmatched, nil
+		},
+		nil,
+		ec.marshalNFactorioformRefreshUnmatched2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshUnmatchedᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformRefreshResult_unmatched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformRefreshResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "address":
+				return ec.fieldContext_FactorioformRefreshUnmatched_address(ctx, field)
+			case "reason":
+				return ec.fieldContext_FactorioformRefreshUnmatched_reason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformRefreshUnmatched", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformRefreshResult_status(ctx context.Context, field graphql.CollectedField, obj *FactorioformRefreshResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformRefreshResult_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformRefreshResult_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformRefreshResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformRefreshUnmatched_address(ctx context.Context, field graphql.CollectedField, obj *FactorioformRefreshUnmatched) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformRefreshUnmatched_address,
+		func(ctx context.Context) (any, error) {
+			return obj.Address, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformRefreshUnmatched_address(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformRefreshUnmatched",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformRefreshUnmatched_reason(ctx context.Context, field graphql.CollectedField, obj *FactorioformRefreshUnmatched) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformRefreshUnmatched_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformRefreshUnmatched_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformRefreshUnmatched",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformStateResource_address(ctx context.Context, field graphql.CollectedField, obj *FactorioformStateResource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformStateResource_address,
+		func(ctx context.Context) (any, error) {
+			return obj.Address, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformStateResource_address(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformStateResource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformStateResource_unitNumber(ctx context.Context, field graphql.CollectedField, obj *FactorioformStateResource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformStateResource_unitNumber,
+		func(ctx context.Context) (any, error) {
+			return obj.UnitNumber, nil
+		},
+		nil,
+		ec.marshalNUnitNumber2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformStateResource_unitNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformStateResource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UnitNumber does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformStateResource_entity(ctx context.Context, field graphql.CollectedField, obj *FactorioformStateResource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformStateResource_entity,
+		func(ctx context.Context) (any, error) {
+			return obj.Entity, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformStateResource_entity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformStateResource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformStateResource_position(ctx context.Context, field graphql.CollectedField, obj *FactorioformStateResource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformStateResource_position,
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		ec.marshalNPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformStateResource_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformStateResource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformStateResource_direction(ctx context.Context, field graphql.CollectedField, obj *FactorioformStateResource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformStateResource_direction,
+		func(ctx context.Context) (any, error) {
+			return obj.Direction, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformStateResource_direction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformStateResource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FactorioformStateResource_quality(ctx context.Context, field graphql.CollectedField, obj *FactorioformStateResource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FactorioformStateResource_quality,
+		func(ctx context.Context) (any, error) {
+			return obj.Quality, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FactorioformStateResource_quality(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FactorioformStateResource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -53596,8 +57124,8 @@ func (ec *executionContext) fieldContext_FactoryBriefing_power(_ context.Context
 				return ec.fieldContext_BriefingPower_consumptionWatts(ctx, field)
 			case "capacityWatts":
 				return ec.fieldContext_BriefingPower_capacityWatts(ctx, field)
-			case "satisfaction":
-				return ec.fieldContext_BriefingPower_satisfaction(ctx, field)
+			case "loadRatio":
+				return ec.fieldContext_BriefingPower_loadRatio(ctx, field)
 			case "accumulatorChargeJoules":
 				return ec.fieldContext_BriefingPower_accumulatorChargeJoules(ctx, field)
 			case "accumulatorCapacityJoules":
@@ -63087,6 +66615,105 @@ func (ec *executionContext) fieldContext_InserterSettings_active(_ context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _InserterSettings_pickupVector(ctx context.Context, field graphql.CollectedField, obj *InserterSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_InserterSettings_pickupVector,
+		func(ctx context.Context) (any, error) {
+			return obj.PickupVector, nil
+		},
+		nil,
+		ec.marshalOPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_InserterSettings_pickupVector(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InserterSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InserterSettings_dropVector(ctx context.Context, field graphql.CollectedField, obj *InserterSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_InserterSettings_dropVector,
+		func(ctx context.Context) (any, error) {
+			return obj.DropVector, nil
+		},
+		nil,
+		ec.marshalOPosition2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPosition,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_InserterSettings_dropVector(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InserterSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Position_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Position_y(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InserterSettings_customVectorsAllowed(ctx context.Context, field graphql.CollectedField, obj *InserterSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_InserterSettings_customVectorsAllowed,
+		func(ctx context.Context) (any, error) {
+			return obj.CustomVectorsAllowed, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_InserterSettings_customVectorsAllowed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InserterSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _InserterSettings_pickupFromLeftLane(ctx context.Context, field graphql.CollectedField, obj *InserterSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -68997,6 +72624,12 @@ func (ec *executionContext) fieldContext_LogisticsEndpoint_inserterSettings(_ co
 				return ec.fieldContext_InserterSettings_stackSizeOverride(ctx, field)
 			case "active":
 				return ec.fieldContext_InserterSettings_active(ctx, field)
+			case "pickupVector":
+				return ec.fieldContext_InserterSettings_pickupVector(ctx, field)
+			case "dropVector":
+				return ec.fieldContext_InserterSettings_dropVector(ctx, field)
+			case "customVectorsAllowed":
+				return ec.fieldContext_InserterSettings_customVectorsAllowed(ctx, field)
 			case "pickupFromLeftLane":
 				return ec.fieldContext_InserterSettings_pickupFromLeftLane(ctx, field)
 			case "pickupFromRightLane":
@@ -87703,6 +91336,169 @@ func (ec *executionContext) fieldContext_Mutation_setCombinatorParameters(ctx co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_factorioformImport(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_factorioformImport,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().FactorioformImport(ctx, fc.Args["input"].(FactorioformImportInput))
+		},
+		nil,
+		ec.marshalNFactorioformImportResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformImportResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_factorioformImport(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_FactorioformImportResult_tick(ctx, field)
+			case "resource":
+				return ec.fieldContext_FactorioformImportResult_resource(ctx, field)
+			case "replacedUnitNumber":
+				return ec.fieldContext_FactorioformImportResult_replacedUnitNumber(ctx, field)
+			case "manifest":
+				return ec.fieldContext_FactorioformImportResult_manifest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformImportResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_factorioformImport_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_factorioformForget(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_factorioformForget,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().FactorioformForget(ctx, fc.Args["input"].(FactorioformForgetInput))
+		},
+		nil,
+		ec.marshalNFactorioformForgetResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformForgetResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_factorioformForget(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_FactorioformForgetResult_tick(ctx, field)
+			case "name":
+				return ec.fieldContext_FactorioformForgetResult_name(ctx, field)
+			case "forgotten":
+				return ec.fieldContext_FactorioformForgetResult_forgotten(ctx, field)
+			case "missing":
+				return ec.fieldContext_FactorioformForgetResult_missing(ctx, field)
+			case "manifestDeleted":
+				return ec.fieldContext_FactorioformForgetResult_manifestDeleted(ctx, field)
+			case "remaining":
+				return ec.fieldContext_FactorioformForgetResult_remaining(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformForgetResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_factorioformForget_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_factorioformRefresh(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_factorioformRefresh,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().FactorioformRefresh(ctx, fc.Args["input"].(FactorioformRefreshInput))
+		},
+		nil,
+		ec.marshalNFactorioformRefreshResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_factorioformRefresh(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tick":
+				return ec.fieldContext_FactorioformRefreshResult_tick(ctx, field)
+			case "manifest":
+				return ec.fieldContext_FactorioformRefreshResult_manifest(ctx, field)
+			case "dryRun":
+				return ec.fieldContext_FactorioformRefreshResult_dryRun(ctx, field)
+			case "recorded":
+				return ec.fieldContext_FactorioformRefreshResult_recorded(ctx, field)
+			case "pruned":
+				return ec.fieldContext_FactorioformRefreshResult_pruned(ctx, field)
+			case "unmatched":
+				return ec.fieldContext_FactorioformRefreshResult_unmatched(ctx, field)
+			case "status":
+				return ec.fieldContext_FactorioformRefreshResult_status(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformRefreshResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_factorioformRefresh_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_setFluid(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -89731,135 +93527,6 @@ func (ec *executionContext) fieldContext_Mutation_deleteSpacePlatform(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteSpacePlatform_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_buildAsPlayer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Mutation_buildAsPlayer,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().BuildAsPlayer(ctx, fc.Args["input"].(BuildAsPlayerInput))
-		},
-		nil,
-		ec.marshalNActionResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActionResult,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Mutation_buildAsPlayer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "actor":
-				return ec.fieldContext_ActionResult_actor(ctx, field)
-			case "character":
-				return ec.fieldContext_ActionResult_character(ctx, field)
-			case "player":
-				return ec.fieldContext_ActionResult_player(ctx, field)
-			case "tick":
-				return ec.fieldContext_ActionResult_tick(ctx, field)
-			case "position":
-				return ec.fieldContext_ActionResult_position(ctx, field)
-			case "surface":
-				return ec.fieldContext_ActionResult_surface(ctx, field)
-			case "force":
-				return ec.fieldContext_ActionResult_force(ctx, field)
-			case "name":
-				return ec.fieldContext_ActionResult_name(ctx, field)
-			case "entity":
-				return ec.fieldContext_ActionResult_entity(ctx, field)
-			case "item":
-				return ec.fieldContext_ActionResult_item(ctx, field)
-			case "quality":
-				return ec.fieldContext_ActionResult_quality(ctx, field)
-			case "recipe":
-				return ec.fieldContext_ActionResult_recipe(ctx, field)
-			case "direction":
-				return ec.fieldContext_ActionResult_direction(ctx, field)
-			case "transferDirection":
-				return ec.fieldContext_ActionResult_transferDirection(ctx, field)
-			case "equipmentDirection":
-				return ec.fieldContext_ActionResult_equipmentDirection(ctx, field)
-			case "before":
-				return ec.fieldContext_ActionResult_before(ctx, field)
-			case "turns":
-				return ec.fieldContext_ActionResult_turns(ctx, field)
-			case "count":
-				return ec.fieldContext_ActionResult_count(ctx, field)
-			case "requested":
-				return ec.fieldContext_ActionResult_requested(ctx, field)
-			case "started":
-				return ec.fieldContext_ActionResult_started(ctx, field)
-			case "queueSize":
-				return ec.fieldContext_ActionResult_queueSize(ctx, field)
-			case "moved":
-				return ec.fieldContext_ActionResult_moved(ctx, field)
-			case "remaining":
-				return ec.fieldContext_ActionResult_remaining(ctx, field)
-			case "available":
-				return ec.fieldContext_ActionResult_available(ctx, field)
-			case "capacity":
-				return ec.fieldContext_ActionResult_capacity(ctx, field)
-			case "inventory":
-				return ec.fieldContext_ActionResult_inventory(ctx, field)
-			case "returned":
-				return ec.fieldContext_ActionResult_returned(ctx, field)
-			case "items":
-				return ec.fieldContext_ActionResult_items(ctx, field)
-			case "unitNumber":
-				return ec.fieldContext_ActionResult_unitNumber(ctx, field)
-			case "inserted":
-				return ec.fieldContext_ActionResult_inserted(ctx, field)
-			case "transferredStacks":
-				return ec.fieldContext_ActionResult_transferredStacks(ctx, field)
-			case "returnedStacks":
-				return ec.fieldContext_ActionResult_returnedStacks(ctx, field)
-			case "craftingComplete":
-				return ec.fieldContext_ActionResult_craftingComplete(ctx, field)
-			case "waitTimedOut":
-				return ec.fieldContext_ActionResult_waitTimedOut(ctx, field)
-			case "waitedSeconds":
-				return ec.fieldContext_ActionResult_waitedSeconds(ctx, field)
-			case "chain":
-				return ec.fieldContext_ActionResult_chain(ctx, field)
-			case "instant":
-				return ec.fieldContext_ActionResult_instant(ctx, field)
-			case "mined":
-				return ec.fieldContext_ActionResult_mined(ctx, field)
-			case "reason":
-				return ec.fieldContext_ActionResult_reason(ctx, field)
-			case "bar":
-				return ec.fieldContext_ActionResult_bar(ctx, field)
-			case "toBeDeconstructed":
-				return ec.fieldContext_ActionResult_toBeDeconstructed(ctx, field)
-			case "undergroundType":
-				return ec.fieldContext_ActionResult_undergroundType(ctx, field)
-			case "pairedUnitNumber":
-				return ec.fieldContext_ActionResult_pairedUnitNumber(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type ActionResult", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_buildAsPlayer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -97091,6 +100758,8 @@ func (ec *executionContext) fieldContext_Prototype_entity(_ context.Context, fie
 				return ec.fieldContext_EntityPrototype_inserterPickup(ctx, field)
 			case "inserterDrop":
 				return ec.fieldContext_EntityPrototype_inserterDrop(ctx, field)
+			case "drillOutput":
+				return ec.fieldContext_EntityPrototype_drillOutput(ctx, field)
 			case "wireReach":
 				return ec.fieldContext_EntityPrototype_wireReach(ctx, field)
 			case "supplyArea":
@@ -98648,6 +102317,126 @@ func (ec *executionContext) fieldContext_Query_constructionOrders(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_constructionOrders_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_factorioformPlan(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_factorioformPlan,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().FactorioformPlan(ctx, fc.Args["input"].(FactorioformPlanInput))
+		},
+		nil,
+		ec.marshalNFactorioformPlan2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlan,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_factorioformPlan(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "formatVersion":
+				return ec.fieldContext_FactorioformPlan_formatVersion(ctx, field)
+			case "manifest":
+				return ec.fieldContext_FactorioformPlan_manifest(ctx, field)
+			case "planId":
+				return ec.fieldContext_FactorioformPlan_planId(ctx, field)
+			case "tick":
+				return ec.fieldContext_FactorioformPlan_tick(ctx, field)
+			case "surface":
+				return ec.fieldContext_FactorioformPlan_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_FactorioformPlan_force(ctx, field)
+			case "status":
+				return ec.fieldContext_FactorioformPlan_status(ctx, field)
+			case "summary":
+				return ec.fieldContext_FactorioformPlan_summary(ctx, field)
+			case "diffs":
+				return ec.fieldContext_FactorioformPlan_diffs(ctx, field)
+			case "steps":
+				return ec.fieldContext_FactorioformPlan_steps(ctx, field)
+			case "materials":
+				return ec.fieldContext_FactorioformPlan_materials(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformPlan", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_factorioformPlan_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_factorioformState(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_factorioformState,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().FactorioformState(ctx, fc.Args["name"].(*string))
+		},
+		nil,
+		ec.marshalNFactorioformManifestState2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformManifestStateᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_factorioformState(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_FactorioformManifestState_name(ctx, field)
+			case "surface":
+				return ec.fieldContext_FactorioformManifestState_surface(ctx, field)
+			case "force":
+				return ec.fieldContext_FactorioformManifestState_force(ctx, field)
+			case "updatedTick":
+				return ec.fieldContext_FactorioformManifestState_updatedTick(ctx, field)
+			case "resourceCount":
+				return ec.fieldContext_FactorioformManifestState_resourceCount(ctx, field)
+			case "resources":
+				return ec.fieldContext_FactorioformManifestState_resources(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FactorioformManifestState", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_factorioformState_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -107691,6 +111480,12 @@ func (ec *executionContext) fieldContext_SettingsResult_inserter(_ context.Conte
 				return ec.fieldContext_InserterSettings_stackSizeOverride(ctx, field)
 			case "active":
 				return ec.fieldContext_InserterSettings_active(ctx, field)
+			case "pickupVector":
+				return ec.fieldContext_InserterSettings_pickupVector(ctx, field)
+			case "dropVector":
+				return ec.fieldContext_InserterSettings_dropVector(ctx, field)
+			case "customVectorsAllowed":
+				return ec.fieldContext_InserterSettings_customVectorsAllowed(ctx, field)
 			case "pickupFromLeftLane":
 				return ec.fieldContext_InserterSettings_pickupFromLeftLane(ctx, field)
 			case "pickupFromRightLane":
@@ -119882,81 +123677,6 @@ func (ec *executionContext) unmarshalInputBriefingWatchItemInput(ctx context.Con
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputBuildAsPlayerInput(ctx context.Context, obj any) (BuildAsPlayerInput, error) {
-	var it BuildAsPlayerInput
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	if _, present := asMap["direction"]; !present {
-		asMap["direction"] = 0
-	}
-	if _, present := asMap["quality"]; !present {
-		asMap["quality"] = "normal"
-	}
-
-	fieldsInOrder := [...]string{"actor", "surface", "position", "item", "direction", "quality", "message"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "actor":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actor"))
-			data, err := ec.unmarshalNActorInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorInput(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Actor = data
-		case "surface":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Surface = data
-		case "position":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("position"))
-			data, err := ec.unmarshalNPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Position = data
-		case "item":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("item"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Item = data
-		case "direction":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("direction"))
-			data, err := ec.unmarshalNInt2int(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Direction = data
-		case "quality":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quality"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Quality = data
-		case "message":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Message = data
-		}
-	}
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputBuildCellEntryInput(ctx context.Context, obj any) (BuildCellEntryInput, error) {
 	var it BuildCellEntryInput
 	asMap := map[string]any{}
@@ -123799,6 +127519,260 @@ func (ec *executionContext) unmarshalInputExportMapSnapshotToMemgraphInput(ctx c
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputFactorioformFileInput(ctx context.Context, obj any) (FactorioformFileInput, error) {
+	var it FactorioformFileInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "content"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "content":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Content = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputFactorioformForgetInput(ctx context.Context, obj any) (FactorioformForgetInput, error) {
+	var it FactorioformForgetInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["addresses"]; !present {
+		asMap["addresses"] = []any{}
+	}
+
+	fieldsInOrder := [...]string{"name", "addresses", "message"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "addresses":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("addresses"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Addresses = data
+		case "message":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Message = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputFactorioformImportInput(ctx context.Context, obj any) (FactorioformImportInput, error) {
+	var it FactorioformImportInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["overwrite"]; !present {
+		asMap["overwrite"] = false
+	}
+
+	fieldsInOrder := [...]string{"name", "surface", "force", "address", "target", "overwrite", "message"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "surface":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("surface"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Surface = data
+		case "force":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("force"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Force = data
+		case "address":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("address"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Address = data
+		case "target":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("target"))
+			data, err := ec.unmarshalNEntityRefInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐEntityRefInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Target = data
+		case "overwrite":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("overwrite"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Overwrite = data
+		case "message":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Message = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputFactorioformPlanInput(ctx context.Context, obj any) (FactorioformPlanInput, error) {
+	var it FactorioformPlanInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"files", "rootDir", "variables", "actor"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "files":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("files"))
+			data, err := ec.unmarshalNFactorioformFileInput2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformFileInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Files = data
+		case "rootDir":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rootDir"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RootDir = data
+		case "variables":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("variables"))
+			data, err := ec.unmarshalOAny2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Variables = data
+		case "actor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actor"))
+			data, err := ec.unmarshalOActorInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐActorInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Actor = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputFactorioformRefreshInput(ctx context.Context, obj any) (FactorioformRefreshInput, error) {
+	var it FactorioformRefreshInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["dryRun"]; !present {
+		asMap["dryRun"] = false
+	}
+
+	fieldsInOrder := [...]string{"files", "rootDir", "variables", "dryRun", "message"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "files":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("files"))
+			data, err := ec.unmarshalNFactorioformFileInput2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformFileInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Files = data
+		case "rootDir":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rootDir"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RootDir = data
+		case "variables":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("variables"))
+			data, err := ec.unmarshalOAny2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Variables = data
+		case "dryRun":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dryRun"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DryRun = data
+		case "message":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Message = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputFactoryAlertsInput(ctx context.Context, obj any) (FactoryAlertsInput, error) {
 	var it FactoryAlertsInput
 	asMap := map[string]any{}
@@ -124956,7 +128930,7 @@ func (ec *executionContext) unmarshalInputInserterSettingsInput(ctx context.Cont
 		asMap["clear"] = false
 	}
 
-	fieldsInOrder := [...]string{"actor", "target", "filters", "filterMode", "stackSizeOverride", "pickupFromLeftLane", "pickupFromRightLane", "clear", "message"}
+	fieldsInOrder := [...]string{"actor", "target", "filters", "filterMode", "stackSizeOverride", "pickupVector", "dropVector", "pickupFromLeftLane", "pickupFromRightLane", "clear", "message"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -124998,6 +128972,20 @@ func (ec *executionContext) unmarshalInputInserterSettingsInput(ctx context.Cont
 				return it, err
 			}
 			it.StackSizeOverride = data
+		case "pickupVector":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pickupVector"))
+			data, err := ec.unmarshalOPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PickupVector = data
+		case "dropVector":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dropVector"))
+			data, err := ec.unmarshalOPositionInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐPositionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DropVector = data
 		case "pickupFromLeftLane":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pickupFromLeftLane"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -135088,8 +139076,8 @@ func (ec *executionContext) _BriefingPower(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "satisfaction":
-			out.Values[i] = ec._BriefingPower_satisfaction(ctx, field, obj)
+		case "loadRatio":
+			out.Values[i] = ec._BriefingPower_loadRatio(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -138180,8 +142168,8 @@ func (ec *executionContext) _ElectricNetworkInsight(ctx context.Context, sel ast
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "satisfaction":
-			out.Values[i] = ec._ElectricNetworkInsight_satisfaction(ctx, field, obj)
+		case "loadRatio":
+			out.Values[i] = ec._ElectricNetworkInsight_loadRatio(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -138959,6 +142947,8 @@ func (ec *executionContext) _EntityPrototype(ctx context.Context, sel ast.Select
 			out.Values[i] = ec._EntityPrototype_inserterPickup(ctx, field, obj)
 		case "inserterDrop":
 			out.Values[i] = ec._EntityPrototype_inserterDrop(ctx, field, obj)
+		case "drillOutput":
+			out.Values[i] = ec._EntityPrototype_drillOutput(ctx, field, obj)
 		case "wireReach":
 			out.Values[i] = ec._EntityPrototype_wireReach(ctx, field, obj)
 		case "supplyArea":
@@ -139171,6 +143161,921 @@ func (ec *executionContext) _EquipmentGridResult(ctx context.Context, sel ast.Se
 			}
 		case "moved":
 			out.Values[i] = ec._EquipmentGridResult_moved(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformForgetResultImplementors = []string{"FactorioformForgetResult"}
+
+func (ec *executionContext) _FactorioformForgetResult(ctx context.Context, sel ast.SelectionSet, obj *FactorioformForgetResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformForgetResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformForgetResult")
+		case "tick":
+			out.Values[i] = ec._FactorioformForgetResult_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._FactorioformForgetResult_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "forgotten":
+			out.Values[i] = ec._FactorioformForgetResult_forgotten(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "missing":
+			out.Values[i] = ec._FactorioformForgetResult_missing(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "manifestDeleted":
+			out.Values[i] = ec._FactorioformForgetResult_manifestDeleted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "remaining":
+			out.Values[i] = ec._FactorioformForgetResult_remaining(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformImportResultImplementors = []string{"FactorioformImportResult"}
+
+func (ec *executionContext) _FactorioformImportResult(ctx context.Context, sel ast.SelectionSet, obj *FactorioformImportResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformImportResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformImportResult")
+		case "tick":
+			out.Values[i] = ec._FactorioformImportResult_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resource":
+			out.Values[i] = ec._FactorioformImportResult_resource(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "replacedUnitNumber":
+			out.Values[i] = ec._FactorioformImportResult_replacedUnitNumber(ctx, field, obj)
+		case "manifest":
+			out.Values[i] = ec._FactorioformImportResult_manifest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformManifestStateImplementors = []string{"FactorioformManifestState"}
+
+func (ec *executionContext) _FactorioformManifestState(ctx context.Context, sel ast.SelectionSet, obj *FactorioformManifestState) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformManifestStateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformManifestState")
+		case "name":
+			out.Values[i] = ec._FactorioformManifestState_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "surface":
+			out.Values[i] = ec._FactorioformManifestState_surface(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._FactorioformManifestState_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedTick":
+			out.Values[i] = ec._FactorioformManifestState_updatedTick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resourceCount":
+			out.Values[i] = ec._FactorioformManifestState_resourceCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resources":
+			out.Values[i] = ec._FactorioformManifestState_resources(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformPlanImplementors = []string{"FactorioformPlan"}
+
+func (ec *executionContext) _FactorioformPlan(ctx context.Context, sel ast.SelectionSet, obj *FactorioformPlan) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformPlanImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformPlan")
+		case "formatVersion":
+			out.Values[i] = ec._FactorioformPlan_formatVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "manifest":
+			out.Values[i] = ec._FactorioformPlan_manifest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "planId":
+			out.Values[i] = ec._FactorioformPlan_planId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tick":
+			out.Values[i] = ec._FactorioformPlan_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "surface":
+			out.Values[i] = ec._FactorioformPlan_surface(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._FactorioformPlan_force(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._FactorioformPlan_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._FactorioformPlan_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "diffs":
+			out.Values[i] = ec._FactorioformPlan_diffs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "steps":
+			out.Values[i] = ec._FactorioformPlan_steps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "materials":
+			out.Values[i] = ec._FactorioformPlan_materials(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformPlanBlockerImplementors = []string{"FactorioformPlanBlocker"}
+
+func (ec *executionContext) _FactorioformPlanBlocker(ctx context.Context, sel ast.SelectionSet, obj *FactorioformPlanBlocker) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformPlanBlockerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformPlanBlocker")
+		case "unitNumber":
+			out.Values[i] = ec._FactorioformPlanBlocker_unitNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "entity":
+			out.Values[i] = ec._FactorioformPlanBlocker_entity(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._FactorioformPlanBlocker_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformPlanChangeImplementors = []string{"FactorioformPlanChange"}
+
+func (ec *executionContext) _FactorioformPlanChange(ctx context.Context, sel ast.SelectionSet, obj *FactorioformPlanChange) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformPlanChangeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformPlanChange")
+		case "path":
+			out.Values[i] = ec._FactorioformPlanChange_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "before":
+			out.Values[i] = ec._FactorioformPlanChange_before(ctx, field, obj)
+		case "after":
+			out.Values[i] = ec._FactorioformPlanChange_after(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformPlanDiffImplementors = []string{"FactorioformPlanDiff"}
+
+func (ec *executionContext) _FactorioformPlanDiff(ctx context.Context, sel ast.SelectionSet, obj *FactorioformPlanDiff) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformPlanDiffImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformPlanDiff")
+		case "action":
+			out.Values[i] = ec._FactorioformPlanDiff_action(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "address":
+			out.Values[i] = ec._FactorioformPlanDiff_address(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "entity":
+			out.Values[i] = ec._FactorioformPlanDiff_entity(ctx, field, obj)
+		case "position":
+			out.Values[i] = ec._FactorioformPlanDiff_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "direction":
+			out.Values[i] = ec._FactorioformPlanDiff_direction(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "quality":
+			out.Values[i] = ec._FactorioformPlanDiff_quality(ctx, field, obj)
+		case "unitNumber":
+			out.Values[i] = ec._FactorioformPlanDiff_unitNumber(ctx, field, obj)
+		case "changes":
+			out.Values[i] = ec._FactorioformPlanDiff_changes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._FactorioformPlanDiff_reason(ctx, field, obj)
+		case "blockers":
+			out.Values[i] = ec._FactorioformPlanDiff_blockers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "wire":
+			out.Values[i] = ec._FactorioformPlanDiff_wire(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformPlanMaterialImplementors = []string{"FactorioformPlanMaterial"}
+
+func (ec *executionContext) _FactorioformPlanMaterial(ctx context.Context, sel ast.SelectionSet, obj *FactorioformPlanMaterial) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformPlanMaterialImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformPlanMaterial")
+		case "name":
+			out.Values[i] = ec._FactorioformPlanMaterial_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "quality":
+			out.Values[i] = ec._FactorioformPlanMaterial_quality(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._FactorioformPlanMaterial_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformPlanStepImplementors = []string{"FactorioformPlanStep"}
+
+func (ec *executionContext) _FactorioformPlanStep(ctx context.Context, sel ast.SelectionSet, obj *FactorioformPlanStep) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformPlanStepImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformPlanStep")
+		case "order":
+			out.Values[i] = ec._FactorioformPlanStep_order(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._FactorioformPlanStep_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addresses":
+			out.Values[i] = ec._FactorioformPlanStep_addresses(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "operation":
+			out.Values[i] = ec._FactorioformPlanStep_operation(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "document":
+			out.Values[i] = ec._FactorioformPlanStep_document(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "variables":
+			out.Values[i] = ec._FactorioformPlanStep_variables(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requiresActor":
+			out.Values[i] = ec._FactorioformPlanStep_requiresActor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformPlanSummaryImplementors = []string{"FactorioformPlanSummary"}
+
+func (ec *executionContext) _FactorioformPlanSummary(ctx context.Context, sel ast.SelectionSet, obj *FactorioformPlanSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformPlanSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformPlanSummary")
+		case "create":
+			out.Values[i] = ec._FactorioformPlanSummary_create(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "update":
+			out.Values[i] = ec._FactorioformPlanSummary_update(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "replace":
+			out.Values[i] = ec._FactorioformPlanSummary_replace(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "delete":
+			out.Values[i] = ec._FactorioformPlanSummary_delete(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "drift":
+			out.Values[i] = ec._FactorioformPlanSummary_drift(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adopt":
+			out.Values[i] = ec._FactorioformPlanSummary_adopt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "conflict":
+			out.Values[i] = ec._FactorioformPlanSummary_conflict(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pending":
+			out.Values[i] = ec._FactorioformPlanSummary_pending(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "noop":
+			out.Values[i] = ec._FactorioformPlanSummary_noop(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformPlanWireImplementors = []string{"FactorioformPlanWire"}
+
+func (ec *executionContext) _FactorioformPlanWire(ctx context.Context, sel ast.SelectionSet, obj *FactorioformPlanWire) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformPlanWireImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformPlanWire")
+		case "color":
+			out.Values[i] = ec._FactorioformPlanWire_color(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fromAddress":
+			out.Values[i] = ec._FactorioformPlanWire_fromAddress(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fromUnit":
+			out.Values[i] = ec._FactorioformPlanWire_fromUnit(ctx, field, obj)
+		case "fromConnector":
+			out.Values[i] = ec._FactorioformPlanWire_fromConnector(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toAddress":
+			out.Values[i] = ec._FactorioformPlanWire_toAddress(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toUnit":
+			out.Values[i] = ec._FactorioformPlanWire_toUnit(ctx, field, obj)
+		case "toConnector":
+			out.Values[i] = ec._FactorioformPlanWire_toConnector(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformRefreshRecordedImplementors = []string{"FactorioformRefreshRecorded"}
+
+func (ec *executionContext) _FactorioformRefreshRecorded(ctx context.Context, sel ast.SelectionSet, obj *FactorioformRefreshRecorded) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformRefreshRecordedImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformRefreshRecorded")
+		case "address":
+			out.Values[i] = ec._FactorioformRefreshRecorded_address(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unitNumber":
+			out.Values[i] = ec._FactorioformRefreshRecorded_unitNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformRefreshResultImplementors = []string{"FactorioformRefreshResult"}
+
+func (ec *executionContext) _FactorioformRefreshResult(ctx context.Context, sel ast.SelectionSet, obj *FactorioformRefreshResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformRefreshResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformRefreshResult")
+		case "tick":
+			out.Values[i] = ec._FactorioformRefreshResult_tick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "manifest":
+			out.Values[i] = ec._FactorioformRefreshResult_manifest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dryRun":
+			out.Values[i] = ec._FactorioformRefreshResult_dryRun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recorded":
+			out.Values[i] = ec._FactorioformRefreshResult_recorded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pruned":
+			out.Values[i] = ec._FactorioformRefreshResult_pruned(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unmatched":
+			out.Values[i] = ec._FactorioformRefreshResult_unmatched(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._FactorioformRefreshResult_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformRefreshUnmatchedImplementors = []string{"FactorioformRefreshUnmatched"}
+
+func (ec *executionContext) _FactorioformRefreshUnmatched(ctx context.Context, sel ast.SelectionSet, obj *FactorioformRefreshUnmatched) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformRefreshUnmatchedImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformRefreshUnmatched")
+		case "address":
+			out.Values[i] = ec._FactorioformRefreshUnmatched_address(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._FactorioformRefreshUnmatched_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var factorioformStateResourceImplementors = []string{"FactorioformStateResource"}
+
+func (ec *executionContext) _FactorioformStateResource(ctx context.Context, sel ast.SelectionSet, obj *FactorioformStateResource) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, factorioformStateResourceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FactorioformStateResource")
+		case "address":
+			out.Values[i] = ec._FactorioformStateResource_address(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unitNumber":
+			out.Values[i] = ec._FactorioformStateResource_unitNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "entity":
+			out.Values[i] = ec._FactorioformStateResource_entity(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._FactorioformStateResource_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "direction":
+			out.Values[i] = ec._FactorioformStateResource_direction(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "quality":
+			out.Values[i] = ec._FactorioformStateResource_quality(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -142079,6 +146984,15 @@ func (ec *executionContext) _InserterSettings(ctx context.Context, sel ast.Selec
 			}
 		case "active":
 			out.Values[i] = ec._InserterSettings_active(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pickupVector":
+			out.Values[i] = ec._InserterSettings_pickupVector(ctx, field, obj)
+		case "dropVector":
+			out.Values[i] = ec._InserterSettings_dropVector(ctx, field, obj)
+		case "customVectorsAllowed":
+			out.Values[i] = ec._InserterSettings_customVectorsAllowed(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -148847,6 +153761,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "factorioformImport":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_factorioformImport(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "factorioformForget":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_factorioformForget(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "factorioformRefresh":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_factorioformRefresh(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "setFluid":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_setFluid(ctx, field)
@@ -149053,13 +153988,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteSpacePlatform":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteSpacePlatform(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "buildAsPlayer":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_buildAsPlayer(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -151625,6 +156553,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_constructionOrders(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "factorioformPlan":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_factorioformPlan(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "factorioformState":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_factorioformState(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -157606,6 +162578,28 @@ func (ec *executionContext) marshalNAnnounceResult2ᚖgithubᚗcomᚋwricardoᚋ
 	return ec._AnnounceResult(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNAny2interface(ctx context.Context, v any) (any, error) {
+	res, err := graphql.UnmarshalAny(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAny2interface(ctx context.Context, sel ast.SelectionSet, v any) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	_ = sel
+	res := graphql.MarshalAny(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) unmarshalNAny2ᚕinterface(ctx context.Context, v any) ([]any, error) {
 	var vSlice []any
 	vSlice = graphql.CoerceList(v)
@@ -158651,11 +163645,6 @@ func (ec *executionContext) marshalNBriefingResearch2ᚖgithubᚗcomᚋwricardo�
 func (ec *executionContext) unmarshalNBriefingWatchItemInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBriefingWatchItemInput(ctx context.Context, v any) (*BriefingWatchItemInput, error) {
 	res, err := ec.unmarshalInputBriefingWatchItemInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) unmarshalNBuildAsPlayerInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildAsPlayerInput(ctx context.Context, v any) (BuildAsPlayerInput, error) {
-	res, err := ec.unmarshalInputBuildAsPlayerInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNBuildCellEntryInput2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐBuildCellEntryInputᚄ(ctx context.Context, v any) ([]*BuildCellEntryInput, error) {
@@ -160019,6 +165008,346 @@ func (ec *executionContext) marshalNEquipmentTransferDirection2githubᚗcomᚋwr
 func (ec *executionContext) unmarshalNExportMapSnapshotToMemgraphInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐExportMapSnapshotToMemgraphInput(ctx context.Context, v any) (ExportMapSnapshotToMemgraphInput, error) {
 	res, err := ec.unmarshalInputExportMapSnapshotToMemgraphInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNFactorioformFileInput2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformFileInputᚄ(ctx context.Context, v any) ([]*FactorioformFileInput, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*FactorioformFileInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNFactorioformFileInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformFileInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNFactorioformFileInput2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformFileInput(ctx context.Context, v any) (*FactorioformFileInput, error) {
+	res, err := ec.unmarshalInputFactorioformFileInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNFactorioformForgetInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformForgetInput(ctx context.Context, v any) (FactorioformForgetInput, error) {
+	res, err := ec.unmarshalInputFactorioformForgetInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFactorioformForgetResult2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformForgetResult(ctx context.Context, sel ast.SelectionSet, v FactorioformForgetResult) graphql.Marshaler {
+	return ec._FactorioformForgetResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNFactorioformForgetResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformForgetResult(ctx context.Context, sel ast.SelectionSet, v *FactorioformForgetResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformForgetResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNFactorioformImportInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformImportInput(ctx context.Context, v any) (FactorioformImportInput, error) {
+	res, err := ec.unmarshalInputFactorioformImportInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFactorioformImportResult2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformImportResult(ctx context.Context, sel ast.SelectionSet, v FactorioformImportResult) graphql.Marshaler {
+	return ec._FactorioformImportResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNFactorioformImportResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformImportResult(ctx context.Context, sel ast.SelectionSet, v *FactorioformImportResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformImportResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFactorioformManifestState2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformManifestStateᚄ(ctx context.Context, sel ast.SelectionSet, v []*FactorioformManifestState) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFactorioformManifestState2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformManifestState(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFactorioformManifestState2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformManifestState(ctx context.Context, sel ast.SelectionSet, v *FactorioformManifestState) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformManifestState(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFactorioformPlan2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlan(ctx context.Context, sel ast.SelectionSet, v FactorioformPlan) graphql.Marshaler {
+	return ec._FactorioformPlan(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNFactorioformPlan2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlan(ctx context.Context, sel ast.SelectionSet, v *FactorioformPlan) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformPlan(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFactorioformPlanBlocker2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanBlockerᚄ(ctx context.Context, sel ast.SelectionSet, v []*FactorioformPlanBlocker) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFactorioformPlanBlocker2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanBlocker(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFactorioformPlanBlocker2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanBlocker(ctx context.Context, sel ast.SelectionSet, v *FactorioformPlanBlocker) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformPlanBlocker(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFactorioformPlanChange2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanChangeᚄ(ctx context.Context, sel ast.SelectionSet, v []*FactorioformPlanChange) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFactorioformPlanChange2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanChange(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFactorioformPlanChange2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanChange(ctx context.Context, sel ast.SelectionSet, v *FactorioformPlanChange) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformPlanChange(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFactorioformPlanDiff2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanDiffᚄ(ctx context.Context, sel ast.SelectionSet, v []*FactorioformPlanDiff) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFactorioformPlanDiff2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanDiff(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFactorioformPlanDiff2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanDiff(ctx context.Context, sel ast.SelectionSet, v *FactorioformPlanDiff) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformPlanDiff(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNFactorioformPlanInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanInput(ctx context.Context, v any) (FactorioformPlanInput, error) {
+	res, err := ec.unmarshalInputFactorioformPlanInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFactorioformPlanMaterial2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanMaterialᚄ(ctx context.Context, sel ast.SelectionSet, v []*FactorioformPlanMaterial) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFactorioformPlanMaterial2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanMaterial(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFactorioformPlanMaterial2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanMaterial(ctx context.Context, sel ast.SelectionSet, v *FactorioformPlanMaterial) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformPlanMaterial(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFactorioformPlanStep2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanStepᚄ(ctx context.Context, sel ast.SelectionSet, v []*FactorioformPlanStep) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFactorioformPlanStep2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanStep(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFactorioformPlanStep2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanStep(ctx context.Context, sel ast.SelectionSet, v *FactorioformPlanStep) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformPlanStep(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFactorioformPlanSummary2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanSummary(ctx context.Context, sel ast.SelectionSet, v *FactorioformPlanSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformPlanSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNFactorioformRefreshInput2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshInput(ctx context.Context, v any) (FactorioformRefreshInput, error) {
+	res, err := ec.unmarshalInputFactorioformRefreshInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFactorioformRefreshRecorded2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshRecordedᚄ(ctx context.Context, sel ast.SelectionSet, v []*FactorioformRefreshRecorded) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFactorioformRefreshRecorded2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshRecorded(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFactorioformRefreshRecorded2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshRecorded(ctx context.Context, sel ast.SelectionSet, v *FactorioformRefreshRecorded) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformRefreshRecorded(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFactorioformRefreshResult2githubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshResult(ctx context.Context, sel ast.SelectionSet, v FactorioformRefreshResult) graphql.Marshaler {
+	return ec._FactorioformRefreshResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNFactorioformRefreshResult2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshResult(ctx context.Context, sel ast.SelectionSet, v *FactorioformRefreshResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformRefreshResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFactorioformRefreshUnmatched2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshUnmatchedᚄ(ctx context.Context, sel ast.SelectionSet, v []*FactorioformRefreshUnmatched) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFactorioformRefreshUnmatched2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshUnmatched(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFactorioformRefreshUnmatched2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformRefreshUnmatched(ctx context.Context, sel ast.SelectionSet, v *FactorioformRefreshUnmatched) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformRefreshUnmatched(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFactorioformStateResource2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformStateResourceᚄ(ctx context.Context, sel ast.SelectionSet, v []*FactorioformStateResource) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFactorioformStateResource2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformStateResource(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFactorioformStateResource2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformStateResource(ctx context.Context, sel ast.SelectionSet, v *FactorioformStateResource) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FactorioformStateResource(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNFactoryAlert2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactoryAlertᚄ(ctx context.Context, sel ast.SelectionSet, v []*FactoryAlert) graphql.Marshaler {
@@ -165941,6 +171270,13 @@ func (ec *executionContext) marshalOEquipmentTransferDirection2ᚖgithubᚗcom�
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOFactorioformPlanWire2ᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactorioformPlanWire(ctx context.Context, sel ast.SelectionSet, v *FactorioformPlanWire) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._FactorioformPlanWire(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOFactoryAreaInput2ᚕᚖgithubᚗcomᚋwricardoᚋfactorioᚑaiᚑplayerᚐFactoryAreaInputᚄ(ctx context.Context, v any) ([]*FactoryAreaInput, error) {

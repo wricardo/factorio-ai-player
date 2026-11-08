@@ -139,6 +139,12 @@ type InserterSettings {
   stackSizeOverride: Int!
   """Engine active state, including script, circuit, recipe, freezing and deconstruction disabling."""
   active: Boolean!
+  """Pickup point relative to the inserter centre, in map axes (x east, y south), for the current direction. Always set for a real inserter."""
+  pickupVector: Position
+  """Drop point relative to the inserter centre, in map axes, for the current direction."""
+  dropVector: Position
+  """Prototype allow_custom_vectors. False for every vanilla and Space Age inserter: pickupVector/dropVector writes are then refused."""
+  customVectorsAllowed: Boolean!
   """Whether the inserter may take from the left lane of a belt source. Both flags false is a common reason a full belt still reports waiting_for_source_items."""
   pickupFromLeftLane: Boolean!
   """Whether the inserter may take from the right lane of a belt source."""

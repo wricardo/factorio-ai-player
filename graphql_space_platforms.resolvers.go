@@ -24,12 +24,6 @@ func (r *mutationResolver) DeleteSpacePlatform(ctx context.Context, input SpaceP
 	return deleteSpacePlatform(r.Resolver, input)
 }
 
-// BuildAsPlayer is the resolver for the buildAsPlayer field.
-func (r *mutationResolver) BuildAsPlayer(ctx context.Context, input BuildAsPlayerInput) (*ActionResult, error) {
-	result, err := buildAsPlayer(r.Resolver, input)
-	return setActorResult(result, input.Actor, err)
-}
-
 // SpacePlatforms is the resolver for the spacePlatforms field.
 func (r *queryResolver) SpacePlatforms(ctx context.Context, input *SpacePlatformsInput) (*SpacePlatformPage, error) {
 	return spacePlatformsQuery(r.Resolver, input)
