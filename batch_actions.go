@@ -173,6 +173,11 @@ end
 // fuelMany fuels explicit entities in one call. Per-target semantics mirror
 // fuel: the full count is inserted or the target fails with a typed error.
 func fuelMany(r *Resolver, input FuelManyInput) (*FuelManyResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	character, player, err := settingsActorFrom(input.Actor)
 	if err != nil {
 		return nil, err
@@ -258,6 +263,11 @@ rcon.print(helpers.table_to_json({tick=game.tick,item=item,quality=quality,fuele
 // transferMany moves one item between the actor and each explicit target with
 // the same per-target semantics as transfer.
 func transferMany(r *Resolver, input TransferManyInput) (*TransferManyResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	character, player, err := settingsActorFrom(input.Actor)
 	if err != nil {
 		return nil, err

@@ -1,0 +1,9 @@
+factorioform {
+  version = 1
+  name    = "pitchtest"
+}
+module "a" {
+  source = "../modules/smelter_block"
+  origin = { x = 0, y = 0 }
+  pitch  = 4
+}

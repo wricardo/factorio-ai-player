@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -28,6 +29,13 @@ func ffExpectDiag(t *testing.T, diags hcl.Diagnostics, summary, detail string) {
 }
 
 // ffDump renders an expansion deterministically for comparison.
+func ffDirString(d *int) string {
+	if d == nil {
+		return "unmanaged"
+	}
+	return strconv.Itoa(*d)
+}
+
 func ffDump(x *ffExpanded) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "header %+v\n", x.Header)
@@ -41,7 +49,7 @@ func ffDump(x *ffExpanded) string {
 	}
 	for _, r := range x.Resources {
 		s := r.Spec
-		fmt.Fprintf(&b, "res %s entity=%s pos=%v dir=%d\n", r.Address, s.Entity, s.Position, s.Direction)
+		fmt.Fprintf(&b, "res %s entity=%s pos=%v dir=%s\n", r.Address, s.Entity, s.Position, ffDirString(s.Direction))
 		if s.Quality != nil {
 			fmt.Fprintf(&b, "  quality=%s\n", *s.Quality)
 		}
@@ -210,7 +218,7 @@ func TestEvalFactorioformEpicExample(t *testing.T) {
 		t.Fatalf("chest out = %v", p)
 	}
 	ins := x.Resources[5].Spec
-	if ins.Position != (ffPoint{18.5, 0.5}) || ins.Direction != 4 {
+	if ins.Position != (ffPoint{18.5, 0.5}) || ins.Direction == nil || *ins.Direction != 4 {
 		t.Fatalf("inserter = %+v", ins)
 	}
 	tiles := x.Resources[6].Spec.Belt.Tiles
@@ -259,6 +267,45 @@ const ffMiniHeader = "factorioform {\n  version = 1\n  name = \"t\"\n}\n"
 
 func ffMiniRes(name, extra string) string {
 	return "resource \"chest\" \"" + name + "\" {\n  entity = \"wooden-chest\"\n  position = { x = 0.5, y = 0.5 }\n" + extra + "}\n"
+}
+
+func TestEvalFactorioformStrictVariableTypes(t *testing.T) {
+	// A typed string is not a number, even though cty can convert it. GraphQL
+	// callers and var files must match the declared type exactly.
+	num := ffMiniHeader + "variable \"n\" {\n  type = number\n}\n"
+	if _, d := ffEvalOne(num, ffEvalOptions{Vars: map[string]cty.Value{"n": cty.StringVal("5")}}); true {
+		ffExpectDiag(t, d, "Invalid value for variable", "is not a number")
+	}
+	if _, d := ffEvalOne(num, ffEvalOptions{Vars: map[string]cty.Value{"n": cty.NumberIntVal(5)}}); d.HasErrors() {
+		t.Fatalf("number should be accepted: %v", d)
+	}
+	// --var stays permissive: CLI arguments arrive as strings.
+	if _, d := ffEvalOne(num, ffEvalOptions{RawVars: map[string]string{"n": "5"}}); d.HasErrors() {
+		t.Fatalf("--var must still coerce: %v", d)
+	}
+
+	// An object with an undeclared attribute is rejected rather than silently
+	// dropped by convert.Convert.
+	pos := ffMiniHeader + "variable \"p\" {\n  type = object({ x = number, y = number })\n}\n"
+	bad := cty.ObjectVal(map[string]cty.Value{"x": cty.NumberIntVal(1), "y": cty.NumberIntVal(2), "zzz": cty.True})
+	if _, d := ffEvalOne(pos, ffEvalOptions{Vars: map[string]cty.Value{"p": bad}}); true {
+		ffExpectDiag(t, d, "Invalid value for variable", "has no attribute zzz")
+	}
+	// A nested attribute of the wrong type is reported with its path.
+	badType := cty.ObjectVal(map[string]cty.Value{"x": cty.StringVal("1"), "y": cty.NumberIntVal(2)})
+	if _, d := ffEvalOne(pos, ffEvalOptions{Vars: map[string]cty.Value{"p": badType}}); true {
+		ffExpectDiag(t, d, "Invalid value for variable", `attribute "x"`)
+	}
+
+	// HCL-authored module arguments keep HCL conversion for scalars ("3" is a
+	// number) but still may not invent object attributes.
+	mod := map[string][]byte{
+		"main.ftf":   []byte(ffMiniHeader + "module \"m\" {\n  source = \"./m\"\n  n = \"3\"\n  p = { x = 1, y = 2, zzz = 3 }\n}\n"),
+		"m/main.ftf": []byte("variable \"n\" {\n  type = number\n}\nvariable \"p\" {\n  type = object({ x = number, y = number })\n}\n"),
+	}
+	if _, d := EvalFactorioform(mod, ffEvalOptions{RootDir: "."}); true {
+		ffExpectDiag(t, d, "Invalid value for variable", "has no attribute zzz")
+	}
 }
 
 func TestEvalFactorioformVariables(t *testing.T) {
@@ -390,7 +437,7 @@ resource "chest" "c" {
 func TestEvalFactorioformDirections(t *testing.T) {
 	src := ffMiniHeader + ffMiniRes("c", "  direction = direction.northwest\n")
 	x, d := ffEvalOne(src, ffEvalOptions{})
-	if d.HasErrors() || x.Resources[0].Spec.Direction != 14 {
+	if d.HasErrors() || x.Resources[0].Spec.Direction == nil || *x.Resources[0].Spec.Direction != 14 {
 		t.Fatalf("direction: %v", d)
 	}
 }

@@ -96,12 +96,12 @@ wire {
 		t.Fatalf("resources=%d wires=%d", len(m.Resources), len(m.Wires))
 	}
 	a := m.Resources[0].Spec
-	if a.Entity != "assembling-machine-2" || a.Position != (ffPoint{20.5, 0.5}) || a.Direction != 0 ||
+	if a.Entity != "assembling-machine-2" || a.Position != (ffPoint{20.5, 0.5}) || a.Direction == nil || *a.Direction != 0 ||
 		*a.Recipe != "electronic-circuit" || len(a.Modules) != 2 {
 		t.Fatalf("assembler = %+v", a)
 	}
 	ins := m.Resources[1].Spec
-	if ins.Direction != 4 || ins.Configs["inserter"].Attrs["filter_mode"].AsString() != "whitelist" || ins.Configs["circuit"] == nil {
+	if ins.Direction == nil || *ins.Direction != 4 || ins.Configs["inserter"].Attrs["filter_mode"].AsString() != "whitelist" || ins.Configs["circuit"] == nil {
 		t.Fatalf("inserter = %+v", ins)
 	}
 	if got := len(m.Resources[3].Spec.Belt.Tiles); got != 2 {

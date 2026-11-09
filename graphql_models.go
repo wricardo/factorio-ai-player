@@ -2462,6 +2462,8 @@ type FactorioformPlan struct {
 	Diffs     []*FactorioformPlanDiff     `json:"diffs"`
 	Steps     []*FactorioformPlanStep     `json:"steps"`
 	Materials []*FactorioformPlanMaterial `json:"materials"`
+	// Recipe-leaf raw requirements for the place-item materials: aggregate of expanding every material through the force's enabled recipes. Mineable/gathered/raw-fluid leaves are listed; unresearched items and recipe-less non-raw items are omitted.
+	RawMaterials []*FactorioformPlanRawMaterial `json:"rawMaterials"`
 }
 
 type FactorioformPlanBlocker struct {
@@ -2503,6 +2505,13 @@ type FactorioformPlanInput struct {
 }
 
 type FactorioformPlanMaterial struct {
+	Name    string `json:"name"`
+	Quality string `json:"quality"`
+	Count   int    `json:"count"`
+}
+
+type FactorioformPlanRawMaterial struct {
+	// Recipe-leaf raw requirement at the requested quality.
 	Name    string `json:"name"`
 	Quality string `json:"quality"`
 	Count   int    `json:"count"`
@@ -3131,6 +3140,57 @@ type GameSpeedResult struct {
 	Tick   float64 `json:"tick"`
 	Speed  float64 `json:"speed"`
 	Paused bool    `json:"paused"`
+}
+
+type GatherItemsInput struct {
+	Actor *ActorInput `json:"actor"`
+	// Search bounds, at most 1024 tiles per side. The actor's surface is used.
+	Area *FactoryAreaInput `json:"area"`
+	Item string            `json:"item"`
+	// Item quality prototype name; defaults to normal.
+	Quality *string `json:"quality,omitempty"`
+	// Items to gather, 1 through 4294967295.
+	Count int `json:"count"`
+	// Also take from infinity chests, which supply unlimited items. Defaults to false.
+	IncludeInfinityContainers *bool `json:"includeInfinityContainers,omitempty"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type GatherItemsResult struct {
+	Tick       float64          `json:"tick"`
+	Actor      *ActorIdentity   `json:"actor"`
+	Surface    string           `json:"surface"`
+	Item       string           `json:"item"`
+	Quality    string           `json:"quality"`
+	Requested  int              `json:"requested"`
+	Gathered   float64          `json:"gathered"`
+	StopReason GatherStopReason `json:"stopReason"`
+	// All four tiers in search order, with zeros for tiers that yielded nothing or were not reached.
+	Tiers []*GatherTierTotal `json:"tiers"`
+	// Up to 50 yielding sources in visit order.
+	Sources          []*GatherSource `json:"sources"`
+	SourcesTruncated bool            `json:"sourcesTruncated"`
+	// Sources that failed; every failure appears in errors up to 20.
+	Failed int           `json:"failed"`
+	Errors []*BatchError `json:"errors"`
+}
+
+// One source that yielded items during gatherItems.
+type GatherSource struct {
+	Tier       GatherTier `json:"tier"`
+	Entity     string     `json:"entity"`
+	UnitNumber *string    `json:"unitNumber,omitempty"`
+	Position   *Position  `json:"position"`
+	// Items moved from this source to the actor.
+	Moved float64 `json:"moved"`
+}
+
+type GatherTierTotal struct {
+	Tier GatherTier `json:"tier"`
+	// Sources of this tier that yielded items.
+	Sources int     `json:"sources"`
+	Moved   float64 `json:"moved"`
 }
 
 type GhostBacklogEntry struct {
@@ -4787,6 +4847,41 @@ type MemgraphTraceNode struct {
 	X *float64 `json:"x,omitempty"`
 	// World y position; for a BeltStretch, the head belt.
 	Y *float64 `json:"y,omitempty"`
+}
+
+type MineAreaInput struct {
+	Actor *ActorInput `json:"actor"`
+	// Sweep bounds, at most 1024 tiles per side. The actor's surface is used.
+	Area *FactoryAreaInput `json:"area"`
+	// Resource entity prototype to mine, for example iron-ore. Omitted means every resource that yields an item.
+	Resource *string `json:"resource,omitempty"`
+	// Items to gain, 1 through 10000. Counts items of the mined products, not tiles.
+	Count int `json:"count"`
+	// Print this text in-game to all connected players instead of the generated notification.
+	Message *string `json:"message,omitempty"`
+}
+
+type MineAreaResult struct {
+	Tick    float64        `json:"tick"`
+	Actor   *ActorIdentity `json:"actor"`
+	Surface string         `json:"surface"`
+	// The resource that was swept; null when every resource was allowed.
+	Resource  *string `json:"resource,omitempty"`
+	Requested int     `json:"requested"`
+	// Items of the mined products the actor's inventory gained.
+	Gained     float64          `json:"gained"`
+	StopReason GatherStopReason `json:"stopReason"`
+	// Resource tiles inside the area that were candidates.
+	TilesFound int `json:"tilesFound"`
+	// Tiles the sweep mined at least once.
+	TilesTouched int `json:"tilesTouched"`
+	// Touched tiles that were fully depleted.
+	TilesDepleted int `json:"tilesDepleted"`
+	// Tiles the engine refused to mine for a reason other than a full inventory.
+	Failed int           `json:"failed"`
+	Errors []*BatchError `json:"errors"`
+	// Net inventory change of the actor over the whole sweep.
+	Items []*InventoryStack `json:"items"`
 }
 
 // Mine one entity as the selected actor.
@@ -8287,6 +8382,131 @@ func (e *FluidWriteScope) UnmarshalJSON(b []byte) error {
 }
 
 func (e FluidWriteScope) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Why a mineArea sweep or gatherItems search ended.
+type GatherStopReason string
+
+const (
+	// The requested count of items was gathered; the actor may hold slightly more than requested after the last mine.
+	GatherStopReasonCountReached GatherStopReason = "COUNT_REACHED"
+	// The actor's main inventory cannot take the next item.
+	GatherStopReasonInventoryFull GatherStopReason = "INVENTORY_FULL"
+	// Every candidate in the area was visited and fewer than count items were found.
+	GatherStopReasonAreaExhausted GatherStopReason = "AREA_EXHAUSTED"
+)
+
+var AllGatherStopReason = []GatherStopReason{
+	GatherStopReasonCountReached,
+	GatherStopReasonInventoryFull,
+	GatherStopReasonAreaExhausted,
+}
+
+func (e GatherStopReason) IsValid() bool {
+	switch e {
+	case GatherStopReasonCountReached, GatherStopReasonInventoryFull, GatherStopReasonAreaExhausted:
+		return true
+	}
+	return false
+}
+
+func (e GatherStopReason) String() string {
+	return string(e)
+}
+
+func (e *GatherStopReason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = GatherStopReason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid GatherStopReason", str)
+	}
+	return nil
+}
+
+func (e GatherStopReason) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *GatherStopReason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e GatherStopReason) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Source class a gatherItems search visits; tiers are searched in this order.
+type GatherTier string
+
+const (
+	// Chests and logistic chests.
+	GatherTierContainer GatherTier = "CONTAINER"
+	// Output inventory of a furnace, assembling machine, rocket silo or mining drill.
+	GatherTierMachineOutput GatherTier = "MACHINE_OUTPUT"
+	// Transport belts, underground belts and splitters.
+	GatherTierBelt GatherTier = "BELT"
+	// Item entities on the ground and stacks held by inserters.
+	GatherTierLoose GatherTier = "LOOSE"
+)
+
+var AllGatherTier = []GatherTier{
+	GatherTierContainer,
+	GatherTierMachineOutput,
+	GatherTierBelt,
+	GatherTierLoose,
+}
+
+func (e GatherTier) IsValid() bool {
+	switch e {
+	case GatherTierContainer, GatherTierMachineOutput, GatherTierBelt, GatherTierLoose:
+		return true
+	}
+	return false
+}
+
+func (e GatherTier) String() string {
+	return string(e)
+}
+
+func (e *GatherTier) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = GatherTier(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid GatherTier", str)
+	}
+	return nil
+}
+
+func (e GatherTier) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *GatherTier) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e GatherTier) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -9,6 +9,11 @@ import (
 // placeTile replaces one tile using a tile item after checking the item's
 // prototype placement condition. Base tile items have condition size 1.
 func placeTile(r *Resolver, input PlaceTileInput) (*PlaceTileResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	character, player, err := settingsActorFrom(input.Actor)
 	if err != nil {
 		return nil, err

@@ -1,0 +1,146 @@
+# One burner smelting line: burner drill -> belt -> burner inserter -> stone
+# furnace -> plate belt, with a coal arm for the furnace and one for the drill.
+#
+# Designed against the two failure modes seen on the previous bank:
+#   1. Every burner here gets a fuel arm, so a line keeps running instead of
+#      burning through a one-time top-up and stopping.
+#   2. Plates leave the furnace onto a belt, so output never jams at 100.
+#
+# Geometry, derived from `origin` = furnace centre (integer, 2x2):
+#   ore drill   (origin.x - 4, origin.y - 2)   2x2 integer centre, faces east,
+#               drops at (+1.5,-0.5) -> (origin.x - 2.5, origin.y - 2.5)
+#   ore belt    x origin.x-2.5 .. origin.x-0.5 at y origin.y-2.5, flowing east
+#   ore arm     (origin.x - 0.5, origin.y - 1.5) facing NORTH: picks the belt
+#               above, drops into the furnace
+#   coal arm    (origin.x - 0.5, origin.y + 1.5) facing SOUTH: picks the coal
+#               belt below, drops into the furnace
+#   drill fuel  (origin.x - 5.5, origin.y - 2.5) facing WEST: picks the coal
+#               spine at origin.x - 6.5, drops into the drill
+#   plate arm   (origin.x + 1.5, origin.y - 0.5) facing WEST: picks the furnace's
+#               east tile (origin.x + 0.5), drops east onto the plate belt
+#   plate belt  from (origin.x + 2.5, origin.y - 0.5), flowing east
+#
+# The 2x2 furnace at (origin.x, origin.y) covers x origin.x-/+0.5, so the east
+# inset tile is origin.x + 0.5 and the arm must sit at origin.x + 1.5. At +2.5
+# the arm picks empty ground, plates never leave, the furnace jams at 100 and the
+# whole bank backs up (observed live).
+#
+# An inserter's `direction` is its PICKUP heading, so the ore arm faces north
+# (belt above) and the coal arm faces south (belt below). Reversing them is a
+# silent stall: the arm picks empty ground and sits idle forever.
+#
+# The spine must be at origin.x - 6.5, not origin.x - 4.5: the drill occupies
+# origin.x-5 .. origin.x-3, and a spine at -4.5 runs straight through it.
+
+variable "origin" {
+  type        = object({ x = number, y = number })
+  description = "Centre of the stone furnace; integer coordinates."
+}
+
+variable "coal_spine_x" {
+  type        = number
+  description = "x of the north-south coal spine; must be origin.x - 6.5."
+}
+
+variable "plate_belt_tiles" {
+  type        = number
+  default     = 4
+  description = "Plate-out belt length east of the arm."
+}
+
+variable "sink" {
+  type        = string
+  default     = "wooden-chest"
+  description = "Prototype placed at the end of the plate belt to receive plates."
+}
+
+locals {
+  ore_y   = var.origin.y - 2.5
+  drill_x = var.origin.x - 4
+  drill_y = var.origin.y - 2
+}
+
+resource "drill" "ore" {
+  entity    = "burner-mining-drill"
+  position  = { x = local.drill_x, y = local.drill_y }
+  direction = direction.east
+}
+
+resource "inserter" "fuel_drill" {
+  entity    = "burner-inserter"
+  position  = { x = var.origin.x - 5.5, y = local.ore_y }
+  direction = direction.west
+}
+
+resource "belt" "ore" {
+  belt {
+    entity = "transport-belt"
+    path = [for i in range(3) : {
+      x         = var.origin.x - 2.5 + i
+      y         = local.ore_y
+      direction = direction.east
+    }]
+  }
+}
+
+resource "inserter" "ore_into_furnace" {
+  entity    = "burner-inserter"
+  position  = { x = var.origin.x - 0.5, y = var.origin.y - 1.5 }
+  direction = direction.north
+}
+
+resource "inserter" "coal_into_furnace" {
+  entity    = "burner-inserter"
+  position  = { x = var.origin.x - 0.5, y = var.origin.y + 1.5 }
+  direction = direction.south
+}
+
+resource "furnace" "smelter" {
+  entity   = "stone-furnace"
+  position = var.origin
+}
+
+resource "inserter" "plate_out" {
+  entity    = "burner-inserter"
+  position  = { x = var.origin.x + 1.5, y = var.origin.y - 0.5 }
+  direction = direction.west
+}
+
+resource "belt" "plate" {
+  belt {
+    entity = "transport-belt"
+    path = [for i in range(var.plate_belt_tiles) : {
+      x         = var.origin.x + 2.5 + i
+      y         = var.origin.y - 0.5
+      direction = direction.east
+    }]
+  }
+}
+
+# A dead-end plate belt fills in a few seconds and then back-pressures the
+# furnace to full_output (observed live), so every line ends its plate belt in a
+# chest. The chest is fed by an arm: a transport belt does NOT hand items to a
+# container, so pointing the belt at a chest (or putting the chest on the last
+# belt tile) leaves the plates jammed no matter how it is placed.
+# An inserter, not a belt-to-chest handoff: belts never insert into containers,
+# so the belt has to end and this arm lifts the plates into the chest.
+resource "inserter" "plate_into_sink" {
+  entity    = "burner-inserter"
+  position  = { x = var.origin.x + 2.5 + var.plate_belt_tiles, y = var.origin.y - 0.5 }
+  direction = direction.west
+}
+
+resource "plate_sink" "chest" {
+  entity   = var.sink
+  position = { x = var.origin.x + 3.5 + var.plate_belt_tiles, y = var.origin.y - 0.5 }
+}
+
+output "furnace" {
+  description = "The stone furnace of this line."
+  value       = resource.furnace.smelter
+}
+
+output "drill" {
+  description = "The ore drill of this line."
+  value       = resource.drill.ore
+}

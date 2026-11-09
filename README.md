@@ -185,6 +185,10 @@ The `rotate` mutation rotates a reachable entity by 1–3 clockwise quarter turn
 
 `pickupArea` accepts nested `actor` and collects reachable dropped stacks. Partial stacks remain when inventory fills; aggregate item lists report moved and remaining counts. `stacksOutOfReach` retains aggregate count while typed `errors` distinguishes `REACH` from `INVENTORY` per stack. Example: `mutation { pickupArea(input: {actor: {character: "123"}, area: {leftTopX: 0, leftTopY: 0, rightBottomX: 32, rightBottomY: 32}}) { stacksFound stacksOutOfReach errors {index code message target {position {x y}}} itemsPickedUp {name quality count} itemsRemaining {name quality count} } }`.
 
+`mineArea` sweeps one resource type (or every item-yielding resource when `resource` is omitted) in a bounded area (≤1024 tiles per side, `count` 1–10000) as one actor in one RCON call. Tiles are mined nearest-first with `mine_entity` and the sweep stops once the actor's inventory gained `count` items of the mined products — items, not tiles, because a partial mine only shrinks a tile's `amount`. There is no reach restriction: tiles anywhere in the area are mined, and mined items never spill. `stopReason` is `COUNT_REACHED`, `INVENTORY_FULL` or `AREA_EXHAUSTED`; `gained` may overshoot by one mine's yield. Example: `mutation { mineArea(input: {actor: {character: "123"}, area: {leftTopX: 0, leftTopY: 0, rightBottomX: 32, rightBottomY: 32}, resource: "iron-ore", count: 200}) { gained stopReason tilesFound tilesTouched tilesDepleted failed errors {index code message} } }`.
+
+`gatherItems` finds one item in tiered sources inside a bounded area on the actor's surface and moves it into the actor's inventory until `count` is reached: `CONTAINER` (chests; infinity chests excluded unless `includeInfinityContainers: true`), `MACHINE_OUTPUT` (output inventories only of furnaces, assemblers, silos and drills — never input, fuel, module or trash), `BELT` (belt, underground and splitter transport lines), `LOOSE` (ground item entities and inserter-held stacks). Tiers are searched in that order, nearest-first within a tier, and only entities of the actor's force are touched. There is no reach restriction: sources anywhere in the area are used. `sources` lists up to 50 yielding sources (`sourcesTruncated` flags more) and `errors` the first 20 failures. Not transactional: items already moved stay with the actor. Example: `mutation { gatherItems(input: {actor: {character: "123"}, area: {leftTopX: 0, leftTopY: 0, rightBottomX: 32, rightBottomY: 32}, item: "iron-plate", count: 100}) { gathered stopReason tiers {tier sources moved} sources {tier entity unitNumber moved} errors {index code message} } }`.
+
 `deconstructArea` and `cancelDeconstructArea` place or cancel deconstruction orders for deconstructible entities in required area, applying force planner semantics. They need no actor unless `instant` is requested; ordinary mode removes nothing itself. `force` defaults to `player`; same 1024-tile-per-side limit applies. Entity variants accept up to 1000 `targets`, each using shared `EntityRefInput`. All continuing operations return counts plus typed `errors {index code message target {...}}`; clients never parse indices from text. `inspect.toBeDeconstructed` reports current mark.
 
 When finished, wait for all crafting to finish and return the character's main inventory to the disconnected player before joining as that player. Then stop the server.
@@ -1299,8 +1303,8 @@ CLI (same document as the GraphQL result, printed as JSON, read-only; needs
 root module: its `*.ftf` files, merged like Terraform — variables, locals and
 resources are shared across every file in the directory (one `factorioform`
 header per directory). The CLI also reads every directory the `module` blocks
-point at, transitively. `--file PATH` (repeatable) and `--dir DIR` remain as
-compatibility aliases; all `--file` paths must share one directory. Example:
+point at, transitively. `--dir DIR` is the same as the positional `DIR`;
+there is no per-file option, so keep independent manifests in separate directories. Example:
 `factorioform plan --format text demo/` plans `demo/main.ftf`, which
 instantiates `demo/modules/mining_line` for the iron, copper and coal patches.
 Operations are logged with source `cli`.

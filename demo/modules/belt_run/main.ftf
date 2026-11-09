@@ -1,0 +1,49 @@
+# A straight run of transport belts carrying one item in one direction.
+#
+# Reusable supply primitive: used by coal_spine for the coal columns, and usable
+# directly for any straight lane. Tiles are generated from `from` and `tiles`,
+# so callers never hand-list coordinates.
+#
+# Directions follow the flow: a run growing east faces east, a run growing south
+# faces south, and so on. The first tile sits at `from`.
+
+variable "from" {
+  type        = object({ x = number, y = number })
+  description = "First tile centre."
+}
+
+variable "tiles" {
+  type        = number
+  description = "How many belt tiles to place, starting at `from`."
+}
+
+variable "axis" {
+  type        = string
+  default     = "east"
+  description = "One of east, west, north, south: the direction each tile feeds."
+}
+
+locals {
+  step = {
+    east  = { x = 1, y = 0, direction = direction.east }
+    west  = { x = -1, y = 0, direction = direction.west }
+    north = { x = 0, y = -1, direction = direction.north }
+    south = { x = 0, y = 1, direction = direction.south }
+  }[var.axis]
+}
+
+resource "belt" "run" {
+  belt {
+    entity = "transport-belt"
+    path = [for i in range(var.tiles) : {
+      x         = var.from.x + local.step.x * i
+      y         = var.from.y + local.step.y * i
+      direction = local.step.direction
+    }]
+  }
+}
+
+output "belt" {
+  description = "The belt run."
+  value       = resource.belt.run
+}

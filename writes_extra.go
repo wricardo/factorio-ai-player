@@ -50,6 +50,11 @@ end
 // dropItem moves items from the acting character's main inventory onto the
 // ground stack at a position or into the transport line of the belt there.
 func dropItem(r *Resolver, input DropItemInput) (*DropItemResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	character, player, err := settingsActorFrom(input.Actor)
 	if err != nil {
 		return nil, err

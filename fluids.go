@@ -24,6 +24,11 @@ var fluidWriteModes = map[FluidWriteMode]string{
 // the engine clamps the requested amount to capacity; ADD reports the amount the
 // engine actually accepted; CLEAR ignores the fluid name and empties the boxes.
 func setFluid(r *Resolver, input SetFluidInput) (*FluidWriteResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	mode, ok := fluidWriteModes[input.Mode]
 	if !ok {
 		return nil, errors.New("mode must be SET, ADD, or CLEAR")

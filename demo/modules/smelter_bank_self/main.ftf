@@ -1,0 +1,100 @@
+# A bank of self-feeding burner smelting lines plus one self-feeding coal supply.
+#
+# Composes two reusable modules and owns only the stacking arithmetic:
+#   smelt_line_self  x lines   drill, belts, 4 arms, furnace, plate belt
+#   coal_supply                coal drill + spine + arm that feeds the drill
+#
+# Why this design beats the previous bank (demo/main.ftf, still live):
+#   - every burner has a fuel arm, so a bank keeps running instead of burning
+#     through a one-time coal top-up and stopping
+#   - the coal drill refuels itself from its own spine, so there is no circular
+#     dependency to stall the supply chain
+#   - plates leave each furnace onto a belt, so output never jams at 100
+#
+# Row pitch must be >= 8. At pitch 4 and 6 the next row's ore drill and coal
+# branch collide with the previous row's plate belt (checked numerically).
+#
+# The coal spine must sit at `origin.x - 6.5`: the ore drill occupies
+# origin.x-5 .. origin.x-3, so a spine at -4.5 runs through it. The drill's fuel
+# arm sits at origin.x-5.5 facing west and picks the spine one tile further out.
+
+variable "origin" {
+  type        = object({ x = number, y = number })
+  description = "Centre of the first line's furnace; integer coordinates."
+}
+
+variable "lines" {
+  type    = number
+  default = 3
+}
+
+variable "pitch" {
+  type        = number
+  default     = 8
+  description = "Row spacing; 8 is the minimum that clears every footprint."
+}
+
+variable "coal_drill" {
+  type        = object({ x = number, y = number })
+  description = "Centre of the coal drill; integer, on the coal patch."
+}
+
+locals {
+  last_row_y  = var.origin.y + var.pitch * (var.lines - 1)
+  spine_x     = var.origin.x - 6.5
+  spine_end_y = local.last_row_y + 2.5
+  # A southbound spine cannot side-load an eastbound branch: a belt only emits
+  # onto the tile it faces, so a branch starting beside the spine is fed by
+  # nothing (observed live: spine saturated, every branch empty). Each branch is
+  # loaded by its own inserter picking the spine instead.
+  loader_x     = local.spine_x + 1
+  branch_x0    = local.spine_x + 2
+  branch_end   = var.origin.x - 0.5
+  branch_tiles = local.branch_end - local.branch_x0 + 1
+}
+
+module "line" {
+  source        = "../smelt_line_self"
+  count         = var.lines
+  origin        = { x = var.origin.x, y = var.origin.y + var.pitch * count.index }
+  coal_spine_x  = local.spine_x
+}
+
+module "coal" {
+  source  = "../coal_supply"
+  drill_x = var.coal_drill.x
+  drill_y = var.coal_drill.y
+  spine_x = local.spine_x
+  end_y   = local.spine_end_y
+}
+
+# One loader arm per row: picks the spine, drops east onto the branch belt.
+resource "inserter" "coal_loader" {
+  count     = var.lines
+  entity    = "burner-inserter"
+  position  = { x = local.loader_x, y = var.origin.y + var.pitch * count.index + 2.5 }
+  direction = direction.west
+}
+
+# One branch per row, from the loader's drop tile east to the furnace coal arm.
+resource "belt" "coal_branch" {
+  count = var.lines
+  belt {
+    entity = "transport-belt"
+    path = [for i in range(local.branch_tiles) : {
+      x         = local.branch_x0 + i
+      y         = var.origin.y + var.pitch * count.index + 2.5
+      direction = direction.east
+    }]
+  }
+}
+
+output "furnaces" {
+  description = "The furnace of every line, in row order."
+  value       = module.line[*].furnace
+}
+
+output "drills" {
+  description = "The ore drill of every line, in row order."
+  value       = module.line[*].drill
+}

@@ -1,0 +1,351 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# SMELTER BLOCK — a standalone smelting factory you place on its own land.
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# This module contains NO drills. Ore arrives by belt from your mines; plates
+# leave by belt to your factory. It is a processing block, not a mining outpost.
+#
+#   ┌─ ore in ───────────────────────────────────────────────► (belt you feed)
+#   │  ┌────────────────────────────────────────────────────┐
+#   │  │  furnace  furnace  furnace  ...  furnace  furnace  │   N furnaces
+#   │  └────────────────────────────────────────────────────┘
+#   └─ coal in ─────────────────────────────────────────────► (belt you feed)
+#      ── plates out ─────────────────────────────────────────► (belt to factory)
+#
+# ── THE ARITHMETIC (constants read live from this save's prototypes) ──
+#
+#   transport-belt beltSpeed ... 0.03125 tiles/tick -> 32 ticks/tile
+#                                -> 7.5 items/s per lane, 2 lanes = 15 items/s
+#   plate recipe .............. energy 3.2 s, 1 ore -> 1 plate
+#   stone-furnace   speed 1 ... 1 / 3.2 = 0.3125 plate/s
+#   steel-furnace   speed 2 ... 2 / 3.2 = 0.625  plate/s
+#   electric-furnace speed 2 .. 2 / 3.2 = 0.625  plate/s  (3x3, no fuel lane)
+#
+#   FURNACES FOR ONE FULL BELT = 15 / furnace_rate
+#       steel or electric : 15 / 0.625  = 24
+#       stone             : 15 / 0.3125 = 48
+#
+# `lines` is DERIVED from `target_rate` and the furnace, so you ask for a belt:
+#       target_rate 15 + steel-furnace -> 24 furnaces, 15.0 plate/s
+#       target_rate 15 + stone-furnace -> 48 furnaces, 15.0 plate/s
+#       target_rate 7.5                -> 12 furnaces,  7.5 plate/s
+#
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  TILEABILITY — read this before placing two blocks next to each other    ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# One block occupies a rectangle of:
+#       width  = (lines - 1) * pitch + pitch     (240 tiles for 24 steel furnaces)
+#       height = block_height                     (9 tiles)
+# measured from `origin` = centre of the FIRST furnace:
+#       y from origin.y - 4.5 (pole row)  to  origin.y + 4.5 (plate trunk)
+#       x from origin.x - 2.5             to  origin.x + span - 2.5
+#
+# Vertical tiling (the normal case — a long row of blocks):
+#       next origin.y = this origin.y + tile_pitch      (tile_pitch = 10)
+#       Every block gets its own ore, coal and trunk lane; nothing is shared.
+#       Feed all ore lanes from one trunk with a splitter per block; collect all
+#       plate trunks into one line the same way.
+#
+# Horizontal tiling (very long banks) is NOT supported by this module: the
+# span is already 240 tiles for one belt, and the three lanes enter from the
+# west only. For more than one belt, tile VERTICALLY.
+#
+# The three lanes enter at the block's WEST edge, all at x = origin.x - 2.5:
+#       ore   at y = origin.y - 2.5
+#       coal  at y = origin.y + 2.5
+#       trunk at y = origin.y + 4.5   (plates leave here, flowing east)
+# Connect your feeder belts to the first tile of each lane.
+#
+# ══ WHY BURNER ARMS BY DEFAULT ══
+# Verified live: the only generator on this save is one steam-engine at
+# (12.5,54.5) reading no_input_fluid, with no boiler — so there is no working
+# electric grid. inserter / fast-inserter / long-handed-inserter all report
+# no_power and move nothing. A cell built with fast inserters produced zero
+# plates with full chests. Burner arms need no grid, so they work immediately.
+#
+# Flip `arm = "fast-inserter"` and `long_arm = "long-handed-inserter"` after you
+# build generation; the `pole` row is already placed and only needs a supply
+# connection at `power_grid`.
+#
+# ══ PER-CELL GEOMETRY (verified against live inspect output) ══
+# Furnace 2x2 at integer (FX, FY) -> tiles x{FX-0.5,FX+0.5} y{FY-0.5,FY+0.5}.
+# An inserter's `direction` is its PICKUP heading; it DROPS BEHIND itself
+# (short: pick 1.0 / drop 1.2; long-handed: pick 2.0 / drop 2.2).
+#
+#   y = FY-2.5   ore belt .................................. eastbound
+#   y = FY-1.5   ore arm  (N, x = FX-0.5): picks ore, drops into furnace
+#   y = FY-0.5   plate arm (W, x = FX+1.5): picks furnace, drops east
+#   y = FY       furnace 2x2
+#   y = FY+1.5   coal arm  (S, x = FX+0.5): picks coal below, drops into furnace
+#   y = FY+2.5   coal belt ................................. eastbound
+#   y = FY+4.5   plate trunk ............................... eastbound
+#   x = FX+2.5   plate column, southbound, dips UNDER the coal belt
+#
+# The coal lane is SOUTH because a short arm reaches only 1 tile and the north
+# side is already the ore lane. The column must cross the coal lane, so it uses
+# an underground pair — underground max distance is 5, the span here is 1.
+#
+# ══ TWO BELT MECHANICS THAT BREAK NAIVE LAYOUTS ══
+# 1. A belt emits only onto the tile it faces; it never side-loads a
+#    perpendicular belt. Columns therefore cannot merge on the surface.
+# 2. A belt never inserts into a container. Every plate path must end at an
+#    inserter or the lane jams and back-pressures the furnace to full_output.
+
+variable "origin" {
+  type        = object({ x = number, y = number })
+  description = "Integer centre of the FIRST furnace. The block grows EAST and sits between origin.y-4.5 and origin.y+4.5."
+}
+
+variable "target_rate" {
+  type        = number
+  default     = 15
+  description = "Plates per second. 15 = one saturated yellow belt (2 lanes x 7.5/s)."
+}
+
+variable "furnace" {
+  type        = string
+  default     = "steel-furnace"
+  description = "stone-furnace (1x speed, 0.3125/s), steel-furnace or electric-furnace (2x speed, 0.625/s)."
+}
+
+variable "recipe_time" {
+  type        = number
+  default     = 3.2
+  description = "Seconds per craft. iron-plate and copper-plate are both 3.2."
+}
+
+variable "fuel_belt" {
+  type        = bool
+  default     = true
+  description = "Build the coal lane and fuel arms. Set false for electric furnaces (no fuel needed)."
+}
+
+variable "arm" {
+  type        = string
+  default     = "burner-inserter"
+  description = "Inserter for ore and plate arms. burner-inserter needs no power; fast-inserter needs a grid."
+}
+
+variable "long_arm" {
+  type        = string
+  default     = "burner-inserter"
+  description = "Inserter for the coal arm. burner-inserter is 1-tile reach; long-handed-inserter reaches 2."
+}
+
+variable "belt" {
+  type        = string
+  default     = "transport-belt"
+  description = "Belt prototype for every lane. transport-belt = 15 items/s."
+}
+
+variable "pole_spacing" {
+  type        = number
+  default     = 5
+  description = "Tiles between power poles (small pole supply area is 5x5). Inert while using burner arms."
+}
+
+variable "pitch" {
+  type        = number
+  default     = 10
+  description = "x spacing between furnaces; must clear the plate arm and the southbound column."
+}
+
+variable "tile_pitch" {
+  type        = number
+  default     = 10
+  description = "y distance between the origins of two vertically tiled blocks. Keep >= block height (9) plus a clear row."
+}
+
+locals {
+  furnace_speed = var.furnace == "stone-furnace" ? 1 : 2
+  furnace_rate  = local.furnace_speed / var.recipe_time
+
+  # ceil, never floor: a partial furnace adds no throughput, so flooring would
+  # silently deliver less than the requested belt.
+  lines = max(1, ceil(var.target_rate / local.furnace_rate))
+
+  actual_rate = local.lines * local.furnace_rate
+
+  span  = (local.lines - 1) * var.pitch + var.pitch
+  poles = max(1, ceil(local.span / var.pole_spacing))
+
+  ore_y   = var.origin.y - 2.5
+  coal_y  = var.origin.y + 2.5
+  trunk_y = var.origin.y + 4.5
+  pole_y  = var.origin.y - 4.5
+
+  column_tiles = local.trunk_y - (var.origin.y - 0.5) - 1
+
+  # Underground pair straddling the coal lane.
+  dip_in_y      = local.coal_y - 1
+  dip_out_y     = local.coal_y + 1
+  pre_dip_tiles = local.dip_in_y - (var.origin.y - 0.5)
+  post_dip_tiles = local.trunk_y - local.dip_out_y - 1
+
+  # West edge of every lane: where the caller connects feeder belts.
+  lane_x0 = var.origin.x - 2.5
+}
+
+resource "furnace" "smelter" {
+  count    = local.lines
+  entity   = var.furnace
+  position = { x = var.origin.x + var.pitch * count.index, y = var.origin.y }
+}
+
+# ── Ore lane (input) ─────────────────────────────────────────────────────
+resource "belt" "ore" {
+  belt {
+    entity = var.belt
+    path = [for i in range(local.span) : {
+      x         = local.lane_x0 + i
+      y         = local.ore_y
+      direction = direction.east
+    }]
+  }
+}
+
+resource "inserter" "ore_in" {
+  count     = local.lines
+  entity    = var.arm
+  position  = { x = var.origin.x + var.pitch * count.index - 0.5, y = var.origin.y - 1.5 }
+  direction = direction.north
+}
+
+# ── Coal lane (input) ────────────────────────────────────────────────────
+resource "belt" "coal" {
+  count = var.fuel_belt ? 1 : 0
+  belt {
+    entity = var.belt
+    path = [for i in range(local.span) : {
+      x         = local.lane_x0 + i
+      y         = local.coal_y
+      direction = direction.east
+    }]
+  }
+}
+
+resource "inserter" "fuel_in" {
+  count     = var.fuel_belt ? local.lines : 0
+  entity    = var.long_arm
+  position  = { x = var.origin.x + var.pitch * count.index + 0.5, y = var.origin.y + 1.5 }
+  direction = direction.south
+}
+
+# ── Plate out (output) ───────────────────────────────────────────────────
+resource "inserter" "plate_out" {
+  count     = local.lines
+  entity    = var.arm
+  position  = { x = var.origin.x + var.pitch * count.index + 1.5, y = var.origin.y - 0.5 }
+  direction = direction.west
+}
+
+resource "belt" "plate_column" {
+  count = local.lines
+  belt {
+    entity = var.belt
+    path = [for i in range(var.fuel_belt ? local.pre_dip_tiles : local.column_tiles) : {
+      x         = var.origin.x + var.pitch * count.index + 2.5
+      y         = var.origin.y - 0.5 + i
+      direction = direction.south
+    }]
+  }
+}
+
+resource "tunnel" "plate_dip_in" {
+  count            = var.fuel_belt ? local.lines : 0
+  entity           = "underground-belt"
+  position         = { x = var.origin.x + var.pitch * count.index + 2.5, y = local.dip_in_y }
+  direction        = direction.south
+  underground_type = "input"
+}
+
+resource "tunnel" "plate_dip_out" {
+  count            = var.fuel_belt ? local.lines : 0
+  entity           = "underground-belt"
+  position         = { x = var.origin.x + var.pitch * count.index + 2.5, y = local.dip_out_y }
+  direction        = direction.south
+  underground_type = "output"
+}
+
+resource "belt" "plate_drop" {
+  count = local.post_dip_tiles > 0 ? local.lines : 0
+  belt {
+    entity = var.belt
+    path = [for i in range(local.post_dip_tiles) : {
+      x         = var.origin.x + var.pitch * count.index + 2.5
+      y         = local.dip_out_y + 1 + i
+      direction = direction.south
+    }]
+  }
+}
+
+resource "belt" "trunk" {
+  belt {
+    entity = var.belt
+    path = [for i in range(local.span) : {
+      x         = local.lane_x0 + i
+      y         = local.trunk_y
+      direction = direction.east
+    }]
+  }
+}
+
+# ── Power ────────────────────────────────────────────────────────────────
+resource "pole" "row" {
+  count    = local.poles
+  entity   = "small-electric-pole"
+  position = { x = local.lane_x0 + var.pole_spacing * count.index, y = local.pole_y }
+}
+
+# ══ OUTPUTS: everything a caller needs to wire this block into a factory ══
+
+output "lines" {
+  description = "Furnaces built for the requested rate."
+  value       = local.lines
+}
+
+output "actual_rate" {
+  description = "Plates per second this block delivers."
+  value       = local.actual_rate
+}
+
+output "width" {
+  description = "x tiles the block occupies, for tiling arithmetic."
+  value       = local.span
+}
+
+output "height" {
+  description = "y tiles the block occupies (pole row to trunk)."
+  value       = 9
+}
+
+output "tile_pitch" {
+  description = "Minimum y offset between two vertically tiled blocks."
+  value       = var.tile_pitch
+}
+
+output "ore_input" {
+  description = "First tile of the ore lane (west edge). Feed ore here, flowing east."
+  value       = { x = local.lane_x0, y = local.ore_y }
+}
+
+output "coal_input" {
+  description = "First tile of the coal lane (west edge). Feed coal here. Absent when fuel_belt = false."
+  value       = { x = local.lane_x0, y = local.coal_y }
+}
+
+output "plate_output" {
+  description = "First tile of the plate trunk (west edge). Plates flow east from here; tap or merge it downstream."
+  value       = { x = local.lane_x0, y = local.trunk_y }
+}
+
+output "power_grid" {
+  description = "Stub pole at the west end of the pole row; connect supply here for electric arms."
+  value       = resource.pole.row
+}
+
+output "furnaces" {
+  description = "Every furnace, west to east."
+  value       = resource.furnace.smelter
+}

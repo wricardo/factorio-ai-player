@@ -1,0 +1,102 @@
+# Coal supply: one BURNER drill on a coal patch, a belt spine south, and an arm
+# that feeds the drill from its own spine.
+#
+# This closes the circular dependency that stalled the previous bank. A burner
+# coal drill burns coal, so once its one-time seed load ran out nothing refuelled
+# it: the spine drained, the furnaces went cold and the bank stopped. The arm
+# below breaks the loop by picking coal off the spine the drill itself feeds and
+# dropping it back into the drill.
+#
+# Geometry (drill 2x2, integer centre, facing east):
+#   drill tiles (drill_x -/+ 0.5, drill_y -/+ 0.5)
+#   drop tile   (drill_x + 1.5, drill_y - 0.5)
+#   link        belts from the drop tile east to the spine
+#   spine       x = spine_x, from the drop tile's y south to end_y
+#   self arm    (spine_x - 1, drill_y + 0.5) facing EAST:
+#               picks the spine tile beside it, drops into the drill's east tile
+#
+# The arm sits outside the drill's footprint and its pickup is one tile east, on
+# the spine, so the loop is legal: spine -> arm -> drill -> spine.
+#
+# Burner rather than electric on purpose: an electric drill would work but needs
+# a powered network, and running a 75-tile power line to a coal patch is a much
+# larger dependency than keeping the loop self-contained.
+
+variable "drill_x" {
+  type        = number
+  description = "x centre of the coal drill; integer (2x2 footprint)."
+}
+
+variable "drill_y" {
+  type        = number
+  description = "y centre of the coal drill; integer."
+}
+
+variable "spine_x" {
+  type        = number
+  description = "x of the belt spine; must be drill_x + 2.5."
+}
+
+variable "end_y" {
+  type        = number
+  description = "y of the southernmost spine tile."
+}
+
+variable "drill" {
+  type        = bool
+  default     = true
+  description = "Place the drill and its self-feed arm; false to keep only the spine."
+}
+
+locals {
+  drop_y      = var.drill_y - 0.5
+  spine_tiles = var.end_y - local.drop_y + 1
+  link_tiles  = var.spine_x - (var.drill_x + 1.5)
+}
+
+resource "drill" "coal" {
+  count     = var.drill ? 1 : 0
+  entity    = "burner-mining-drill"
+  position  = { x = var.drill_x, y = var.drill_y }
+  direction = direction.east
+}
+
+resource "belt" "link" {
+  count = local.link_tiles > 0 ? 1 : 0
+  belt {
+    entity = "transport-belt"
+    path = [for i in range(local.link_tiles) : {
+      x         = var.drill_x + 1.5 + i
+      y         = local.drop_y
+      direction = direction.east
+    }]
+  }
+}
+
+resource "inserter" "self_feed" {
+  count     = var.drill ? 1 : 0
+  entity    = "burner-inserter"
+  position  = { x = var.spine_x - 1, y = var.drill_y + 0.5 }
+  direction = direction.east
+}
+
+resource "belt" "spine" {
+  belt {
+    entity = "transport-belt"
+    path = [for i in range(local.spine_tiles) : {
+      x         = var.spine_x
+      y         = local.drop_y + i
+      direction = direction.south
+    }]
+  }
+}
+
+output "spine" {
+  description = "The coal spine; every row taps it."
+  value       = resource.belt.spine
+}
+
+output "drill" {
+  description = "The coal drill."
+  value       = resource.drill.coal
+}

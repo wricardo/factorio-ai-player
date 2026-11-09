@@ -102,6 +102,7 @@ func ffRunPipeline(ctx context.Context, r *Resolver, in ffPipelineInput) (*ffPip
 	live, err := ffReadLive(ctx, r, ffLiveQuery{
 		Surface: exp.Header.Surface, Force: exp.Header.Force,
 		Area: ffManifestArea(norm), StateUnits: units,
+		ContainerInventories: ffContainerInventories(norm),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -109,6 +110,30 @@ func ffRunPipeline(ctx context.Context, r *Resolver, in ffPipelineInput) (*ffPip
 	res.Live = live
 	res.Diff = ffDiff(ffDiffInput{Desired: norm, State: res.StateEntries, Live: live.Entities})
 	return res, nil, nil
+}
+
+// ffContainerInventories returns the sorted, distinct inventory keys whose
+// container bar the manifest manages (container.<inv>.bar).
+func ffContainerInventories(n *ffNormalized) []string {
+	if n == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	for _, r := range n.Resources {
+		for k := range r.Config {
+			if rest, ok := strings.CutPrefix(k, "container."); ok {
+				if inv, found := strings.CutSuffix(rest, ".bar"); found {
+					seen[inv] = true
+				}
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ffManifestArea is the union of desired footprints plus a 2 tile margin, empty
@@ -226,7 +251,13 @@ func ffPlan(ctx context.Context, r *Resolver, req ffPlanRequest) (*FactorioformP
 		return nil, diags, err
 	}
 	plan, err := ffBuildPlan(res, req.Actor)
-	return plan, nil, err
+	if err == nil {
+		err = ffAttachRawMaterials(ctx, r, res.Expanded.Header.Force, plan)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	return plan, nil, nil
 }
 
 func factorioformPlan(ctx context.Context, r *Resolver, in FactorioformPlanInput) (*FactorioformPlan, error) {
@@ -297,7 +328,7 @@ func ffBuildPlan(res *ffPipelineResult, actor *ActorInput) (*FactorioformPlan, e
 			Create: d.Summary.Create, Update: d.Summary.Update, Replace: d.Summary.Replace, Delete: d.Summary.Delete,
 			Drift: d.Summary.Drift, Adopt: d.Summary.Adopt, Conflict: d.Summary.Conflict, Pending: d.Summary.Pending, Noop: d.Summary.Noop,
 		},
-		Diffs: []*FactorioformPlanDiff{}, Steps: p.steps, Materials: []*FactorioformPlanMaterial{},
+		Diffs: []*FactorioformPlanDiff{}, Steps: p.steps, Materials: []*FactorioformPlanMaterial{}, RawMaterials: []*FactorioformPlanRawMaterial{},
 	}
 	if plan.Steps == nil {
 		plan.Steps = []*FactorioformPlanStep{}
@@ -354,7 +385,7 @@ func ffPlanID(res *ffPipelineResult, d *ffDiffResult) string {
 		Address   string
 		Entity    string
 		Position  ffPoint
-		Direction int
+		Direction *int
 		Quality   string
 		Footprint ffBox
 		Config    map[string]any
@@ -559,7 +590,13 @@ func (p *ffPlanner) createSteps(rows []*ffDiffRow) {
 				groups[k] = g
 			}
 			g.addrs = append(g.addrs, row.Address)
-			g.placements = append(g.placements, map[string]any{"position": ffPos(r.Position), "direction": r.Direction})
+			pl := map[string]any{"position": ffPos(r.Position)}
+			// Omitted direction leaves the engine default; PlacementInput.direction
+			// is a non-null Int defaulting to 0, so send nothing rather than null.
+			if r.Direction != nil {
+				pl["direction"] = *r.Direction
+			}
+			g.placements = append(g.placements, pl)
 		}
 	}
 	keys := make([][2]string, 0, len(groups))
@@ -585,7 +622,11 @@ func (p *ffPlanner) createSteps(rows []*ffDiffRow) {
 			quality = "normal"
 		}
 		in := map[string]any{
-			"surface": p.surface, "position": ffPos(r.Position), "item": r.PlaceItem, "direction": r.Direction, "quality": quality,
+			"surface": p.surface, "position": ffPos(r.Position), "item": r.PlaceItem, "quality": quality,
+		}
+		// PlaceInput.direction is nullable; omit it when the manifest does not say.
+		if r.Direction != nil {
+			in["direction"] = *r.Direction
 		}
 		half := "INPUT"
 		if v, ok := r.Config["underground_type"].(string); ok && strings.EqualFold(v, "output") {
@@ -604,10 +645,18 @@ func (p *ffPlanner) createSteps(rows []*ffDiffRow) {
 	for i := 0; i < len(belts); {
 		start := belts[i]
 		j := i + 1
-		vec, cardinal := ffDirVector[start.res.Direction]
+		startDir := 0
+		if start.res.Direction != nil {
+			startDir = *start.res.Direction
+		}
+		vec, cardinal := ffDirVector[startDir]
 		for cardinal && j < len(belts) {
 			prev, cur := belts[j-1], belts[j]
-			if cur.prefix != start.prefix || cur.index != prev.index+1 || cur.res.Direction != start.res.Direction ||
+			curDir := 0
+			if cur.res.Direction != nil {
+				curDir = *cur.res.Direction
+			}
+			if cur.prefix != start.prefix || cur.index != prev.index+1 || curDir != startDir ||
 				cur.res.PlaceItem != start.res.PlaceItem ||
 				math.Abs(cur.res.Position.X-(prev.res.Position.X+vec[0])) > ffEpsilon ||
 				math.Abs(cur.res.Position.Y-(prev.res.Position.Y+vec[1])) > ffEpsilon {
@@ -628,7 +677,7 @@ func (p *ffPlanner) createSteps(rows []*ffDiffRow) {
 			"from":               ffPos(start.res.Position), "to": ffPos(last.res.Position),
 		}
 		if j-i == 1 {
-			in["direction"] = start.res.Direction
+			in["direction"] = startDir
 		}
 		p.add("create-belts", "placeBelts", ffSelPlaceBelts, addrs, in)
 		i = j
@@ -689,8 +738,8 @@ func (p *ffPlanner) configSteps(row *ffDiffRow, r *ffResource) {
 	target := func() map[string]any { return p.ref(unit, r.Entity, r.Position) }
 	val := func(path string) any { return r.Config[path] }
 
-	if directionChanged {
-		p.add("config", "setDirection", ffSelAction, addrs, map[string]any{"target": target(), "direction": r.Direction})
+	if directionChanged && r.Direction != nil {
+		p.add("config", "setDirection", ffSelAction, addrs, map[string]any{"target": target(), "direction": *r.Direction})
 	}
 	if set.has("recipe") {
 		in := map[string]any{"target": target(), "recipe": val("recipe")}
@@ -751,9 +800,9 @@ func (p *ffPlanner) configSteps(row *ffDiffRow, r *ffResource) {
 	if set.has("splitter") {
 		p.splitterSteps(set, r, target, addrs, created, val)
 	}
-	if set.has("container.bar") {
-		in := map[string]any{"target": target(), "allowedSlots": val("container.bar")}
-		if inv, ok := r.Config["container.inventory"]; ok {
+	if inv, _, ok := ffContainerBarPath(set.paths); ok {
+		in := map[string]any{"target": target(), "allowedSlots": val("container." + inv + ".bar")}
+		if inv != "" {
 			in["inventory"] = inv
 		}
 		p.add("config", "setContainerBar", ffSelSettings, addrs, in)
@@ -821,6 +870,21 @@ func (p *ffPlanner) splitterSteps(set *ffPathSet, r *ffResource, target func() m
 	if len(in) > 1 {
 		p.add("config", "setSplitterSettings", ffSelSettings, addrs, in)
 	}
+}
+
+// ffContainerBarPath returns the inventory and bar path of the managed
+// container bar, if the path set contains one. Keys are container.<inv>.bar,
+// so a manifest that leaves inventory out reads the chest bar.
+func ffContainerBarPath(paths []string) (string, string, bool) {
+	for _, p := range paths {
+		if rest, ok := strings.CutPrefix(p, "container."); ok {
+			inv, found := strings.CutSuffix(rest, ".bar")
+			if found {
+				return inv, p, true
+			}
+		}
+	}
+	return "", "", false
 }
 
 // ffConfigField is the GraphQL input field of a config path. Attribute paths

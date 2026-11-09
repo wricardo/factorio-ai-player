@@ -115,6 +115,8 @@ type ffDiffInput struct {
 	Rotatable func(entity, typ string) bool
 }
 
+// ffRotatableTypes lists prototype types that setDirection can turn in place.
+// It is the fallback used when a resource row carries no prototype data.
 var ffRotatableTypes = map[string]bool{
 	"inserter": true, "transport-belt": true, "underground-belt": true, "splitter": true,
 	"loader": true, "loader-1x1": true, "lane-splitter": true, "linked-belt": true,
@@ -150,7 +152,16 @@ func ffLiveQuality(l *ffLive) string {
 func ffDiff(in ffDiffInput) *ffDiffResult {
 	rotatable := in.Rotatable
 	if rotatable == nil {
-		rotatable = ffDefaultRotatable
+		// Prefer the prototype data the validator already recorded on the row;
+		// fall back to the type table for rows built without it (tests).
+		rotatable = func(entity, typ string) bool {
+			for _, r := range in.Desired.Resources {
+				if r.Entity == entity && r.Rotatable != nil {
+					return *r.Rotatable
+				}
+			}
+			return ffDefaultRotatable(entity, typ)
+		}
 	}
 	var desired ffNormalized
 	if in.Desired != nil {
@@ -203,7 +214,11 @@ func ffDiff(in ffDiffInput) *ffDiffResult {
 		return &r
 	}
 	base := func(r ffResource, action string) ffDiffRow {
-		return ffDiffRow{Action: action, Address: r.Address, Entity: r.Entity, Position: r.Position, Direction: r.Direction, Quality: r.Quality}
+		dir := 0
+		if r.Direction != nil {
+			dir = *r.Direction
+		}
+		return ffDiffRow{Action: action, Address: r.Address, Entity: r.Entity, Position: r.Position, Direction: dir, Quality: r.Quality}
 	}
 
 	// Pass 1: resources recorded in state.
@@ -247,9 +262,9 @@ func ffDiff(in ffDiffInput) *ffDiffResult {
 				structural = append(structural, ffDiffChange{"underground_type", got, want})
 			}
 		}
-		dirDiff := !ffDirEq(l.Direction, r.Direction)
+		dirDiff := r.Direction != nil && !ffDirEq(l.Direction, *r.Direction)
 		if dirDiff && !rotatable(r.Entity, r.Type) {
-			structural = append(structural, ffDiffChange{"direction", l.Direction, r.Direction})
+			structural = append(structural, ffDiffChange{"direction", l.Direction, *r.Direction})
 		}
 		if len(structural) > 0 {
 			row.Action = ffActionReplace
@@ -260,7 +275,7 @@ func ffDiff(in ffDiffInput) *ffDiffResult {
 		}
 		var changes []ffDiffChange
 		if dirDiff {
-			changes = append(changes, ffDiffChange{"direction", l.Direction, r.Direction})
+			changes = append(changes, ffDiffChange{"direction", l.Direction, *r.Direction})
 		}
 		keys := make([]string, 0, len(r.Config))
 		for k := range r.Config {
@@ -303,7 +318,7 @@ func ffDiff(in ffDiffInput) *ffDiffResult {
 			if adopt != nil || l.ToBeDeconstructed || l.ToBeUpgraded {
 				continue
 			}
-			if rotatable(r.Entity, r.Type) && !ffDirEq(l.Direction, r.Direction) {
+			if r.Direction != nil && rotatable(r.Entity, r.Type) && !ffDirEq(l.Direction, *r.Direction) {
 				continue
 			}
 			if r.Quality != "" && ffLiveQuality(l) != r.Quality {

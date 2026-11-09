@@ -132,6 +132,11 @@ rcon.print(helpers.table_to_json(out))`,
 // teleportActor moves the acting character to finite coordinates on an existing
 // surface. It bypasses travel; reach checks still apply to later mutations.
 func teleportActor(r *Resolver, input TeleportInput) (*ActionResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	if err := validateTeleportInput(input); err != nil {
 		return nil, err
 	}
@@ -187,6 +192,11 @@ rcon.print(helpers.table_to_json({tick=game.tick,surface=s.name,force=c.force.na
 // target position. Detached characters cannot use capsules, so only a player
 // actor is accepted. The target must be within the character's reach distance.
 func useCapsule(r *Resolver, input CapsuleInput) (*CapsuleResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	if err := validateCapsuleInput(input); err != nil {
 		return nil, err
 	}
@@ -261,6 +271,11 @@ rcon.print(helpers.table_to_json({tick=game.tick,surface=e.surface.name,force=e.
 // acting character's main inventory. count bounds the number of repair packs
 // (repair actions) spent in one call.
 func repairEntity(r *Resolver, input RepairInput) (*RepairResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	if err := validateRepairInput(input); err != nil {
 		return nil, err
 	}

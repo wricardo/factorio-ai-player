@@ -102,6 +102,10 @@ type ffLiveQuery struct {
 	Area ffBox
 	// StateUnits are unit numbers recorded in state, resolved wherever they are.
 	StateUnits []int64
+	// ContainerInventories are the inventory keys ("chest", "fuel", ...) whose
+	// bar the manifest manages. Each entity reports container.<inv>.bar for it,
+	// so a manifest that leaves inventory out never diffs against a default.
+	ContainerInventories []string
 	// Concurrency caps simultaneous commands; 0 means rconConcurrency.
 	Concurrency int
 }
@@ -147,14 +151,14 @@ func ffLiveCommands(q ffLiveQuery) ([]ffLiveCommand, error) {
 		for y := q.Area.Y1; y < q.Area.Y2; y += ffLiveTileSide {
 			for x := q.Area.X1; x < q.Area.X2; x += ffLiveTileSide {
 				a := [4]float64{x, y, math.Min(x+ffLiveTileSide, q.Area.X2), math.Min(y+ffLiveTileSide, q.Area.Y2)}
-				cmds = append(cmds, ffLiveCommand{Area: &a, Lua: ffLiveLua(surface, force, &a, nil)})
+				cmds = append(cmds, ffLiveCommand{Area: &a, Lua: ffLiveLua(surface, force, &a, nil, q.ContainerInventories)})
 			}
 		}
 	}
 	for i := 0; i < len(q.StateUnits); i += ffLiveUnitBatch {
 		end := min(i+ffLiveUnitBatch, len(q.StateUnits))
 		units := q.StateUnits[i:end]
-		cmds = append(cmds, ffLiveCommand{Units: units, Lua: ffLiveLua(surface, force, nil, units)})
+		cmds = append(cmds, ffLiveCommand{Units: units, Lua: ffLiveLua(surface, force, nil, units, q.ContainerInventories)})
 	}
 	return cmds, nil
 }
@@ -198,6 +202,14 @@ local function ff_record(e,belt_index)
     local ok,s=pcall(settings_sections,e,"chest")
     if ok and type(s)=="table" then
       rec.settings={container=s.container,circuit=s.circuit,logistic=s.logistic,constantCombinator=s.constantCombinator}
+      if #container_inventories>0 then
+        local bars={}
+        for _,name in ipairs(container_inventories) do
+          local okc,c=pcall(settings_sections,e,name)
+          if okc and type(c)=="table" and type(c.container)=="table" then bars[name]=c.container end
+        end
+        rec.containerBars=bars
+      end
     end
   end
   if combinator_types[e.type] then
@@ -235,7 +247,7 @@ local payload={tick=game.tick,scanned=ff_scanned,entities=ff_out,wires=wires,abs
 
 // ffLiveLua renders one command. Neither graphPreludeLua nor topology.lua is
 // edited; the chunk is always sent inline.
-func ffLiveLua(surface, force string, area *[4]float64, units []int64) string {
+func ffLiveLua(surface, force string, area *[4]float64, units []int64, inventories []string) string {
 	areaLua := "nil"
 	if area != nil {
 		areaLua = fmt.Sprintf("{%s,%s,%s,%s}", graphNumber(area[0]), graphNumber(area[1]), graphNumber(area[2]), graphNumber(area[3]))
@@ -244,8 +256,9 @@ func ffLiveLua(surface, force string, area *[4]float64, units []int64) string {
 	for i, u := range units {
 		unitParts[i] = strconv.FormatInt(u, 10)
 	}
-	locals := fmt.Sprintf("local surface_name,force_name,area,units,excluded_types=%s,%s,%s,{%s},%s\n",
-		luaString(surface), luaString(force), areaLua, strings.Join(unitParts, ","), luaStringListOrEmpty(graphExcludedTypes()))
+	locals := fmt.Sprintf("local surface_name,force_name,area,units,excluded_types,container_inventories=%s,%s,%s,{%s},%s,%s\n",
+		luaString(surface), luaString(force), areaLua, strings.Join(unitParts, ","), luaStringListOrEmpty(graphExcludedTypes()),
+		luaStringListOrEmpty(inventories))
 	return luaFail + transportLineLua + topologyCommonLua + "\n" + graphPreludeLua + "\n" + settingsLua + "\n" + entityMetaFieldsLua + "\n" +
 		luaUnitNumberEntityTypes + locals + ffLiveBodyLua + "\nrcon.print(helpers.table_to_json(payload))"
 }
@@ -262,7 +275,12 @@ type ffLiveRawRecord struct {
 	Upgrade         bool            `json:"upgrade"`
 	UndergroundType string          `json:"undergroundType"`
 	Settings        *ffLiveSettings `json:"settings"`
-	Combinator      map[string]any  `json:"combinator"`
+	ContainerBars   map[string]struct {
+		Bar          int  `json:"bar"`
+		Capacity     int  `json:"capacity"`
+		AllowedSlots *int `json:"allowedSlots"`
+	} `json:"containerBars"`
+	Combinator map[string]any `json:"combinator"`
 }
 
 type ffLiveSettings struct {
@@ -325,6 +343,20 @@ func ffUnitFromID(id string) (int64, bool) {
 	}
 	u, err := strconv.ParseInt(id[i+1:], 10, 64)
 	return u, err == nil
+}
+
+// ffContainerBar converts an engine bar reading to the usable slot count the
+// manifest writes: no limit when the engine reports no bar, otherwise bar-1
+// clamped to the inventory capacity.
+func ffContainerBar(bar, capacity int, allowedSlots *int) any {
+	b := capacity
+	if allowedSlots != nil {
+		b = *allowedSlots
+	}
+	if bar == 0 {
+		return nil
+	}
+	return b
 }
 
 // ffDecodeRecord maps one raw record to the epic's ffLive.
@@ -400,11 +432,10 @@ func ffDecodeRecord(rec ffLiveRawRecord) *ffLive {
 	}
 	if s := rec.Settings; s != nil {
 		if c := s.Container; c != nil {
-			bar := c.Capacity
-			if c.AllowedSlots != nil {
-				bar = *c.AllowedSlots
-			}
-			cfg["container.bar"] = bar
+			cfg["container.bar"] = ffContainerBar(c.Bar, c.Capacity, c.AllowedSlots)
+		}
+		for inv, c := range rec.ContainerBars {
+			cfg["container."+inv+".bar"] = ffContainerBar(c.Bar, c.Capacity, c.AllowedSlots)
 		}
 		for k, v := range s.Circuit {
 			if v != nil && k != "enabled" {

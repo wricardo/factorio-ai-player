@@ -228,7 +228,7 @@ func (l *ffLoader) build(dir string, names []string, root bool) (*ffModuleDef, h
 				continue
 			}
 			seenVar[name] = blk.DefRange
-			v, d := ffDecodeVariable(blk)
+			v, d := ffDecodeVariable(blk, nil)
 			diags = append(diags, d...)
 			if v != nil {
 				def.Vars = append(def.Vars, v)

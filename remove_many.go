@@ -8,6 +8,11 @@ import (
 
 // removeMany mines explicit reachable entities, continuing past failures.
 func removeMany(r *Resolver, input RemoveManyInput) (*RemoveManyResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	character, player, err := settingsActorFrom(input.Actor)
 	if err != nil {
 		return nil, err

@@ -30,10 +30,14 @@ type ffResource struct {
 	Entity    string
 	Type      string
 	Position  ffPoint // entity center
-	Direction int     // engine direction 0..15
+	Direction *int    // engine direction 0..15; nil = unmanaged (manifest omitted it)
 	Quality   string  // "" = unmanaged
 	Footprint ffBox   // tile box after rotation for directions 4/12
 	PlaceItem string  // first item_to_place_this
+	// Rotatable reports whether setDirection can turn this prototype in place.
+	// nil leaves the decision to ffDefaultRotatable (records built without
+	// prototype data, as in tests).
+	Rotatable *bool
 	// Config is keyed by field path ("recipe", "modules", "inserter.filters",
 	// "underground_type", ...) with the same value shapes as ffLive.Config:
 	// modules are sorted "name:quality:count" strings, filters ordered names
@@ -468,7 +472,8 @@ func ffNormalize(insts []ffInstance, wires []*ffManifestWire, protos *ffPrototyp
 }
 
 // place validates entity existence, direction grid and builds the base row.
-func (n *ffNormalizer) place(addr string, r hcl.Range, entity string, pos ffPoint, direction int) (ffResource, ffProtoEntity, bool) {
+// direction is the manifest's direction, nil when it omitted the attribute.
+func (n *ffNormalizer) place(addr string, r hcl.Range, entity string, pos ffPoint, direction *int) (ffResource, ffProtoEntity, bool) {
 	p, ok := n.protos.Entities[entity]
 	if !ok {
 		n.errf(r, "Unknown entity", "%s: entity prototype %q does not exist", addr, entity)
@@ -478,13 +483,31 @@ func (n *ffNormalizer) place(addr string, r hcl.Range, entity string, pos ffPoin
 		n.errf(r, "Unplaceable entity", "%s: entity %q has no item that places it", addr, entity)
 		return ffResource{}, p, false
 	}
-	fp, w, h := ffFootprintFor(p, pos, direction)
+	dir := 0
+	if direction != nil {
+		dir = *direction
+		if !p.SupportsDirection {
+			n.errf(r, "Direction unsupported", "%s: entity %q does not support direction; remove the direction attribute", addr, entity)
+			return ffResource{}, p, false
+		}
+		if dir%4 != 0 && !ffRotatableTypes[p.Type] {
+			n.errf(r, "Invalid direction", "%s: %q only supports the four cardinal directions (0, 4, 8, 12); got %d", addr, entity, dir)
+			return ffResource{}, p, false
+		}
+	}
+	fp, w, h := ffFootprintFor(p, pos, dir)
 	if !ffOnGrid(pos.X, w) || !ffOnGrid(pos.Y, h) {
 		n.errf(r, "Off-grid position", "%s: position (%v,%v) is off the grid for the %vx%v footprint of %q at direction %d; use (%v,%v)",
-			addr, pos.X, pos.Y, w, h, entity, direction, ffGridSnap(pos.X, w), ffGridSnap(pos.Y, h))
+			addr, pos.X, pos.Y, w, h, entity, dir, ffGridSnap(pos.X, w), ffGridSnap(pos.Y, h))
 		return ffResource{}, p, false
 	}
-	return ffResource{Address: addr, Entity: entity, Type: p.Type, Position: pos, Direction: direction, Footprint: fp, PlaceItem: p.PlaceItem, Config: map[string]any{}, Range: r}, p, true
+	// Rotatable records the prototype flag; nil when the prototype did not say,
+	// so the diff keeps its type-table fallback.
+	var rotatable *bool
+	if p.Rotatable {
+		rotatable = new(true)
+	}
+	return ffResource{Address: addr, Entity: entity, Type: p.Type, Position: pos, Direction: direction, Footprint: fp, PlaceItem: p.PlaceItem, Rotatable: rotatable, Config: map[string]any{}, Range: r}, p, true
 }
 
 func (n *ffNormalizer) belt(in ffInstance) []ffResource {
@@ -492,7 +515,7 @@ func (n *ffNormalizer) belt(in ffInstance) []ffResource {
 	var rows []ffResource
 	for i, t := range b.Tiles {
 		addr := fmt.Sprintf("%s.path[%d]", in.Address, i)
-		row, p, ok := n.place(addr, in.Range, b.Entity, t.Position, t.Direction)
+		row, p, ok := n.place(addr, in.Range, b.Entity, t.Position, &t.Direction)
 		if !ok {
 			return nil
 		}
@@ -610,7 +633,15 @@ func (n *ffNormalizer) config(out map[string]any, addr string, spec *ffBlockSpec
 			}
 			out[path] = map[string]any{"x": pt.X, "y": pt.Y}
 		case "splitter.filter":
-			if !v.IsNull() && v.Type() == cty.String && v.AsString() != "" {
+			if v.IsNull() {
+				out[path] = ""
+				continue
+			}
+			if v.Type() != cty.String {
+				n.errf(rng, "Invalid filter", "%s: splitter.filter must be an item name string, got %s", addr, v.Type().FriendlyName())
+				continue
+			}
+			if v.AsString() != "" {
 				name, q := n.checkItem(rng, addr, "filter", v.AsString())
 				if q != "normal" {
 					name += "@" + q
@@ -619,8 +650,28 @@ func (n *ffNormalizer) config(out map[string]any, addr string, spec *ffBlockSpec
 			} else {
 				out[path] = ""
 			}
+		case "container.inventory":
+			// A qualifier of container.allowed_slots, never a field of its own: the
+			// live read reports one bar per inventory, so the key carries the name.
+			if _, ok := cfg.Attrs["allowed_slots"]; !ok {
+				n.errf(rng, "Inert container setting", "%s: container.inventory only selects the inventory that allowed_slots limits; add allowed_slots or remove inventory", addr)
+			}
 		case "container.allowed_slots":
-			out["container.bar"] = ffCtyAny(v)
+			inv := "chest"
+			if iv, ok := cfg.Attrs["inventory"]; ok {
+				irng := cfg.AttrRanges["inventory"]
+				s, d := ffString(iv, irng, "inventory")
+				if d.HasErrors() {
+					n.diags = append(n.diags, d...)
+					continue
+				}
+				if _, known := settingsInventoryNames[s]; !known {
+					n.errf(irng, "Unknown inventory", "%s: inventory %q does not exist", addr, s)
+					continue
+				}
+				inv = s
+			}
+			out["container."+inv+".bar"] = ffCtyAny(v)
 		default:
 			out[path] = ffCtyAny(v)
 		}

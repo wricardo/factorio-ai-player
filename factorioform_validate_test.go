@@ -109,7 +109,7 @@ wire {
 		t.Fatalf("modules %v", mods)
 	}
 	s := by["splitter.sort"]
-	if s.Direction != 4 || s.Footprint != (ffBox{20, 4, 21, 6}) || s.Config["splitter.filter"] != "iron-ore" || s.Config["splitter.output_priority"] != "right" || s.Quality != "" {
+	if s.Direction == nil || *s.Direction != 4 || s.Footprint != (ffBox{20, 4, 21, 6}) || s.Config["splitter.filter"] != "iron-ore" || s.Config["splitter.output_priority"] != "right" || s.Quality != "" {
 		t.Fatalf("splitter %+v", s)
 	}
 	in := by["inserter.feed"]
@@ -134,6 +134,148 @@ resource "ug" "in" {
 	if d.HasErrors() || out.Resources[0].Config["underground_type"] != "input" {
 		t.Fatalf("%v %+v", d, out)
 	}
+}
+
+func TestFFNormalizeDirectionUnmanagedWhenOmitted(t *testing.T) {
+	out, d := ffTestNormalize(t, `
+resource "chest" "c" {
+  entity = "wooden-chest"
+  position = { x = 5.5, y = 0.5 }
+}
+resource "arm" "i" {
+  entity = "fast-inserter"
+  position = { x = 8.5, y = 10.5 }
+  direction = direction.east
+}`)
+	if d.HasErrors() {
+		t.Fatal(d)
+	}
+	by := map[string]ffResource{}
+	for _, r := range out.Resources {
+		by[r.Address] = r
+	}
+	chest := by["chest.c"]
+	if chest.Direction != nil {
+		t.Fatalf("omitted direction must be unmanaged, got %d", *chest.Direction)
+	}
+	arm := by["arm.i"]
+	if arm.Direction == nil || *arm.Direction != 4 {
+		t.Fatalf("explicit direction lost: %+v", arm.Direction)
+	}
+}
+
+func TestFFNormalizeContainerInventory(t *testing.T) {
+	out, d := ffTestNormalize(t, `
+resource "chest" "c" {
+  entity = "wooden-chest"
+  position = { x = 5.5, y = 0.5 }
+  container {
+    inventory = "fuel"
+    allowed_slots = 4
+  }
+}`)
+	if d.HasErrors() {
+		t.Fatal(d)
+	}
+	if got := out.Resources[0].Config["container.fuel.bar"]; got != int64(4) {
+		t.Fatalf("container.fuel.bar = %#v", got)
+	}
+	if _, stray := out.Resources[0].Config["container.inventory"]; stray {
+		t.Fatalf("inventory must not be diffed on its own: %#v", out.Resources[0].Config)
+	}
+}
+
+func TestFFNormalizeContainerInventoryWithoutBarIsRejected(t *testing.T) {
+	ffExpectErr(t, `resource "chest" "c" {
+  entity = "wooden-chest"
+  position = { x = 5.5, y = 0.5 }
+  container { inventory = "fuel" }
+}`, "Inert container setting", "add allowed_slots")
+}
+
+func TestFFNormalizeDirectionRequiresPrototypeSupport(t *testing.T) {
+	ffExpectErr(t, `resource "a" "x" {
+  entity = "assembling-machine-2"
+  position = { x = 10.5, y = 10.5 }
+  direction = direction.east
+}`, "Direction unsupported", "does not support direction")
+}
+
+func TestFFNormalizeSplitterFilterMustBeString(t *testing.T) {
+	ffExpectParseErr(t, `resource "splitter" "sort" {
+  entity = "splitter"
+  position = { x = 20.5, y = 5 }
+  direction = direction.east
+  splitter { filter = 5 }
+}`, "Invalid splitter.filter", "must be a string")
+}
+
+// ffExpectParseErr asserts the manifest fails while parsing config attributes,
+// which is where typed config attribute checks run.
+func ffExpectParseErr(t *testing.T, src string, parts ...string) {
+	t.Helper()
+	_, d := ParseFactorioform(map[string][]byte{"t.ftf": []byte("factorioform {\n version = 1\n name = \"t\"\n}\n" + src)}, nil)
+	if !d.HasErrors() {
+		t.Fatalf("expected parse error containing %v", parts)
+	}
+	for _, p := range parts {
+		if !strings.Contains(d.Error(), p) {
+			t.Fatalf("error %q lacks %q", d.Error(), p)
+		}
+	}
+}
+
+func TestFFConfigAttrTypesStrict(t *testing.T) {
+	// A string is never a number: no cross-type coercion.
+	ffExpectParseErr(t, `resource "arm" "i" {
+  entity = "fast-inserter"
+  position = { x = 8.5, y = 10.5 }
+  inserter { stack_size_override = "4" }
+}`, "Invalid inserter.stack_size_override", "must be a number")
+	// A bool attribute rejects a string in the same way.
+	ffExpectParseErr(t, `resource "arm" "i" {
+  entity = "fast-inserter"
+  position = { x = 8.5, y = 10.5 }
+  inserter { pickup_from_left_lane = "yes" }
+}`, "must be true or false")
+}
+
+func TestFFConfigNestedObjectKeysMapToCamelCase(t *testing.T) {
+	out, d := ffTestNormalize(t, `
+resource "arm" "i" {
+  entity = "fast-inserter"
+  position = { x = 8.5, y = 10.5 }
+  circuit {
+    circuit_condition = { comparator = ">", constant = 5, first_signal = { name = "iron-plate" } }
+  }
+}`)
+	if d.HasErrors() {
+		t.Fatal(d)
+	}
+	cond, ok := out.Resources[0].Config["circuit.circuit_condition"].(map[string]any)
+	if !ok {
+		t.Fatalf("circuit.circuit_condition = %#v", out.Resources[0].Config)
+	}
+	if _, bad := cond["first_signal"]; bad {
+		t.Fatalf("nested key must be camelCase for the write input: %#v", cond)
+	}
+	sig, ok := cond["firstSignal"].(map[string]any)
+	if !ok || sig["name"] != "iron-plate" {
+		t.Fatalf("firstSignal = %#v", cond["firstSignal"])
+	}
+	if cond["comparator"] != ">" {
+		t.Fatalf("comparator = %#v", cond["comparator"])
+	}
+}
+
+func TestFFConfigNestedObjectRejectsUnknownKey(t *testing.T) {
+	ffExpectParseErr(t, `resource "arm" "i" {
+  entity = "fast-inserter"
+  position = { x = 8.5, y = 10.5 }
+  circuit {
+    circuit_condition = { comparator = ">", first_signl = { name = "iron-plate" } }
+  }
+}`, "Unsupported attribute", "first_signl")
 }
 
 func TestFFNormalizeRejections(t *testing.T) {

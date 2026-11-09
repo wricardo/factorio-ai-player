@@ -401,7 +401,11 @@ func ffDedupe(in hcl.Diagnostics) hcl.Diagnostics {
 // ---------------------------------------------------------------------------
 // Variables.
 
-func ffDecodeVariable(blk *hcl.Block) (*ffVariableDecl, hcl.Diagnostics) {
+// ffDecodeVariable is the single variable decoder for both the static parser
+// and the evaluator: type constraint, description, default conversion and
+// validation blocks. ctx supplies constants for description/default; nil means
+// literal-only (direction.* plus the function table).
+func ffDecodeVariable(blk *hcl.Block, ctx *hcl.EvalContext) (*ffVariableDecl, hcl.Diagnostics) {
 	content, diags := blk.Body.Content(&hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{{Name: "type"}, {Name: "default"}, {Name: "description"}},
 		Blocks:     []hcl.BlockHeaderSchema{{Type: "validation"}},
@@ -414,7 +418,10 @@ func ffDecodeVariable(blk *hcl.Block) (*ffVariableDecl, hcl.Diagnostics) {
 			v.Type, v.HasType = t, true
 		}
 	}
-	empty := &hcl.EvalContext{Variables: map[string]cty.Value{"direction": ffDirectionObject()}, Functions: ffFunctions()}
+	empty := ctx
+	if empty == nil {
+		empty = &hcl.EvalContext{Variables: map[string]cty.Value{"direction": ffDirectionObject()}, Functions: ffFunctions()}
+	}
 	if a, ok := content.Attributes["description"]; ok {
 		val, d := ffEval(a.Expr, empty)
 		diags = append(diags, d...)
@@ -454,6 +461,76 @@ func ffDecodeVariable(blk *hcl.Block) (*ffVariableDecl, hcl.Diagnostics) {
 		})
 	}
 	return v, diags
+}
+
+// ffStrictMismatch reports why val does not already match typ, without relying
+// on cty's unsafe conversions: "" means the value is acceptable. Undeclared
+// object attributes are always errors, so a typo cannot be silently dropped.
+// Primitive type identity is only enforced for external values: HCL-authored
+// arguments keep HCL's conversion rules (allowCoerce).
+func ffStrictMismatch(val cty.Value, typ cty.Type, allowCoerce bool) string {
+	if val.IsNull() || !val.IsKnown() || typ == cty.DynamicPseudoType {
+		return ""
+	}
+	switch {
+	case typ == cty.String, typ == cty.Number, typ == cty.Bool:
+		if val.Type() != typ && !allowCoerce {
+			return fmt.Sprintf("a %s is not a %s", val.Type().FriendlyName(), typ.FriendlyName())
+		}
+		return ""
+	case typ.IsListType() || typ.IsSetType():
+		if !val.CanIterateElements() {
+			return fmt.Sprintf("%s is not a %s", val.Type().FriendlyName(), typ.FriendlyName())
+		}
+		for it := val.ElementIterator(); it.Next(); {
+			_, e := it.Element()
+			if why := ffStrictMismatch(e, typ.ElementType(), allowCoerce); why != "" {
+				return why
+			}
+		}
+		return ""
+	case typ.IsMapType():
+		if !val.CanIterateElements() {
+			return fmt.Sprintf("%s is not a map", val.Type().FriendlyName())
+		}
+		for it := val.ElementIterator(); it.Next(); {
+			_, e := it.Element()
+			if why := ffStrictMismatch(e, typ.ElementType(), allowCoerce); why != "" {
+				return why
+			}
+		}
+		return ""
+	case typ.IsObjectType():
+		if !val.Type().IsObjectType() && !val.Type().IsMapType() {
+			return fmt.Sprintf("%s is not an object", val.Type().FriendlyName())
+		}
+		attrs := typ.AttributeTypes()
+		got := val.AsValueMap()
+		var unknown []string
+		for k := range got {
+			if _, ok := attrs[k]; !ok {
+				unknown = append(unknown, k)
+			}
+		}
+		if len(unknown) > 0 {
+			sort.Strings(unknown)
+			return fmt.Sprintf("%s has no attribute %s", typeexpr.TypeString(typ), strings.Join(unknown, ", "))
+		}
+		for name, at := range attrs {
+			if g, ok := got[name]; ok {
+				if why := ffStrictMismatch(g, at, allowCoerce); why != "" {
+					return fmt.Sprintf("attribute %q: %s", name, why)
+				}
+			}
+		}
+		return ""
+	case typ.IsTupleType():
+		if !val.CanIterateElements() {
+			return fmt.Sprintf("%s is not a tuple", val.Type().FriendlyName())
+		}
+		return ""
+	}
+	return ""
 }
 
 func (ev *ffEvaluator) resolveVariables(vars []*ffVariableDecl, in ffVarInputs) hcl.Diagnostics {
@@ -539,6 +616,19 @@ func (ev *ffEvaluator) resolveVariables(vars []*ffVariableDecl, in ffVarInputs) 
 				diags = append(diags, ffErr(at(v), "Invalid value for variable",
 					fmt.Sprintf("variable %q: %s (want %s)", v.Name, ffConvertMsg(err), typeexpr.TypeString(v.Type))))
 				continue
+			}
+			// convert.Convert is permissive (a string satisfies a number) and drops
+			// undeclared object attributes. Values that arrive through the GraphQL
+			// boundary must match the declared type exactly; HCL-authored values
+			// (defaults, module arguments) and --var keep HCL's conversion rules,
+			// because module inputs are written by hand and CLI arguments are
+			// always strings.
+			if !hasRaw {
+				if why := ffStrictMismatch(val, v.Type, in.call != nil); why != "" {
+					diags = append(diags, ffErr(at(v), "Invalid value for variable",
+						fmt.Sprintf("variable %q: %s (want %s)", v.Name, why, typeexpr.TypeString(v.Type))))
+					continue
+				}
 			}
 			val = c
 		}
@@ -839,10 +929,14 @@ func ffStaticAttrs(spec *ffResourceSpec, addr string) cty.Value {
 	if spec.Quality != nil {
 		quality = cty.StringVal(*spec.Quality)
 	}
+	direction := cty.NullVal(cty.Number)
+	if spec.Direction != nil {
+		direction = cty.NumberIntVal(int64(*spec.Direction))
+	}
 	return cty.ObjectVal(map[string]cty.Value{
 		"entity":    cty.StringVal(spec.Entity),
 		"position":  ffPointValue(spec.Position),
-		"direction": cty.NumberIntVal(int64(spec.Direction)),
+		"direction": direction,
 		"quality":   quality,
 		"address":   cty.StringVal(addr),
 	})

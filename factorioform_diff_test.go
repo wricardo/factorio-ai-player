@@ -8,8 +8,10 @@ import (
 
 func ffBoxAt(x, y float64) ffBox { return ffBox{x - 0.5, y - 0.5, x + 0.5, y + 0.5} }
 
+func ffDir(d int) *int { return &d }
+
 func ffRes(addr, entity, typ string, x, y float64, dir int) ffResource {
-	return ffResource{Address: addr, Entity: entity, Type: typ, Position: ffPoint{x, y}, Direction: dir, Footprint: ffBoxAt(x, y), Config: map[string]any{}}
+	return ffResource{Address: addr, Entity: entity, Type: typ, Position: ffPoint{x, y}, Direction: ffDir(dir), Footprint: ffBoxAt(x, y), Config: map[string]any{}}
 }
 
 func ffLv(unit int64, entity, typ string, x, y float64, dir int) *ffLive {
@@ -76,7 +78,9 @@ func TestFfDiffActions(t *testing.T) {
 			return []*ffLive{l}
 		}(), want: ffActionReplace, path: "underground_type"},
 		{name: "update direction rotatable", res: ins, state: []ffStateEntry{ffStateOf("inserter.i", 5, "inserter", 3.5, 0.5, 4)}, live: []*ffLive{ffLv(5, "inserter", "inserter", 3.5, 0.5, 12)}, want: ffActionUpdate, path: "direction"},
-		{name: "replace direction non rotatable", res: func() ffResource { r := chest; r.Direction = 4; return r }(), state: []ffStateEntry{ffStateOf("chest.c", 1, "wooden-chest", 5.5, 0.5, 0)}, live: []*ffLive{ffLv(1, "wooden-chest", "container", 5.5, 0.5, 0)}, want: ffActionReplace, path: "direction"},
+		{name: "replace direction non rotatable", res: func() ffResource { r := chest; r.Direction = ffDir(4); return r }(), state: []ffStateEntry{ffStateOf("chest.c", 1, "wooden-chest", 5.5, 0.5, 0)}, live: []*ffLive{ffLv(1, "wooden-chest", "container", 5.5, 0.5, 0)}, want: ffActionReplace, path: "direction"},
+		{name: "unmanaged direction ignored", res: func() ffResource { r := chest; r.Direction = nil; return r }(), state: []ffStateEntry{ffStateOf("chest.c", 1, "wooden-chest", 5.5, 0.5, 0)}, live: []*ffLive{ffLv(1, "wooden-chest", "container", 5.5, 0.5, 4)}, want: ffActionNoop},
+		{name: "unmanaged direction still adopts mismatched facing", res: func() ffResource { r := chest; r.Direction = nil; return r }(), live: []*ffLive{ffLv(4, "wooden-chest", "container", 5.5, 0.5, 8)}, want: ffActionAdopt},
 		{name: "update config", res: asm, state: []ffStateEntry{ffStateOf("assembler.a", 2, "assembling-machine-2", 0.5, 0.5, 0)}, live: func() []*ffLive {
 			l := ffLv(2, "assembling-machine-2", "assembling-machine", 0.5, 0.5, 0)
 			l.Config["recipe"] = "copper-cable"

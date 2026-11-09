@@ -539,6 +539,11 @@ if not ok_schedule then fail(tostring(schedule_message)); return end
 }
 
 func setTrainSchedule(r *Resolver, input SetTrainScheduleInput) (*TrainInfo, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	lua, err := setTrainScheduleLua(input)
 	if err != nil {
 		return nil, err
@@ -597,6 +602,11 @@ if go_result==false then fail("train could not go to station: "..%s); return end
 }
 
 func trainControl(r *Resolver, input TrainControlInput) (*TrainInfo, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	lua, err := trainControlLua(input)
 	if err != nil {
 		return nil, err
@@ -684,6 +694,11 @@ rcon.print(helpers.table_to_json({tick=game.tick,name=e.name,position=e.position
 }
 
 func setDirection(r *Resolver, input SetDirectionInput) (*ActionResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	lua, err := setDirectionLua(input)
 	if err != nil {
 		return nil, err

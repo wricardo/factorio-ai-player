@@ -84,7 +84,10 @@ resource "splitter" "sort" {
 resource "chest" "c" {
   entity   = %q
   position = { x = 18.5, y = 10.5 }
-  container { allowed_slots = 4 }
+  container {
+    inventory     = "chest"
+    allowed_slots = 4
+  }
 }
 resource "logi" "req" {
   entity   = "requester-chest"
@@ -279,5 +282,29 @@ rcon.print(table.concat({table.concat(mods,","),i.get_filter(1).name,i.direction
 	}
 	if p4 := plan(ffLiveManifest("iron-chest", "iron-plate", `["speed-module@rare", "speed-module@rare"]`, "west", false, false)); jsonString(t, p4, "status") != "CONVERGED" || len(jsonArray(t, p4, "steps")) != 0 {
 		t.Fatalf("phase 4 should converge: %v", p4["summary"])
+	}
+
+	// Phase 5: an omitted direction is unmanaged, and a container bar the
+	// manifest manages converges against the live inventory it names. Both are
+	// the P0 regressions: a plain int direction replaced every non-north
+	// entity, and container.inventory was diffed as a field no live read
+	// reported, so the plan never settled.
+	omitted := strings.Replace(ffLiveManifest("iron-chest", "iron-plate", `["speed-module@rare", "speed-module@rare"]`, "west", false, false),
+		"  direction = direction.west\n", "", 1)
+	if p5 := plan(omitted); jsonString(t, p5, "status") != "CONVERGED" || len(jsonArray(t, p5, "steps")) != 0 {
+		t.Fatalf("omitted direction must not churn the plan: %v %v", p5["status"], p5["summary"])
+	}
+	// The inserter still faces west in the world, proving the omission was
+	// treated as unmanaged rather than as north.
+	if got := strings.TrimSpace(probe(`rcon.print(at("fast-inserter",8.5,10.5).direction)`)); got != "12" {
+		t.Fatalf("inserter direction = %s, want 12 (west)", got)
+	}
+	// The container bar that the manifest manages is the one it named, and it
+	// matches the world, so the chest row stays NOOP.
+	for _, raw := range jsonArray(t, plan(ffLiveManifest("iron-chest", "iron-plate", `["speed-module@rare", "speed-module@rare"]`, "west", false, false)), "diffs") {
+		d := raw.(map[string]any)
+		if d["address"] == "chest.c" && d["action"] != "NOOP" {
+			t.Fatalf("container row must be NOOP: %v", d)
+		}
 	}
 }

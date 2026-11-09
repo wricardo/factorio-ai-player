@@ -219,10 +219,26 @@ func runCommand[T any](r *Resolver, name string, input any) (*T, *string, error)
 				}
 				if key == "actor" && f.Type() == reflect.TypeFor[ActorInput]() {
 					actor := f.Interface().(ActorInput)
+					if stringValueOr(actor.Player, "") == "" && stringValueOr(actor.Character, "") == "" {
+						name, err := defaultActorPlayer(r)
+						if err != nil {
+							return nil, nil, err
+						}
+						actor.Player = &name
+						if f.CanSet() {
+							f.Set(reflect.ValueOf(actor))
+						}
+					}
 					actorIdentity = newActorIdentity(&actor)
 				}
 				var err error
-				args, err = appendCommandArgument(args, key, f)
+				flagValue := f
+				if key == "actor" {
+					if actor := actorIdentity; actor != nil {
+						flagValue = reflect.ValueOf(ActorInput{Player: actor.Player, Character: actor.Character})
+					}
+				}
+				args, err = appendCommandArgument(args, key, flagValue)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -305,6 +321,10 @@ func attachActorIdentity(result any, actor *ActorIdentity) {
 	case *FluidWriteResult:
 		value.Actor = actor
 	case *FuelManyResult:
+		value.Actor = actor
+	case *GatherItemsResult:
+		value.Actor = actor
+	case *MineAreaResult:
 		value.Actor = actor
 	case *HarvestAreaResult:
 		value.Actor = actor
@@ -537,13 +557,14 @@ func isListField(key string) bool {
 		"roboportRobot", "roboportMaterial", "cargoWagon", "carTrunk", "spiderTrunk", "artilleryWagonAmmo", "orders",
 		"beltNeighbours", "fluidboxNeighbours", "produced", "consumed", "production", "seedRequirements", "platforms", "rocket",
 		"shortfall", "surfaces", "tags", "theoreticalBaseProducts", "ends", "targets",
+		"tiers",
 		"components", "stallEnds", "starveHeads", "ghosts", "blueprintBooks", "entries", "terrain",
 		"starvedConsumers", "byCategory", "additionalCategories", "fuelItems",
 		"compactEdges", "compactBoundaryEdges", "compactInserters", "compactNodes", "groundPositions",
 		"members", "segments", "problems", "trainStops", "carriages", "waitConditions", "collidedItems", "groundItems",
 		"entityCount", "defects", "counts", "mixedTiles", "feeders", "tiles", "fluidFilters", "fluidPorts", "labelCounts", "edgeTypes", "columns",
 		"labels", "relationships", "properties", "paths", "origins", "kindCounts", "feedingArms", "gaps", "affected", "causes", "deficits", "limiting", "notes", "route", "routes", "stages", "boundary", "nodeIds", "kinds", "stretches", "left", "right", "findings", "related", "cells", "links", "statusCounts",
-		"addresses", "changes", "diffs", "factorioformState", "forgotten", "resources", "recorded", "pruned", "unmatched":
+		"addresses", "changes", "diffs", "factorioformState", "forgotten", "resources", "recorded", "pruned", "unmatched", "rawMaterials":
 		return true
 	}
 	return false

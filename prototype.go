@@ -96,6 +96,11 @@ rcon.print(helpers.table_to_json{name=name,item=item_info,entity=entity_info})`,
 // placeNextTo places one entity beside an anchor entity using the prototype
 // bounding boxes, so callers never compute or guess footprints.
 func placeNextTo(r *Resolver, input PlaceNextToInput) (*PlaceNextToResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	character, player, err := settingsActorFrom(input.Actor)
 	if err != nil {
 		return nil, err

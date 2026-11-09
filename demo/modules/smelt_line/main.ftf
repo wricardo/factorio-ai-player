@@ -1,0 +1,99 @@
+# One ore -> plate smelting line: burner drill -> belt -> burner inserter ->
+# stone furnace, with plate-out and two coal arms.
+#
+# Reusable unit. Instantiate once per ore row; a smelter_bank stacks copies of
+# this module and runs the coal spines its two fuel arms pick from.
+#
+# Geometry (verified live, every position derived from `origin`, an integer):
+# - The drill faces east and drops one tile north of its centre, so the ore belt
+#   runs at y = origin.y - 0.5 from x = origin.x + 1.5.
+# - An inserter's direction is its PICKUP heading: west picks the tile to the
+#   west and drops east, so the ore arm sits east of the belt, west of the
+#   furnace. The furnace arm faces east to pick the east spine.
+# - Every entity here is a burner, so each needs fuel, and a burner arm cannot
+#   fuel itself while it is empty. The two coal arms pick coal from the spines
+#   every cycle; the ore arm, plate arm and furnaces still need one manual coal
+#   load after apply. That one-time load is deliberately not modelled.
+# - Plates leave the furnace south into a chest. Without a sink the furnace
+#   output jams at 100 and the line stops producing.
+#
+# Footprints: drill and furnace are 2x2 on integer centres; belts, chests and
+# inserters are 1x1 on half-integer centres. The furnace at (origin.x + 6,
+# origin.y) covers x [origin.x + 5, origin.x + 7], y [origin.y - 1, origin.y + 1].
+
+variable "origin" {
+  type        = object({ x = number, y = number })
+  description = "Centre of the burner mining drill; integer coordinates on the ore patch."
+}
+
+variable "sink" {
+  type        = string
+  default     = "wooden-chest"
+  description = "Prototype placed one tile south of the plate arm to receive plates."
+}
+
+locals {
+  belt_y  = var.origin.y - 0.5
+  plate_y = var.origin.y + 2.5
+}
+
+resource "drill" "miner" {
+  entity    = "burner-mining-drill"
+  position  = var.origin
+  direction = direction.east
+}
+
+resource "belt" "ore" {
+  belt {
+    entity = "transport-belt"
+    path = [for i in range(3) : {
+      x         = var.origin.x + 1.5 + i
+      y         = local.belt_y
+      direction = direction.east
+    }]
+  }
+}
+
+resource "inserter" "ore_into_furnace" {
+  entity    = "burner-inserter"
+  position  = { x = var.origin.x + 4.5, y = local.belt_y }
+  direction = direction.west
+}
+
+resource "inserter" "coal_for_drill" {
+  entity    = "burner-inserter"
+  position  = { x = var.origin.x - 1.5, y = local.belt_y }
+  direction = direction.west
+}
+
+resource "inserter" "coal_for_furnace" {
+  entity    = "burner-inserter"
+  position  = { x = var.origin.x + 7.5, y = local.belt_y }
+  direction = direction.east
+}
+
+resource "furnace" "smelter" {
+  entity   = "stone-furnace"
+  position = { x = var.origin.x + 6, y = var.origin.y }
+}
+
+resource "inserter" "plate_out" {
+  entity    = "burner-inserter"
+  position  = { x = var.origin.x + 5.5, y = var.origin.y + 1.5 }
+  direction = direction.north
+}
+
+resource "sink" "plates" {
+  entity   = var.sink
+  position = { x = var.origin.x + 5.5, y = local.plate_y }
+}
+
+output "furnace" {
+  description = "The stone furnace of this line."
+  value       = resource.furnace.smelter
+}
+
+output "drill" {
+  description = "The burner mining drill of this line."
+  value       = resource.drill.miner
+}

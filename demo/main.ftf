@@ -1,44 +1,65 @@
+# Copper smelting bank on the southern copper patch.
+#
+# Composition: smelter_bank (see ./modules/smelter_bank) stacks smelt_line rows
+# and runs two coal_spine feeds, which themselves use belt_run for the columns.
+#
+# Siting was derived from a live resource census, not guessed. On this map the
+# copper and coal deposits are adjacent here and nowhere else within reach:
+#   copper patch rows  y -50 .. -31 at x 44 .. 70
+#   coal patch rows    y -77 .. -51 at x 37 .. 72
+# The bank therefore sits with its first row at y -48 and coal drills at y -56,
+# so every ore drill covers 4/4 copper tiles and both coal drills cover 4/4 coal.
+#
+# Do not move `origin` without re-reading the patches: an ore drill must cover
+# ore and both coal drills must cover coal, or the lines mine nothing.
+
 factorioform {
   version = 1
-  name    = "iron-smelter"
+  name    = "copper-smelter"
 }
 
-# One mining line module (modules/mining_line) per ore patch; the patch origin
-# is per-module, the line count is shared.
 variable "origin" {
-  type    = object({ x = number, y = number })
-  default = { x = -30, y = -10 }
-}
-
-variable "copper_origin" {
-  type    = object({ x = number, y = number })
-  default = { x = 44, y = -31 }
-}
-
-variable "coal_origin" {
-  type    = object({ x = number, y = number })
-  default = { x = 70, y = -61 }
+  type        = object({ x = number, y = number })
+  default     = { x = 50, y = -48 }
+  description = "Centre of the first line's ore drill; integer, on the copper patch."
 }
 
 variable "lines" {
   type    = number
-  default = 2
+  default = 3
 }
 
-module "iron" {
-  source = "./modules/mining_line"
-  origin = var.origin
-  lines  = var.lines
+variable "coal_drill_y" {
+  type    = number
+  default = -56
+}
+
+variable "coal_west_x" {
+  type    = number
+  default = 46
+}
+
+variable "coal_east_x" {
+  type    = number
+  default = 57
 }
 
 module "copper" {
-  source = "./modules/mining_line"
-  origin = var.copper_origin
-  lines  = var.lines
+  source       = "./modules/smelter_bank"
+  origin       = var.origin
+  lines        = var.lines
+  coal_drill_y = var.coal_drill_y
+  coal_west_x  = var.coal_west_x
+  coal_east_x  = var.coal_east_x
 }
 
-module "coal" {
-  source = "./modules/mining_line"
-  origin = var.coal_origin
-  lines  = var.lines
+# Self-contained copper plant east of the patch: a belt-fed smelter block with
+# its own ore row, coal miners and plate sink (see ./modules/copper_plant).
+# The site was checked against the live census: every ore drill covers 4/4
+# copper tiles, every coal drill 4/4 coal tiles, and no tile collides with the
+# bank above or the live self-feeding bank at x 63.5..77.5.
+module "east" {
+  source      = "./modules/copper_plant"
+  origin      = { x = 82, y = -50 }
+  target_rate = 1.0
 }

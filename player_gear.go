@@ -134,6 +134,11 @@ if gear_moved<1 then fail("main inventory cannot accept "..gear_item); return en
 }
 
 func equipGrid(r *Resolver, in EquipGridInput) (*EquipmentGridResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	lua, err := equipGridLua(in)
 	if err != nil {
 		return nil, err
@@ -196,6 +201,11 @@ local gear_out={tick=game.tick,surface=c.surface.name,force=c.force.name,section
 }
 
 func setActorLogisticRequests(r *Resolver, in ActorLogisticRequestsInput) (*ActorLogisticResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	lua, err := actorLogisticRequestsLua(in)
 	if err != nil {
 		return nil, err

@@ -1,0 +1,114 @@
+extend type Mutation {
+  """Sweeps one resource type (or every item-yielding resource when resource is omitted) inside a bounded area as one actor, in one RCON call. Resource tiles are mined nearest-first from the actor's position with the engine's mine_entity, and the sweep stops as soon as the actor's inventory has gained count items of the mined products (items, not tiles: one tile yields many items and a partial mine only shrinks its amount). There is no reach restriction: tiles anywhere in the area are mined regardless of the actor's distance. Mined items always go to the actor's main inventory and never spill; a full inventory ends the sweep with INVENTORY_FULL. stopReason is COUNT_REACHED when gained reaches count (gained may overshoot by the last mine's yield), INVENTORY_FULL when the inventory cannot take the next mined item, otherwise AREA_EXHAUSTED. Mining is not transactional: items already gained stay in the inventory when a later tile fails. The area is limited to 1024 tiles per side and count to 1 through 10000."""
+  mineArea(input: MineAreaInput!): MineAreaResult!
+  """Finds an item in tiered sources inside a bounded area on the actor's surface and moves it into the actor's main inventory until count items were gathered, in one RCON call. Tiers are searched in order and each tier is sorted nearest-first from the actor: CONTAINER (chests and logistic chests; infinity chests are excluded unless includeInfinityContainers is true), MACHINE_OUTPUT (output inventories only of furnaces, assembling machines, rocket silos and mining drills; never input, fuel, module or trash slots), BELT (transport belts, underground belts and splitters, taken from the transport lines), LOOSE (item entities on the ground and stacks held by inserters). Only entities of the actor's force are touched, other force entities are ignored. The search stops at the first of: count gathered (COUNT_REACHED), the actor inventory unable to take more (INVENTORY_FULL), every tier searched (AREA_EXHAUSTED). Items are only ever moved into the actor's inventory, never destroyed. sources lists up to 50 sources that yielded items in the order they were visited; sourcesTruncated is true when more yielded. There is no reach restriction: sources anywhere in the area are used regardless of the actor's distance. Not transactional: items already moved stay with the actor when a later source fails. The area is limited to 1024 tiles per side."""
+  gatherItems(input: GatherItemsInput!): GatherItemsResult!
+}
+
+"""Why a mineArea sweep or gatherItems search ended."""
+enum GatherStopReason {
+  """The requested count of items was gathered; the actor may hold slightly more than requested after the last mine."""
+  COUNT_REACHED
+  """The actor's main inventory cannot take the next item."""
+  INVENTORY_FULL
+  """Every candidate in the area was visited and fewer than count items were found."""
+  AREA_EXHAUSTED
+}
+
+"""Source class a gatherItems search visits; tiers are searched in this order."""
+enum GatherTier {
+  """Chests and logistic chests."""
+  CONTAINER
+  """Output inventory of a furnace, assembling machine, rocket silo or mining drill."""
+  MACHINE_OUTPUT
+  """Transport belts, underground belts and splitters."""
+  BELT
+  """Item entities on the ground and stacks held by inserters."""
+  LOOSE
+}
+
+input MineAreaInput {
+  actor: ActorInput!
+  """Sweep bounds, at most 1024 tiles per side. The actor's surface is used."""
+  area: FactoryAreaInput!
+  """Resource entity prototype to mine, for example iron-ore. Omitted means every resource that yields an item."""
+  resource: String
+  """Items to gain, 1 through 10000. Counts items of the mined products, not tiles."""
+  count: Int!
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+input GatherItemsInput {
+  actor: ActorInput!
+  """Search bounds, at most 1024 tiles per side. The actor's surface is used."""
+  area: FactoryAreaInput!
+  item: String!
+  """Item quality prototype name; defaults to normal."""
+  quality: String = "normal"
+  """Items to gather, 1 through 4294967295."""
+  count: Int!
+  """Also take from infinity chests, which supply unlimited items. Defaults to false."""
+  includeInfinityContainers: Boolean = false
+  """Print this text in-game to all connected players instead of the generated notification."""
+  message: String
+}
+
+type MineAreaResult {
+  tick: Float!
+  actor: ActorIdentity!
+  surface: String!
+  """The resource that was swept; null when every resource was allowed."""
+  resource: String
+  requested: Int!
+  """Items of the mined products the actor's inventory gained."""
+  gained: Float!
+  stopReason: GatherStopReason!
+  """Resource tiles inside the area that were candidates."""
+  tilesFound: Int!
+  """Tiles the sweep mined at least once."""
+  tilesTouched: Int!
+  """Touched tiles that were fully depleted."""
+  tilesDepleted: Int!
+  """Tiles the engine refused to mine for a reason other than a full inventory."""
+  failed: Int!
+  errors: [BatchError!]!
+  """Net inventory change of the actor over the whole sweep."""
+  items: [InventoryStack!]!
+}
+
+"""One source that yielded items during gatherItems."""
+type GatherSource {
+  tier: GatherTier!
+  entity: String!
+  unitNumber: UnitNumber
+  position: Position!
+  """Items moved from this source to the actor."""
+  moved: Float!
+}
+
+type GatherTierTotal {
+  tier: GatherTier!
+  """Sources of this tier that yielded items."""
+  sources: Int!
+  moved: Float!
+}
+
+type GatherItemsResult {
+  tick: Float!
+  actor: ActorIdentity!
+  surface: String!
+  item: String!
+  quality: String!
+  requested: Int!
+  gathered: Float!
+  stopReason: GatherStopReason!
+  """All four tiers in search order, with zeros for tiers that yielded nothing or were not reached."""
+  tiers: [GatherTierTotal!]!
+  """Up to 50 yielding sources in visit order."""
+  sources: [GatherSource!]!
+  sourcesTruncated: Boolean!
+  """Sources that failed; every failure appears in errors up to 20."""
+  failed: Int!
+  errors: [BatchError!]!
+}

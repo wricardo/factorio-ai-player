@@ -1,0 +1,23 @@
+# 24-furnace smelter block for the demo factory.
+#
+# 24 stone furnaces at 0.3125 plate/s each = 7.5 plates/s = half a yellow belt.
+# Pitch 4 keeps the block at 96 tiles (~331 belts) instead of 240 tiles at
+# pitch 10 (~768 belts): at pitch 4 the plate column at FX+2.5 still clears the
+# next furnace's left edge at FX+3.5, which is the tightest legal spacing.
+factorioform {
+  version = 1
+  name    = "demo-24-furnace"
+}
+
+variable "origin" {
+  type    = object({ x = number, y = number })
+  default = { x = 20, y = 120 }
+}
+
+module "smelter" {
+  source      = "../modules/smelter_block"
+  origin      = var.origin
+  furnace     = "stone-furnace"
+  target_rate = 7.5
+  pitch       = 4
+}

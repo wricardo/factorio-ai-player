@@ -227,6 +227,11 @@ func beltPurgeInputError(input BeltPurgeInput) error {
 // reporting how many belts were visited and changed. It never inserts anything,
 // so items are only ever destroyed by the engine's own remove_item.
 func beltPurge(r *Resolver, input BeltPurgeInput) (*BeltPurgeResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	if err := beltPurgeInputError(input); err != nil {
 		return nil, err
 	}

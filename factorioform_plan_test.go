@@ -429,9 +429,9 @@ func TestFactorioformCLIUsageAndErrors(t *testing.T) {
 		t.Fatalf("help: %v %q", err, out.String())
 	}
 	for args, want := range map[string]string{
-		"plan":                         "FACTORIO_RCON_PASSWORD",
-		"bogus":                        "unknown factorioform command",
-		"plan --file /nonexistent.ftf": "FACTORIO_RCON_PASSWORD",
+		"plan":                    "FACTORIO_RCON_PASSWORD",
+		"bogus":                   "unknown factorioform command",
+		"plan --dir /nonexistent": "FACTORIO_RCON_PASSWORD",
 	} {
 		out.Reset()
 		err := runWithCredentials(append([]string{"--addr", "127.0.0.1:0", "factorioform"}, strings.Fields(args)...), &out, "")
@@ -441,10 +441,10 @@ func TestFactorioformCLIUsageAndErrors(t *testing.T) {
 	}
 	out.Reset()
 	err := runWithCredentials([]string{"--addr", "127.0.0.1:0", "factorioform", "plan"}, &out, "pw")
-	if err == nil || !strings.Contains(err.Error(), "--file") {
+	if err == nil || !strings.Contains(err.Error(), "--dir") {
 		t.Fatalf("plan without files: %v", err)
 	}
-	err = runWithCredentials([]string{"--addr", "127.0.0.1:0", "factorioform", "plan", "--file", "x.ftf", "--var", "novalue"}, &out, "pw")
+	err = runWithCredentials([]string{"--addr", "127.0.0.1:0", "factorioform", "plan", "--dir", "x", "--var", "novalue"}, &out, "pw")
 	if err == nil {
 		t.Fatal("expected error for unreadable file or malformed --var")
 	}

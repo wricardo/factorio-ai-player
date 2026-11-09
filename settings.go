@@ -459,6 +459,11 @@ func entitySettings(r *Resolver, obj *EntityInspection, inventory *string) (*Set
 }
 
 func setSplitterSettings(r *Resolver, in SplitterSettingsInput) (*SettingsResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -527,6 +532,11 @@ e.splitter_output_priority="none"
 }
 
 func setInserterSettings(r *Resolver, in InserterSettingsInput) (*SettingsResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -642,6 +652,11 @@ e.inserter_stack_size_override=0
 }
 
 func setLampSettings(r *Resolver, in LampSettingsInput) (*SettingsResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -695,6 +710,11 @@ func setLampSettings(r *Resolver, in LampSettingsInput) (*SettingsResult, error)
 }
 
 func setContainerBar(r *Resolver, in ContainerBarInput) (*SettingsResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -783,6 +803,11 @@ func infinityPipeFilterModeName(mode InfinityPipeFilterMode) (string, error) {
 // cleared after every prototype has been validated, so a bad entry cannot leave
 // the container empty.
 func configureInfinityContainer(r *Resolver, in ConfigureInfinityContainerInput) (*SettingsResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -928,6 +953,11 @@ end
 }
 
 func setLogisticRequests(r *Resolver, in LogisticRequestsInput) (*SettingsResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -970,6 +1000,11 @@ if not ok or not point then fail("entity has no logistic container behavior"); r
 }
 
 func setTrainStop(r *Resolver, in TrainStopInput) (*SettingsResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -1032,6 +1067,11 @@ func setTrainStop(r *Resolver, in TrainStopInput) (*SettingsResult, error) {
 }
 
 func setRocketSilo(r *Resolver, in RocketSiloInput) (*SettingsResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -1052,6 +1092,11 @@ e.send_to_orbit_automatically=%t
 }
 
 func launchRocket(r *Resolver, in RocketLaunchInput) (*SettingsResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -1079,6 +1124,11 @@ if not e.launch_rocket() then fail("rocket silo refused the launch at status "..
 }
 
 func setCircuitBehavior(r *Resolver, in CircuitBehaviorInput) (*SettingsResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -1456,6 +1506,11 @@ func constantCombinatorSectionStatements(sections []*ConstantCombinatorSectionIn
 // setConstantCombinator replaces a constant combinator's enabled flag and signal
 // sections and returns the post-write snapshot.
 func setConstantCombinator(r *Resolver, in SetConstantCombinatorInput) (*SettingsResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -1733,6 +1788,11 @@ func lampColorModeName(mode *LampColorMode) (string, error) {
 }
 
 func connectWire(r *Resolver, in WireInput, connect bool) (*WireResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	if in.From == nil || in.To == nil || in.From.Target == nil || in.To.Target == nil {
 		return nil, errors.New("from and to endpoints are required")
 	}

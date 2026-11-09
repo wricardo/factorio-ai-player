@@ -134,7 +134,7 @@ func TestNavigationStartChaseValidation(t *testing.T) {
 		input NavigateStartInput
 		want  string
 	}{
-		{"character required", NavigateStartInput{Position: position, Tolerance: 0.5, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "exactly one"},
+		{"character required", NavigateStartInput{Position: position, Tolerance: 0.5, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "FACTORIO_RCON_PASSWORD"},
 		{"destination required", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, Tolerance: 0.5, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "position"},
 		{"coordinates or target", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, Position: position, TargetCharacter: &target, Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "exactly one"},
 		{"target unit", NavigateStartInput{Actor: &ActorInput{Character: new("1")}, TargetCharacter: &zero, Tolerance: 1, TimeoutTicks: 10, WaitTimeoutSeconds: 1}, "targetCharacter"},

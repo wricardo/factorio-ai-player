@@ -456,6 +456,11 @@ func placePipeRun(r *Resolver, in BeltPipeRunInput) (*ConnectEntitiesResult, err
 }
 
 func connectEntities(r *Resolver, input ConnectEntitiesInput) (*ConnectEntitiesResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	character, player, err := settingsActorFrom(input.Actor)
 	if err != nil {
 		return nil, err

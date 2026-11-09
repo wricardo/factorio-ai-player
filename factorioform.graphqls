@@ -164,6 +164,13 @@ type FactorioformPlanMaterial {
   count: Int!
 }
 
+type FactorioformPlanRawMaterial {
+  """Recipe-leaf raw requirement at the requested quality."""
+  name: String!
+  quality: String!
+  count: Int!
+}
+
 type FactorioformPlan {
   formatVersion: Int!
   manifest: String!
@@ -177,6 +184,8 @@ type FactorioformPlan {
   diffs: [FactorioformPlanDiff!]!
   steps: [FactorioformPlanStep!]!
   materials: [FactorioformPlanMaterial!]!
+  """Recipe-leaf raw requirements for the place-item materials: aggregate of expanding every material through the force's enabled recipes. Mineable/gathered/raw-fluid leaves are listed; unresearched items and recipe-less non-raw items are omitted."""
+  rawMaterials: [FactorioformPlanRawMaterial!]!
 }
 
 extend type Mutation {

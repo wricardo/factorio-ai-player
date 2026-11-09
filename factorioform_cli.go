@@ -35,10 +35,8 @@ Arguments:
                     non-flag, so e.g. --format text goes before DIR).
 
 Plan options:
-  --file PATH         manifest file (*.ftf); repeatable, merged like Terraform
-                      (compatibility; prefer DIR for multi-file factories)
-  --dir DIR           every *.ftf file directly inside DIR
-                      (compatibility alias for the positional DIR)
+  --dir DIR           every *.ftf file directly inside DIR, merged like Terraform
+                      (same as the positional DIR)
   --var k=v           variable value; repeatable. Parsed as an HCL literal when the
                       variable declares a non-string type, otherwise used verbatim
   --var-file PATH     file of "name = literal" variable assignments; repeatable
@@ -62,11 +60,10 @@ func runFactorioform(args []string, out io.Writer, addr, password string) error 
 func runFactorioformPlan(args []string, out io.Writer, addr, password string) error {
 	fs := flag.NewFlagSet("factorioform plan", flag.ContinueOnError)
 	fs.SetOutput(out)
-	var files, vars, varFiles stringList
+	var vars, varFiles stringList
 	dir := fs.String("dir", "", "directory holding *.ftf manifest files")
 	actor := fs.String("actor-player", "", "player injected as input.actor into every step")
 	format := fs.String("format", "json", "output format: json or text (LLM-friendly)")
-	fs.Var(&files, "file", "manifest file (repeatable)")
 	fs.Var(&vars, "var", "variable k=v (repeatable)")
 	fs.Var(&varFiles, "var-file", "variable file (repeatable)")
 	if err := fs.Parse(args); err != nil {
@@ -88,7 +85,7 @@ func runFactorioformPlan(args []string, out io.Writer, addr, password string) er
 		return errors.New("FACTORIO_RCON_PASSWORD is required")
 	}
 	req := ffPlanRequest{Files: map[string][]byte{}, Vars: map[string]cty.Value{}, RawVars: map[string]string{}}
-	paths := append([]string(nil), files...)
+	var paths []string
 	rootDir := *dir
 	if *dir != "" {
 		matches, err := filepath.Glob(filepath.Join(*dir, "*.ftf"))
@@ -99,10 +96,7 @@ func runFactorioformPlan(args []string, out io.Writer, addr, password string) er
 		paths = append(paths, matches...)
 	}
 	if len(paths) == 0 {
-		return errors.New("give [DIR] holding *.ftf files, --dir DIR, or --file PATH (repeatable)")
-	}
-	if rootDir == "" {
-		rootDir = filepath.Dir(paths[0])
+		return errors.New("give [DIR] or --dir DIR holding *.ftf files")
 	}
 	req.RootDir = ffCleanDir(rootDir)
 	readFile := func(path string) error {
@@ -260,6 +254,15 @@ func ffPlanText(plan *FactorioformPlan) ([]byte, error) {
 		fmt.Fprintf(&buf, "  • %dx %s\n", m.Count, m.Name)
 	}
 	fmt.Fprintf(&buf, "\n")
+	// Raw materials needed
+	fmt.Fprintf(&buf, "RAW MATERIALS NEEDED:\n")
+	for _, m := range plan.RawMaterials {
+		if m.Quality != "" && m.Quality != "normal" {
+			fmt.Fprintf(&buf, "  • %dx %s@%s\n", m.Count, m.Name, m.Quality)
+		} else {
+			fmt.Fprintf(&buf, "  • %dx %s\n", m.Count, m.Name)
+		}
+	}
 
 	// Summary of changes
 	actionCounts := map[string]int{}

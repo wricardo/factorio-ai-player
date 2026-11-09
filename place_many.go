@@ -12,6 +12,11 @@ import (
 // Entity creation is the success test: can_place_entity can reject a position
 // the engine would snap onto a free tile, so it only classifies refusals.
 func placeMany(r *Resolver, input PlaceManyInput) (*PlaceManyResult, error) {
+	actor, err := defaultActor(r, input.Actor)
+	if err != nil {
+		return nil, err
+	}
+	input.Actor = actor
 	character, player, err := settingsActorFrom(input.Actor)
 	if err != nil {
 		return nil, err

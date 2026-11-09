@@ -274,6 +274,11 @@ func validateCellConnection(in CellConnectionInput) error {
 
 // preflightCell runs the single read-only check for the whole layout.
 func preflightCell(r *Resolver, actor *ActorInput, surface, force string, entries []cellEntry) (*cellPreflight, error) {
+	resolved, err := defaultActor(r, actor)
+	if err != nil {
+		return nil, err
+	}
+	actor = resolved
 	character, player, err := settingsActorFrom(actor)
 	if err != nil {
 		return nil, err

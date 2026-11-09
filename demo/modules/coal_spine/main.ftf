@@ -1,0 +1,59 @@
+# A north-south coal spine: one burner drill on a coal deposit feeding a column
+# of transport belts south, so stacked smelting lines can each tap it for fuel.
+#
+# Every tile in the column faces south, which is the direction a drill drops
+# onto the spine's first tile, so a single belt_run instance carries coal the
+# whole way down.
+#
+# The drill is placed only when `drill` is true; a caller that already has coal
+# arriving from elsewhere sets it false and keeps just the belt column.
+
+variable "spine_x" {
+  type        = number
+  description = "x of the belt column; must be a half-integer centre."
+}
+
+variable "drill_x" {
+  type        = number
+  description = "x of the burner mining drill centre; integer."
+}
+
+variable "drill_y" {
+  type        = number
+  description = "y of the burner mining drill centre; integer, on the coal deposit."
+}
+
+variable "end_y" {
+  type        = number
+  description = "y of the last (southernmost) belt tile in the column."
+}
+
+variable "drill" {
+  type        = bool
+  default     = true
+  description = "Place the burner mining drill that feeds this spine."
+}
+
+locals {
+  start_y = var.drill_y - 0.5
+  tiles   = var.end_y - local.start_y + 1
+}
+
+module "column" {
+  source = "../belt_run"
+  from   = { x = var.spine_x, y = local.start_y }
+  tiles  = local.tiles
+  axis   = "south"
+}
+
+resource "drill" "feed" {
+  count     = var.drill ? 1 : 0
+  entity    = "burner-mining-drill"
+  position  = { x = var.drill_x, y = var.drill_y }
+  direction = direction.east
+}
+
+output "belt" {
+  description = "The belt column."
+  value       = module.column.belt
+}

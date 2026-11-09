@@ -1,0 +1,257 @@
+# A self-contained copper smelting plant: a belt-fed smelter block plus its own
+# ore and coal miners, all wired by this module.
+#
+# Composition (instantiated here, not in the root):
+#   ../smelter_block   the furnace block, its three lanes and its arms
+#   ore feeder         one row of south-facing burner drills on copper ore
+#                      dropping onto the block's ore lane
+#   coal feeder        two rows of burner drills on coal, belted 8 tiles south
+#                      and fed into the block's coal lane (one underground
+#                      crossing under the ore lane)
+#   plate sink         one burner arm and a chest at the east end of the plate
+#                      trunk, so the block cannot back-pressure to full_output
+#
+# The geometry is derived from `origin` (the integer centre of the FIRST
+# furnace); the block grows EAST. The numbers below were checked against the
+# live southern copper/coal patches: drills sit on 4/4 ore or coal tiles and
+# every belt tile is clear of existing machines.
+#
+#   ore lane        y = origin.y - 2.5   (fed by the collector, flowing east)
+#   coal lane       y = origin.y + 2.5   (fed from the north, flows east)
+#   plate trunk     y = origin.y + 4.5
+#
+# Ore feeder:
+#   drills          y = origin.y - 4     facing SOUTH, drops at (x+0.5, y+1.5)
+#   collector       y = origin.y - 2.5   x = drill0+0.5 .. lane_x0-1
+# The collector's first tile is the first drill's drop tile; the last tile
+# emits east onto the block's ore lane.
+#
+# Coal feeder (drills sit NORTH of the copper patch's coal):
+#   drills          y = origin.y - 10    facing SOUTH, drops at (x+0.5, y+1.5)
+#   east run        y = origin.y - 8.5   x = coal0+0.5 .. coal_turn_x-1
+#   south run       x = origin.y-5.5     turns south and crosses UNDER the ore
+#                                        lane with an underground pair, then
+#                                        turns east into the coal lane
+#
+# Burner arithmetic: burner-mining-drill mines 0.25 ore/s, stone-furnace
+# smelts 0.3125 ore/s. Four ore drills therefore feed 4 stone furnaces
+# (target_rate 1.0 -> ceil(1.0 / 0.3125) = 4). Every burner is fuelled after
+# apply; the manifest models entities, not fuel.
+#
+# FUEL IS NOT SUSTAINABLE YET. The block's coal lane feeds only the furnaces;
+# the ore/coal drills and all burner arms are hand-fed. With no power grid the
+# arms cannot be electric, and a burner arm cannot refuel itself, so at high
+# game speed a load of coal burns out in tens of seconds. Sustained running
+# needs either a power grid (electric drills/arms) or a per-row coal spine with
+# a self-feeding coal supply like ../coal_supply.
+
+variable "origin" {
+  type        = object({ x = number, y = number })
+  description = "Integer centre of the FIRST furnace. The plant grows east; coal miners are derived from this origin."
+}
+
+variable "target_rate" {
+  type        = number
+  default     = 1.0
+  description = "Plates per second; the furnace count is derived from it."
+}
+
+variable "pitch" {
+  type        = number
+  default     = 4
+  description = "x spacing between furnaces; pitch 4 is the tightest legal spacing."
+}
+
+variable "sink" {
+  type        = string
+  default     = "wooden-chest"
+  description = "Prototype that receives the plates at the plate trunk's east end."
+}
+
+locals {
+  ox = var.origin.x
+  oy = var.origin.y
+
+  # smelter_block arithmetic, duplicated so the sink does not depend on a
+  # module output being available during expansion.
+  lines = max(1, ceil(var.target_rate / 0.3125))
+  span  = (local.lines - 1) * var.pitch + var.pitch
+
+  lane_x0     = local.ox - 2.5
+  ore_lane_y  = local.oy - 2.5
+  coal_lane_y = local.oy + 2.5
+  trunk_y     = local.oy + 4.5
+
+  # smelter_block's trunk ends at lane_x0+span-1, but its last plate column
+  # sits 6-pitch tiles east of that end. At pitch 4 the fourth furnace's column
+  # would dump onto empty ground (or the sink chest, which belts never fill),
+  # so extend the trunk by that gap and move the sink past the extension.
+  trunk_extra = max(0, 6 - var.pitch)
+
+  # Ore feeder: south-facing drills at y = lane_y - 1.5, dropping onto the lane.
+  ore_drill_y       = local.oy - 4
+  ore_drill_x0      = local.ox - 17
+  ore_drill_count   = 4
+  ore_drill_spacing = 2
+  ore_col_x0        = local.ore_drill_x0 + 0.5
+  ore_col_tiles     = (local.lane_x0 - 1) - local.ore_col_x0 + 1
+
+  # Coal feeder: drills at y = origin.y - 10, run at -8.5, turn at origin.x - 5.5.
+  coal_drill_y     = local.oy - 10
+  coal_drill_x0    = local.ox - 28
+  coal_drill_count = 4
+  coal_drill_space = 3
+  coal_run_y       = local.oy - 8.5
+  # origin.x - 3.5, east of the old cell's belts/arms at x 71..76 and west of
+  # the block's first lane tile at origin.x - 2.5.
+  coal_turn_x      = local.ox - 3.5
+  coal_run_tiles   = (local.coal_turn_x - 1) - (local.coal_drill_x0 + 0.5) + 1
+
+  # Underground pair straddling the ore lane so the coal column can reach the
+  # coal lane; the ore lane's surface tile stays between input and output.
+  coal_tunnel_in_y  = local.ore_lane_y - 1
+  coal_tunnel_out_y = local.ore_lane_y + 1
+  coal_south_a      = (local.coal_tunnel_in_y - 1) - (local.coal_run_y + 1) + 1
+  coal_south_b      = (local.coal_lane_y - 1) - (local.coal_tunnel_out_y + 1) + 1
+}
+
+module "smelter" {
+  source      = "../smelter_block"
+  origin      = var.origin
+  target_rate = var.target_rate
+  pitch       = var.pitch
+  furnace     = "stone-furnace"
+  fuel_belt   = true
+  arm         = "burner-inserter"
+  long_arm    = "burner-inserter"
+  belt        = "transport-belt"
+}
+
+# ── Ore feeder ───────────────────────────────────────────────────────────
+resource "drill" "ore" {
+  count     = local.ore_drill_count
+  entity    = "burner-mining-drill"
+  position  = { x = local.ore_drill_x0 + local.ore_drill_spacing * count.index, y = local.ore_drill_y }
+  direction = direction.south
+}
+
+resource "belt" "ore_collector" {
+  belt {
+    entity = "transport-belt"
+    path = [for i in range(local.ore_col_tiles) : {
+      x         = local.ore_col_x0 + i
+      y         = local.ore_lane_y
+      direction = direction.east
+    }]
+  }
+}
+
+# ── Coal feeder ──────────────────────────────────────────────────────────
+resource "drill" "coal" {
+  count     = local.coal_drill_count
+  entity    = "burner-mining-drill"
+  position  = { x = local.coal_drill_x0 + local.coal_drill_space * count.index, y = local.coal_drill_y }
+  direction = direction.south
+}
+
+resource "belt" "coal_run" {
+  belt {
+    entity = "transport-belt"
+    path = concat(
+      [for i in range(local.coal_run_tiles) : {
+        x         = local.coal_drill_x0 + 0.5 + i
+        y         = local.coal_run_y
+        direction = direction.east
+      }],
+      [{ x = local.coal_turn_x, y = local.coal_run_y, direction = direction.south }],
+    )
+  }
+}
+
+resource "belt" "coal_south_a" {
+  belt {
+    entity = "transport-belt"
+    path = [for i in range(local.coal_south_a) : {
+      x         = local.coal_turn_x
+      y         = local.coal_run_y + 1 + i
+      direction = direction.south
+    }]
+  }
+}
+
+resource "tunnel" "coal_under_ore" {
+  entity           = "underground-belt"
+  position         = { x = local.coal_turn_x, y = local.coal_tunnel_in_y }
+  direction        = direction.south
+  underground_type = "input"
+}
+
+resource "tunnel" "coal_out" {
+  entity           = "underground-belt"
+  position         = { x = local.coal_turn_x, y = local.coal_tunnel_out_y }
+  direction        = direction.south
+  underground_type = "output"
+}
+
+resource "belt" "coal_south_b" {
+  belt {
+    entity = "transport-belt"
+    path = [for i in range(local.coal_south_b) : {
+      x         = local.coal_turn_x
+      y         = local.coal_tunnel_out_y + 1 + i
+      direction = direction.south
+    }]
+  }
+}
+
+resource "belt" "coal_feed" {
+  belt {
+    entity = "transport-belt"
+    path = concat(
+      [{ x = local.coal_turn_x, y = local.coal_lane_y, direction = direction.east }],
+      [for i in range(local.lane_x0 - local.coal_turn_x - 1) : {
+        x         = local.coal_turn_x + 1 + i
+        y         = local.coal_lane_y
+        direction = direction.east
+      }],
+    )
+  }
+}
+
+# ── Plate sink ───────────────────────────────────────────────────────────
+# The block's plate trunk ends at the east edge; a belt never inserts into a
+# container, so the arm lifts the last tile and the chest receives it.
+# trunk_extension closes the 6-pitch gap so the last furnace's column lands on
+# a belt instead of empty ground/chest.
+resource "belt" "trunk_extension" {
+  count = local.trunk_extra > 0 ? 1 : 0
+  belt {
+    entity = "transport-belt"
+    path = [for i in range(local.trunk_extra) : {
+      x         = local.lane_x0 + local.span + i
+      y         = local.trunk_y
+      direction = direction.east
+    }]
+  }
+}
+
+resource "inserter" "plate_sink_arm" {
+  entity    = "burner-inserter"
+  position  = { x = local.lane_x0 + local.span + local.trunk_extra, y = local.trunk_y }
+  direction = direction.west
+}
+
+resource "sink" "plate_chest" {
+  entity   = var.sink
+  position = { x = local.lane_x0 + local.span + local.trunk_extra + 1, y = local.trunk_y }
+}
+
+output "furnaces" {
+  description = "The furnaces of the block, west to east."
+  value       = module.smelter.furnaces
+}
+
+output "ore_drills" {
+  description = "The copper drills feeding the ore lane."
+  value       = resource.drill.ore
+}

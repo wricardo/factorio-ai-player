@@ -94,14 +94,51 @@ func TestResolveActorCharacterValidation(t *testing.T) {
 	if _, err := resolveActorCharacter(offline, &player, &character); err == nil || err.Error() != "exactly one of player or character is required" {
 		t.Fatalf("both actors error = %v", err)
 	}
-	if _, err := resolveActorCharacter(offline, nil, nil); err == nil || err.Error() != "exactly one of player or character is required" {
-		t.Fatalf("neither actor error = %v", err)
+	if _, err := resolveActorCharacter(offline, nil, nil); err == nil || err.Error() != "FACTORIO_RCON_PASSWORD is required" {
+		t.Fatalf("neither actor defaults to first connected player, offline = %v", err)
 	}
 	if unit, err := resolveActorCharacter(offline, nil, &character); err != nil || unit != "4" {
 		t.Fatalf("character passthrough = %q err=%v", unit, err)
 	}
 	if _, err := resolveActorCharacter(offline, nil, new("0")); err == nil {
 		t.Fatal("zero character must fail")
+	}
+}
+func TestResolveActorCharacterEmptyDefaultsToFirstConnected(t *testing.T) {
+	// status lists connected players, then the player query resolves the character.
+	fake := newFakeRCON(t,
+		`{"tick":1,"players":[{"name":"wricardo","surface":"nauvis","position":{"x":0,"y":0}}]}`,
+		`{"tick":1,"player":"wricardo","character":4,"has_character":true}`)
+	unit, err := resolveActorCharacter(fake.resolver, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unit != "4" {
+		t.Fatalf("defaulted character = %q", unit)
+	}
+	commands := fake.commands()
+	if len(commands) != 2 || !strings.Contains(commands[1], "game.get_player(") {
+		t.Fatalf("status then player lookup = %q", commands)
+	}
+}
+
+func TestResolveActorCharacterEmptyWithoutConnectedPlayer(t *testing.T) {
+	fake := newFakeRCON(t, `{"tick":1,"players":[]}`)
+	if _, err := resolveActorCharacter(fake.resolver, nil, nil); err == nil ||
+		err.Error() != "actor is empty and no player is connected" {
+		t.Fatalf("no connected player error = %v", err)
+	}
+}
+
+func TestDefaultActorPassthrough(t *testing.T) {
+	offline := &Resolver{addr: "127.0.0.1:1"}
+	if got, err := defaultActor(offline, nil); got != nil || err != nil {
+		t.Fatalf("nil actor = %v err=%v", got, err)
+	}
+	player := "wricardo"
+	actor := &ActorInput{Player: &player}
+	if got, err := defaultActor(offline, actor); err != nil || got != actor {
+		t.Fatalf("populated actor = %v err=%v", got, err)
 	}
 }
 

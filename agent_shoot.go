@@ -67,6 +67,11 @@ end
 // it to finish, and reports the ammo consumed. A lost response does not prove the
 // job did not run; inspect the character before retrying.
 func shootAction(ctx context.Context, r *Resolver, in ShootInput) (*ShootResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	if in.Actor == nil || in.Actor.Player == nil || strings.TrimSpace(*in.Actor.Player) == "" || in.Actor.Character != nil {
 		return nil, errors.New("shoot actor must select one player")
 	}

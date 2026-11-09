@@ -398,6 +398,11 @@ func executeEntityMeta(r *Resolver, target settingsTarget, body string) (*Entity
 
 // setEntityTags replaces an entity's tags and returns the resulting metadata.
 func setEntityTags(r *Resolver, in EntityTagsInput) (*EntityMetaResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	if err := validateTagsJSON(in.TagsJSON); err != nil {
 		return nil, err
 	}
@@ -438,6 +443,11 @@ end
 
 // setNameTag sets an entity's map name tag; the empty string clears it.
 func setNameTag(r *Resolver, in EntityNameTagInput) (*EntityMetaResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	target, err := settingsTargetFromRef(in.Actor, in.Target)
 	if err != nil {
 		return nil, err
@@ -459,6 +469,11 @@ if not ok_write then fail("entity does not accept a name tag: "..tostring(write_
 
 // setCombinatorParameters replaces one arithmetic or decider behavior parameter table.
 func setCombinatorParameters(r *Resolver, in SetCombinatorParametersInput) (*EntityMetaResult, error) {
+	actor, err := defaultActor(r, in.Actor)
+	if err != nil {
+		return nil, err
+	}
+	in.Actor = actor
 	parameters, entityType, err := combinatorParametersLua(in.Parameters)
 	if err != nil {
 		return nil, err

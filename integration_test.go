@@ -3747,6 +3747,126 @@ rcon.print("detail ready")`)
 		t.Errorf("no underground belt reported a mixed left side: %v", byType["underground-belt"])
 	})
 
+	t.Run("MineAreaAndGatherItems", func(t *testing.T) {
+		h.createTestSurface(t)
+		character := h.spawnCharacter(t)
+		t.Cleanup(func() { h.destroyCharacter(t, character.id) })
+		t.Cleanup(func() {
+			if h.isStopped() {
+				return
+			}
+			h.lua(t, `local surface=game.surfaces["`+integrationSurface+`"]
+if surface then
+  for _,e in pairs(surface.find_entities()) do if e.valid and e.type~="character" then e.destroy() end end
+end
+rcon.print("ok")`)
+		})
+		holds := func(item string) float64 {
+			inventory := h.query(t, fmt.Sprintf(`{ inventory(input:{character:%q}) { items { name count } } }`, character.id))
+			total := 0.0
+			for _, raw := range jsonArray(t, jsonObject(t, jsonObject(t, inventory, "data"), "inventory"), "items") {
+				entry := raw.(map[string]any)
+				if jsonString(t, entry, "name") == item {
+					total += jsonNumber(t, entry, "count")
+				}
+			}
+			return total
+		}
+		sweep := func(args string) map[string]any {
+			result := h.mutation(t, fmt.Sprintf(`mutation {
+			  mineArea(input:{actor:{character:%q},%s}) {
+			    requested gained stopReason tilesFound tilesTouched tilesDepleted failed
+			    errors { index code message } items { name count }
+			  }
+			}`, character.id, args))
+			return jsonObject(t, jsonObject(t, result, "data"), "mineArea")
+		}
+		h.lua(t, `local s=game.surfaces["`+integrationSurface+`"]
+for x=10,13 do assert(s.create_entity{name="iron-ore",position={x+0.5,10.5},amount=50}) end
+assert(s.create_entity{name="coal",position={10.5,12.5},amount=30})
+rcon.print("ok")`)
+		const area = `area:{leftTopX:8,leftTopY:8,rightBottomX:16,rightBottomY:16}`
+
+		partial := sweep(area + `,resource:"iron-ore",count:7`)
+		if jsonString(t, partial, "stopReason") != "COUNT_REACHED" || jsonNumber(t, partial, "gained") < 7 || jsonNumber(t, partial, "tilesFound") != 4 || jsonNumber(t, partial, "tilesTouched") != 1 {
+			t.Fatalf("stop at count: %v", partial)
+		}
+		if got := holds("iron-ore"); got != jsonNumber(t, partial, "gained") || holds("coal") != 0 {
+			t.Fatalf("iron-ore=%v coal=%v after the partial sweep: %v", got, holds("coal"), partial)
+		}
+		rest := sweep(area + `,resource:"iron-ore",count:1000`)
+		if jsonString(t, rest, "stopReason") != "AREA_EXHAUSTED" || jsonNumber(t, rest, "tilesDepleted") != 4 || holds("iron-ore") != 200 || jsonNumber(t, rest, "failed") != 0 {
+			t.Fatalf("exhaust the ore: %v (inventory ore %v)", rest, holds("iron-ore"))
+		}
+		everything := sweep(area + `,count:1000`)
+		if jsonString(t, everything, "stopReason") != "AREA_EXHAUSTED" || jsonNumber(t, everything, "gained") != 30 || holds("coal") != 30 {
+			t.Fatalf("all resources: %v", everything)
+		}
+		h.lua(t, `local s=game.surfaces["`+integrationSurface+`"]
+assert(s.create_entity{name="stone",position={12.5,12.5},amount=20})
+local c=game.get_entity_by_unit_number(`+character.id+`)
+local inv=c.get_inventory(defines.inventory.character_main)
+for i=1,#inv do if not inv[i].valid_for_read then inv[i].set_stack{name="wooden-chest",count=50} end end
+rcon.print("ok")`)
+		full := sweep(area + `,count:5`)
+		if jsonString(t, full, "stopReason") != "INVENTORY_FULL" || jsonNumber(t, full, "gained") != 0 || jsonNumber(t, full, "failed") != 0 {
+			t.Fatalf("full inventory: %v", full)
+		}
+
+		// gatherItems: a chest, a furnace output, a belt, a ground stack and an
+		// infinity chest all hold iron plates inside the search area.
+		h.lua(t, `local s=game.surfaces["`+integrationSurface+`"]
+local c=game.get_entity_by_unit_number(`+character.id+`)
+local inv=c.get_inventory(defines.inventory.character_main); inv.clear()
+local chest=assert(s.create_entity{name="wooden-chest",position={-18.5,10.5},force="player"}); assert(chest.insert{name="iron-plate",count=20}==20)
+local furnace=assert(s.create_entity{name="stone-furnace",position={-15,10},force="player"}); assert(furnace.get_output_inventory().insert{name="iron-plate",count=10}==10)
+for _,x in ipairs({-10.5,-8.5}) do
+  local belt=assert(s.create_entity{name="transport-belt",position={x,12.5},direction=defines.direction.east,force="player"})
+  for line=1,2 do assert(belt.get_transport_line(line).insert_at_back{name="iron-plate",count=1}) end
+end
+assert(s.create_entity{name="item-on-ground",position={-6.5,14.5},stack={name="iron-plate",count=5}})
+local infinity=assert(s.create_entity{name="infinity-chest",position={-12.5,8.5},force="player"})
+infinity.set_infinity_container_filter(1,{name="iron-plate",count=50,mode="exactly"})
+rcon.print("ok")`)
+		gather := func(args string) map[string]any {
+			result := h.mutation(t, fmt.Sprintf(`mutation {
+			  gatherItems(input:{actor:{character:%q},area:{leftTopX:-20,leftTopY:6,rightBottomX:-4,rightBottomY:16},item:"iron-plate",%s}) {
+			    requested gathered stopReason sourcesTruncated failed
+			    tiers { tier sources moved } sources { tier entity moved } errors { code message }
+			  }
+			}`, character.id, args))
+			return jsonObject(t, jsonObject(t, result, "data"), "gatherItems")
+		}
+		tierMoved := func(result map[string]any, tier string) float64 {
+			for _, raw := range jsonArray(t, result, "tiers") {
+				entry := raw.(map[string]any)
+				if jsonString(t, entry, "tier") == tier {
+					return jsonNumber(t, entry, "moved")
+				}
+			}
+			t.Fatalf("tier %s missing: %v", tier, result["tiers"])
+			return 0
+		}
+		first := gather(`count:25`)
+		if jsonString(t, first, "stopReason") != "COUNT_REACHED" || jsonNumber(t, first, "gathered") != 25 || tierMoved(first, "CONTAINER") != 20 || tierMoved(first, "MACHINE_OUTPUT") != 5 || tierMoved(first, "BELT") != 0 {
+			t.Fatalf("tier order: %v", first)
+		}
+		second := gather(`count:100`)
+		if jsonString(t, second, "stopReason") != "AREA_EXHAUSTED" || jsonNumber(t, second, "gathered") != 14 || tierMoved(second, "MACHINE_OUTPUT") != 5 || tierMoved(second, "BELT") != 4 || tierMoved(second, "LOOSE") != 5 || jsonNumber(t, second, "failed") != 0 {
+			t.Fatalf("drain the rest without the infinity chest: %v", second)
+		}
+		if got := holds("iron-plate"); got != 39 {
+			t.Fatalf("actor plates=%v, want 39", got)
+		}
+		third := gather(`count:10,includeInfinityContainers:true`)
+		if jsonString(t, third, "stopReason") != "COUNT_REACHED" || tierMoved(third, "CONTAINER") != 10 {
+			t.Fatalf("infinity opt-in: %v", third)
+		}
+		if got := holds("iron-plate"); got != 49 {
+			t.Fatalf("actor plates=%v, want 49", got)
+		}
+	})
+
 	t.Run("SaveShutdown", func(t *testing.T) {
 		h.mutation(t, `mutation { save { response } }`)
 		save := filepath.Join(h.dir, "data", "saves", "sandbox.zip")

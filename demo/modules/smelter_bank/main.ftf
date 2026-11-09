@@ -1,0 +1,85 @@
+# A bank of smelting lines sharing two coal spines.
+#
+# Composes three reusable modules and owns only the stacking arithmetic:
+#   smelt_line  x lines      one drill/belt/furnace row per line
+#   coal_spine  x 2          west spine fuels the drills, east fuels the furnaces
+#
+# Every line's two fuel arms pick from a spine one tile to their side, so the
+# spines must sit at `origin.x - 2.5` and `origin.x + 8.5` for every line:
+#   drill arm at origin.x - 1.5  picks origin.x - 2.5
+#   furnace arm at origin.x + 7.5 picks origin.x + 8.5
+# Both coal drills must be north of the first line so the columns reach every
+# row; they drop onto the spine's first tile.
+
+variable "origin" {
+  type        = object({ x = number, y = number })
+  description = "Centre of the first line's drill; integer coordinates. The first row sits on this y."
+}
+
+variable "lines" {
+  type        = number
+  default     = 3
+  description = "How many smelting lines to stack southward."
+}
+
+variable "pitch" {
+  type        = number
+  default     = 4
+  description = "Tile spacing between line rows. 4 keeps the plate sinks clear of the next drill."
+}
+
+variable "coal_drill_y" {
+  type        = number
+  description = "y of both coal drill centres; must be north of the first line and on coal at both x positions."
+}
+
+variable "coal_west_x" {
+  type        = number
+  description = "x of the west coal drill centre (integer), which feeds the drill-fuel spine."
+}
+
+variable "coal_east_x" {
+  type        = number
+  description = "x of the east coal drill centre (integer), which feeds the furnace-fuel spine."
+}
+
+locals {
+  last_row_y = var.origin.y + var.pitch * (var.lines - 1)
+  # The last line's fuel arms pick at last_row_y - 0.5, so the spine must reach
+  # that tile: stopping one tile short starves the final row's drill and furnace.
+  spine_end_y  = local.last_row_y - 0.5
+  west_spine_x = var.origin.x - 2.5
+  east_spine_x = var.origin.x + 8.5
+}
+
+module "line" {
+  source = "../smelt_line"
+  count  = var.lines
+  origin = { x = var.origin.x, y = var.origin.y + var.pitch * count.index }
+}
+
+module "coal_west" {
+  source  = "../coal_spine"
+  spine_x = local.west_spine_x
+  drill_x = var.coal_west_x
+  drill_y = var.coal_drill_y
+  end_y   = local.spine_end_y
+}
+
+module "coal_east" {
+  source  = "../coal_spine"
+  spine_x = local.east_spine_x
+  drill_x = var.coal_east_x
+  drill_y = var.coal_drill_y
+  end_y   = local.spine_end_y
+}
+
+output "furnaces" {
+  description = "The furnace of every line, in row order."
+  value       = module.line[*].furnace
+}
+
+output "drills" {
+  description = "The ore drill of every line, in row order."
+  value       = module.line[*].drill
+}

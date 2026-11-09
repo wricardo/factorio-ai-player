@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
@@ -85,9 +84,11 @@ type ffBelt struct {
 // ffResourceSpec is one decoded resource instance. Optional attributes are
 // pointers/nil when omitted: omitted means "unmanaged", never "cleared".
 type ffResourceSpec struct {
-	Entity          string
-	Position        ffPoint
-	Direction       int
+	Entity   string
+	Position ffPoint
+	// Direction is nil when the manifest omits it: unmanaged, like Quality and
+	// Recipe, so the diff never rotates or replaces an entity over it.
+	Direction       *int
 	Quality         *string
 	Recipe          *string
 	Modules         []string // nil = unmanaged, empty non-nil = no modules
@@ -138,6 +139,9 @@ type ffAttrSpec struct {
 	Name     string // snake_case manifest name
 	GraphQL  string // camelCase GraphQL input field
 	Required bool
+	// Type is the value type the attribute must have; cty.NilType means the
+	// attribute is passed through unchecked (legacy, being retired).
+	Type cty.Type
 }
 
 type ffBlockSpec struct {
@@ -146,8 +150,6 @@ type ffBlockSpec struct {
 	Repeat  bool   // nested block may appear more than once
 	Attrs   []ffAttrSpec
 	Blocks  []*ffBlockSpec
-	// Rejected attributes decode only to produce a pointed diagnostic.
-	Rejected map[string]string
 }
 
 // ffAttrs builds attribute specs from GraphQL camelCase names; a trailing "!"
@@ -157,12 +159,164 @@ func ffAttrs(camel ...string) []ffAttrSpec {
 	for _, c := range camel {
 		req := strings.HasSuffix(c, "!")
 		c = strings.TrimSuffix(c, "!")
-		out = append(out, ffAttrSpec{Name: ffSnake(c), GraphQL: c, Required: req})
+		out = append(out, ffAttrSpec{Name: ffSnake(c), GraphQL: c, Required: req, Type: ffAttrType(c)})
 	}
 	return out
 }
 
-var ffSignalAttrs = []string{"firstSignal", "firstSignalNetworks", "secondSignal", "secondSignalNetworks"}
+// ffObject types. Nested values are closed: an undeclared key is an error, so a
+// typo surfaces at plan time with the .ftf range instead of at apply.
+var (
+	ffTypeSignal = cty.Object(map[string]cty.Type{
+		"type": cty.String, "name": cty.String, "quality": cty.String,
+	})
+	ffTypeNetworks = cty.Object(map[string]cty.Type{
+		"red": cty.Bool, "green": cty.Bool,
+	})
+	ffTypeCondition = cty.Object(map[string]cty.Type{
+		"comparator": cty.String, "constant": cty.Number,
+		"firstSignal": ffTypeSignal, "secondSignal": ffTypeSignal,
+	})
+	ffTypeColor = cty.Object(map[string]cty.Type{
+		"r": cty.Number, "g": cty.Number, "b": cty.Number, "a": cty.Number,
+	})
+)
+
+// ffAttrTypes maps GraphQL input field names to the value type the manifest
+// must supply. A field absent from the table keeps cty.NilType (unchecked).
+var ffAttrTypes = map[string]cty.Type{
+	// Strings and numbers.
+	"inventory": cty.String, "filter": cty.String, "filterMode": cty.String,
+	"inputPriority": cty.String, "outputPriority": cty.String, "colorMode": cty.String,
+	"group": cty.String, "name": cty.String, "quality": cty.String,
+	"stackSizeOverride": cty.Number, "resourceReadMode": cty.Number, "readItemsMode": cty.Number,
+	"handReadMode": cty.Number, "contentsReadMode": cty.Number, "siloReadMode": cty.Number,
+	"exclusiveModeOfOperation": cty.Number, "index": cty.Number, "count": cty.Number,
+	"min": cty.Number, "max": cty.Number, "multiplier": cty.Number, "allowedSlots": cty.Number,
+	"constant": cty.Number, "firstConstant": cty.Number, "secondConstant": cty.Number,
+	"operation": cty.String, "comparator": cty.String, "compareType": cty.String,
+
+	// Booleans.
+	"pickupFromLeftLane": cty.Bool, "pickupFromRightLane": cty.Bool, "enabled": cty.Bool,
+	"active": cty.Bool, "circuitEnableDisable": cty.Bool, "readContents": cty.Bool,
+	"setRecipe": cty.Bool, "readIngredients": cty.Bool, "readWorking": cty.Bool,
+	"readResources": cty.Bool, "readAmmo": cty.Bool, "readLogistics": cty.Bool,
+	"readRobotStats": cty.Bool, "setFilters": cty.Bool, "readHandContents": cty.Bool,
+	"setStackSize": cty.Bool, "connectToLogisticNetwork": cty.Bool, "useColors": cty.Bool,
+	"readRecipeFinished": cty.Bool, "includeInCrafting": cty.Bool, "includeFuel": cty.Bool,
+	"setFilter": cty.Bool, "splitterInputSide": cty.Bool, "splitterOutputSide": cty.Bool,
+	"sendToTrain": cty.Bool, "readFromTrain": cty.Bool, "readStoppedTrain": cty.Bool,
+	"setTrainsLimit": cty.Bool, "readTrainsCount": cty.Bool, "setPriority": cty.Bool,
+	"circuitConditionEnabled": cty.Bool, "copyCountFromInput": cty.Bool,
+
+	// Nested objects, keyed on their GraphQL field names.
+	"circuitCondition": ffTypeCondition, "logisticCondition": ffTypeCondition,
+	"inputLeftCondition": ffTypeCondition, "inputRightCondition": ffTypeCondition,
+	"outputLeftCondition": ffTypeCondition, "outputRightCondition": ffTypeCondition,
+	"redSignal": ffTypeSignal, "greenSignal": ffTypeSignal, "blueSignal": ffTypeSignal,
+	"rgbSignal": ffTypeSignal, "stackControlSignal": ffTypeSignal, "recipeFinishedSignal": ffTypeSignal,
+	"workingSignal": ffTypeSignal, "stoppedTrainSignal": ffTypeSignal, "trainsCountSignal": ffTypeSignal,
+	"trainsLimitSignal": ffTypeSignal, "prioritySignal": ffTypeSignal, "signal": ffTypeSignal,
+	"firstSignal": ffTypeSignal, "secondSignal": ffTypeSignal, "outputSignal": ffTypeSignal,
+	"firstSignalNetworks": ffTypeNetworks, "secondSignalNetworks": ffTypeNetworks, "networks": ffTypeNetworks,
+	"pickupVector": cty.Object(map[string]cty.Type{"x": cty.Number, "y": cty.Number}),
+	"dropVector":   cty.Object(map[string]cty.Type{"x": cty.Number, "y": cty.Number}),
+
+	// Lists. inserter.filters is validated by prototype filter count in the
+	// normalizer (accepting bare names or name@quality), so it stays a string
+	// list here rather than an InserterFilterInput object.
+	"filters": cty.List(cty.String),
+}
+
+// ffAttrType returns the declared type of a GraphQL field, cty.NilType when the
+// field has no entry yet.
+func ffAttrType(graphql string) cty.Type {
+	if t, ok := ffAttrTypes[graphql]; ok {
+		return t
+	}
+	return cty.NilType
+}
+
+// ffConvertAttr converts a manifest value to its declared type with strict,
+// closed semantics: no cross-type coercion (a string is never a number or a
+// bool) and an object with an undeclared key is an error, so a typo cannot
+// silently vanish. Null satisfies any type.
+func ffConvertAttr(v cty.Value, t cty.Type, r hcl.Range, what string) (cty.Value, hcl.Diagnostics) {
+	if t == cty.NilType || v.IsNull() || !v.IsKnown() {
+		return v, nil
+	}
+	switch {
+	case t == cty.String:
+		if v.Type() != cty.String {
+			return cty.NilVal, hcl.Diagnostics{ffErr(r, "Invalid "+what, fmt.Sprintf("%s must be a string, got %s", what, v.Type().FriendlyName()))}
+		}
+		return v, nil
+	case t == cty.Number:
+		if v.Type() != cty.Number {
+			return cty.NilVal, hcl.Diagnostics{ffErr(r, "Invalid "+what, fmt.Sprintf("%s must be a number, got %s", what, v.Type().FriendlyName()))}
+		}
+		return v, nil
+	case t == cty.Bool:
+		if v.Type() != cty.Bool {
+			return cty.NilVal, hcl.Diagnostics{ffErr(r, "Invalid "+what, fmt.Sprintf("%s must be true or false, got %s", what, v.Type().FriendlyName()))}
+		}
+		return v, nil
+	case t.IsObjectType():
+		if !v.Type().IsObjectType() && !v.Type().IsMapType() {
+			return cty.NilVal, hcl.Diagnostics{ffErr(r, "Invalid "+what, fmt.Sprintf("%s must be an object, got %s", what, v.Type().FriendlyName()))}
+		}
+		return ffConvertAttrObject(v, t, r, what)
+	}
+	return v, nil
+}
+
+// ffConvertAttrObject checks an object value against a closed object type and
+// rewrites its keys from manifest snake_case to GraphQL camelCase, so the value
+// compares equal to the live one and matches the write input.
+func ffConvertAttrObject(v cty.Value, t cty.Type, r hcl.Range, what string) (cty.Value, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
+	in := v.AsValueMap()
+	out := make(map[string]cty.Value, len(in))
+	keys := make([]string, 0, len(in))
+	for k := range in {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	attrs := t.AttributeTypes()
+	// Index the declared fields by their snake_case manifest spelling.
+	bySnake := make(map[string]string, len(attrs))
+	for name := range attrs {
+		bySnake[ffSnake(name)] = name
+	}
+	for _, k := range keys {
+		field, ok := bySnake[k]
+		if !ok {
+			if _, exact := attrs[k]; exact {
+				field = k
+			} else {
+				known := make([]string, 0, len(bySnake))
+				for n := range bySnake {
+					known = append(known, n)
+				}
+				sort.Strings(known)
+				diags = append(diags, ffErr(r, "Unsupported attribute", fmt.Sprintf("%s has no attribute %q (known: %s)", what, k, strings.Join(known, ", "))))
+				continue
+			}
+		}
+		cv, d := ffConvertAttr(in[k], attrs[field], r, what+"."+field)
+		diags = append(diags, d...)
+		if d.HasErrors() {
+			continue
+		}
+		if !cv.IsNull() {
+			out[field] = cv
+		}
+	}
+	if diags.HasErrors() {
+		return cty.NilVal, diags
+	}
+	return cty.ObjectVal(out), diags
+}
 
 // ffConfigSpecs are the resource-level config blocks, each allowed at most once.
 var ffConfigSpecs = []*ffBlockSpec{
@@ -170,8 +324,8 @@ var ffConfigSpecs = []*ffBlockSpec{
 		Name: "inserter",
 		Attrs: append(ffAttrs("filters", "filterMode", "stackSizeOverride", "pickupFromLeftLane", "pickupFromRightLane"),
 			// Offsets from the entity centre in map axes (GraphQL pickupVector/dropVector).
-			ffAttrSpec{Name: "pickup_offset", GraphQL: "pickupVector"},
-			ffAttrSpec{Name: "drop_offset", GraphQL: "dropVector"}),
+			ffAttrSpec{Name: "pickup_offset", GraphQL: "pickupVector", Type: ffAttrTypes["pickupVector"]},
+			ffAttrSpec{Name: "drop_offset", GraphQL: "dropVector", Type: ffAttrTypes["dropVector"]}),
 	},
 	{
 		Name:  "splitter",
@@ -505,10 +659,11 @@ func ParseFactorioform(files map[string][]byte, ctx *hcl.EvalContext) (*ffManife
 				continue
 			}
 			seenVar[blk.Labels[0]] = blk.DefRange
-			v, d := decodeFFVariable(blk, ctx)
+			vd, d := ffDecodeVariable(blk, ctx)
 			diags = append(diags, d...)
-			if v != nil {
-				m.Variables = append(m.Variables, v)
+			if vd != nil {
+				v := vd.ffVariable
+				m.Variables = append(m.Variables, &v)
 			}
 		case "locals":
 			attrs, d := blk.Body.JustAttributes()
@@ -643,45 +798,6 @@ func decodeFFHeader(blk *hcl.Block, ctx *hcl.EvalContext) (*ffHeader, hcl.Diagno
 	return h, diags
 }
 
-func decodeFFVariable(blk *hcl.Block, ctx *hcl.EvalContext) (*ffVariable, hcl.Diagnostics) {
-	content, diags := blk.Body.Content(&hcl.BodySchema{Attributes: []hcl.AttributeSchema{
-		{Name: "type"}, {Name: "default"}, {Name: "description"},
-	}})
-	v := &ffVariable{Name: blk.Labels[0], Type: cty.DynamicPseudoType, Range: blk.DefRange}
-	if a, ok := content.Attributes["type"]; ok {
-		t, d := typeexpr.TypeConstraint(a.Expr)
-		diags = append(diags, d...)
-		if !d.HasErrors() {
-			v.Type, v.HasType = t, true
-		}
-	}
-	if a, ok := content.Attributes["description"]; ok {
-		val, d := ffEval(a.Expr, ctx)
-		diags = append(diags, d...)
-		if !d.HasErrors() {
-			s, d := ffString(val, a.Expr.Range(), "description")
-			diags = append(diags, d...)
-			v.Description = s
-		}
-	}
-	if a, ok := content.Attributes["default"]; ok {
-		val, d := ffEval(a.Expr, ctx)
-		diags = append(diags, d...)
-		if !d.HasErrors() {
-			if v.HasType {
-				c, err := convert.Convert(val, v.Type)
-				if err != nil {
-					diags = append(diags, ffErr(a.Expr.Range(), "Invalid default value", err.Error()))
-				} else {
-					val = c
-				}
-			}
-			v.Default, v.HasDefault = val, true
-		}
-	}
-	return v, diags
-}
-
 func decodeFFResourceDecl(blk *hcl.Block, ctx *hcl.EvalContext) (*ffResourceDecl, hcl.Diagnostics) {
 	meta, rest, diags := blk.Body.PartialContent(&hcl.BodySchema{Attributes: []hcl.AttributeSchema{
 		{Name: "count"}, {Name: "for_each"},
@@ -811,7 +927,9 @@ func ffDecodeResource(decl *ffResourceDecl, ctx *hcl.EvalContext) (*ffResourceSp
 	if v, a, ok := attr("direction"); ok {
 		n, d := ffDirection(v, a.Expr.Range())
 		diags = append(diags, d...)
-		spec.Direction = n
+		if !d.HasErrors() {
+			spec.Direction = &n
+		}
 	}
 	strAttr := func(name string) *string {
 		v, a, ok := attr(name)
@@ -846,14 +964,6 @@ func decodeFFConfigBlock(blk *hcl.Block, spec *ffBlockSpec, ctx *hcl.EvalContext
 	for _, a := range spec.Attrs {
 		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: a.Name})
 	}
-	rejected := make([]string, 0, len(spec.Rejected))
-	for n := range spec.Rejected {
-		rejected = append(rejected, n)
-	}
-	sort.Strings(rejected)
-	for _, n := range rejected {
-		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: n})
-	}
 	nested := map[string]*ffBlockSpec{}
 	for _, b := range spec.Blocks {
 		schema.Blocks = append(schema.Blocks, hcl.BlockHeaderSchema{Type: b.Name})
@@ -863,11 +973,6 @@ func decodeFFConfigBlock(blk *hcl.Block, spec *ffBlockSpec, ctx *hcl.EvalContext
 	cfg := &ffConfigBlock{
 		Type: blk.Type, Range: blk.DefRange,
 		Attrs: map[string]cty.Value{}, AttrRanges: map[string]hcl.Range{},
-	}
-	for _, n := range rejected {
-		if a, ok := content.Attributes[n]; ok {
-			diags = append(diags, ffErr(a.NameRange, "Unsupported attribute", fmt.Sprintf("%s: %s", n, spec.Rejected[n])))
-		}
 	}
 	for _, as := range spec.Attrs {
 		a, ok := content.Attributes[as.Name]
@@ -881,6 +986,14 @@ func decodeFFConfigBlock(blk *hcl.Block, spec *ffBlockSpec, ctx *hcl.EvalContext
 		diags = append(diags, d...)
 		if d.HasErrors() {
 			continue
+		}
+		if as.Type != cty.NilType {
+			cv, cd := ffConvertAttr(v, as.Type, a.Expr.Range(), blk.Type+"."+as.Name)
+			diags = append(diags, cd...)
+			if cd.HasErrors() {
+				continue
+			}
+			v = cv
 		}
 		cfg.Attrs[as.Name] = v
 		cfg.AttrRanges[as.Name] = a.Expr.Range()

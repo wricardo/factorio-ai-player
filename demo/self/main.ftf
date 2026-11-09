@@ -1,0 +1,46 @@
+# Copper smelting bank, self-feeding — the replacement for demo/main.ftf.
+#
+# Plan it separately from the burner bank (root *.ftf files merge per directory):
+#   factorioform plan --dir ./demo/self -actor-player wricardo
+#
+# Composition: ../modules/smelter_bank_self stacks smelt_line_self rows and runs
+# one coal_supply that refuels its own drill.
+#
+# Site derived from a live resource census, not guessed:
+#   copper patch rows  y -50 .. -31 at x 44 .. 70
+#   coal patch         y -77 .. -51 at x 37 .. 72
+# Furnaces at x 66 with rows -48 / -40 / -32 and the coal drill at (49,-52) give
+# 4/4 copper on every ore drill, 4/4 coal on the coal drill, and zero overlap
+# with the existing burner bank or natural obstacles.
+#
+# Re-read the patches before moving these: a drill off the ore mines nothing and
+# the plan still reports CREATE success.
+
+factorioform {
+  version = 1
+  name    = "copper-smelter-self"
+}
+
+variable "origin" {
+  type        = object({ x = number, y = number })
+  default     = { x = 70, y = -44 }
+  description = "Centre of the first line's furnace; integer, on the copper patch."
+}
+
+variable "lines" {
+  type    = number
+  default = 3
+}
+
+variable "coal_drill" {
+  type        = object({ x = number, y = number })
+  default     = { x = 61, y = -56 }
+  description = "Coal drill centre; integer, on the coal patch."
+}
+
+module "copper" {
+  source     = "../modules/smelter_bank_self"
+  origin     = var.origin
+  lines      = var.lines
+  coal_drill = var.coal_drill
+}

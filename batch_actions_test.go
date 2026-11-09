@@ -164,7 +164,7 @@ func TestBatchActionValidation(t *testing.T) {
 		{"fuel bad actor", func() error {
 			_, err := fuelMany(r, FuelManyInput{Actor: &ActorInput{}, Targets: batchRefs("5"), Item: "coal", CountPerTarget: 1})
 			return err
-		}, "exactly one of player or character"},
+		}, "connect RCON"},
 		{"transfer fraction", func() error {
 			_, err := transferMany(r, TransferManyInput{Actor: actor, Targets: batchRefs("5"), Inventory: InventoryKindChest, Direction: TransferDirectionToEntity, Item: "iron-plate", CountPerTarget: 1.5})
 			return err

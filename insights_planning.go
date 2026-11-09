@@ -170,9 +170,13 @@ type planningQuantity struct {
 }
 
 type planningRecipe struct {
-	Name        string             `json:"name"`
-	Ingredients []planningQuantity `json:"bomIngredients"`
-	Products    []planningQuantity `json:"bomProducts"`
+	Name string `json:"name"`
+	// luaList, not []planningQuantity: the catalogue Lua builds these with
+	// #list+1 appends, so a recipe with no ingredients encodes as {} and a bare
+	// slice fails to unmarshal (recipes with no inputs, e.g. barrel-filling
+	// empties, are real).
+	Ingredients luaList[planningQuantity] `json:"bomIngredients"`
+	Products    luaList[planningQuantity] `json:"bomProducts"`
 }
 
 type planningStock struct {
@@ -182,24 +186,24 @@ type planningStock struct {
 }
 
 type planningSnapshot struct {
-	Tick                     float64                `json:"tick"`
-	Force                    string                 `json:"force"`
-	Surface                  string                 `json:"surface"`
-	Recipes                  []planningRecipe       `json:"bomRecipes"`
-	LockedRecipes            []planningLockedRecipe `json:"bomLockedRecipes"`
-	Stock                    []planningStock        `json:"bomStock"`
-	Mined                    []planningRef          `json:"bomMined"`
-	Gathered                 []planningRef          `json:"bomGathered"`
-	StockTruncated           bool                   `json:"stockTruncated"`
-	RecipeCatalogueTruncated bool                   `json:"recipeCatalogueTruncated"`
+	Tick                     float64                       `json:"tick"`
+	Force                    string                        `json:"force"`
+	Surface                  string                        `json:"surface"`
+	Recipes                  luaList[planningRecipe]       `json:"bomRecipes"`
+	LockedRecipes            luaList[planningLockedRecipe] `json:"bomLockedRecipes"`
+	Stock                    luaList[planningStock]        `json:"bomStock"`
+	Mined                    luaList[planningRef]          `json:"bomMined"`
+	Gathered                 luaList[planningRef]          `json:"bomGathered"`
+	StockTruncated           bool                          `json:"stockTruncated"`
+	RecipeCatalogueTruncated bool                          `json:"recipeCatalogueTruncated"`
 }
 
 // planningLockedRecipe is a force recipe that exists but is not researched. Only
 // its outputs matter: they let the planner distinguish a research gate from a
 // missing recipe without offering the locked recipe as a plan step.
 type planningLockedRecipe struct {
-	Name     string             `json:"name"`
-	Products []planningQuantity `json:"bomProducts"`
+	Name     string                    `json:"name"`
+	Products luaList[planningQuantity] `json:"bomProducts"`
 }
 
 type planningMaterial struct {

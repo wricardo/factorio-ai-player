@@ -4,7 +4,7 @@ scalar UnitNumber
 """Finite floating-point value. NaN and infinities fail GraphQL coercion."""
 scalar FiniteFloat
 
-"""Select exactly one nonempty player name or character unit number."""
+"""Select exactly one nonempty player name or character unit number. A present-but-empty actor defaults to the first connected player, so required-actor mutations can omit the actor body; an omitted actor stays an error on required-actor mutations and selects no actor on optional-actor ones."""
 input ActorInput {
   player: String
   character: UnitNumber
